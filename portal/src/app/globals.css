@@ -5,6 +5,14 @@
 @layer base {
   :root {
     --radius: 0.5rem;
+
+    /* ── Marketing dark-theme CSS variables ──────────────────────────────
+       Used by glass-panel / text-shimmer utilities and inline styles.
+       Tailwind color utilities are defined in tailwind.config.ts directly. */
+    --color-mirror:     oklch(0.85 0.16 210);
+    --color-foreground: oklch(0.985 0 0);
+    --color-background: oklch(0.13 0.005 285);
+    --color-warn:       oklch(0.78 0.16 60);
   }
 }
 
@@ -27,4 +35,25 @@
   .badge-active   { @apply inline-flex items-center rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700; }
   .badge-expired  { @apply inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700; }
   .badge-pending  { @apply inline-flex items-center rounded-full bg-yellow-50 px-2.5 py-0.5 text-xs font-medium text-yellow-700; }
+}
+
+@layer utilities {
+  /* ── Marketing site utilities ──────────────────────────────────────── */
+  .glass-panel {
+    background: color-mix(in oklab, var(--color-foreground) 3%, transparent);
+    backdrop-filter: blur(12px);
+    border: 1px solid color-mix(in oklab, var(--color-foreground) 8%, transparent);
+  }
+  .text-shimmer {
+    background: linear-gradient(90deg, var(--color-foreground), var(--color-mirror), var(--color-foreground));
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 4s linear infinite;
+  }
+  @keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position:  200% 0; }
+  }
 }
