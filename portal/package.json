@@ -18,7 +18,7 @@
     "stripe": "^16.0.0",
     "@stripe/stripe-js": "^4.0.0",
     "js-yaml": "^4.1.0",
-    "wireguard-tools": "^0.1.1",
+    "wireguard-tools": "^0.1.0",
     "qrcode": "^1.5.4",
     "lucide-react": "^0.400.0",
     "class-variance-authority": "^0.7.0",
