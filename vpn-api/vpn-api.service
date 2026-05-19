@@ -1,0 +1,24 @@
+[Unit]
+Description=Enterprise VPN Management API
+After=network.target wg-quick@wg0.service
+Requires=wg-quick@wg0.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/enterprise-vpn/vpn-api
+ExecStart=/usr/bin/python3 -m uvicorn main:app \
+    --host 127.0.0.1 \
+    --port 8443 \
+    --ssl-keyfile /etc/letsencrypt/live/vpn.yourcompany.com/privkey.pem \
+    --ssl-certfile /etc/letsencrypt/live/vpn.yourcompany.com/fullchain.pem \
+    --no-access-log
+
+EnvironmentFile=/opt/enterprise-vpn/vpn-api/.env
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

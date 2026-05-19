@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5
+           text-sm font-medium text-white shadow-sm transition-colors
+           hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-brand-500 disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300
+           bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors
+           hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-brand-500 disabled:pointer-events-none disabled:opacity-50;
+  }
+  .card {
+    @apply rounded-xl border border-gray-200 bg-white p-6 shadow-sm;
+  }
+  .badge-active   { @apply inline-flex items-center rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700; }
+  .badge-expired  { @apply inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700; }
+  .badge-pending  { @apply inline-flex items-center rounded-full bg-yellow-50 px-2.5 py-0.5 text-xs font-medium text-yellow-700; }
+}
