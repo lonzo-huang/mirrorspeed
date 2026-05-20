@@ -127,9 +127,9 @@ apt-get update && apt-get upgrade -y
 apt-get install -y curl wget git dnsutils python3 python3-pip
 
 # 上传项目 vpn/ 目录到服务器
-scp -r vpn/ root@<SERVER_IP>:/opt/enterprise-vpn/
+scp -r vpn/ root@<SERVER_IP>:/opt/mirrorspeed/
 # 或直接 git clone
-# git clone <仓库地址> /tmp/repo && cp -r /tmp/repo/vpn /opt/enterprise-vpn
+# git clone <仓库地址> /tmp/repo && cp -r /tmp/repo/vpn /opt/mirrorspeed
 ```
 
 ### 3.2 确认域名 DNS 已生效
@@ -144,7 +144,7 @@ dig +short hk01.vpn.example.com A
 ### 3.3 执行一键安装
 
 ```bash
-cd /opt/enterprise-vpn
+cd /opt/mirrorspeed
 chmod +x *.sh
 
 DOMAIN="hk01.vpn.example.com" \
@@ -186,13 +186,13 @@ pip3 install fastapi "uvicorn[standard]" python-dotenv psutil
 ### 4.2 上传 vpn-api 目录
 
 ```bash
-scp -r vpn-api/ root@<SERVER_IP>:/opt/enterprise-vpn/vpn-api/
+scp -r vpn-api/ root@<SERVER_IP>:/opt/mirrorspeed/vpn-api/
 ```
 
 ### 4.3 配置环境变量
 
 ```bash
-cd /opt/enterprise-vpn/vpn-api
+cd /opt/mirrorspeed/vpn-api
 cp .env.example .env
 nano .env
 ```
@@ -208,9 +208,9 @@ VPN_API_SECRET=your-long-random-secret-key-min-32-chars
 ```bash
 # 修改 vpn-api.service 中的域名为本服务器的实际域名
 sed -i 's/vpn.yourcompany.com/hk01.vpn.example.com/g' \
-    /opt/enterprise-vpn/vpn-api/vpn-api.service
+    /opt/mirrorspeed/vpn-api/vpn-api.service
 
-cp /opt/enterprise-vpn/vpn-api/vpn-api.service /etc/systemd/system/
+cp /opt/mirrorspeed/vpn-api/vpn-api.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now vpn-api
 ```

@@ -6,7 +6,7 @@ Requires=wg-quick@wg0.service
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/enterprise-vpn/vpn-api
+WorkingDirectory=/opt/mirrorspeed/vpn-api
 ExecStart=/usr/bin/python3 -m uvicorn main:app \
     --host 127.0.0.1 \
     --port 8443 \
@@ -14,7 +14,7 @@ ExecStart=/usr/bin/python3 -m uvicorn main:app \
     --ssl-certfile /etc/letsencrypt/live/vpn.yourcompany.com/fullchain.pem \
     --no-access-log
 
-EnvironmentFile=/opt/enterprise-vpn/vpn-api/.env
+EnvironmentFile=/opt/mirrorspeed/vpn-api/.env
 Restart=always
 RestartSec=5
 StandardOutput=journal

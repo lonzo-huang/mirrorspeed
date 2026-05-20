@@ -43,7 +43,7 @@ def verify_api_key(key: str = Security(api_key_header)) -> str:
     return key
 
 # ── 常量 ─────────────────────────────────────────────────────────────────
-PEER_MANAGER = Path("/opt/enterprise-vpn/06-peer-manager.sh")
+PEER_MANAGER = Path("/opt/mirrorspeed/06-peer-manager.sh")
 WG_DIR       = Path("/etc/wireguard")
 WG_IFACE     = os.getenv("WG_INTERFACE", "wg0")
 PEERS_DIR    = WG_DIR / "peers"

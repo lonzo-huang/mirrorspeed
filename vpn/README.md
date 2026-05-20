@@ -94,10 +94,10 @@ apt-get install -y curl wget git dnsutils python3
 
 ```bash
 # 本地执行（将 <SERVER_IP> 替换为实际 IP）
-scp -r vpn/ root@<SERVER_IP>:/opt/enterprise-vpn/
+scp -r vpn/ root@<SERVER_IP>:/opt/mirrorspeed/
 
 # 或在服务器上直接克隆仓库
-git clone <仓库地址> /opt/enterprise-vpn
+git clone <仓库地址> /opt/mirrorspeed
 ```
 
 ---
@@ -109,7 +109,7 @@ git clone <仓库地址> /opt/enterprise-vpn
 **在执行安装前，必须修改以下两个变量：**
 
 ```bash
-cd /opt/enterprise-vpn
+cd /opt/mirrorspeed
 
 # 打开 install.sh，修改顶部配置变量
 nano install.sh
@@ -134,7 +134,7 @@ export FIRST_CLIENT="alice"
 ### 3.2 执行一键安装
 
 ```bash
-cd /opt/enterprise-vpn
+cd /opt/mirrorspeed
 chmod +x *.sh
 
 # 方式一：使用已修改的 install.sh
@@ -199,10 +199,10 @@ bash 06-peer-manager.sh add alice  # 添加首个客户端
 
 ```bash
 # 添加新员工 bob
-bash /opt/enterprise-vpn/06-peer-manager.sh add bob
+bash /opt/mirrorspeed/06-peer-manager.sh add bob
 
 # 查看 bob 的配置内容
-bash /opt/enterprise-vpn/06-peer-manager.sh config bob
+bash /opt/mirrorspeed/06-peer-manager.sh config bob
 
 # 配置文件保存路径
 cat /etc/wireguard/peers/bob.conf
@@ -327,7 +327,7 @@ sudo systemctl restart systemd-resolved
 在服务器上生成二维码：
 
 ```bash
-bash /opt/enterprise-vpn/06-peer-manager.sh qrcode bob
+bash /opt/mirrorspeed/06-peer-manager.sh qrcode bob
 ```
 
 终端会显示 ASCII 二维码，用手机 WireGuard App 扫描即可一键导入。
@@ -382,7 +382,7 @@ Start-Process wstunnel.exe -ArgumentList `
 ### 5.1 员工账号管理
 
 ```bash
-cd /opt/enterprise-vpn
+cd /opt/mirrorspeed
 
 # 添加新员工（自动分配 VPN IP，生成密钥对和预共享密钥）
 bash 06-peer-manager.sh add alice
@@ -626,7 +626,7 @@ tar -czf wireguard-keys-backup-$(date +%F).tar.gz /etc/wireguard/key-backup/
 1. 立即撤销 VPN 接入（热生效，无需重启）：
 
    ```bash
-   bash /opt/enterprise-vpn/06-peer-manager.sh remove <用户名>
+   bash /opt/mirrorspeed/06-peer-manager.sh remove <用户名>
    ```
 
 2. 确认 Peer 已从运行时移除：
@@ -667,7 +667,7 @@ apt-get upgrade -y
 ## 附录：文件结构速查
 
 ```
-/opt/enterprise-vpn/
+/opt/mirrorspeed/
 ├── install.sh                  # 一键安装主控脚本
 ├── 01-system-tune.sh           # 内核调优（BBR、IP转发、缓冲区）
 ├── 02-nginx-setup.sh           # Nginx TLS + 证书 + 路径路由
