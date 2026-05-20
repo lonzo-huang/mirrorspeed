@@ -8,7 +8,7 @@ set -euo pipefail
 
 WG_DIR="/etc/wireguard"
 WG_IFACE="wg0"
-WG_PORT=51820
+WG_PORT=39666
 WG_SUBNET="10.200.0.0/24"
 WG_SERVER_IP="10.200.0.1"
 

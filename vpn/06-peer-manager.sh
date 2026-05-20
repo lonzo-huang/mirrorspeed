@@ -15,7 +15,7 @@ WG_IFACE="wg0"
 WG_CONF="${WG_DIR}/${WG_IFACE}.conf"
 PEERS_DIR="${WG_DIR}/peers"
 SERVER_PUBLIC=$(cat "${WG_DIR}/server-public.key")
-SERVER_PORT=51820
+SERVER_PORT=39666
 
 # 从服务端配置读取服务器 Address（用于确定子网）
 SERVER_SUBNET=$(grep '^Address' "${WG_CONF}" | awk '{print $3}' | cut -d'/' -f1 | awk -F. '{print $1"."$2"."$3}')
@@ -202,12 +202,12 @@ AllowedIPs = 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 10.200.0.0/24
 PersistentKeepalive = 25
 
 # ── TLS 包装模式说明（UDP 受限网络使用）────────────────────────────────
-# 若直连 UDP 51820 被封锁，改用 wstunnel 包装：
+# 若直连 UDP 39666 被封锁，改用 wstunnel 包装：
 # 1. 在客户端运行：
 #    wstunnel client \\
-#        -L "udp://127.0.0.1:51820:127.0.0.1:51820?timeout_sec=0" \\
+#        -L "udp://127.0.0.1:39666:127.0.0.1:39666?timeout_sec=0" \\
 #        wss://${DOMAIN}/secure-tunnel/
-# 2. 将上方 Endpoint 改为：127.0.0.1:51820
+# 2. 将上方 Endpoint 改为：127.0.0.1:39666
 CLIENTEOF
 
     # 同时写入文件

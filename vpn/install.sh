@@ -142,7 +142,7 @@ check "nftables 规则已加载"     nft list ruleset
 check "sysctl ip_forward=1"    bash -c '[[ $(sysctl -n net.ipv4.ip_forward) -eq 1 ]]'
 check "BBR 拥塞控制已启用"      bash -c '[[ $(sysctl -n net.ipv4.tcp_congestion_control) == "bbr" ]]'
 check "wstunnel 端口 2080 监听" ss -ulnp
-check "WG UDP 51820 端口监听"   bash -c 'ss -ulnp | grep -q 51820'
+check "WG UDP 39666 端口监听"   bash -c 'ss -ulnp | grep -q 39666'
 check "443 TLS 证书可访问"      bash -c "curl -fsSk --max-time 5 https://${DOMAIN}/ -o /dev/null"
 [[ -n "${VPN_API_SECRET}" ]] && \
     check "vpn-api 服务运行"    systemctl is-active vpn-api
@@ -165,7 +165,7 @@ cat << SUMMARY
 
   开放端口:
     TCP 443   — Nginx HTTPS（伪装站 + WS隧道入口）
-    UDP 51820 — WireGuard 直连
+    UDP 39666 — WireGuard 直连
 
   各层服务:
     Nginx     $(systemctl is-active nginx)

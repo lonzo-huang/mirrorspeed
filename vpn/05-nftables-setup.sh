@@ -32,7 +32,7 @@ table inet enterprise-fw {
         flags dynamic
     }
 
-    set udp51820_connlimit {
+    set udp39666_connlimit {
         type ipv4_addr
         flags dynamic
     }
@@ -62,11 +62,11 @@ table inet enterprise-fw {
             add @tcp443_connlimit { ip saddr ct count over 100 } drop
         tcp dport 443 ct state new accept
 
-        # ── WireGuard UDP 51820 ───────────────────────────────────────────
+        # ── WireGuard UDP 39666 ───────────────────────────────────────────
         # per-IP 最多 10 并发 session（单用户正常用量）
-        udp dport 51820 \
-            add @udp51820_connlimit { ip saddr ct count over 10 } drop
-        udp dport 51820 accept
+        udp dport 39666 \
+            add @udp39666_connlimit { ip saddr ct count over 10 } drop
+        udp dport 39666 accept
 
         # 其余全部丢弃（policy drop 已覆盖，此行为明确意图）
         drop
@@ -112,7 +112,7 @@ systemctl restart nftables
 
 echo ""
 echo "nftables 防火墙策略已部署（持久化至 /etc/nftables.conf）："
-echo "  入站放行端口: TCP 22 (SSH 限速), TCP 443 (HTTPS), UDP 51820 (WireGuard)"
+echo "  入站放行端口: TCP 22 (SSH 限速), TCP 443 (HTTPS), UDP 39666 (WireGuard)"
 echo "  WireGuard 子网: 10.200.0.0/24 NAT 出站通过 ${WAN_IF}"
-echo "  per-IP 并发: 443 ≤ 100连接，51820 ≤ 10连接"
+echo "  per-IP 并发: 443 ≤ 100连接，39666 ≤ 10连接"
 echo "  其余入站: 全部丢弃"

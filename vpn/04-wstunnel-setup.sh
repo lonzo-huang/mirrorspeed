@@ -5,13 +5,13 @@
 # 但 2080 端口从未有服务监听。wstunnel 填补这个缺口。
 #
 # 数据流：
-#   客户端 WireGuard UDP → wstunnel client → WSS 443 → Nginx → wstunnel server:2080 → WireGuard server UDP 51820
+#   客户端 WireGuard UDP → wstunnel client → WSS 443 → Nginx → wstunnel server:2080 → WireGuard server UDP 39666
 set -euo pipefail
 
 [[ $EUID -ne 0 ]] && { echo "ERROR: 必须以 root 执行"; exit 1; }
 
 WSTUNNEL_PORT=2080         # Nginx 反向代理目标端口（仅 127.0.0.1 监听）
-WG_PORT=51820              # WireGuard 实际 UDP 端口
+WG_PORT=39666              # WireGuard 实际 UDP 端口
 INSTALL_DIR="/usr/local/bin"
 WSTUNNEL_BIN="${INSTALL_DIR}/wstunnel"
 
@@ -102,15 +102,15 @@ cat > /etc/wireguard/client-wstunnel-guide.txt << GUIDEOF
 1. 下载 wstunnel 客户端二进制（同版本 ${LATEST_TAG}）：
    https://github.com/erebe/wstunnel/releases/tag/${LATEST_TAG}
 
-2. 在客户端本地运行 wstunnel（将本地 UDP 51820 转发至服务器）：
+2. 在客户端本地运行 wstunnel（将本地 UDP 39666 转发至服务器）：
    wstunnel client \\
        --connection-retry-max-backoff-sec 10 \\
-       -L "udp://127.0.0.1:51820:127.0.0.1:${WG_PORT}?timeout_sec=0" \\
+       -L "udp://127.0.0.1:39666:127.0.0.1:${WG_PORT}?timeout_sec=0" \\
        wss://${DOMAIN}/secure-tunnel/
 
 3. 修改客户端 WireGuard 配置（将 Endpoint 指向本地 wstunnel）：
    [Peer]
-   Endpoint = 127.0.0.1:51820   ← 改为 wstunnel 本地监听地址
+   Endpoint = 127.0.0.1:39666   ← 改为 wstunnel 本地监听地址
    ...（其余配置不变）
 
 4. 启动 WireGuard：
