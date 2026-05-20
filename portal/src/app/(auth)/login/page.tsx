@@ -18,7 +18,7 @@ function LoginForm() {
   const [magicSent, setMagicSent] = useState(false)
   const supabase = createClient()
 
-  const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback?next=${encodeURIComponent(next)}`
+  const redirectTo = `${typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback?next=${encodeURIComponent(next)}`
 
   async function signInWithGoogle() {
     setLoading('google')
