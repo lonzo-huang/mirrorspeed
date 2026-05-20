@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOMAIN="${DOMAIN:-remote.yourcompany.com}"     # 已解析到本服务器的域名
 EMAIL="${EMAIL:-it-admin@yourcompany.com}"     # Let's Encrypt 通知邮箱
 FIRST_CLIENT="${FIRST_CLIENT:-employee1}"      # 初始客户端名称
+VPN_API_SECRET="${VPN_API_SECRET:-}"           # vpn-api 鉴权密钥（所有服务器共用）
 
 # ── 颜色输出 ─────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -83,6 +84,7 @@ for s in "${SCRIPTS[@]}"; do
     chmod +x "${SCRIPT_DIR}/${s}"
 done
 chmod +x "${SCRIPT_DIR}/06-peer-manager.sh"
+[[ -f "${SCRIPT_DIR}/07-vpnapi-setup.sh" ]] && chmod +x "${SCRIPT_DIR}/07-vpnapi-setup.sh"
 
 # ── 开始逐步部署 ──────────────────────────────────────────────────────────
 
@@ -104,6 +106,19 @@ bash "${SCRIPT_DIR}/05-nftables-setup.sh"
 section "第 6 步：创建初始客户端 Peer"
 bash "${SCRIPT_DIR}/06-peer-manager.sh" add "${FIRST_CLIENT}"
 bash "${SCRIPT_DIR}/06-peer-manager.sh" config "${FIRST_CLIENT}"
+
+section "第 7 步：vpn-api 管理接口"
+if [[ -f "${SCRIPT_DIR}/07-vpnapi-setup.sh" ]]; then
+    if [[ -n "${VPN_API_SECRET}" ]]; then
+        VPN_API_SECRET="${VPN_API_SECRET}" bash "${SCRIPT_DIR}/07-vpnapi-setup.sh"
+    else
+        warn "VPN_API_SECRET 未设置，跳过 vpn-api 部署"
+        warn "如需 Portal 远程管理，请手动执行:"
+        warn "  VPN_API_SECRET=<密钥> bash ${SCRIPT_DIR}/07-vpnapi-setup.sh"
+    fi
+else
+    warn "07-vpnapi-setup.sh 不存在，跳过 vpn-api 部署"
+fi
 
 # ── 部署验证 ──────────────────────────────────────────────────────────────
 section "部署验证"
@@ -129,6 +144,8 @@ check "BBR 拥塞控制已启用"      bash -c '[[ $(sysctl -n net.ipv4.tcp_cong
 check "wstunnel 端口 2080 监听" ss -ulnp
 check "WG UDP 51820 端口监听"   bash -c 'ss -ulnp | grep -q 51820'
 check "443 TLS 证书可访问"      bash -c "curl -fsSk --max-time 5 https://${DOMAIN}/ -o /dev/null"
+[[ -n "${VPN_API_SECRET}" ]] && \
+    check "vpn-api 服务运行"    systemctl is-active vpn-api
 
 # ── 最终汇总 ──────────────────────────────────────────────────────────────
 section "部署汇总"

@@ -15,6 +15,9 @@
 5. [日常运维操作](#5-日常运维操作)
 6. [故障排查](#6-故障排查)
 7. [安全维护](#7-安全维护)
+8. [vpn-api 管理接口部署](#8-vpn-api-管理接口部署)
+9. [Portal 后端配置](#9-portal-后端配置)
+10. [添加更多服务器（快速流程）](#10-添加更多服务器快速流程)
 
 ---
 
@@ -664,33 +667,203 @@ apt-get upgrade -y
 
 ---
 
+## 8. vpn-api 管理接口部署
+
+vpn-api 是部署在每台 VPN 服务器上的 FastAPI 服务，供 Next.js Portal 远程管理 Peer（添加/删除设备、查询状态）。
+
+### 8.1 上传文件
+
+在本机执行，将 vpn-api 目录上传到服务器（**注意：上传到 vpn 脚本目录下的 vpn-api 子目录**）：
+
+```bash
+# 上传 vpn-api 源码（从本机执行）
+scp -r vpn-api/ root@<SERVER_IP>:/opt/mirrorspeed/vpn-api/
+```
+
+### 8.2 运行部署脚本
+
+```bash
+# 在服务器上执行（VPN_API_SECRET 所有服务器共用同一个值，从 Vercel 环境变量获取）
+sudo VPN_API_SECRET=<密钥> bash /opt/mirrorspeed/07-vpnapi-setup.sh
+```
+
+脚本自动完成：Python venv 创建、依赖安装、systemd 服务注册、Nginx `/vpn-api/` 反代配置。
+
+### 8.3 验证
+
+```bash
+# 本地健康检查
+curl http://127.0.0.1:8443/health
+
+# 公网健康检查（无需 API Key）
+curl https://<DOMAIN>/vpn-api/health
+
+# 带鉴权的状态查询
+curl -H "X-API-Secret: <VPN_API_SECRET>" https://<DOMAIN>/vpn-api/stats
+```
+
+### 8.4 一键安装时同步部署
+
+在运行 `install.sh` 时传入 `VPN_API_SECRET`，第 7 步会自动部署 vpn-api：
+
+```bash
+DOMAIN="vpn.example.com" EMAIL="admin@example.com" \
+VPN_API_SECRET="<密钥>" bash install.sh
+```
+
+---
+
+## 9. Portal 后端配置
+
+Portal（Next.js）通过 Supabase 存储服务器列表，通过 Vercel Cron 每分钟同步服务器状态。
+
+### 9.1 Supabase 数据库迁移
+
+在 [Supabase Dashboard](https://supabase.com) → SQL Editor 依次执行：
+
+```
+portal/supabase/migrations/001_schema.sql   # 基础表结构
+portal/supabase/migrations/002_rls.sql      # 行级安全策略
+portal/supabase/migrations/003_servers.sql  # 多服务器支持
+```
+
+### 9.2 Vercel 环境变量
+
+| 变量名 | 说明 | 生成方式 |
+|--------|------|----------|
+| `VPN_API_SECRET` | VPN 服务器 API 鉴权密钥（所有节点共用） | `openssl rand -hex 32` |
+| `APP_ENCRYPTION_SECRET` | 加密存储在 DB 中的 WireGuard 私钥 | `openssl rand -hex 32` |
+| `CRON_SECRET` | Vercel Cron Job 鉴权 | `openssl rand -hex 16` |
+
+使用 Vercel CLI 批量设置（在本机项目根目录执行）：
+
+```bash
+echo "<VPN_API_SECRET值>"    | vercel env add VPN_API_SECRET    production
+echo "<APP_SECRET值>"        | vercel env add APP_ENCRYPTION_SECRET production
+echo "<CRON_SECRET值>"       | vercel env add CRON_SECRET        production
+
+# 修改后必须重新部署
+vercel deploy --prod
+```
+
+### 9.3 注册服务器到 Supabase
+
+在 Supabase SQL Editor 执行（替换为真实值）：
+
+```sql
+INSERT INTO public.vpn_servers (
+  name, display_name, location, country_code, flag_emoji,
+  endpoint, port, public_key, api_url, sort_order
+) VALUES (
+  'ES01', '西班牙 01', 'Spain', 'ES', '🇪🇸',
+  'spain01.yourdomain.com', 51820,
+  '<WireGuard服务端公钥>',
+  'https://spain01.yourdomain.com/vpn-api',
+  1
+);
+```
+
+---
+
+## 10. 添加更多服务器（快速流程）
+
+准备好新 VPS 后，完整流程约 10 分钟：
+
+### 第一步：服务器端部署（在新 VPS 上执行）
+
+```bash
+# 1. 上传脚本（在本机执行）
+scp -r vpn/ root@<NEW_SERVER_IP>:/opt/mirrorspeed/
+scp -r vpn-api/ root@<NEW_SERVER_IP>:/opt/mirrorspeed/vpn-api/
+
+# 2. SSH 到新服务器，一键部署
+ssh root@<NEW_SERVER_IP>
+
+DOMAIN="jp01.yourdomain.com" \
+EMAIL="admin@yourdomain.com" \
+VPN_API_SECRET="<与其他服务器相同的密钥>" \
+bash /opt/mirrorspeed/install.sh
+```
+
+安装完成后，记录脚本末尾输出的 **WireGuard 服务端公钥**。
+
+### 第二步：注册到 Portal（在本机执行）
+
+使用 `scripts/register-server.sh` 脚本一键完成 Supabase 注册 + Vercel 重部署：
+
+```bash
+bash scripts/register-server.sh \
+  --name     JP01 \
+  --display  "日本 01" \
+  --location "Tokyo" \
+  --country  JP \
+  --emoji    "🇯🇵" \
+  --endpoint jp01.yourdomain.com \
+  --pubkey   "<WireGuard公钥>" \
+  --sort     2
+```
+
+脚本自动完成：
+- 连接健康检查（确认 vpn-api 可达）
+- 插入 Supabase `vpn_servers` 表
+- 触发 Vercel 重新部署
+- 调用 cron 验证状态同步
+
+### 第三步：验证
+
+```bash
+# 查看所有服务器状态
+curl https://mirrorspeed.mirrorquant.com/api/servers | python3 -m json.tool
+
+# 触发状态同步（等约 1 分钟也会自动同步）
+curl https://mirrorspeed.mirrorquant.com/api/cron/sync-servers \
+  -H "Authorization: Bearer <CRON_SECRET>"
+```
+
+---
+
 ## 附录：文件结构速查
 
 ```
-/opt/mirrorspeed/
-├── install.sh                  # 一键安装主控脚本
-├── 01-system-tune.sh           # 内核调优（BBR、IP转发、缓冲区）
-├── 02-nginx-setup.sh           # Nginx TLS + 证书 + 路径路由
-├── 03-wireguard-setup.sh       # WireGuard 服务端 + 密钥轮换
-├── 04-wstunnel-setup.sh        # wstunnel WebSocket 封装层
-├── 05-nftables-setup.sh        # 防火墙规则（持久化）
-└── 06-peer-manager.sh          # 客户端 Peer 管理
+项目根目录/
+├── scripts/
+│   └── register-server.sh      # 本机执行：注册新服务器到 Portal
+├── vpn/
+│   ├── install.sh              # 一键安装主控脚本（服务器上执行）
+│   ├── 01-system-tune.sh       # 内核调优（BBR、IP转发、缓冲区）
+│   ├── 02-nginx-setup.sh       # Nginx TLS + 证书 + 路径路由
+│   ├── 03-wireguard-setup.sh   # WireGuard 服务端 + 密钥轮换
+│   ├── 04-wstunnel-setup.sh    # wstunnel WebSocket 封装层
+│   ├── 05-nftables-setup.sh    # 防火墙规则（持久化）
+│   ├── 06-peer-manager.sh      # 客户端 Peer 管理
+│   └── 07-vpnapi-setup.sh      # vpn-api FastAPI 管理接口部署
+├── vpn-api/
+│   └── main.py                 # FastAPI 服务（部署到每台 VPN 服务器）
+└── portal/
+    ├── supabase/migrations/    # 数据库迁移 SQL 文件
+    └── src/                    # Next.js Portal 源码
+
+/opt/mirrorspeed/               # 服务器上的部署目录
+├── install.sh + 0x-*.sh        # 安装脚本
+├── vpn-api/
+│   ├── main.py                 # FastAPI 源码
+│   ├── venv/                   # Python 虚拟环境
+│   └── .env                    # VPN_API_SECRET（chmod 600）
+└── 06-peer-manager.sh          # 随时可调用的 Peer 管理工具
 
 /etc/wireguard/
 ├── wg0.conf                    # WireGuard 服务端配置（含所有 Peer）
 ├── server-private.key          # 服务端私钥（chmod 600，勿外传）
 ├── server-public.key           # 服务端公钥
 ├── .wan-interface              # 检测到的 WAN 网卡名
-├── client-wstunnel-guide.txt   # wstunnel 客户端使用说明
 ├── peers/                      # 客户端配置目录
-│   ├── alice.conf              # alice 的完整客户端配置
-│   ├── alice.meta              # alice 的元数据（IP、公钥、创建时间）
-│   ├── alice.private           # alice 的私钥（仅服务端存留，用于导出配置）
-│   └── alice.psk               # alice 的预共享密钥
+│   ├── alice.conf              # 完整客户端配置（可直接导入）
+│   ├── alice.meta              # 元数据（IP、公钥、创建时间）
+│   ├── alice.private           # 私钥（仅服务端存留）
+│   └── alice.psk               # 预共享密钥
 └── key-backup/                 # 密钥轮换历史备份
-    └── 2026-05-01_030000/
 ```
 
 ---
 
-*如遇问题请检查 `journalctl -u wg-quick@wg0` 和 `journalctl -u nginx` 日志，或联系 IT 管理员。*
+*如遇问题请检查 `journalctl -u wg-quick@wg0`、`journalctl -u nginx`、`journalctl -u vpn-api` 日志，或联系 IT 管理员。*
