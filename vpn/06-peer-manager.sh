@@ -21,8 +21,8 @@ SERVER_PORT=51820
 SERVER_SUBNET=$(grep '^Address' "${WG_CONF}" | awk '{print $3}' | cut -d'/' -f1 | awk -F. '{print $1"."$2"."$3}')
 # e.g. 10.200.0
 
-DOMAIN=$(grep -oP '(?<=server_name )[\w.-]+' /etc/nginx/sites-available/enterprise-vpn 2>/dev/null \
-    || echo "remote.yourcompany.com")
+DOMAIN=$(grep -oP '(?<=server_name )[\w.-]+' /etc/nginx/sites-available/enterprise-vpn 2>/dev/null | head -1)
+DOMAIN="${DOMAIN:-remote.yourcompany.com}"
 
 mkdir -p "${PEERS_DIR}"
 chmod 700 "${PEERS_DIR}"
