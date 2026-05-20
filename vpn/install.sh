@@ -29,6 +29,12 @@ info "操作系统: ${OS_ID} ${OS_VER}"
 [[ "${OS_ID}" == "ubuntu" || "${OS_ID}" == "debian" ]] || \
     { err "仅支持 Ubuntu / Debian，当前: ${OS_ID}"; exit 1; }
 
+# 清理 cdrom apt 源（IONOS / OVH 等供应商镜像常见遗留条目，会导致 apt-get update 报错）
+if grep -q '^deb.*cdrom' /etc/apt/sources.list 2>/dev/null; then
+    sed -i '/^deb.*cdrom/d' /etc/apt/sources.list
+    info "已移除 apt sources.list 中的 cdrom 条目"
+fi
+
 # 检查域名格式
 [[ "${DOMAIN}" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$ ]] || \
     { err "DOMAIN 格式不正确: ${DOMAIN}"; exit 1; }
