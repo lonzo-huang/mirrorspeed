@@ -108,7 +108,8 @@ cmd_remove() {
     _peer_exists "${name}" || { echo "ERROR: Peer '${name}' 不存在"; exit 1; }
 
     local pub_key
-    pub_key=$(grep "^client_public=" "${PEERS_DIR}/${name}.meta" | cut -d= -f2)
+    # 用 sed 截取首个 = 之后的所有内容，保留 Base64 末尾的 = padding
+    pub_key=$(grep "^client_public=" "${PEERS_DIR}/${name}.meta" | sed 's/^client_public=//')
 
     echo "[*] 从 wg0.conf 移除 Peer '${name}'..."
     # 删除 wg0.conf 中该 Peer 的注释行及 [Peer] 块（3行固定格式）
@@ -130,7 +131,8 @@ print(f"  已从配置文件移除 Peer: {peer_name}")
 PYEOF
 
     echo "[*] 从运行中接口撤销 Peer..."
-    wg set "${WG_IFACE}" peer "${pub_key}" remove
+    # || true：若 peer 已不在运行时接口中则忽略错误，继续清理文件
+    wg set "${WG_IFACE}" peer "${pub_key}" remove || true
 
     echo "[*] 清理 Peer 文件..."
     rm -f "${PEERS_DIR}/${name}.meta" \
@@ -154,7 +156,7 @@ cmd_list() {
         n=$(grep '^name=' "${meta}"          | cut -d= -f2)
         ip=$(grep '^client_ip=' "${meta}"    | cut -d= -f2)
         added=$(grep '^added=' "${meta}"     | cut -d= -f2)
-        pub=$(grep '^client_public=' "${meta}" | cut -d= -f2)
+        pub=$(grep '^client_public=' "${meta}" | sed 's/^client_public=//')
         printf "%-20s %-15s %-25s %s...\n" "${n}" "${ip}" "${added}" "${pub:0:16}"
     done
 
