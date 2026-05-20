@@ -48,12 +48,8 @@ PrivateKey = ${SERVER_PRIVATE}
 PreUp  = sysctl -w net.ipv4.ip_forward=1
 
 # NAT 转发（修复：WAN 网卡名已展开为实际值，不再硬编码 eth0）
-PostUp   = iptables -A FORWARD -i %i -j ACCEPT; \\
-           iptables -A FORWARD -o %i -j ACCEPT; \\
-           iptables -t nat -A POSTROUTING -o ${WAN_IF} -j MASQUERADE
-PostDown = iptables -D FORWARD -i %i -j ACCEPT; \\
-           iptables -D FORWARD -o %i -j ACCEPT; \\
-           iptables -t nat -D POSTROUTING -o ${WAN_IF} -j MASQUERADE
+PostUp   = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o ${WAN_IF} -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o ${WAN_IF} -j MASQUERADE
 
 # Peer 配置由 06-peer-manager.sh 追加，无需手动编辑
 EOF
