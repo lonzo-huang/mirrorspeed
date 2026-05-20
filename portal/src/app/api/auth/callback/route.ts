@@ -1,8 +1,9 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
 // OAuth / Magic Link 回调处理
-// Supabase 在 OAuth 完成后重定向到 /auth/callback?code=xxx
+// 关键：必须先创建 redirect response，再把 session cookie 写到该 response 上
+// 若使用 cookies() from next/headers + NextResponse.redirect()，cookie 不会附在新 response 上
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code  = searchParams.get('code')
@@ -15,13 +16,31 @@ export async function GET(request: NextRequest) {
   }
 
   if (code) {
-    const supabase = await createServerSupabaseClient()
+    const redirectUrl = next.startsWith('/') ? `${origin}${next}` : `${origin}/dashboard`
+    const response = NextResponse.redirect(redirectUrl)
+
+    // Supabase client 直接把 cookie 写到 response 对象上
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options)
+            })
+          },
+        },
+      }
+    )
+
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!exchangeError) {
-      // 成功：跳转至原目标页或 dashboard
-      const redirectUrl = next.startsWith('/') ? `${origin}${next}` : origin + '/dashboard'
-      return NextResponse.redirect(redirectUrl)
+      return response  // response 已携带 Set-Cookie，浏览器会正确写入 session
     }
 
     console.error('[auth/callback] Session exchange error:', exchangeError)
