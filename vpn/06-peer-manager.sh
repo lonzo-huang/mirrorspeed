@@ -32,7 +32,7 @@ chmod 700 "${PEERS_DIR}"
 # 获取当前已用的最大 IP 末位（从 .meta 文件读取，不依赖 wg show 格式）
 _next_ip() {
     local max_octet=1  # 服务端占用 .1
-    for meta in "${PEERS_DIR}"/*.meta 2>/dev/null; do
+    for meta in "${PEERS_DIR}"/*.meta; do
         [[ -f "${meta}" ]] || continue
         octet=$(grep '^ip_octet=' "${meta}" | cut -d= -f2)
         [[ -n "${octet}" ]] && (( octet > max_octet )) && max_octet=${octet}
@@ -147,7 +147,7 @@ cmd_list() {
     printf "%-20s %-15s %-25s %s\n" "----" "------" "-----" "---"
 
     local found=0
-    for meta in "${PEERS_DIR}"/*.meta 2>/dev/null; do
+    for meta in "${PEERS_DIR}"/*.meta; do
         [[ -f "${meta}" ]] || continue
         found=1
         local n ip added pub

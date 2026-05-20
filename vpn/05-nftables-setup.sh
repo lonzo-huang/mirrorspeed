@@ -30,13 +30,11 @@ table inet enterprise-fw {
     set tcp443_connlimit {
         type ipv4_addr
         flags dynamic
-        elements = { }
     }
 
     set udp51820_connlimit {
         type ipv4_addr
         flags dynamic
-        elements = { }
     }
 
     chain input {
