@@ -14,7 +14,10 @@ TUNNEL_BACKEND="127.0.0.1:2080"   # wstunnel 监听地址
 
 echo "[1/5] 安装 Nginx 与 Certbot..."
 apt-get update -qq
-apt-get install -y nginx certbot python3-certbot-nginx
+apt-get install -y nginx snapd
+# 用 snap 安装最新版 certbot（apt 版本过旧，含已废弃的 OCSP must-staple）
+snap install --classic certbot 2>/dev/null || true
+ln -sf /snap/bin/certbot /usr/bin/certbot 2>/dev/null || true
 
 # 停用默认站点
 rm -f /etc/nginx/sites-enabled/default
@@ -71,9 +74,7 @@ certbot certonly \
     --domain "${DOMAIN}" \
     --email "${EMAIL}" \
     --agree-tos \
-    --non-interactive \
-    --staple-ocsp \
-    --must-staple
+    --non-interactive
 
 # 移除临时 HTTP 配置
 rm -f /etc/nginx/sites-enabled/enterprise-http-temp
