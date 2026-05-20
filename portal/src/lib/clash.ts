@@ -29,7 +29,8 @@ export function generateClashConfig(
     'preshared-key': p.presharedKey,
     mtu:             1420,
     udp:             true,
-    'dns-hijack':    ['8.8.8.8:53', '1.1.1.1:53'],
+    // 全量路由：Clash rules 已经处理 LAN/CN 分流，此处让 WireGuard 接管所有走到该 proxy 的流量
+    'allowed-ips':   ['0.0.0.0/0', '::/0'],
   }))
 
   const proxyNames = peers.map(p => p.serverName)
@@ -89,7 +90,7 @@ export function generateClashConfig(
       'IP-CIDR,172.16.0.0/12,DIRECT,no-resolve',
       'IP-CIDR,10.0.0.0/8,DIRECT,no-resolve',
       // 中国大陆直连
-      'GEOIP,CN,DIRECT',
+      'GEOIP,CN,DIRECT,no-resolve',
       // 其余走 VPN
       'MATCH,🔒 企业VPN',
     ],
