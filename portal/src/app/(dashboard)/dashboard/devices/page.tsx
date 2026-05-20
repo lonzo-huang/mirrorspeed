@@ -2,10 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Monitor, Plus, Trash2, Copy, RefreshCw, Check, Smartphone, Laptop } from 'lucide-react'
+import { Monitor, Plus, Trash2, RefreshCw, Smartphone, Laptop, Wifi } from 'lucide-react'
+import { ConnectDialog } from '@/components/dashboard/connect-dialog'
 import type { Tables } from '@/types/database.types'
 
 type Device = Tables<'vpn_devices'>
+
+interface ServerPeer {
+  server_id:    string
+  display_name: string
+  flag_emoji:   string
+}
 
 const OS_ICONS: Record<string, React.ReactNode> = {
   windows: <Laptop className="h-4 w-4" />,
@@ -16,15 +23,16 @@ const OS_ICONS: Record<string, React.ReactNode> = {
 }
 
 export default function DevicesPage() {
-  const supabase                      = createClient()
-  const [devices,  setDevices]        = useState<Device[]>([])
-  const [loading,  setLoading]        = useState(true)
-  const [adding,   setAdding]         = useState(false)
-  const [hasSub,   setHasSub]         = useState(false)
-  const [newLabel, setNewLabel]       = useState('')
-  const [newOs,    setNewOs]          = useState('windows')
-  const [copied,   setCopied]         = useState<string | null>(null)
-  const [error,    setError]          = useState<string | null>(null)
+  const supabase                            = createClient()
+  const [devices,      setDevices]          = useState<Device[]>([])
+  const [devicePeers,  setDevicePeers]      = useState<Record<string, ServerPeer[]>>({})
+  const [loading,      setLoading]          = useState(true)
+  const [adding,       setAdding]           = useState(false)
+  const [hasSub,       setHasSub]           = useState(false)
+  const [newLabel,     setNewLabel]         = useState('')
+  const [newOs,        setNewOs]            = useState('windows')
+  const [error,        setError]            = useState<string | null>(null)
+  const [connectOpen,  setConnectOpen]      = useState<string | null>(null)
 
   useEffect(() => { loadData() }, [])
 
@@ -33,15 +41,33 @@ export default function DevicesPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const [{ data: devs }, { data: sub }] = await Promise.all([
+    const [{ data: devs }, { data: sub }, { data: peers }] = await Promise.all([
       supabase.from('vpn_devices').select('*').eq('user_id', user.id)
         .eq('is_active', true).order('created_at', { ascending: true }),
       supabase.from('subscriptions').select('id').eq('user_id', user.id)
         .eq('status', 'active').maybeSingle(),
+      supabase.from('vpn_device_peers')
+        .select('device_id, server_id, server:vpn_servers(id, display_name, flag_emoji)')
+        .eq('user_id', user.id)
+        .eq('is_active', true),
     ])
 
     setDevices(devs ?? [])
     setHasSub(!!sub)
+
+    // group peers by device_id
+    const grouped: Record<string, ServerPeer[]> = {}
+    for (const p of (peers as any[]) ?? []) {
+      const srv = p.server
+      if (!srv) continue
+      if (!grouped[p.device_id]) grouped[p.device_id] = []
+      grouped[p.device_id].push({
+        server_id:    srv.id,
+        display_name: srv.display_name,
+        flag_emoji:   srv.flag_emoji ?? '',
+      })
+    }
+    setDevicePeers(grouped)
     setLoading(false)
   }
 
@@ -76,32 +102,20 @@ export default function DevicesPage() {
     if (res.ok) await loadData()
   }
 
-  function subUrl(token: string) {
-    return `${process.env.NEXT_PUBLIC_APP_URL}/api/sub/${token}`
-  }
-
-  async function copySubUrl(token: string) {
-    await navigator.clipboard.writeText(subUrl(token))
-    setCopied(token)
-    setTimeout(() => setCopied(null), 2000)
-  }
-
-  function downloadConfig(device: Device) {
-    window.open(`/api/devices/${device.id}/clash-config`, '_blank')
-  }
-
   if (loading) return (
     <div className="flex items-center justify-center py-20">
       <RefreshCw className="h-6 w-6 text-gray-400 animate-spin" />
     </div>
   )
 
+  const connectDevice = connectOpen ? devices.find(d => d.id === connectOpen) : null
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">我的设备</h1>
         <p className="mt-1 text-sm text-gray-500">
-          每个账号最多添加 2 台设备，每台设备有独立的 Clash 订阅链接。
+          每个账号最多添加 2 台设备，每台设备可通过 Clash 订阅或 WireGuard 接入所有节点。
         </p>
       </div>
 
@@ -116,60 +130,49 @@ export default function DevicesPage() {
       )}
 
       <div className="space-y-4">
-        {devices.map((device, i) => (
-          <div key={device.id} className="card">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-brand-50 p-2.5 text-brand-600">
-                  {OS_ICONS[device.os_hint ?? 'windows'] ?? <Monitor className="h-4 w-4" />}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-gray-900">{device.device_label}</p>
-                    <span className="badge-active">设备 {i + 1}</span>
+        {devices.map((device, i) => {
+          const servers = devicePeers[device.id] ?? []
+          return (
+            <div key={device.id} className="card">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-brand-50 p-2.5 text-brand-600">
+                    {OS_ICONS[device.os_hint ?? 'windows'] ?? <Monitor className="h-4 w-4" />}
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">已连接多节点</p>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-gray-900">{device.device_label}</p>
+                      <span className="badge-active">设备 {i + 1}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {servers.length > 0
+                        ? `已连接 ${servers.length} 个节点 · ${servers.map(s => s.flag_emoji).join(' ')}`
+                        : '正在配置节点…'
+                      }
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setConnectOpen(device.id)}
+                    disabled={servers.length === 0}
+                    className="btn-primary text-sm px-3 py-1.5 flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Wifi className="h-3.5 w-3.5" />
+                    连接
+                  </button>
+                  <button
+                    onClick={() => removeDevice(device.id)}
+                    className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    title="删除设备"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
-              <button
-                onClick={() => removeDevice(device.id)}
-                className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                title="删除设备"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
             </div>
-
-            <div className="mt-4 rounded-lg bg-gray-50 p-3">
-              <p className="text-xs font-medium text-gray-600 mb-2">Clash 订阅链接</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 truncate rounded bg-white border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 font-mono">
-                  {subUrl(device.sub_token)}
-                </code>
-                <button
-                  onClick={() => copySubUrl(device.sub_token)}
-                  className="btn-secondary px-2.5 py-1.5 text-xs shrink-0"
-                  title="复制链接"
-                >
-                  {copied === device.sub_token
-                    ? <Check className="h-3.5 w-3.5 text-green-600" />
-                    : <Copy className="h-3.5 w-3.5" />
-                  }
-                </button>
-                <button
-                  onClick={() => downloadConfig(device)}
-                  className="btn-secondary px-2.5 py-1.5 text-xs shrink-0"
-                  title="下载 Clash 配置文件"
-                >
-                  下载配置
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-gray-400">
-                将订阅链接粘贴到 Clash 的「代理提供者」中，客户端会自动获取并更新配置。
-              </p>
-            </div>
-          </div>
-        ))}
+          )
+        })}
 
         {devices.length < 2 && hasSub && (
           <div className="card border-dashed border-gray-300">
@@ -223,6 +226,17 @@ export default function DevicesPage() {
           </div>
         )}
       </div>
+
+      {connectDevice && (
+        <ConnectDialog
+          open={!!connectOpen}
+          onClose={() => setConnectOpen(null)}
+          deviceId={connectDevice.id}
+          deviceLabel={connectDevice.device_label}
+          subToken={connectDevice.sub_token}
+          servers={devicePeers[connectDevice.id] ?? []}
+        />
+      )}
     </div>
   )
 }
