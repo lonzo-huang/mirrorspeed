@@ -7,11 +7,10 @@ import { useSearchParams } from 'next/navigation'
 import { Mail } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 
-function LoginForm() {
+function SignupForm() {
   const { t } = useI18n()
   const searchParams = useSearchParams()
   const next  = searchParams.get('next') ?? '/dashboard'
-  const error = searchParams.get('error')
 
   const [email, setEmail]         = useState('')
   const [loading, setLoading]     = useState<string | null>(null)
@@ -36,7 +35,7 @@ function LoginForm() {
     })
   }
 
-  async function signInWithEmail(e: React.FormEvent) {
+  async function signUpWithEmail(e: React.FormEvent) {
     e.preventDefault()
     if (!email.trim()) return
     setLoading('email')
@@ -56,18 +55,12 @@ function LoginForm() {
         </Link>
 
         <div className="glass-panel p-10 rounded-3xl">
-          {error && (
-            <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
-              登录失败，请重试。({error})
-            </div>
-          )}
-
           {magicSent ? (
             <div className="text-center py-4">
               <Mail className="w-12 h-12 text-mirror mx-auto mb-3" />
               <h2 className="font-semibold text-foreground mb-1">邮件已发送</h2>
               <p className="text-sm text-muted-foreground">
-                请检查 <strong>{email}</strong> 的收件箱，点击链接完成登录。
+                请检查 <strong>{email}</strong> 的收件箱，点击链接完成注册。
               </p>
               <button
                 className="mt-4 text-sm text-mirror hover:underline"
@@ -79,7 +72,7 @@ function LoginForm() {
           ) : (
             <>
               <h2 className="text-2xl font-bold mb-8 text-center text-foreground">
-                {t.auth.loginTitle}
+                {t.auth.signupTitle}
               </h2>
 
               {/* OAuth buttons */}
@@ -127,7 +120,7 @@ function LoginForm() {
               </div>
 
               {/* Magic Link form */}
-              <form onSubmit={signInWithEmail} className="space-y-3">
+              <form onSubmit={signUpWithEmail} className="space-y-3">
                 <input
                   type="email"
                   value={email}
@@ -150,8 +143,8 @@ function LoginForm() {
         </div>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
-          <Link href="/signup" className="hover:text-mirror transition-colors">
-            {t.auth.switchToSignup}
+          <Link href="/login" className="hover:text-mirror transition-colors">
+            {t.auth.switchToLogin}
           </Link>
         </p>
       </div>
@@ -159,14 +152,14 @@ function LoginForm() {
   )
 }
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-muted-foreground">加载中...</div>
       </div>
     }>
-      <LoginForm />
+      <SignupForm />
     </Suspense>
   )
 }
