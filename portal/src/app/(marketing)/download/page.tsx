@@ -98,7 +98,7 @@ export default function DownloadPage() {
                     </div>
                     <div className="flex flex-col gap-2 shrink-0">
                       <a
-                        href={asset.browser_download_url}
+                        href={`/api/download?id=${asset.id}&name=${encodeURIComponent(asset.name)}`}
                         className="text-xs font-bold bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-mirror transition-colors text-center"
                       >
                         下载

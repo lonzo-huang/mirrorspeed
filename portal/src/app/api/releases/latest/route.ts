@@ -5,6 +5,7 @@ import { unstable_noStore as noStore } from 'next/cache'
 export const dynamic = 'force-dynamic'
 
 export interface ReleaseAsset {
+  id:                   number   // GitHub asset ID — used by /api/download proxy
   name:                 string
   browser_download_url: string
   size:                 number   // bytes
@@ -74,6 +75,7 @@ export async function GET() {
       published: data.published_at ?? '',
       assets: Array.isArray(data.assets)
         ? (data.assets as any[]).map(a => ({
+            id:                   a.id,
             name:                 a.name,
             browser_download_url: a.browser_download_url,
             size:                 a.size,
