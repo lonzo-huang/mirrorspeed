@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
     .from('vpn_device_peers')
     .select(`
       device_id, private_key_enc, preshared_key_enc, vpn_ip,
-      server:vpn_servers(id, display_name, flag_emoji, location, endpoint, port)
+      server:vpn_servers(id, display_name, flag_emoji, location, endpoint, port, public_key)
     `)
     .in('device_id', deviceIds)
     .eq('is_active', true)
