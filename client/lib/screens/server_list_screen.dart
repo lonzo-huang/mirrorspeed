@@ -1,0 +1,116 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/server_config.dart';
+import '../providers/auth_provider.dart';
+import '../providers/vpn_provider.dart';
+import '../theme.dart';
+
+class ServerListScreen extends StatefulWidget {
+  const ServerListScreen({super.key});
+  @override State<ServerListScreen> createState() => _ServerListScreenState();
+}
+
+class _ServerListScreenState extends State<ServerListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final servers = context.read<AuthProvider>().servers;
+      context.read<VpnProvider>().measureLatencies(servers);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth    = context.watch<AuthProvider>();
+    final vpn     = context.watch<VpnProvider>();
+    final servers = auth.servers;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('选择节点', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: kBg,
+        surfaceTintColor: Colors.transparent,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: '刷新延迟',
+            onPressed: () => vpn.measureLatencies(servers),
+          ),
+        ],
+      ),
+      body: servers.isEmpty
+          ? const Center(child: Text('暂无可用节点', style: TextStyle(color: Colors.white54)))
+          : ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              itemCount: servers.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (ctx, i) => _ServerTile(
+                server:   servers[i],
+                isActive: vpn.activeServer?.id == servers[i].id,
+                onTap: () async {
+                  Navigator.pop(context);
+                  if (vpn.isConnected) {
+                    await vpn.switchServer(servers[i]);
+                  } else {
+                    await vpn.connect(servers[i]);
+                  }
+                },
+              ),
+            ),
+    );
+  }
+}
+
+class _ServerTile extends StatelessWidget {
+  final ServerConfig server;
+  final bool          isActive;
+  final VoidCallback  onTap;
+  const _ServerTile({ required this.server, required this.isActive, required this.onTap });
+
+  Color _latencyColor(int? ms) {
+    if (ms == null)  return Colors.white38;
+    if (ms < 100)    return kSuccess;
+    if (ms < 250)    return Colors.amber;
+    return kDanger;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final latency = server.latencyMs;
+    return Material(
+      color: isActive ? kBrand.withOpacity(0.18) : kCard,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(children: [
+            Text(server.flagEmoji, style: const TextStyle(fontSize: 28)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(server.displayName,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              if (server.location.isNotEmpty)
+                Text(server.location, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+            ])),
+            if (latency != null)
+              Text('${latency}ms',
+                style: TextStyle(color: _latencyColor(latency), fontWeight: FontWeight.w600, fontSize: 13))
+            else
+              SizedBox(
+                width: 14, height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white.withOpacity(0.3)),
+              ),
+            const SizedBox(width: 12),
+            if (isActive)
+              const Icon(Icons.check_circle_rounded, color: kBrand, size: 20)
+            else
+              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.3)),
+          ]),
+        ),
+      ),
+    );
+  }
+}

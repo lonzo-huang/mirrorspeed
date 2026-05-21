@@ -1,0 +1,54 @@
+name: mirrorspeed_vpn
+description: MirrorSpeed VPN — 高速全球加速
+version: 1.0.0+1
+publish_to: none
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ── WireGuard ────────────────────────────────────────────────
+  wireguard_flutter: ^2.0.0
+
+  # ── Supabase ─────────────────────────────────────────────────
+  supabase_flutter: ^2.8.0
+
+  # ── State management ─────────────────────────────────────────
+  provider: ^6.1.2
+
+  # ── Storage ──────────────────────────────────────────────────
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.3.2
+
+  # ── HTTP ─────────────────────────────────────────────────────
+  http: ^1.2.2
+
+  # ── Navigation ───────────────────────────────────────────────
+  go_router: ^14.2.0
+
+  # ── Device info ──────────────────────────────────────────────
+  device_info_plus: ^10.1.2
+
+  # ── Network tools (latency ping) ─────────────────────────────
+  dart_ping: ^9.0.2
+
+  # ── UI ───────────────────────────────────────────────────────
+  google_fonts: ^6.2.1
+  url_launcher: ^6.3.0
+  flutter_svg: ^2.0.10+1
+  lottie: ^3.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/lottie/
