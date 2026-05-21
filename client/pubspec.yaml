@@ -12,7 +12,7 @@ dependencies:
     sdk: flutter
 
   # ── WireGuard ────────────────────────────────────────────────
-  wireguard_flutter: ^2.0.0
+  wireguard_flutter: ^0.1.3
 
   # ── Supabase ─────────────────────────────────────────────────
   supabase_flutter: ^2.8.0
@@ -32,9 +32,6 @@ dependencies:
 
   # ── Device info ──────────────────────────────────────────────
   device_info_plus: ^10.1.2
-
-  # ── Network tools (latency ping) ─────────────────────────────
-  dart_ping: ^9.0.2
 
   # ── UI ───────────────────────────────────────────────────────
   google_fonts: ^6.2.1

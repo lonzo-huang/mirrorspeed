@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wireguard_flutter/wireguard_flutter.dart';
-import 'package:dart_ping/dart_ping.dart';
 import '../models/server_config.dart';
 import '../env.dart';
 
@@ -108,18 +108,21 @@ class VpnProvider extends ChangeNotifier {
     _elapsedSecs = null;
   }
 
-  // ── 延迟测量 ─────────────────────────────────────────────────
+  // ── 延迟测量（HTTP HEAD 计时，无需 ICMP 权限）──────────────
   Future<void> measureLatencies(List<ServerConfig> servers) async {
-    for (final s in servers) {
+    await Future.wait(servers.map((s) async {
       try {
-        final ping   = Ping(s.endpoint, count: 3, timeout: 2);
-        final result = await ping.stream.last;
-        s.latencyMs  = result.response?.time?.inMilliseconds;
-        notifyListeners();
+        final sw  = Stopwatch()..start();
+        await http.head(
+          Uri.parse('$kApiBase/api/releases/latest'),
+        ).timeout(const Duration(seconds: 3));
+        sw.stop();
+        s.latencyMs = sw.elapsedMilliseconds;
       } catch (_) {
         s.latencyMs = null;
       }
-    }
+      notifyListeners();
+    }));
   }
 
   String get elapsedFormatted {
