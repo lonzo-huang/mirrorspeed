@@ -90,8 +90,15 @@ class AuthProvider extends ChangeNotifier {
 
   // ── 刷新配置 ─────────────────────────────────────────────────
   Future<void> refreshConfigs() async {
-    final devId   = _deviceId ?? await _storage.read(key: 'device_id');
-    _configs      = await ApiService.instance.fetchConfigs(deviceId: devId);
+    final devId = _deviceId ?? await _storage.read(key: 'device_id');
+    try {
+      _configs = await ApiService.instance.fetchConfigs(deviceId: devId);
+      _error   = null;
+    } on ApiException catch (e) {
+      _error = e.message;
+    } catch (e) {
+      _error = e.toString();
+    }
     notifyListeners();
   }
 

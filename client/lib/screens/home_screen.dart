@@ -135,7 +135,25 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // ── 错误提示 ──────────────────────────────────────
+              // ── Auth 错误提示（配置获取失败）──────────────────
+              if (auth.error != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('配置获取失败: ${auth.error}',
+                      style: const TextStyle(color: Colors.orange, fontSize: 12))),
+                  ]),
+                ),
+
+              // ── VPN 错误提示 ──────────────────────────────────
               if (vpn.error != null)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

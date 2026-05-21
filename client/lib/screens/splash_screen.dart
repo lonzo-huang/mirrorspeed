@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme.dart';
@@ -9,7 +8,8 @@ class SplashScreen extends StatefulWidget {
   @override State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<double>    _scale;
 
@@ -20,21 +20,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _scale = CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut);
     _ctrl.forward();
 
+    // Kick off auth initialisation.
+    // When it completes, AuthProvider calls notifyListeners() →
+    // GoRouter.refreshListenable fires → _authRedirect() picks the right route.
+    // No manual context.go() needed here.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthProvider>().initialize().then((_) => _navigate());
+      context.read<AuthProvider>().initialize();
     });
-  }
-
-  void _navigate() {
-    final auth = context.read<AuthProvider>();
-    switch (auth.status) {
-      case AuthStatus.authenticated:
-        context.go('/home');
-      case AuthStatus.noSubscription:
-        context.go('/no-subscription');
-      default:
-        context.go('/login');
-    }
   }
 
   @override
@@ -58,15 +50,20 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     begin: Alignment.topLeft, end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(24),
-                  boxShadow: [BoxShadow(color: kBrand.withOpacity(0.4), blurRadius: 32, offset: const Offset(0, 8))],
+                  boxShadow: [BoxShadow(
+                    color: kBrand.withOpacity(0.4), blurRadius: 32,
+                    offset: const Offset(0, 8),
+                  )],
                 ),
                 child: const Icon(Icons.shield_rounded, size: 48, color: Colors.white),
               ),
             ),
             const SizedBox(height: 24),
-            const Text('MirrorSpeed VPN', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+            const Text('MirrorSpeed VPN',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
             const SizedBox(height: 8),
-            Text('正在启动…', style: TextStyle(color: Colors.white.withOpacity(0.5))),
+            Text('正在启动…',
+              style: TextStyle(color: Colors.white.withOpacity(0.5))),
           ],
         ),
       ),

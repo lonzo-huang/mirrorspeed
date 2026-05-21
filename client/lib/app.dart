@@ -9,28 +9,69 @@ import 'screens/home_screen.dart';
 import 'screens/no_subscription_screen.dart';
 import 'theme.dart';
 
-final _router = GoRouter(
-  initialLocation: '/',
-  routes: [
-    GoRoute(path: '/',               builder: (_, __) => const SplashScreen()),
-    GoRoute(path: '/login',          builder: (_, __) => const LoginScreen()),
-    GoRoute(path: '/home',           builder: (_, __) => const HomeScreen()),
-    GoRoute(path: '/no-subscription', builder: (_, __) => const NoSubscriptionScreen()),
-
-    // OAuth deep-link callback: mirrorspeed://login-callback
-    GoRoute(path: '/login-callback', builder: (_, __) => const SplashScreen()),
-  ],
-);
-
-class MirrorSpeedApp extends StatelessWidget {
+class MirrorSpeedApp extends StatefulWidget {
   const MirrorSpeedApp({super.key});
+  @override State<MirrorSpeedApp> createState() => _MirrorSpeedAppState();
+}
+
+class _MirrorSpeedAppState extends State<MirrorSpeedApp> {
+  late final AuthProvider _auth;
+  late final VpnProvider  _vpn;
+  late final GoRouter     _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _auth = AuthProvider();
+    _vpn  = VpnProvider()..initialize();
+
+    _router = GoRouter(
+      initialLocation: '/',
+      // GoRouter re-evaluates redirect whenever AuthProvider calls notifyListeners()
+      refreshListenable: _auth,
+      redirect: _authRedirect,
+      routes: [
+        GoRoute(path: '/',                builder: (_, __) => const SplashScreen()),
+        GoRoute(path: '/login',           builder: (_, __) => const LoginScreen()),
+        GoRoute(path: '/home',            builder: (_, __) => const HomeScreen()),
+        GoRoute(path: '/no-subscription', builder: (_, __) => const NoSubscriptionScreen()),
+        // OAuth / magic-link callback deep link (mirrorspeed://login-callback)
+        GoRoute(path: '/login-callback',  builder: (_, __) => const SplashScreen()),
+      ],
+    );
+  }
+
+  /// Central auth redirect — called by GoRouter on every notifyListeners().
+  String? _authRedirect(BuildContext context, GoRouterState state) {
+    final loc = state.matchedLocation;
+    switch (_auth.status) {
+      case AuthStatus.loading:
+        // Stay on splash / login-callback while auth initialises or PKCE completes
+        return null;
+      case AuthStatus.authenticated:
+        if (loc == '/' || loc == '/login' || loc == '/login-callback') {
+          return '/home';
+        }
+        return null;
+      case AuthStatus.noSubscription:
+        return loc == '/no-subscription' ? null : '/no-subscription';
+      case AuthStatus.unauthenticated:
+        return loc == '/login' ? null : '/login';
+    }
+  }
+
+  @override
+  void dispose() {
+    _router.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => VpnProvider()..initialize()),
+        ChangeNotifierProvider.value(value: _auth),
+        ChangeNotifierProvider.value(value: _vpn),
       ],
       child: MaterialApp.router(
         title:        'MirrorSpeed VPN',
