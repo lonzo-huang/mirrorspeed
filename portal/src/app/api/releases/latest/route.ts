@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 const GITHUB_REPO = process.env.GITHUB_REPO ?? 'lonzo-huang/mirrorspeed'
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN  // 可选，提高 API 限速上限
 
-export const revalidate = 3600  // Next.js 缓存 1 小时
+export const dynamic = 'force-dynamic'  // 运行时渲染，通过 Cache-Control 由 CDN 缓存
 
 export interface ReleaseAsset {
   name:                 string
