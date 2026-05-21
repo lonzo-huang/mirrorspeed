@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 将下面的 key 合并到 ios/Runner/Info.plist 的 <dict> 根节点中 -->
+<plist version="1.0">
+<dict>
+    <!-- OAuth / Magic Link 回调 URL Scheme -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>mirrorspeed</string>
+            </array>
+        </dict>
+    </array>
+    <!-- VPN 隐私描述（App Store 审核必填） -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>MirrorSpeed VPN 需要访问本地网络以建立 VPN 连接。</string>
+</dict>
+</plist>

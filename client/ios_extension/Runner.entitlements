@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 主 App entitlements — 复制到 ios/Runner/Runner.entitlements -->
+
+    <!-- Network Extension capability -->
+    <key>com.apple.developer.networking.networkextension</key>
+    <array>
+        <string>packet-tunnel-provider</string>
+    </array>
+    <!-- App Group（与 Extension 共享数据） -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.mirrorspeed.vpn</string>
+    </array>
+</dict>
+</plist>
