@@ -38,7 +38,7 @@ export default function DownloadPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/releases/latest')
+    fetch('/api/releases/latest', { cache: 'no-store' })
       .then(r => r.json())
       .then(d => { setRelease(d.version ? d : null) })
       .catch(() => setRelease(null))

@@ -21,8 +21,7 @@ async function getUserFromBearer(req: NextRequest) {
 }
 
 // GET /api/mobile/configs?device_id=<optional>
-// 返回用户所有（或指定）设备的全部节点 WireGuard 配置
-// Response: { devices: [{ id, label, servers: [{ id, display_name, flag_emoji, location, latency_ms?, wg_conf }] }] }
+// 返回用户所有（或指定）设备的全部节点 WireGuard 配置 + 流量额度信息
 export async function GET(req: NextRequest) {
   const user = await getUserFromBearer(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -30,7 +29,7 @@ export async function GET(req: NextRequest) {
   const admin    = createAdminClient()
   const deviceId = req.nextUrl.searchParams.get('device_id')
 
-  // 验证订阅
+  // ── 订阅状态（决定是否有流量限制）────────────────────────────
   const { data: sub } = await admin
     .from('subscriptions')
     .select('status')
@@ -38,9 +37,20 @@ export async function GET(req: NextRequest) {
     .eq('status', 'active')
     .maybeSingle()
 
-  if (!sub) return NextResponse.json({ error: '订阅已过期' }, { status: 403 })
+  const isPaidUser = !!sub
 
-  // 拉取设备列表
+  // ── 免费额度（来自 app_config，付费用户不限制）──────────────
+  let dailyQuotaBytes: number | null = null
+  if (!isPaidUser) {
+    const { data: cfg } = await admin
+      .from('app_config' as any)
+      .select('value')
+      .eq('key', 'free_daily_bytes')
+      .maybeSingle()
+    dailyQuotaBytes = cfg ? parseInt((cfg as any).value, 10) : 524288000 // fallback 500MB
+  }
+
+  // ── 拉取设备列表 ──────────────────────────────────────────────
   const devQuery = admin
     .from('vpn_devices')
     .select('id, device_label')
@@ -55,21 +65,29 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ devices: [], _debug: 'no_devices' })
   }
 
-  // 拉取所有相关 peer（含服务器信息）
+  // ── 拉取所有相关 peer（含服务器信息 + 流量数据）──────────────
   const deviceIds = devices.map(d => d.id)
   const { data: peers } = await admin
     .from('vpn_device_peers')
     .select(`
       device_id, private_key_enc, preshared_key_enc, vpn_ip,
+      peer_name, daily_bytes, is_suspended,
       server:vpn_servers(id, display_name, flag_emoji, location, endpoint, port, public_key)
     `)
     .in('device_id', deviceIds)
     .eq('is_active', true)
 
-  // 组装响应
+  // ── 组装响应 ──────────────────────────────────────────────────
   const result = devices.map(dev => {
     const devPeers = (peers ?? []).filter(p => p.device_id === dev.id)
-    const servers  = devPeers.map(p => {
+
+    // 今日总已用流量（跨所有节点累加）
+    const dailyBytesUsed = devPeers.reduce((sum, p) => sum + ((p as any).daily_bytes ?? 0), 0)
+
+    // 只要任一节点被暂停，整个设备视为暂停
+    const isSuspended = devPeers.some(p => (p as any).is_suspended)
+
+    const servers = devPeers.map(p => {
       const srv = (p as any).server
       if (!srv) return null
       const wgConf = generateWgConf({
@@ -91,10 +109,17 @@ export async function GET(req: NextRequest) {
       }
     }).filter(Boolean)
 
-    return { id: dev.id, label: dev.device_label, servers }
+    return {
+      id:                 dev.id,
+      label:              dev.device_label,
+      daily_quota_bytes:  dailyQuotaBytes,   // null = 无限制（付费用户）
+      daily_bytes_used:   dailyBytesUsed,
+      is_suspended:       isSuspended,
+      servers,
+    }
   })
 
   const totalServers = result.reduce((s, d) => s + d.servers.length, 0)
-  console.log(`[mobile/configs] user=${user.id} devices=${result.length} totalServers=${totalServers}`)
+  console.log(`[mobile/configs] user=${user.id} devices=${result.length} servers=${totalServers} paid=${isPaidUser}`)
   return NextResponse.json({ devices: result })
 }

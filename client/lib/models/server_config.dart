@@ -33,17 +33,39 @@ class ServerConfig {
 }
 
 class DeviceInfo {
-  final String        id;
-  final String        label;
+  final String             id;
+  final String             label;
   final List<ServerConfig> servers;
+  final int?               dailyQuotaBytes; // null = 无限制（付费用户）
+  final int                dailyBytesUsed;
+  final bool               isSuspended;
 
-  DeviceInfo({ required this.id, required this.label, required this.servers });
+  DeviceInfo({
+    required this.id,
+    required this.label,
+    required this.servers,
+    this.dailyQuotaBytes,
+    this.dailyBytesUsed = 0,
+    this.isSuspended    = false,
+  });
 
   factory DeviceInfo.fromJson(Map<String, dynamic> j) => DeviceInfo(
-    id:      j['id']    as String,
-    label:   j['label'] as String,
+    id:               j['id']    as String,
+    label:            j['label'] as String,
+    dailyQuotaBytes:  j['daily_quota_bytes'] as int?,
+    dailyBytesUsed:   (j['daily_bytes_used'] as num?)?.toInt() ?? 0,
+    isSuspended:      j['is_suspended'] as bool? ?? false,
     servers: (j['servers'] as List)
         .map((s) => ServerConfig.fromJson(s as Map<String, dynamic>))
         .toList(),
   );
+
+  /// 剩余免费流量（null = 不限量）
+  int? get dailyBytesRemaining =>
+      dailyQuotaBytes == null ? null : (dailyQuotaBytes! - dailyBytesUsed).clamp(0, dailyQuotaBytes!);
+
+  /// 已使用比例 0.0~1.0（null = 不限量）
+  double? get usageRatio => dailyQuotaBytes == null
+      ? null
+      : (dailyBytesUsed / dailyQuotaBytes!).clamp(0.0, 1.0);
 }

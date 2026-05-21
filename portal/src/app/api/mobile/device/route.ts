@@ -75,14 +75,15 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
-  // Verify active subscription
+  // 免费用户也允许注册设备（流量额度由 cron 统一管控）
+  // 付费用户通过订阅校验享有无限流量
   const { data: sub } = await admin
     .from('subscriptions')
     .select('id, status')
     .eq('user_id', user.id)
     .eq('status', 'active')
     .maybeSingle()
-  if (!sub) return NextResponse.json({ error: '无活跃订阅' }, { status: 403 })
+  // sub 为 null = 免费用户，继续流程（不再拒绝）
 
   const body = await req.json().catch(() => ({}))
   const { platform, device_name, device_id: cachedDeviceId } = body as {
@@ -167,7 +168,7 @@ export async function POST(req: NextRequest) {
     .from('vpn_devices')
     .insert({
       user_id:         user.id,
-      subscription_id: sub.id,
+      subscription_id: sub?.id ?? null,
       device_label:    device_name,
       os_hint:         platform,
       is_active:       true,

@@ -20,16 +20,18 @@ class ApiService {
   Future<Map<String, dynamic>> registerDevice({
     required String platform,
     required String deviceName,
-    required String fingerprint,
+    String? cachedDeviceId,          // UUID cached from previous registration
   }) async {
+    final body = <String, dynamic>{
+      'platform':    platform,
+      'device_name': deviceName,
+    };
+    if (cachedDeviceId != null) body['device_id'] = cachedDeviceId;
+
     final res = await http.post(
       Uri.parse('$kApiBase/api/mobile/device'),
       headers: _headers,
-      body: jsonEncode({
-        'platform':           platform,
-        'device_name':        deviceName,
-        'device_fingerprint': fingerprint,
-      }),
+      body: jsonEncode(body),
     );
     if (res.statusCode == 200 || res.statusCode == 201) {
       return jsonDecode(res.body) as Map<String, dynamic>;

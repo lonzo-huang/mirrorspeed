@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
 import '../theme.dart';
@@ -79,21 +80,24 @@ class HomeScreen extends StatelessWidget {
             children: [
               const SizedBox(height: 32),
 
-              // ── 连接按钮 ──────────────────────────────────────
-              ConnectButton(
-                status: vpn.status,
-                onPressed: vpn.isBusy ? null : () async {
-                  if (vpn.isConnected) {
-                    await vpn.disconnect();
-                  } else if (server != null) {
-                    await vpn.connect(server);
-                  }
-                },
-              ),
+              // ── 连接按钮（超额时改为升级按钮）──────────────────
+              if (auth.isSuspended && !vpn.isConnected)
+                _UpgradeButton()
+              else
+                ConnectButton(
+                  status: vpn.status,
+                  onPressed: vpn.isBusy ? null : () async {
+                    if (vpn.isConnected) {
+                      await vpn.disconnect();
+                    } else if (server != null) {
+                      await vpn.connect(server);
+                    }
+                  },
+                ),
 
               const SizedBox(height: 32),
 
-              // ── 计时器 ────────────────────────────────────────
+              // ── 计时器 / 状态文字 ─────────────────────────────
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 child: vpn.isConnected
@@ -101,9 +105,37 @@ class HomeScreen extends StatelessWidget {
                         key: const ValueKey('timer'),
                         style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w200,
                           fontFeatures: [FontFeature.tabularFigures()]))
-                    : Text(_statusText(vpn.status),
+                    : Text(_statusText(vpn),
                         key: const ValueKey('status'),
                         style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 15)),
+              ),
+
+              // ── 中继模式标识徽章 ──────────────────────────────
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: vpn.isRelayMode
+                    ? Padding(
+                        key: const ValueKey('relay-badge'),
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.amber.withOpacity(0.35)),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(Icons.alt_route_rounded, size: 13, color: Colors.amber),
+                            const SizedBox(width: 5),
+                            Text(
+                              vpn.isConnected ? 'WebSocket 中继' : '切换 WebSocket 中继…',
+                              style: const TextStyle(color: Colors.amber, fontSize: 11,
+                                fontWeight: FontWeight.w600),
+                            ),
+                          ]),
+                        ),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('no-badge')),
               ),
 
               const Spacer(),
@@ -133,7 +165,17 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+
+              // ── 流量进度条（免费用户显示）────────────────────────
+              if (auth.dailyQuotaBytes != null)
+                _QuotaBar(
+                  used:  auth.dailyBytesUsed,
+                  quota: auth.dailyQuotaBytes!,
+                  suspended: auth.isSuspended,
+                ),
+
+              const SizedBox(height: 8),
 
               // ── Auth 错误提示（配置获取失败）──────────────────
               if (auth.error != null)
@@ -153,22 +195,8 @@ class HomeScreen extends StatelessWidget {
                   ]),
                 ),
 
-              // ── VPN 错误提示 ──────────────────────────────────
-              if (vpn.error != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: kDanger.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: kDanger.withOpacity(0.3)),
-                  ),
-                  child: Row(children: [
-                    const Icon(Icons.error_outline, color: kDanger, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(vpn.error!, style: const TextStyle(color: kDanger, fontSize: 13))),
-                  ]),
-                ),
+              // ── VPN 提示（权限提醒用橙色，真实错误用红色）────────
+              if (vpn.error != null) _VpnErrorBanner(message: vpn.error!),
             ],
           ),
         ),
@@ -189,12 +217,17 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  String _statusText(VpnStatus s) => switch (s) {
-    VpnStatus.connecting    => '正在建立连接…',
-    VpnStatus.disconnecting => '正在断开…',
-    VpnStatus.error         => '连接出错',
-    _                       => '未连接',
-  };
+  String _statusText(VpnProvider vpn) {
+    if (vpn.status == VpnStatus.connecting && vpn.isRelayMode) {
+      return '正在通过中继连接…';
+    }
+    return switch (vpn.status) {
+      VpnStatus.connecting    => '正在建立连接…',
+      VpnStatus.disconnecting => '正在断开…',
+      VpnStatus.error         => '连接出错',
+      _                       => '未连接',
+    };
+  }
 }
 
 class _ServerCard extends StatelessWidget {
@@ -239,6 +272,36 @@ class _ServerCard extends StatelessWidget {
   }
 }
 
+class _VpnErrorBanner extends StatelessWidget {
+  final String message;
+  const _VpnErrorBanner({required this.message});
+
+  bool get _isPermission => message.contains('请在刚才弹出');
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _isPermission ? Colors.orange : kDanger;
+    final icon  = _isPermission
+        ? Icons.admin_panel_settings_outlined
+        : Icons.error_outline;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color:        color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(10),
+        border:       Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(children: [
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 8),
+        Expanded(child: Text(message,
+          style: TextStyle(color: color, fontSize: 13))),
+      ]),
+    );
+  }
+}
+
 class _LatencyBadge extends StatelessWidget {
   final int ms;
   const _LatencyBadge({ required this.ms });
@@ -260,5 +323,103 @@ class _LatencyBadge extends StatelessWidget {
       ),
       child: Text('${ms}ms', style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
     );
+  }
+}
+
+// ── 流量进度条 ───────────────────────────────────────────────────────────────
+class _QuotaBar extends StatelessWidget {
+  final int  used;
+  final int  quota;
+  final bool suspended;
+  const _QuotaBar({ required this.used, required this.quota, required this.suspended });
+
+  String _fmt(int bytes) {
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = (used / quota).clamp(0.0, 1.0);
+    final color = suspended
+        ? kDanger
+        : ratio > 0.8 ? Colors.amber : kSuccess;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.data_usage_rounded, size: 13, color: color),
+          const SizedBox(width: 6),
+          Text('今日免费流量', style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+          const Spacer(),
+          Text(
+            suspended ? '已用完' : '${_fmt(used)} / ${_fmt(quota)}',
+            style: TextStyle(color: color, fontSize: 11, fontFamily: 'monospace'),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 4,
+            backgroundColor: Colors.white.withOpacity(0.08),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ── 超额升级按钮 ──────────────────────────────────────────────────────────────
+class _UpgradeButton extends StatelessWidget {
+  const _UpgradeButton();
+
+  static const _pricingUrl = 'https://mirrorspeed.mirrorquant.com/pricing';
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: kDanger.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: kDanger.withOpacity(0.3)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.block_rounded, color: kDanger, size: 16),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text('今日免费流量已用完，明日自动恢复',
+              style: TextStyle(color: kDanger, fontSize: 12)),
+          ),
+        ]),
+      ),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: () => launchUrl(
+            Uri.parse(_pricingUrl),
+            mode: LaunchMode.externalApplication,
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: kBrand,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+          icon: const Icon(Icons.workspace_premium_rounded, size: 20),
+          label: const Text('升级专业版 · 无限流量', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+        ),
+      ),
+    ]);
   }
 }

@@ -22,9 +22,15 @@ class AuthProvider extends ChangeNotifier {
   AuthStatus       get status      => _status;
   String?          get deviceId    => _deviceId;
   String?          get deviceLabel => _deviceLabel;
-  List<DeviceInfo> get configs     => _configs;
-  List<ServerConfig> get servers   => _configs.isNotEmpty ? _configs.first.servers : [];
-  String?          get error       => _error;
+  List<DeviceInfo> get configs          => _configs;
+  List<ServerConfig> get servers        => _configs.isNotEmpty ? _configs.first.servers : [];
+  String?          get error            => _error;
+
+  // ── 流量额度（取第一个设备，通常用户只有一台设备）──────────
+  int?  get dailyQuotaBytes  => _configs.isNotEmpty ? _configs.first.dailyQuotaBytes  : null;
+  int   get dailyBytesUsed   => _configs.isNotEmpty ? _configs.first.dailyBytesUsed   : 0;
+  bool  get isSuspended      => _configs.isNotEmpty ? _configs.first.isSuspended      : false;
+  double? get usageRatio     => _configs.isNotEmpty ? _configs.first.usageRatio       : null;
   bool get isLoggedIn => _supabase.auth.currentSession != null;
 
   AuthProvider() {
@@ -55,14 +61,16 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       // 自动注册/获取设备
-      final fingerprint = await _getDeviceFingerprint();
-      final platform    = _getPlatform();
-      final deviceName  = await _getDeviceName();
+      // Pass cached device_id (if any) so the server can recognise returning devices
+      // without relying on a device_fingerprint column that doesn't exist in the schema.
+      final cachedId   = await _storage.read(key: 'device_id');
+      final platform   = _getPlatform();
+      final deviceName = await _getDeviceName();
 
       final info = await ApiService.instance.registerDevice(
-        platform:    platform,
-        deviceName:  deviceName,
-        fingerprint: fingerprint,
+        platform:        platform,
+        deviceName:      deviceName,
+        cachedDeviceId:  cachedId,
       );
       _deviceId    = info['device_id']    as String?;
       _deviceLabel = info['device_label'] as String?;
