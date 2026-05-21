@@ -31,44 +31,57 @@ function detectPlatform(name: string): ReleaseAsset['platform'] {
 }
 
 // GET /api/releases/latest
-// 返回 GitHub 最新 Release 信息（带 Next.js 1h 缓存）
+// 返回 GitHub 最新 Release 信息（带 CDN 缓存）
 export async function GET() {
-  const headers: Record<string, string> = {
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-  }
-  if (GITHUB_TOKEN) headers['Authorization'] = `Bearer ${GITHUB_TOKEN}`
+  try {
+    const token = process.env.GITHUB_TOKEN
+    const repo  = process.env.GITHUB_REPO ?? 'lonzo-huang/mirrorspeed'
 
-  const res = await fetch(
-    `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-    { headers, cache: 'no-store' },
-  )
-
-  if (!res.ok) {
-    // 还没有 release 时返回空
-    if (res.status === 404) {
-      return NextResponse.json({ version: null, assets: [] })
+    const reqHeaders: Record<string, string> = {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
     }
-    return NextResponse.json({ error: 'GitHub API error', status: res.status }, { status: 502 })
+    if (token) reqHeaders['Authorization'] = `Bearer ${token}`
+
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/releases/latest`,
+      { headers: reqHeaders, cache: 'no-store' },
+    )
+
+    if (!res.ok) {
+      if (res.status === 404) {
+        return NextResponse.json({ version: null, assets: [] })
+      }
+      const body = await res.text()
+      return NextResponse.json(
+        { error: 'GitHub API error', status: res.status, detail: body },
+        { status: 502 },
+      )
+    }
+
+    const data = await res.json()
+
+    const release: LatestRelease = {
+      version:   String(data.tag_name ?? '').replace(/^v/, ''),
+      tag:       data.tag_name ?? '',
+      name:      data.name ?? '',
+      body:      data.body ?? '',
+      published: data.published_at ?? '',
+      assets: Array.isArray(data.assets) ? (data.assets as any[]).map(a => ({
+        name:                 a.name,
+        browser_download_url: a.browser_download_url,
+        size:                 a.size,
+        platform:             detectPlatform(a.name),
+      })) : [],
+    }
+
+    return NextResponse.json(release, {
+      headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' },
+    })
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: 'Internal error', detail: String(err?.message ?? err) },
+      { status: 500 },
+    )
   }
-
-  const data = await res.json()
-
-  const release: LatestRelease = {
-    version:   (data.tag_name as string).replace(/^v/, ''),
-    tag:       data.tag_name,
-    name:      data.name,
-    body:      data.body ?? '',
-    published: data.published_at,
-    assets: (data.assets as any[]).map(a => ({
-      name:                 a.name,
-      browser_download_url: a.browser_download_url,
-      size:                 a.size,
-      platform:             detectPlatform(a.name),
-    })),
-  }
-
-  return NextResponse.json(release, {
-    headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' },
-  })
 }
