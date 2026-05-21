@@ -57,6 +57,52 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (existing) {
+    // Check whether this device already has active WireGuard peers
+    const { count: peerCount } = await admin
+      .from('vpn_device_peers')
+      .select('id', { count: 'exact', head: true })
+      .eq('device_id', existing.id)
+      .eq('is_active', true)
+
+    if ((peerCount ?? 0) > 0) {
+      // All good — return cached device
+      return NextResponse.json({ device_id: existing.id, device_label: existing.device_label, sub_token: existing.sub_token })
+    }
+
+    // Peers missing (VPN API was unreachable during registration) — try to create them now
+    const { data: servers } = await admin
+      .from('vpn_servers').select('id, name, api_url').eq('is_active', true)
+
+    if (servers && servers.length > 0) {
+      const VPN_API_SECRET = process.env.VPN_API_SECRET!
+      const { encryptKey }  = await import('@/lib/clash')
+      const uid8            = user.id.replace(/-/g, '').slice(0, 8)
+      const deviceShort     = crypto.randomUUID().replace(/-/g, '').slice(0, 4)
+
+      await Promise.allSettled(servers.map(async server => {
+        const peerName = `u${uid8}_${deviceShort}_${server.name.toLowerCase()}`
+        try {
+          const res = await fetch(`${server.api_url}/peers`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'X-API-Secret': VPN_API_SECRET },
+            body:    JSON.stringify({ peer_name: peerName }),
+          })
+          if (!res.ok) return
+          const peerInfo = await res.json()
+          await admin.from('vpn_device_peers').insert({
+            device_id:         existing.id,
+            server_id:         server.id,
+            user_id:           user.id,
+            peer_name:         peerName,
+            public_key:        peerInfo.public_key,
+            private_key_enc:   encryptKey(peerInfo.private_key),
+            preshared_key_enc: encryptKey(peerInfo.preshared_key),
+            vpn_ip:            peerInfo.vpn_ip,
+          })
+        } catch { /* ignore per-server failures */ }
+      }))
+    }
+
     return NextResponse.json({ device_id: existing.id, device_label: existing.device_label, sub_token: existing.sub_token })
   }
 

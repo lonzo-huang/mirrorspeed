@@ -50,7 +50,10 @@ export async function GET(req: NextRequest) {
   if (deviceId) devQuery.eq('id', deviceId)
   const { data: devices } = await devQuery
 
-  if (!devices?.length) return NextResponse.json({ devices: [] })
+  if (!devices?.length) {
+    console.warn('[mobile/configs] No active devices for user', user.id)
+    return NextResponse.json({ devices: [], _debug: 'no_devices' })
+  }
 
   // 拉取所有相关 peer（含服务器信息）
   const deviceIds = devices.map(d => d.id)
@@ -91,5 +94,7 @@ export async function GET(req: NextRequest) {
     return { id: dev.id, label: dev.device_label, servers }
   })
 
+  const totalServers = result.reduce((s, d) => s + d.servers.length, 0)
+  console.log(`[mobile/configs] user=${user.id} devices=${result.length} totalServers=${totalServers}`)
   return NextResponse.json({ devices: result })
 }
