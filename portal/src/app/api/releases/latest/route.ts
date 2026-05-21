@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
+import { unstable_noStore as noStore } from 'next/cache'
 
-const GITHUB_REPO = process.env.GITHUB_REPO ?? 'lonzo-huang/mirrorspeed'
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN  // 可选，提高 API 限速上限
-
-export const dynamic = 'force-dynamic'  // 运行时渲染，通过 Cache-Control 由 CDN 缓存
+// force-dynamic: opt out of ALL static rendering / build-time prerendering
+export const dynamic = 'force-dynamic'
 
 export interface ReleaseAsset {
   name:                 string
@@ -13,29 +12,37 @@ export interface ReleaseAsset {
 }
 
 export interface LatestRelease {
-  version:    string   // e.g. "1.2.0"
-  tag:        string   // e.g. "v1.2.0"
+  version:    string
+  tag:        string
   name:       string
   body:       string
-  published:  string   // ISO date
+  published:  string
   assets:     ReleaseAsset[]
 }
 
 function detectPlatform(name: string): ReleaseAsset['platform'] {
   const n = name.toLowerCase()
-  if (n.includes('android') || n.endsWith('.apk'))         return 'android'
+  if (n.includes('android') || n.endsWith('.apk'))                                          return 'android'
   if (n.includes('windows') || n.endsWith('.zip') || n.endsWith('.exe') || n.endsWith('.msix')) return 'windows'
-  if (n.includes('ios')     || n.endsWith('.ipa'))         return 'ios'
-  if (n.includes('macos')   || n.endsWith('.dmg'))         return 'macos'
+  if (n.includes('ios')     || n.endsWith('.ipa'))                                          return 'ios'
+  if (n.includes('macos')   || n.endsWith('.dmg'))                                          return 'macos'
   return 'other'
 }
 
+// Strip BOM and whitespace that can sneak in via env-var storage tools
+function cleanEnvToken(raw: string | undefined): string {
+  if (!raw) return ''
+  return raw.replace(/﻿/g, '').trim()
+}
+
 // GET /api/releases/latest
-// 返回 GitHub 最新 Release 信息（带 CDN 缓存）
 export async function GET() {
+  // noStore() tells Next.js never to prerender this route at build time
+  noStore()
+
   try {
-    const token = process.env.GITHUB_TOKEN
-    const repo  = process.env.GITHUB_REPO ?? 'lonzo-huang/mirrorspeed'
+    const token = cleanEnvToken(process.env.GITHUB_TOKEN)
+    const repo  = cleanEnvToken(process.env.GITHUB_REPO) || 'lonzo-huang/mirrorspeed'
 
     const reqHeaders: Record<string, string> = {
       Accept: 'application/vnd.github+json',
@@ -49,9 +56,7 @@ export async function GET() {
     )
 
     if (!res.ok) {
-      if (res.status === 404) {
-        return NextResponse.json({ version: null, assets: [] })
-      }
+      if (res.status === 404) return NextResponse.json({ version: null, assets: [] })
       const body = await res.text()
       return NextResponse.json(
         { error: 'GitHub API error', status: res.status, detail: body },
@@ -63,16 +68,18 @@ export async function GET() {
 
     const release: LatestRelease = {
       version:   String(data.tag_name ?? '').replace(/^v/, ''),
-      tag:       data.tag_name ?? '',
-      name:      data.name ?? '',
-      body:      data.body ?? '',
+      tag:       data.tag_name  ?? '',
+      name:      data.name      ?? '',
+      body:      data.body      ?? '',
       published: data.published_at ?? '',
-      assets: Array.isArray(data.assets) ? (data.assets as any[]).map(a => ({
-        name:                 a.name,
-        browser_download_url: a.browser_download_url,
-        size:                 a.size,
-        platform:             detectPlatform(a.name),
-      })) : [],
+      assets: Array.isArray(data.assets)
+        ? (data.assets as any[]).map(a => ({
+            name:                 a.name,
+            browser_download_url: a.browser_download_url,
+            size:                 a.size,
+            platform:             detectPlatform(a.name),
+          }))
+        : [],
     }
 
     return NextResponse.json(release, {
