@@ -57,9 +57,10 @@ const dict = {
       title: "Choose Your Reflection", sub: "Transparent pricing. Cancel anytime.",
       popular: "Most Popular", select: "Select Plan", featured: "Get Started",
       plans: [
-        { name: "Monthly", price: "$12", per: "/mo", feats: ["All 45+ locations", "WireGuard protocol", "3 devices", "24/7 support"] },
-        { name: "Yearly", price: "$4.99", per: "/mo", feats: ["All locations", "Priority bandwidth", "8 devices", "24/7 support", "7-day refund"] },
-        { name: "2-Year", price: "$3.19", per: "/mo", feats: ["Everything in Yearly", "Dedicated IP option", "Stealth mode", "Priority queue"] },
+        { name: "Yearly",    price: "$1",    per: "/mo", desc: "Billed $12/yr",         feats: ["All 45+ locations", "WireGuard + WebSocket relay", "Unlimited devices", "24/7 support", "7-day refund"] },
+        { name: "2-Year",    price: "$0.90", per: "/mo", desc: "Billed $21.60/2 yrs",   feats: ["Everything in Yearly", "Dedicated IP option", "Stealth mode", "Priority queue"] },
+        { name: "Monthly",   price: "$3",    per: "/mo", desc: "Billed monthly",         feats: ["All 45+ locations", "WireGuard + WebSocket relay", "Unlimited devices", "24/7 support"] },
+        { name: "Quarterly", price: "$1.50", per: "/mo", desc: "Billed $4.50/quarter",  feats: ["All locations", "WireGuard + WebSocket relay", "Unlimited devices", "24/7 support"] },
       ],
     },
     faq: {
@@ -77,8 +78,11 @@ const dict = {
       loginTitle: "Welcome back", signupTitle: "Create your account",
       google: "Continue with Google", microsoft: "Continue with Microsoft",
       orEmail: "Or email", email: "Email address", password: "Password",
-      submit: "Continue", switchToSignup: "No account? Sign up", switchToLogin: "Have an account? Log in",
+      submit: "Send Code", switchToSignup: "No account? Sign up", switchToLogin: "Have an account? Log in",
       terms: "By continuing you agree to our Terms and Privacy Policy.",
+      otpSent: "Check your inbox", enterOtp: "Enter the 6-digit code from your email",
+      otpPlaceholder: "000000", verify: "Verify & Sign In", resend: "Resend code",
+      loading: "Loading...", sending: "Sending...", redirecting: "Signing in...", invalidOtp: "Invalid code, please try again.",
     },
     dash: {
       welcome: "Welcome back", plan: "Active Plan", expires: "Expires in", days: "days",
@@ -86,6 +90,7 @@ const dict = {
       devices: "Connected Devices", account: "Account", renew: "Renew Plan", billing: "Billing History",
       manage: "Update billing info or upgrade plan.", logout: "Log out",
       usage: "Data Usage", thisMonth: "This month",
+      overview: "Overview", myDevices: "My Devices", billingNav: "Billing", adminLabel: "Admin", logoutBtn: "Log out",
     },
     footer: { tagline: "The infrastructure of the open mirror-web.", product: "Product", legal: "Legal", support: "Support", contact: "Contact", disclaimer: "Disclaimer" },
     download: {
@@ -164,9 +169,10 @@ const dict = {
       title: "选择您的方案", sub: "透明定价，随时取消。",
       popular: "最受欢迎", select: "选择此方案", featured: "立即开通",
       plans: [
-        { name: "月付", price: "¥88", per: "/月", feats: ["全部 45+ 节点", "WireGuard 协议", "3 台设备", "7x24 支持"] },
-        { name: "年付", price: "¥36", per: "/月", feats: ["全部节点", "优先带宽", "8 台设备", "7x24 支持", "7天退款"] },
-        { name: "两年", price: "¥23", per: "/月", feats: ["包含年付全部", "独立 IP 选项", "隐身模式", "优先队列"] },
+        { name: "年付",  price: "¥8",  per: "/月", desc: "按年付 ¥96",      feats: ["全部 45+ 节点", "WireGuard + WebSocket 中继", "不限设备数", "7x24 支持", "7天退款"] },
+        { name: "两年",  price: "¥7",  per: "/月", desc: "按两年付 ¥168",   feats: ["包含年付全部权益", "独立 IP 选项", "隐身模式", "优先队列"] },
+        { name: "月付",  price: "¥24", per: "/月", desc: "按月付",           feats: ["全部 45+ 节点", "WireGuard + WebSocket 中继", "不限设备数", "7x24 支持"] },
+        { name: "季付",  price: "¥12", per: "/月", desc: "按季付 ¥36",      feats: ["全部节点", "WireGuard + WebSocket 中继", "不限设备数", "7x24 支持"] },
       ],
     },
     faq: {
@@ -184,8 +190,11 @@ const dict = {
       loginTitle: "欢迎回来", signupTitle: "创建账户",
       google: "使用 Google 继续", microsoft: "使用 Microsoft 继续",
       orEmail: "或使用邮箱", email: "邮箱地址", password: "密码",
-      submit: "继续", switchToSignup: "还没有账户？注册", switchToLogin: "已有账户？登录",
+      submit: "发送验证码", switchToSignup: "还没有账户？注册", switchToLogin: "已有账户？登录",
       terms: "继续即表示同意服务条款和隐私政策。",
+      otpSent: "验证码已发送，请查收邮件", enterOtp: "请输入邮件中的 6 位验证码",
+      otpPlaceholder: "000000", verify: "验证并登录", resend: "重新发送",
+      loading: "加载中...", sending: "发送中...", redirecting: "正在登录...", invalidOtp: "验证码不正确，请重试。",
     },
     dash: {
       welcome: "欢迎回来", plan: "当前方案", expires: "剩余", days: "天",
@@ -193,6 +202,7 @@ const dict = {
       devices: "在线设备", account: "账户管理", renew: "续费", billing: "账单记录",
       manage: "更新账单信息或升级方案。", logout: "退出登录",
       usage: "流量使用", thisMonth: "本月",
+      overview: "概览", myDevices: "我的设备", billingNav: "订阅与账单", adminLabel: "管理", logoutBtn: "退出登录",
     },
     footer: { tagline: "开放镜面网络的基础设施。", product: "产品", legal: "法律", support: "支持", contact: "联系我们", disclaimer: "免责声明" },
     download: {
@@ -271,9 +281,10 @@ const dict = {
       title: "Wählen Sie Ihre Reflexion", sub: "Transparente Preise. Jederzeit kündbar.",
       popular: "Beliebteste", select: "Plan wählen", featured: "Jetzt starten",
       plans: [
-        { name: "Monatlich", price: "€11", per: "/Mo.", feats: ["Alle 45+ Standorte", "WireGuard-Protokoll", "3 Geräte", "24/7 Support"] },
-        { name: "Jährlich", price: "€4,59", per: "/Mo.", feats: ["Alle Standorte", "Prioritäts-Bandbreite", "8 Geräte", "24/7 Support", "7-Tage-Rückgabe"] },
-        { name: "2-Jahres", price: "€2,99", per: "/Mo.", feats: ["Alles im Jahresplan", "Dedizierte IP", "Stealth-Modus", "Prioritäts-Queue"] },
+        { name: "Jährlich",    price: "$1",    per: "/Mo.", desc: "$12/Jahr",         feats: ["Alle 45+ Standorte", "WireGuard + WebSocket-Relay", "Unbegrenzte Geräte", "24/7 Support", "7-Tage-Rückgabe"] },
+        { name: "2 Jahre",     price: "$0.90", per: "/Mo.", desc: "$21.60/2 Jahre",   feats: ["Alles im Jahresplan", "Dedizierte IP", "Stealth-Modus", "Prioritäts-Queue"] },
+        { name: "Monatlich",   price: "$3",    per: "/Mo.", desc: "Monatlich",         feats: ["Alle 45+ Standorte", "WireGuard + WebSocket-Relay", "Unbegrenzte Geräte", "24/7 Support"] },
+        { name: "Quartal",     price: "$1.50", per: "/Mo.", desc: "$4.50/Quartal",    feats: ["Alle Standorte", "WireGuard + WebSocket-Relay", "Unbegrenzte Geräte", "24/7 Support"] },
       ],
     },
     faq: {
@@ -291,8 +302,11 @@ const dict = {
       loginTitle: "Willkommen zurück", signupTitle: "Konto erstellen",
       google: "Mit Google fortfahren", microsoft: "Mit Microsoft fortfahren",
       orEmail: "Oder E-Mail", email: "E-Mail-Adresse", password: "Passwort",
-      submit: "Weiter", switchToSignup: "Kein Konto? Registrieren", switchToLogin: "Bereits Konto? Anmelden",
+      submit: "Code senden", switchToSignup: "Kein Konto? Registrieren", switchToLogin: "Bereits Konto? Anmelden",
       terms: "Mit dem Fortfahren stimmen Sie unseren AGB und Datenschutzrichtlinien zu.",
+      otpSent: "Code gesendet — E-Mail prüfen", enterOtp: "6-stelligen Code aus der E-Mail eingeben",
+      otpPlaceholder: "000000", verify: "Verifizieren & Anmelden", resend: "Code erneut senden",
+      loading: "Laden...", sending: "Senden...", redirecting: "Anmelden...", invalidOtp: "Ungültiger Code, bitte erneut versuchen.",
     },
     dash: {
       welcome: "Willkommen zurück", plan: "Aktiver Plan", expires: "Läuft ab in", days: "Tagen",
@@ -300,6 +314,7 @@ const dict = {
       devices: "Verbundene Geräte", account: "Konto", renew: "Plan verlängern", billing: "Abrechnungsverlauf",
       manage: "Abrechnungsdaten aktualisieren oder Plan upgraden.", logout: "Abmelden",
       usage: "Datennutzung", thisMonth: "Diesen Monat",
+      overview: "Übersicht", myDevices: "Meine Geräte", billingNav: "Abrechnung", adminLabel: "Admin", logoutBtn: "Abmelden",
     },
     footer: { tagline: "Die Infrastruktur des offenen Spiegel-Webs.", product: "Produkt", legal: "Rechtliches", support: "Support", contact: "Kontakt", disclaimer: "Haftungsausschluss" },
     download: {
@@ -378,9 +393,10 @@ const dict = {
       title: "Choisissez votre réflexion", sub: "Tarification transparente. Annulable à tout moment.",
       popular: "Le plus populaire", select: "Choisir ce plan", featured: "Commencer",
       plans: [
-        { name: "Mensuel", price: "11€", per: "/mois", feats: ["Tous les 45+ emplacements", "Protocole WireGuard", "3 appareils", "Support 24/7"] },
-        { name: "Annuel", price: "4,59€", per: "/mois", feats: ["Tous les emplacements", "Bande passante prioritaire", "8 appareils", "Support 24/7", "Remboursement 7 jours"] },
-        { name: "2 ans", price: "2,99€", per: "/mois", feats: ["Tout du plan annuel", "IP dédiée", "Mode furtif", "File d'attente prioritaire"] },
+        { name: "Annuel",      price: "$1",    per: "/mois", desc: "$12/an",           feats: ["Tous les 45+ emplacements", "WireGuard + relais WebSocket", "Appareils illimités", "Support 24/7", "Remboursement 7 jours"] },
+        { name: "2 ans",       price: "$0,90", per: "/mois", desc: "$21,60/2 ans",     feats: ["Tout du plan annuel", "IP dédiée", "Mode furtif", "File prioritaire"] },
+        { name: "Mensuel",     price: "$3",    per: "/mois", desc: "Mensuel",           feats: ["Tous les 45+ emplacements", "WireGuard + relais WebSocket", "Appareils illimités", "Support 24/7"] },
+        { name: "Trimestriel", price: "$1,50", per: "/mois", desc: "$4,50/trimestre",  feats: ["Tous les emplacements", "WireGuard + relais WebSocket", "Appareils illimités", "Support 24/7"] },
       ],
     },
     faq: {
@@ -398,8 +414,11 @@ const dict = {
       loginTitle: "Content de vous revoir", signupTitle: "Créer votre compte",
       google: "Continuer avec Google", microsoft: "Continuer avec Microsoft",
       orEmail: "Ou par e-mail", email: "Adresse e-mail", password: "Mot de passe",
-      submit: "Continuer", switchToSignup: "Pas de compte ? S'inscrire", switchToLogin: "Déjà un compte ? Se connecter",
+      submit: "Envoyer le code", switchToSignup: "Pas de compte ? S'inscrire", switchToLogin: "Déjà un compte ? Se connecter",
       terms: "En continuant, vous acceptez nos Conditions et notre Politique de confidentialité.",
+      otpSent: "Code envoyé — vérifiez vos e-mails", enterOtp: "Entrez le code à 6 chiffres reçu par e-mail",
+      otpPlaceholder: "000000", verify: "Vérifier et se connecter", resend: "Renvoyer le code",
+      loading: "Chargement...", sending: "Envoi...", redirecting: "Connexion...", invalidOtp: "Code invalide, veuillez réessayer.",
     },
     dash: {
       welcome: "Content de vous revoir", plan: "Plan actif", expires: "Expire dans", days: "jours",
@@ -407,6 +426,7 @@ const dict = {
       devices: "Appareils connectés", account: "Compte", renew: "Renouveler le plan", billing: "Historique de facturation",
       manage: "Mettre à jour les informations de facturation ou mettre à niveau le plan.", logout: "Se déconnecter",
       usage: "Utilisation des données", thisMonth: "Ce mois-ci",
+      overview: "Aperçu", myDevices: "Mes appareils", billingNav: "Facturation", adminLabel: "Admin", logoutBtn: "Se déconnecter",
     },
     footer: { tagline: "L'infrastructure du web miroir ouvert.", product: "Produit", legal: "Légal", support: "Support", contact: "Contact", disclaimer: "Avertissement" },
     download: {
@@ -485,9 +505,10 @@ const dict = {
       title: "Scegli il tuo riflesso", sub: "Prezzi trasparenti. Cancella in qualsiasi momento.",
       popular: "Più popolare", select: "Scegli piano", featured: "Inizia",
       plans: [
-        { name: "Mensile", price: "€11", per: "/mese", feats: ["Tutti i 45+ luoghi", "Protocollo WireGuard", "3 dispositivi", "Supporto 24/7"] },
-        { name: "Annuale", price: "€4,59", per: "/mese", feats: ["Tutti i luoghi", "Larghezza di banda prioritaria", "8 dispositivi", "Supporto 24/7", "Rimborso 7 giorni"] },
-        { name: "2 anni", price: "€2,99", per: "/mese", feats: ["Tutto del piano annuale", "IP dedicato", "Modalità stealth", "Coda prioritaria"] },
+        { name: "Annuale",     price: "$1",    per: "/mese", desc: "$12/anno",          feats: ["Tutti i 45+ luoghi", "WireGuard + relay WebSocket", "Dispositivi illimitati", "Supporto 24/7", "Rimborso 7 giorni"] },
+        { name: "2 anni",      price: "$0,90", per: "/mese", desc: "$21,60/2 anni",     feats: ["Tutto del piano annuale", "IP dedicato", "Modalità stealth", "Coda prioritaria"] },
+        { name: "Mensile",     price: "$3",    per: "/mese", desc: "Mensile",            feats: ["Tutti i 45+ luoghi", "WireGuard + relay WebSocket", "Dispositivi illimitati", "Supporto 24/7"] },
+        { name: "Trimestrale", price: "$1,50", per: "/mese", desc: "$4,50/trimestre",   feats: ["Tutti i luoghi", "WireGuard + relay WebSocket", "Dispositivi illimitati", "Supporto 24/7"] },
       ],
     },
     faq: {
@@ -505,8 +526,11 @@ const dict = {
       loginTitle: "Bentornato", signupTitle: "Crea il tuo account",
       google: "Continua con Google", microsoft: "Continua con Microsoft",
       orEmail: "O via email", email: "Indirizzo email", password: "Password",
-      submit: "Continua", switchToSignup: "Nessun account? Registrati", switchToLogin: "Hai un account? Accedi",
+      submit: "Invia codice", switchToSignup: "Nessun account? Registrati", switchToLogin: "Hai un account? Accedi",
       terms: "Continuando accetti i nostri Termini e la nostra Informativa sulla privacy.",
+      otpSent: "Codice inviato — controlla la tua email", enterOtp: "Inserisci il codice a 6 cifre dalla tua email",
+      otpPlaceholder: "000000", verify: "Verifica e accedi", resend: "Invia di nuovo",
+      loading: "Caricamento...", sending: "Invio...", redirecting: "Accesso...", invalidOtp: "Codice non valido, riprova.",
     },
     dash: {
       welcome: "Bentornato", plan: "Piano attivo", expires: "Scade tra", days: "giorni",
@@ -514,6 +538,7 @@ const dict = {
       devices: "Dispositivi connessi", account: "Account", renew: "Rinnova piano", billing: "Cronologia fatturazione",
       manage: "Aggiorna le informazioni di fatturazione o aggiorna il piano.", logout: "Esci",
       usage: "Utilizzo dati", thisMonth: "Questo mese",
+      overview: "Panoramica", myDevices: "I miei dispositivi", billingNav: "Fatturazione", adminLabel: "Admin", logoutBtn: "Esci",
     },
     footer: { tagline: "L'infrastruttura del web speculare aperto.", product: "Prodotto", legal: "Legale", support: "Supporto", contact: "Contatto", disclaimer: "Disclaimer" },
     download: {
@@ -592,9 +617,10 @@ const dict = {
       title: "Elige tu reflexión", sub: "Precios transparentes. Cancela en cualquier momento.",
       popular: "Más popular", select: "Elegir plan", featured: "Comenzar",
       plans: [
-        { name: "Mensual", price: "€11", per: "/mes", feats: ["Todos los 45+ lugares", "Protocolo WireGuard", "3 dispositivos", "Soporte 24/7"] },
-        { name: "Anual", price: "€4,59", per: "/mes", feats: ["Todos los lugares", "Ancho de banda prioritario", "8 dispositivos", "Soporte 24/7", "Reembolso 7 días"] },
-        { name: "2 años", price: "€2,99", per: "/mes", feats: ["Todo del plan anual", "IP dedicada", "Modo sigiloso", "Cola prioritaria"] },
+        { name: "Anual",      price: "$1",    per: "/mes", desc: "$12/año",           feats: ["Todos los 45+ lugares", "WireGuard + relay WebSocket", "Dispositivos ilimitados", "Soporte 24/7", "Reembolso 7 días"] },
+        { name: "2 años",     price: "$0,90", per: "/mes", desc: "$21,60/2 años",     feats: ["Todo del plan anual", "IP dedicada", "Modo sigiloso", "Cola prioritaria"] },
+        { name: "Mensual",    price: "$3",    per: "/mes", desc: "Mensual",            feats: ["Todos los 45+ lugares", "WireGuard + relay WebSocket", "Dispositivos ilimitados", "Soporte 24/7"] },
+        { name: "Trimestral", price: "$1,50", per: "/mes", desc: "$4,50/trimestre",   feats: ["Todos los lugares", "WireGuard + relay WebSocket", "Dispositivos ilimitados", "Soporte 24/7"] },
       ],
     },
     faq: {
@@ -612,8 +638,11 @@ const dict = {
       loginTitle: "Bienvenido de nuevo", signupTitle: "Crea tu cuenta",
       google: "Continuar con Google", microsoft: "Continuar con Microsoft",
       orEmail: "O con email", email: "Dirección de email", password: "Contraseña",
-      submit: "Continuar", switchToSignup: "¿Sin cuenta? Regístrate", switchToLogin: "¿Ya tienes cuenta? Inicia sesión",
+      submit: "Enviar código", switchToSignup: "¿Sin cuenta? Regístrate", switchToLogin: "¿Ya tienes cuenta? Inicia sesión",
       terms: "Al continuar aceptas nuestros Términos y Política de privacidad.",
+      otpSent: "Código enviado — revisa tu correo", enterOtp: "Introduce el código de 6 dígitos de tu correo",
+      otpPlaceholder: "000000", verify: "Verificar e iniciar sesión", resend: "Reenviar código",
+      loading: "Cargando...", sending: "Enviando...", redirecting: "Iniciando sesión...", invalidOtp: "Código inválido, inténtalo de nuevo.",
     },
     dash: {
       welcome: "Bienvenido de nuevo", plan: "Plan activo", expires: "Expira en", days: "días",
@@ -621,6 +650,7 @@ const dict = {
       devices: "Dispositivos conectados", account: "Cuenta", renew: "Renovar plan", billing: "Historial de facturación",
       manage: "Actualizar información de facturación o mejorar el plan.", logout: "Cerrar sesión",
       usage: "Uso de datos", thisMonth: "Este mes",
+      overview: "Resumen", myDevices: "Mis dispositivos", billingNav: "Facturación", adminLabel: "Admin", logoutBtn: "Cerrar sesión",
     },
     footer: { tagline: "La infraestructura de la web espejo abierta.", product: "Producto", legal: "Legal", support: "Soporte", contact: "Contacto", disclaimer: "Aviso legal" },
     download: {
@@ -699,9 +729,10 @@ const dict = {
       title: "Обери своє відображення", sub: "Прозоре ціноутворення. Скасуй будь-коли.",
       popular: "Найпопулярніший", select: "Обрати план", featured: "Почати",
       plans: [
-        { name: "Місячний", price: "$12", per: "/міс", feats: ["Всі 45+ локацій", "Протокол WireGuard", "3 пристрої", "Підтримка 24/7"] },
-        { name: "Річний", price: "$4,99", per: "/міс", feats: ["Всі локації", "Пріоритетна пропускна здатність", "8 пристроїв", "Підтримка 24/7", "Повернення за 7 днів"] },
-        { name: "2 роки", price: "$3,19", per: "/міс", feats: ["Все з річного плану", "Виділена IP", "Режим стелс", "Пріоритетна черга"] },
+        { name: "Річний",      price: "$1",    per: "/міс", desc: "$12/рік",          feats: ["Всі 45+ локацій", "WireGuard + WebSocket-реле", "Необмежено пристроїв", "Підтримка 24/7", "Повернення за 7 днів"] },
+        { name: "2 роки",      price: "$0,90", per: "/міс", desc: "$21,60/2 роки",    feats: ["Все з річного плану", "Виділена IP", "Режим стелс", "Пріоритетна черга"] },
+        { name: "Місячний",    price: "$3",    per: "/міс", desc: "Щомісяця",          feats: ["Всі 45+ локацій", "WireGuard + WebSocket-реле", "Необмежено пристроїв", "Підтримка 24/7"] },
+        { name: "Квартальний", price: "$1,50", per: "/міс", desc: "$4,50/квартал",    feats: ["Всі локації", "WireGuard + WebSocket-реле", "Необмежено пристроїв", "Підтримка 24/7"] },
       ],
     },
     faq: {
@@ -719,8 +750,11 @@ const dict = {
       loginTitle: "З поверненням", signupTitle: "Створи свій акаунт",
       google: "Продовжити з Google", microsoft: "Продовжити з Microsoft",
       orEmail: "Або за email", email: "Електронна пошта", password: "Пароль",
-      submit: "Продовжити", switchToSignup: "Немає акаунту? Зареєструватись", switchToLogin: "Вже є акаунт? Увійти",
+      submit: "Надіслати код", switchToSignup: "Немає акаунту? Зареєструватись", switchToLogin: "Вже є акаунт? Увійти",
       terms: "Продовжуючи, ви погоджуєтесь з нашими Умовами та Політикою конфіденційності.",
+      otpSent: "Код надіслано — перевір пошту", enterOtp: "Введи 6-значний код з листа",
+      otpPlaceholder: "000000", verify: "Підтвердити та увійти", resend: "Надіслати знову",
+      loading: "Завантаження...", sending: "Надсилання...", redirecting: "Вхід...", invalidOtp: "Невірний код, спробуй ще раз.",
     },
     dash: {
       welcome: "З поверненням", plan: "Активний план", expires: "Закінчується через", days: "днів",
@@ -728,6 +762,7 @@ const dict = {
       devices: "Підключені пристрої", account: "Акаунт", renew: "Поновити план", billing: "Історія рахунків",
       manage: "Оновити платіжну інформацію або оновити план.", logout: "Вийти",
       usage: "Використання даних", thisMonth: "Цього місяця",
+      overview: "Огляд", myDevices: "Мої пристрої", billingNav: "Оплата", adminLabel: "Адмін", logoutBtn: "Вийти",
     },
     footer: { tagline: "Інфраструктура відкритого дзеркального вебу.", product: "Продукт", legal: "Правова інформація", support: "Підтримка", contact: "Контакт", disclaimer: "Відмова від відповідальності" },
     download: {
@@ -806,9 +841,10 @@ const dict = {
       title: "あなたの反射を選ぶ", sub: "透明な料金。いつでもキャンセル可能。",
       popular: "最人気", select: "プランを選ぶ", featured: "始める",
       plans: [
-        { name: "月払い", price: "$12", per: "/月", feats: ["45以上の全拠点", "WireGuardプロトコル", "3台", "24時間サポート"] },
-        { name: "年払い", price: "$4.99", per: "/月", feats: ["全拠点", "優先帯域幅", "8台", "24時間サポート", "7日間返金"] },
-        { name: "2年払い", price: "$3.19", per: "/月", feats: ["年払いの全機能", "専用IPオプション", "ステルスモード", "優先キュー"] },
+        { name: "年払い",     price: "$1",    per: "/月", desc: "$12/年",          feats: ["45以上の全拠点", "WireGuard + WebSocketリレー", "デバイス無制限", "24時間サポート", "7日間返金"] },
+        { name: "2年払い",    price: "$0.90", per: "/月", desc: "$21.60/2年",      feats: ["年払いの全機能", "専用IPオプション", "ステルスモード", "優先キュー"] },
+        { name: "月払い",     price: "$3",    per: "/月", desc: "月払い",           feats: ["45以上の全拠点", "WireGuard + WebSocketリレー", "デバイス無制限", "24時間サポート"] },
+        { name: "四半期払い", price: "$1.50", per: "/月", desc: "$4.50/四半期",    feats: ["全拠点", "WireGuard + WebSocketリレー", "デバイス無制限", "24時間サポート"] },
       ],
     },
     faq: {
@@ -826,8 +862,11 @@ const dict = {
       loginTitle: "おかえりなさい", signupTitle: "アカウントを作成",
       google: "Googleで続ける", microsoft: "Microsoftで続ける",
       orEmail: "またはメールで", email: "メールアドレス", password: "パスワード",
-      submit: "続ける", switchToSignup: "アカウントなし？登録する", switchToLogin: "アカウントあり？ログイン",
+      submit: "コードを送信", switchToSignup: "アカウントなし？登録する", switchToLogin: "アカウントあり？ログイン",
       terms: "続けることで、利用規約とプライバシーポリシーに同意します。",
+      otpSent: "コードを送信しました — メールを確認してください", enterOtp: "メールに届いた6桁のコードを入力",
+      otpPlaceholder: "000000", verify: "確認してログイン", resend: "コードを再送",
+      loading: "読み込み中...", sending: "送信中...", redirecting: "ログイン中...", invalidOtp: "コードが無効です。もう一度お試しください。",
     },
     dash: {
       welcome: "おかえりなさい", plan: "有効なプラン", expires: "残り", days: "日",
@@ -835,6 +874,7 @@ const dict = {
       devices: "接続デバイス", account: "アカウント", renew: "プランを更新", billing: "請求履歴",
       manage: "請求情報を更新またはプランをアップグレード。", logout: "ログアウト",
       usage: "データ使用量", thisMonth: "今月",
+      overview: "概要", myDevices: "デバイス", billingNav: "請求", adminLabel: "管理", logoutBtn: "ログアウト",
     },
     footer: { tagline: "オープンミラーウェブのインフラ。", product: "製品", legal: "法的事項", support: "サポート", contact: "お問い合わせ", disclaimer: "免責事項" },
     download: {

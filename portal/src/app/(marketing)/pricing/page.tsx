@@ -6,18 +6,11 @@ import { SiteNav } from '@/components/site/SiteNav'
 import { SiteFooter } from '@/components/site/SiteFooter'
 import { useI18n } from '@/lib/i18n'
 
-const PLAN_KEYS = ['monthly', 'yearly', 'biennial'] as const
+const PLAN_KEYS = ['yearly', 'biennial', 'monthly', 'quarterly'] as const
 type PlanKey = typeof PLAN_KEYS[number]
 
-// Map plan → currency for checkout (USD by default, can be extended)
-const PLAN_CURRENCY: Record<PlanKey, string> = {
-  monthly:  'usd',
-  yearly:   'usd',
-  biennial: 'usd',
-}
-
 export default function PricingPage() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [loading, setLoading] = useState<PlanKey | null>(null)
   const [error, setError]     = useState<string | null>(null)
 
@@ -28,13 +21,12 @@ export default function PricingPage() {
       const res = await fetch('/api/billing/checkout', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ currency: PLAN_CURRENCY[plan] }),
+        body:    JSON.stringify({ plan }),
       })
       const { url, error: apiErr } = await res.json()
       if (url) {
         window.location.href = url
       } else {
-        // Not logged in → redirect to login
         if (res.status === 401) {
           window.location.href = '/login?next=/pricing'
         } else {
@@ -64,16 +56,16 @@ export default function PricingPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {t.pricing.plans.map((p, i) => {
-              const popular  = i === 1
-              const planKey  = PLAN_KEYS[i]
+              const popular   = i === 0   // 年付 = Most Popular
+              const planKey   = PLAN_KEYS[i]
               const isLoading = loading === planKey
 
               return (
                 <div
                   key={i}
-                  className={`glass-panel p-8 rounded-3xl flex flex-col relative ${
+                  className={`glass-panel p-7 rounded-3xl flex flex-col relative ${
                     popular
                       ? 'border-mirror shadow-[0_0_40px_color-mix(in_oklab,var(--color-mirror)_10%,transparent)]'
                       : ''
@@ -84,15 +76,18 @@ export default function PricingPage() {
                       {t.pricing.popular}
                     </div>
                   )}
-                  <span className="text-sm text-muted-foreground mb-2">{p.name}</span>
-                  <div className="flex items-baseline gap-1 mb-1">
-                    <span className={`text-5xl font-bold ${popular ? 'text-mirror' : ''}`}>{p.price}</span>
-                    <span className="text-muted-foreground">{p.per}</span>
-                  </div>
-                  {popular && <p className="text-[11px] text-mirror/70 mb-5">Best value · Save 58%</p>}
-                  {!popular && <div className="mb-6" />}
 
-                  <ul className="space-y-3 text-sm text-foreground/80 mb-10 flex-grow">
+                  <span className="text-sm text-muted-foreground mb-2">{p.name}</span>
+                  <div className="flex items-baseline gap-1 mb-0.5">
+                    <span className={`text-4xl font-bold ${popular ? 'text-mirror' : ''}`}>{p.price}</span>
+                    <span className="text-muted-foreground text-sm">{p.per}</span>
+                  </div>
+                  {'desc' in p && (
+                    <p className="text-[11px] text-muted-foreground/70 mb-5">{(p as { desc: string }).desc}</p>
+                  )}
+                  {!('desc' in p) && <div className="mb-5" />}
+
+                  <ul className="space-y-2.5 text-sm text-foreground/80 mb-8 flex-grow">
                     {p.feats.map((f, j) => (
                       <li key={j} className="flex items-center gap-2.5">
                         <span className="w-4 h-4 rounded-full bg-mirror/10 border border-mirror/30 flex items-center justify-center flex-shrink-0">
@@ -113,7 +108,7 @@ export default function PricingPage() {
                     }`}
                   >
                     {isLoading
-                      ? <><Loader2 className="w-4 h-4 animate-spin" />Redirecting…</>
+                      ? <><Loader2 className="w-4 h-4 animate-spin" />…</>
                       : popular ? t.pricing.featured : t.pricing.select
                     }
                   </button>
@@ -124,7 +119,9 @@ export default function PricingPage() {
 
           <p className="text-center mt-8 text-sm text-muted-foreground flex items-center justify-center gap-2">
             <Shield className="w-4 h-4 text-mirror" />
-            7-day money-back guarantee · Secure payment via Stripe · Cancel anytime
+            {lang === 'zh'
+              ? '7天无理由退款 · Stripe 安全支付 · 随时取消'
+              : '7-day money-back guarantee · Secure payment via Stripe · Cancel anytime'}
           </p>
         </div>
       </main>

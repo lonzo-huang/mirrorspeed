@@ -8,9 +8,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { currency } = await req.json()
-  const priceId = STRIPE_PRICE_IDS[currency as string]
-  if (!priceId) return NextResponse.json({ error: '不支持的货币类型' }, { status: 400 })
+  const { plan } = await req.json()
+  const priceId = STRIPE_PRICE_IDS[plan as string]
+  if (!priceId) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
 
   // 检查是否已有有效订阅
   const { data: existingSub } = await supabase
@@ -48,18 +48,13 @@ export async function POST(req: NextRequest) {
     subscription_data: {
       metadata: {
         supabase_user_id: user.id,
-        currency,
+        plan,
       },
     },
-    // 保存货币偏好
-    metadata: { supabase_user_id: user.id, currency },
-    // 允许用户在 Checkout 中输入促销码
+    metadata: { supabase_user_id: user.id, plan },
     allow_promotion_codes: true,
-    locale: currency === 'cny' ? 'zh' : 'auto',
+    locale: 'auto',
   })
-
-  // 同步更新用户货币偏好
-  await supabase.from('profiles').update({ preferred_currency: currency }).eq('id', user.id)
 
   return NextResponse.json({ url: session.url })
 }

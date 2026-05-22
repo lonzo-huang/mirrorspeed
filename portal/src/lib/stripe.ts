@@ -5,11 +5,13 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   typescript: true,
 })
 
-// 货币对应的 Stripe Price ID（在 .env 中配置）
+// 四个套餐对应的 Stripe Price ID（在 Vercel 环境变量中配置）
+// 价格均以 USD 结算，页面对中国区用户显示人民币等价金额
 export const STRIPE_PRICE_IDS: Record<string, string> = {
-  usd: process.env.STRIPE_PRICE_USD!,
-  eur: process.env.STRIPE_PRICE_EUR!,
-  cny: process.env.STRIPE_PRICE_CNY!,
+  yearly:    process.env.STRIPE_PRICE_YEARLY!,    // $12/yr  → $1/mo
+  biennial:  process.env.STRIPE_PRICE_BIENNIAL!,  // $21.60/2yr → $0.90/mo
+  monthly:   process.env.STRIPE_PRICE_MONTHLY!,   // $3/mo
+  quarterly: process.env.STRIPE_PRICE_QUARTERLY!, // $4.50/qtr → $1.50/mo
 }
 
 // 确保 Stripe Customer 存在，返回 customer ID
@@ -17,20 +19,17 @@ export async function ensureStripeCustomer(userId: string, email: string, name?:
   const { createAdminClient } = await import('@/lib/supabase/server')
   const admin = createAdminClient()
 
-  // 从数据库读取已有 customer ID
   const { data: profile } = await admin
     .from('profiles').select('stripe_customer_id').eq('id', userId).single()
 
   if (profile?.stripe_customer_id) return profile.stripe_customer_id
 
-  // 在 Stripe 创建新 Customer（metadata 保存 Supabase user ID 用于 webhook 关联）
   const customer = await stripe.customers.create({
     email,
     name: name ?? email,
     metadata: { supabase_user_id: userId },
   })
 
-  // 写回数据库
   await admin.from('profiles')
     .update({ stripe_customer_id: customer.id })
     .eq('id', userId)

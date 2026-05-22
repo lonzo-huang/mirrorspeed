@@ -6,20 +6,22 @@ import { createClient } from '@/lib/supabase/client'
 import { Shield, Monitor, CreditCard, Settings, LogOut, ChevronDown } from 'lucide-react'
 import type { Tables } from '@/types/database.types'
 import { useState } from 'react'
+import { useI18n } from '@/lib/i18n'
 
 type Profile = Tables<'profiles'>
 
-const NAV_ITEMS = [
-  { href: '/dashboard',         label: '概览',     icon: Shield },
-  { href: '/dashboard/devices', label: '我的设备', icon: Monitor },
-  { href: '/dashboard/billing', label: '订阅与账单', icon: CreditCard },
-]
-
 export function DashboardNav({ profile }: { profile: Profile }) {
+  const { t } = useI18n()
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  const NAV_ITEMS = [
+    { href: '/dashboard',         label: t.dash.overview,    icon: Shield },
+    { href: '/dashboard/devices', label: t.dash.myDevices,   icon: Monitor },
+    { href: '/dashboard/billing', label: t.dash.billingNav,  icon: CreditCard },
+  ]
 
   async function signOut() {
     await supabase.auth.signOut()
@@ -68,7 +70,7 @@ export function DashboardNav({ profile }: { profile: Profile }) {
                 }`}
             >
               <Settings className="h-4 w-4" />
-              管理
+              {t.dash.adminLabel}
             </Link>
           )}
         </div>
@@ -93,12 +95,22 @@ export function DashboardNav({ profile }: { profile: Profile }) {
                 <p className="text-xs font-medium text-foreground truncate">{profile.display_name}</p>
                 <p className="text-xs text-muted-foreground truncate">{profile.email}</p>
               </div>
+              {/* 移动端导航链接 */}
+              <div className="sm:hidden border-b border-border py-1">
+                {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+                  <Link key={href} href={href} onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-accent/5 hover:text-foreground transition-colors">
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </Link>
+                ))}
+              </div>
               <button
                 onClick={signOut}
                 className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
               >
                 <LogOut className="h-4 w-4" />
-                退出登录
+                {t.dash.logoutBtn}
               </button>
             </div>
           )}
