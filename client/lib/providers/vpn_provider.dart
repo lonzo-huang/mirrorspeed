@@ -160,8 +160,13 @@ class VpnProvider extends ChangeNotifier {
   }
 
   /// 将直连配置改写为中继模式配置：
-  ///   Endpoint  → 127.0.0.1:<relayPort>
+  ///   Endpoint   → 127.0.0.1:<relayPort>
   ///   AllowedIPs → VPN 子网（避免路由环路：Cloudflare 走物理网卡）
+  ///   DNS        → 114.114.114.114, 223.5.5.5（国内可用）
+  ///
+  /// 为什么要替换 DNS：
+  ///   中继模式下 AllowedIPs 仅含 VPN 子网，DNS 查询走物理网卡而非隧道。
+  ///   1.1.1.1 / 8.8.8.8 在中国大陆被封锁，必须换为国内 DNS 否则无法解析。
   String _buildRelayConf(String wgConf, int relayPort) {
     // 1. Endpoint 改为本地中继端口
     var conf = wgConf.replaceAll(
@@ -179,6 +184,24 @@ class VpnProvider extends ChangeNotifier {
       RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
       'AllowedIPs   = $vpnSubnet',
     );
+
+    // 3. 替换 DNS 为国内可用服务器
+    //    114.114.114.114 = 电信 / 联通 / 移动三网通用
+    //    223.5.5.5       = 阿里 AliDNS（备用）
+    const chinaDns = 'DNS          = 114.114.114.114, 223.5.5.5';
+    if (conf.contains(RegExp(r'^\s*DNS\s*=', multiLine: true))) {
+      conf = conf.replaceAll(
+        RegExp(r'^\s*DNS\s*=\s*[^\n]+', multiLine: true),
+        chinaDns,
+      );
+    } else {
+      // 原配置无 DNS 行时，插入到 [Interface] 段最后一行（[Peer] 前）
+      conf = conf.replaceFirst(
+        RegExp(r'(\[Peer\])'),
+        '$chinaDns\n\n[Peer]',
+      );
+    }
+
     return conf;
   }
 
