@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart'; // PlatformException
 import 'package:http/http.dart' as http;
@@ -126,9 +127,25 @@ class VpnProvider extends ChangeNotifier {
     // Nginx /secure-tunnel/ 代理 → wstunnel:2080 → WireGuard UDP
     final wsUrl = 'wss://${server.endpoint}/secure-tunnel/'
                   'udp/127.0.0.1/${server.port}';
+
+    // 解析服务器 IP，用于在 AllowedIPs 中排除（防止 WebSocket 中继回环）
+    // 此时 VPN 未启动，DNS 走物理网卡，域名本身不被封所以能正常解析
+    String? serverIp;
+    try {
+      final addrs = await InternetAddress.lookup(server.endpoint)
+          .timeout(const Duration(seconds: 5));
+      serverIp = addrs
+          .firstWhere((a) => a.type == InternetAddressType.IPv4,
+              orElse: () => addrs.first)
+          .address;
+      debugPrint('[VPN] 服务器 IP 解析成功: $serverIp');
+    } catch (e) {
+      debugPrint('[VPN] 服务器 IP 解析失败，使用子网回退模式: $e');
+    }
+
     try {
       final localPort = await _relay.start(wsUrl);
-      final relayConf = _buildRelayConf(server.wgConf, localPort);
+      final relayConf = _buildRelayConf(server.wgConf, localPort, serverIp);
 
       await WireGuardFlutter.instance.startVpn(
         serverAddress:            '127.0.0.1:$localPort',
@@ -159,51 +176,87 @@ class VpnProvider extends ChangeNotifier {
     }
   }
 
-  /// 将直连配置改写为中继模式配置：
-  ///   Endpoint   → 127.0.0.1:<relayPort>
-  ///   AllowedIPs → VPN 子网（避免路由环路：Cloudflare 走物理网卡）
-  ///   DNS        → 114.114.114.114, 223.5.5.5（国内可用）
+  /// 将直连配置改写为中继模式配置。
   ///
-  /// 为什么要替换 DNS：
-  ///   中继模式下 AllowedIPs 仅含 VPN 子网，DNS 查询走物理网卡而非隧道。
-  ///   1.1.1.1 / 8.8.8.8 在中国大陆被封锁，必须换为国内 DNS 否则无法解析。
-  String _buildRelayConf(String wgConf, int relayPort) {
+  /// 路由策略：
+  ///   A) serverIp 已解析（正常情况）→ 全隧道模式
+  ///      AllowedIPs = 0.0.0.0/0 排除 serverIp/32
+  ///      - 所有流量（含 DNS）走 VPN，由 VPN 服务器代理访问互联网
+  ///      - WebSocket 中继流量发往 serverIp → 走物理网卡 → 不回环
+  ///      - DNS 走 VPN 隧道，不存在污染问题，无需修改 DNS 配置
+  ///
+  ///   B) serverIp 解析失败（极少见）→ 子网回退模式
+  ///      AllowedIPs = VPN 子网（10.200.0.0/24）
+  ///      - 仅 VPN 内网流量走隧道，互联网流量走物理网卡
+  ///      - DNS 走物理网卡，国内 DNS 会污染境外域名
+  ///      - 降级为国内 DNS（114.114.114.114）以保证基本可用
+  String _buildRelayConf(String wgConf, int relayPort, String? serverIp) {
     // 1. Endpoint 改为本地中继端口
     var conf = wgConf.replaceAll(
       RegExp(r'Endpoint\s*=\s*\S+'),
       'Endpoint     = 127.0.0.1:$relayPort',
     );
 
-    // 2. 从 Address 提取 VPN 子网（如 10.200.0.5/32 → 10.200.0.0/24）
-    //    仅路由 VPN 子网：WebSocket 连接到 Cloudflare 走物理网卡，不循环
-    final addrMatch = RegExp(r'Address\s*=\s*([\d.]+)/').firstMatch(conf);
-    final vpnSubnet = addrMatch != null
-        ? '${addrMatch.group(1)!.split('.').take(3).join('.')}.0/24'
-        : '10.200.0.0/24';
+    // 2. AllowedIPs
+    String allowedIps;
+    if (serverIp != null) {
+      // 全隧道：覆盖 0.0.0.0/0，但排除服务器 IP（防 WebSocket 回环）
+      allowedIps = _ipv4AllExcept(serverIp).join(', ');
+    } else {
+      // 无法解析服务器 IP → 退化为仅路由 VPN 子网
+      final addrMatch = RegExp(r'Address\s*=\s*([\d.]+)/').firstMatch(conf);
+      final vpnSubnet = addrMatch != null
+          ? '${addrMatch.group(1)!.split('.').take(3).join('.')}.0/24'
+          : '10.200.0.0/24';
+      allowedIps = vpnSubnet;
+      // 子网模式下 DNS 走物理网卡，必须用国内 DNS 否则境外域名被污染
+      conf = _setDns(conf, '114.114.114.114, 223.5.5.5');
+    }
     conf = conf.replaceAll(
       RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
-      'AllowedIPs   = $vpnSubnet',
+      'AllowedIPs   = $allowedIps',
     );
-
-    // 3. 替换 DNS 为国内可用服务器
-    //    114.114.114.114 = 电信 / 联通 / 移动三网通用
-    //    223.5.5.5       = 阿里 AliDNS（备用）
-    const chinaDns = 'DNS          = 114.114.114.114, 223.5.5.5';
-    if (conf.contains(RegExp(r'^\s*DNS\s*=', multiLine: true))) {
-      conf = conf.replaceAll(
-        RegExp(r'^\s*DNS\s*=\s*[^\n]+', multiLine: true),
-        chinaDns,
-      );
-    } else {
-      // 原配置无 DNS 行时，插入到 [Interface] 段最后一行（[Peer] 前）
-      conf = conf.replaceFirst(
-        RegExp(r'(\[Peer\])'),
-        '$chinaDns\n\n[Peer]',
-      );
-    }
 
     return conf;
   }
+
+  /// 替换或插入 WireGuard 配置中的 DNS 行
+  String _setDns(String conf, String dnsServers) {
+    final line = 'DNS          = $dnsServers';
+    if (conf.contains(RegExp(r'^\s*DNS\s*=', multiLine: true))) {
+      return conf.replaceAll(
+          RegExp(r'^\s*DNS\s*=\s*[^\n]+', multiLine: true), line);
+    }
+    return conf.replaceFirst(RegExp(r'\[Peer\]'), '$line\n\n[Peer]');
+  }
+
+  /// 计算覆盖整个 IPv4 地址空间但排除指定 /32 的 CIDR 列表（共 32 条）。
+  ///
+  /// 原理：沿二叉树从根（0.0.0.0/0）走到目标叶子（excludeIp/32），
+  /// 在每一层收集"另一半"子树，这些子树的并集 = 全空间 − excludeIp/32。
+  List<String> _ipv4AllExcept(String excludeIp) {
+    final parts = excludeIp.split('.');
+    if (parts.length != 4) return ['0.0.0.0/0'];
+
+    final target = ((int.tryParse(parts[0]) ?? 0) & 0xFF) << 24 |
+                   ((int.tryParse(parts[1]) ?? 0) & 0xFF) << 16 |
+                   ((int.tryParse(parts[2]) ?? 0) & 0xFF) << 8  |
+                   ((int.tryParse(parts[3]) ?? 0) & 0xFF);
+
+    final routes = <String>[];
+    for (int pl = 0; pl < 32; pl++) {
+      final bitPos  = 31 - pl;
+      final bit     = (target >> bitPos) & 1;
+      final prefix  = pl == 0 ? 0 : ((0xFFFFFFFF << (32 - pl)) & 0xFFFFFFFF);
+      final sibling = (target & prefix) | ((1 - bit) << bitPos);
+      final netMask = (0xFFFFFFFF << (32 - (pl + 1))) & 0xFFFFFFFF;
+      routes.add('${_intToIp(sibling & netMask)}/${pl + 1}');
+    }
+    return routes;
+  }
+
+  String _intToIp(int n) =>
+      '${(n >> 24) & 0xFF}.${(n >> 16) & 0xFF}.${(n >> 8) & 0xFF}.${n & 0xFF}';
 
   // ── 断开 ────────────────────────────────────────────────────
   Future<void> disconnect() async {
