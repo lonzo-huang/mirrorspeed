@@ -10,11 +10,18 @@
 
 ```
 MirrorSpeed/
-├── client/          # Flutter 移动端（Android / Windows）
-├── portal/          # Next.js 官网 + 管理后台（托管于 Vercel）
-├── vpn/             # VPN 服务器一键安装脚本
-├── vpn-api/         # FastAPI 管理接口（部署到每台 VPN 服务器）
-└── README.md        # 本文件
+├── client/              # Flutter 移动端（Android / Windows）
+├── portal/              # Next.js 官网 + 管理后台（托管于 Vercel）
+├── vpn/                 # VPN 服务器安装
+│   ├── docker/          #   ├─ Docker Compose 安装（推荐）
+│   │   ├── docker-compose.yml
+│   │   ├── .env.example
+│   │   ├── vpn/         #   │    WireGuard + wstunnel + vpn-api
+│   │   └── nginx/       #   │    Nginx + Let's Encrypt
+│   ├── install.sh       #   └─ Shell 脚本一键安装（裸机）
+│   └── 0x-*.sh          #      分步安装脚本
+├── scripts/             # 辅助脚本（注册服务器到 Portal 等）
+└── README.md            # 本文件
 ```
 
 ---
@@ -87,9 +94,29 @@ Vercel Cron 每分钟调用 `/api/cron/sync-servers`，自动完成：
 
 ### 3.1 VPN 服务器
 
+**方式一：Docker Compose（推荐，适合快速复制部署）**
+
+```bash
+# 1. 上传 docker 目录到服务器
+scp -r vpn/docker/ root@<SERVER_IP>:/opt/mirrorspeed-docker/
+
+# 2. SSH 到服务器
+ssh root@<SERVER_IP>
+cd /opt/mirrorspeed-docker
+
+# 3. 配置并启动
+cp .env.example .env && nano .env   # 填写 DOMAIN / EMAIL / VPN_API_SECRET
+docker compose up -d
+
+# 4. 获取服务端公钥
+docker compose logs vpn | grep -A2 "server public key"
+```
+
+**方式二：Shell 脚本（裸机，适合深度定制）**
+
 ```bash
 # 1. 上传脚本到服务器
-scp -r vpn/ vpn-api/ root@<SERVER_IP>:/opt/mirrorspeed/
+scp -r vpn/ root@<SERVER_IP>:/opt/mirrorspeed/
 
 # 2. SSH 到服务器，一键安装
 DOMAIN="vpn.yourdomain.com" \
@@ -98,7 +125,7 @@ VPN_API_SECRET="<同所有服务器的密钥>" \
 bash /opt/mirrorspeed/install.sh
 ```
 
-安装后记录输出的 **WireGuard 服务端公钥**，注册服务器时需要。
+安装完成后记录输出的 **WireGuard 服务端公钥**，注册服务器时需要。
 
 ### 3.2 Supabase 数据库
 

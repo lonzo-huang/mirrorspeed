@@ -1,23 +1,36 @@
-# 企业 VPN 服务端部署与使用指南
+# VPN 服务端部署与使用指南
 
-> 技术栈：WireGuard + wstunnel + Nginx TLS 1.3 + nftables  
+> 技术栈：WireGuard + wstunnel + Nginx TLS 1.3 + FastAPI  
 > 适用系统：Ubuntu 22.04 / 24.04 LTS，Debian 12  
-> 适用场景：企业员工安全远程办公接入
+> 支持两种安装方式：**Docker Compose（推荐）** 和 **Shell 脚本（裸机）**
+
+---
+
+## 安装方式对比
+
+| | Docker Compose | Shell 脚本（裸机）|
+|---|---|---|
+| **前置要求** | Docker + Docker Compose v2 | Ubuntu/Debian 裸机，root 权限 |
+| **安装步骤** | 4 步，约 3 分钟 | 多步骤，约 8 分钟 |
+| **TLS 证书** | 自动签发 + 自动续期 | certbot systemd timer |
+| **服务管理** | `docker compose up/down/logs` | `systemctl start/stop` |
+| **数据持久化** | Docker volume | `/etc/wireguard/` |
+| **复制到新服务器** | 复制 `.env`，一条命令 | 重新跑脚本 |
+| **适用场景** | 新服务器首选 | 需要深度定制内核/防火墙 |
 
 ---
 
 ## 目录
 
 1. [架构概览](#1-架构概览)
-2. [部署前准备](#2-部署前准备)
-3. [服务端安装](#3-服务端安装)
+2. [方式一：Docker Compose 安装（推荐）](#2-方式一docker-compose-安装推荐)
+3. [方式二：Shell 脚本安装（裸机）](#3-方式二shell-脚本安装裸机)
 4. [客户端配置](#4-客户端配置)
 5. [日常运维操作](#5-日常运维操作)
 6. [故障排查](#6-故障排查)
 7. [安全维护](#7-安全维护)
-8. [vpn-api 管理接口部署](#8-vpn-api-管理接口部署)
-9. [Portal 后端配置](#9-portal-后端配置)
-10. [添加更多服务器（快速流程）](#10-添加更多服务器快速流程)
+8. [Portal 后端配置](#8-portal-后端配置)
+9. [添加更多服务器（快速流程）](#9-添加更多服务器快速流程)
 
 ---
 
@@ -26,7 +39,7 @@
 ```
 员工设备
   │
-  ├─[直连模式] UDP 51820 ──────────────────────────────┐
+  ├─[直连模式] UDP 39666 ──────────────────────────────┐
   │                                                     │
   └─[TLS封装模式] WSS 443 → Nginx → wstunnel:2080 ──┐  │
                                                      ↓  ↓
@@ -39,7 +52,7 @@
 
 | 模式 | 协议 | 端口 | 适用场景 |
 |------|------|------|----------|
-| 直连 | WireGuard UDP | 51820 | 普通网络，速度最优 |
+| 直连 | WireGuard UDP | 39666 | 普通网络，速度最优 |
 | TLS 封装 | WebSocket over TLS | 443 | 酒店/机场/严格防火墙，UDP 被封锁时 |
 
 **各层职责：**
@@ -47,15 +60,95 @@
 ```
 Nginx (443)        — TLS 终结、静态站点伪装、路径路由
 wstunnel (2080)    — WebSocket ↔ UDP 转换（TLS 封装模式专用）
-WireGuard (51820)  — 内核级加密隧道，分配 10.200.0.0/24 子网
-nftables           — 防火墙、NAT、per-IP 连接限制
+WireGuard (39666)  — 内核级加密隧道，分配 10.200.0.0/24 子网
+nftables           — 防火墙、NAT、per-IP 连接限制（Shell 脚本模式）
 ```
 
 ---
 
-## 2. 部署前准备
+## 2. 方式一：Docker Compose 安装（推荐）
 
-### 2.1 服务器要求
+### 2.1 前置要求
+
+- Linux VPS（Ubuntu 22.04+ / Debian 12+）
+- 已安装 Docker 和 Docker Compose v2
+- 域名 A 记录已指向本服务器
+- 开放端口：TCP 80、443，UDP 39666
+
+**安装 Docker（如未安装）：**
+```bash
+curl -fsSL https://get.docker.com | sh
+```
+
+### 2.2 部署步骤
+
+```bash
+# 1. 进入 Docker 目录
+cd /opt/mirrorspeed/vpn/docker
+
+# 2. 创建并编辑配置文件
+cp .env.example .env
+nano .env
+```
+
+`.env` 文件内容：
+```bash
+DOMAIN=vpn.example.com          # 已解析到本机的域名
+EMAIL=admin@example.com          # Let's Encrypt 通知邮箱
+VPN_API_SECRET=<openssl rand -hex 32>  # 与 Portal 共用的 API 密钥
+WG_PORT=39666                    # WireGuard UDP 端口（可保持默认）
+```
+
+```bash
+# 3. 启动所有服务（首次运行自动签发 TLS 证书、生成 WireGuard 密钥）
+docker compose up -d
+
+# 4. 获取 WireGuard 服务端公钥（注册到 Portal 时需要）
+docker compose logs vpn | grep -A2 "server public key"
+```
+
+### 2.3 日常管理命令
+
+```bash
+# 查看服务状态
+docker compose ps
+
+# 查看日志
+docker compose logs -f vpn
+docker compose logs -f nginx
+
+# 重启服务
+docker compose restart vpn
+
+# 停止全部
+docker compose down
+
+# 升级（重新构建镜像）
+docker compose build --no-cache vpn
+docker compose up -d vpn
+```
+
+### 2.4 数据持久化
+
+| 内容 | 存储位置 |
+|------|---------|
+| WireGuard 密钥 + Peer 配置 | Docker volume `wg-data` |
+| TLS 证书 | Docker volume `nginx-secrets` |
+
+迁移到新服务器时，导出/导入 volume 即可：
+```bash
+# 导出（旧服务器）
+docker run --rm -v wg-data:/data -v $(pwd):/backup alpine tar czf /backup/wg-data.tar.gz -C /data .
+
+# 导入（新服务器）
+docker run --rm -v wg-data:/data -v $(pwd):/backup alpine tar xzf /backup/wg-data.tar.gz -C /data
+```
+
+---
+
+## 3. 方式二：Shell 脚本安装（裸机）
+
+### 3.1 服务器要求
 
 | 项目 | 最低要求 | 推荐 |
 |------|----------|------|
@@ -65,49 +158,25 @@ nftables           — 防火墙、NAT、per-IP 连接限制
 | 网络 | 独享 IP，无共享 NAT | CN2 GIA / 直连线路 |
 | 操作系统 | Ubuntu 22.04 LTS | Ubuntu 24.04 LTS |
 
-### 2.2 域名准备
+### 3.2 域名准备
 
-1. 购买或使用已有域名，添加 **A 记录**指向服务器公网 IP：
-
-   ```
-   remote.yourcompany.com  →  <服务器公网 IP>
-   ```
-
-2. DNS 生效通常需要 5 ~ 30 分钟，可用以下命令验证：
-
+1. 添加 **A 记录**指向服务器公网 IP，等待 DNS 生效（5~30 分钟）：
    ```bash
-   dig +short remote.yourcompany.com A
-   # 应返回服务器公网 IP
+   dig +short vpn.example.com A   # 应返回服务器公网 IP
    ```
 
-3. 确认域名可从外部解析再继续，否则 Let's Encrypt 签发证书会失败。
+2. 开放端口：TCP 80、443，UDP 39666
 
-### 2.3 服务器初始配置
-
-以 root 用户登录，更新系统并安装基础工具：
+### 3.3 上传脚本
 
 ```bash
-apt-get update && apt-get upgrade -y
-apt-get install -y curl wget git dnsutils python3
-```
-
-### 2.4 上传脚本至服务器
-
-将整个 `vpn/` 目录上传到服务器：
-
-```bash
-# 本地执行（将 <SERVER_IP> 替换为实际 IP）
+# 本地执行
 scp -r vpn/ root@<SERVER_IP>:/opt/mirrorspeed/
-
-# 或在服务器上直接克隆仓库
+# 或在服务器上克隆仓库
 git clone <仓库地址> /opt/mirrorspeed
 ```
 
----
-
-## 3. 服务端安装
-
-### 3.1 修改配置变量
+### 3.4 执行一键安装
 
 **在执行安装前，必须修改以下两个变量：**
 
@@ -118,33 +187,12 @@ cd /opt/mirrorspeed
 nano install.sh
 ```
 
-找到并修改这两行：
-
 ```bash
-DOMAIN="${DOMAIN:-remote.yourcompany.com}"   # ← 改为你的实际域名
-EMAIL="${EMAIL:-it-admin@yourcompany.com}"   # ← 改为 Let's Encrypt 通知邮箱
-FIRST_CLIENT="${FIRST_CLIENT:-employee1}"    # ← 首个客户端名称（可选）
-```
-
-或通过环境变量传入，无需修改文件：
-
-```bash
-export DOMAIN="vpn.example.com"
-export EMAIL="admin@example.com"
-export FIRST_CLIENT="alice"
-```
-
-### 3.2 执行一键安装
-
-```bash
-cd /opt/mirrorspeed
-chmod +x *.sh
-
-# 方式一：使用已修改的 install.sh
-bash install.sh
-
-# 方式二：通过环境变量传入
-DOMAIN="vpn.example.com" EMAIL="admin@example.com" bash install.sh
+# 通过环境变量传入（推荐，无需修改文件）
+DOMAIN="vpn.example.com" \
+EMAIL="admin@example.com" \
+VPN_API_SECRET="<openssl rand -hex 32>" \
+bash /opt/mirrorspeed/install.sh
 ```
 
 安装过程约需 **3 ~ 8 分钟**，依网速而定（主要耗时：apt 安装包、下载 wstunnel 二进制、certbot 签发证书）。
@@ -165,7 +213,7 @@ DOMAIN="vpn.example.com" EMAIL="admin@example.com" bash install.sh
 
   开放端口:
     TCP 443   — Nginx HTTPS（伪装站 + WS隧道入口）
-    UDP 51820 — WireGuard 直连
+    UDP 39666 — WireGuard 直连
 
   各层服务:
     Nginx     active
@@ -356,12 +404,12 @@ bash /opt/mirrorspeed/06-peer-manager.sh qrcode bob
 # 第一步：在后台启动 wstunnel 客户端（将 VPN 服务器 WSS 转为本地 UDP）
 wstunnel client \
     --connection-retry-max-backoff-sec 10 \
-    -L "udp://127.0.0.1:51820:127.0.0.1:51820?timeout_sec=0" \
+    -L "udp://127.0.0.1:39666:127.0.0.1:39666?timeout_sec=0" \
     wss://vpn.example.com/secure-tunnel/ &
 
 # 第二步：修改 WireGuard 配置中的 Endpoint
-# 将 Endpoint = vpn.example.com:51820
-# 改为 Endpoint = 127.0.0.1:51820
+# 将 Endpoint = vpn.example.com:39666
+# 改为 Endpoint = 127.0.0.1:39666
 
 # 第三步：连接 WireGuard
 sudo wg-quick up wg0
@@ -372,10 +420,10 @@ sudo wg-quick up wg0
 ```powershell
 # 第一步：后台启动 wstunnel
 Start-Process wstunnel.exe -ArgumentList `
-    "client --connection-retry-max-backoff-sec 10 -L `"udp://127.0.0.1:51820:127.0.0.1:51820?timeout_sec=0`" wss://vpn.example.com/secure-tunnel/" `
+    "client --connection-retry-max-backoff-sec 10 -L `"udp://127.0.0.1:39666:127.0.0.1:39666?timeout_sec=0`" wss://vpn.example.com/secure-tunnel/" `
     -WindowStyle Hidden
 
-# 第二步：在 WireGuard 客户端中将 Endpoint 改为 127.0.0.1:51820，然后激活
+# 第二步：在 WireGuard 客户端中将 Endpoint 改为 127.0.0.1:39666，然后激活
 ```
 
 ---
@@ -421,7 +469,7 @@ wg show wg0 allowed-ips
 ```
 interface: wg0
   public key: AbCdEfGh1234...
-  listening port: 51820
+  listening port: 39666
 
 peer: XyZaBc5678...
   endpoint: 203.0.113.45:12345
@@ -487,8 +535,8 @@ nft list set inet enterprise-fw tcp443_connlimit
 # 所有服务应为 active
 systemctl is-active nginx wg-quick@wg0 wstunnel nftables
 
-# WireGuard 监听 UDP 51820
-ss -ulnp | grep 51820
+# WireGuard 监听 UDP 39666
+ss -ulnp | grep 39666
 
 # wstunnel 监听 TCP 2080（仅 127.0.0.1）
 ss -tlnp | grep 2080
@@ -503,14 +551,14 @@ ss -tlnp | grep 443
 # 测试 443 端口（HTTPS）
 curl -v https://vpn.example.com/
 
-# 测试 51820 UDP（需 netcat）
-nc -u -v vpn.example.com 51820
+# 测试 39666 UDP（需 netcat）
+nc -u -v vpn.example.com 39666
 ```
 
 **第三步：检查防火墙是否放行：**
 
 ```bash
-# 确认 443 和 51820 在规则中
+# 确认 443 和 39666 在规则中
 nft list chain inet enterprise-fw input
 ```
 
@@ -667,48 +715,21 @@ apt-get upgrade -y
 
 ---
 
-## 8. vpn-api 管理接口部署
+## 8. vpn-api 管理接口（Shell 脚本模式）
 
-vpn-api 是部署在每台 VPN 服务器上的 FastAPI 服务，供 Next.js Portal 远程管理 Peer（添加/删除设备、查询状态）。
+> **Docker 模式无需此步骤** — vpn-api 已内置在 `vpn` 容器中。
 
-### 8.1 上传文件
-
-在本机执行，将 vpn-api 目录上传到服务器（**注意：上传到 vpn 脚本目录下的 vpn-api 子目录**）：
+vpn-api 是部署在每台 VPN 服务器上的 FastAPI 服务，供 Portal 远程管理 Peer。
 
 ```bash
-# 上传 vpn-api 源码（从本机执行）
-scp -r vpn-api/ root@<SERVER_IP>:/opt/mirrorspeed/vpn-api/
-```
-
-### 8.2 运行部署脚本
-
-```bash
-# 在服务器上执行（VPN_API_SECRET 所有服务器共用同一个值，从 Vercel 环境变量获取）
+# 在服务器上执行（VPN_API_SECRET 所有服务器共用同一个值）
 sudo VPN_API_SECRET=<密钥> bash /opt/mirrorspeed/07-vpnapi-setup.sh
 ```
 
-脚本自动完成：Python venv 创建、依赖安装、systemd 服务注册、Nginx `/vpn-api/` 反代配置。
-
-### 8.3 验证
-
+验证：
 ```bash
-# 本地健康检查
-curl http://127.0.0.1:8443/health
-
-# 公网健康检查（无需 API Key）
 curl https://<DOMAIN>/vpn-api/health
-
-# 带鉴权的状态查询
 curl -H "X-API-Secret: <VPN_API_SECRET>" https://<DOMAIN>/vpn-api/stats
-```
-
-### 8.4 一键安装时同步部署
-
-在运行 `install.sh` 时传入 `VPN_API_SECRET`，第 7 步会自动部署 vpn-api：
-
-```bash
-DOMAIN="vpn.example.com" EMAIL="admin@example.com" \
-VPN_API_SECRET="<密钥>" bash install.sh
 ```
 
 ---
@@ -756,7 +777,7 @@ INSERT INTO public.vpn_servers (
   endpoint, port, public_key, api_url, sort_order
 ) VALUES (
   'ES01', '西班牙 01', 'Spain', 'ES', '🇪🇸',
-  'spain01.yourdomain.com', 51820,
+  'spain01.yourdomain.com', 39666,
   '<WireGuard服务端公钥>',
   'https://spain01.yourdomain.com/vpn-api',
   1

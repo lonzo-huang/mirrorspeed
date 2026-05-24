@@ -1,0 +1,46 @@
+services:
+  vpn:
+    build: ./vpn
+    container_name: mirrorspeed-vpn
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      net.ipv4.ip_forward: 1
+    ports:
+      - "${WG_PORT:-39666}:${WG_PORT:-39666}/udp"
+    volumes:
+      - wg-data:/etc/wireguard
+    environment:
+      - VPN_API_SECRET=${VPN_API_SECRET}
+      - WG_PORT=${WG_PORT:-39666}
+    networks:
+      - vpn-net
+
+  nginx:
+    image: jonasal/nginx-certbot:5-nginx1.25-alpine
+    container_name: mirrorspeed-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - nginx-secrets:/etc/letsencrypt
+      - ./nginx/conf.d:/etc/nginx/user_conf.d:ro
+    environment:
+      - CERTBOT_EMAIL=${EMAIL}
+    networks:
+      - vpn-net
+    depends_on:
+      - vpn
+
+networks:
+  vpn-net:
+    driver: bridge
+
+volumes:
+  wg-data:
+  nginx-secrets:

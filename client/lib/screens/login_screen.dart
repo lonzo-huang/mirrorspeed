@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme.dart';
@@ -10,14 +11,20 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
-  bool _loading  = false;
-  bool _sent     = false;
+  final _otpCtrl   = TextEditingController();
+
+  bool    _loading = false;
+  bool    _sent    = false;   // 是否已发送验证码，进入第二步
   String? _error;
 
   @override
-  void dispose() { _emailCtrl.dispose(); super.dispose(); }
+  void dispose() {
+    _emailCtrl.dispose();
+    _otpCtrl.dispose();
+    super.dispose();
+  }
 
-  Future<void> _sendMagicLink() async {
+  Future<void> _sendOtp() async {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) return;
     setState(() { _loading = true; _error = null; });
@@ -28,6 +35,30 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() { _error = e.toString(); });
     } finally {
       setState(() { _loading = false; });
+    }
+  }
+
+  Future<void> _verifyOtp() async {
+    final token = _otpCtrl.text.trim();
+    if (token.length != 8) {
+      setState(() { _error = '请输入 8 位验证码'; });
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    try {
+      await context.read<AuthProvider>().verifyOtp(_emailCtrl.text.trim(), token);
+      // 验证成功后 AuthProvider 内部会更新状态，UI 自动切换
+    } catch (e) {
+      // verifyOTP 有时会抛异常，但 onAuthStateChange 已同步触发登录成功
+      // 此时 session 已存在，忽略这个假错误，GoRouter 会自动跳转
+      if (mounted && !context.read<AuthProvider>().isLoggedIn) {
+        setState(() {
+          _error = '验证码错误或已过期，请重试';
+          _otpCtrl.clear();
+        });
+      }
+    } finally {
+      if (mounted) setState(() { _loading = false; });
     }
   }
 
@@ -63,7 +94,8 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(),
-              // Logo
+
+              // ── Logo ────────────────────────────────────────────
               Center(
                 child: Container(
                   width: 72, height: 72,
@@ -79,48 +111,28 @@ class _LoginScreenState extends State<LoginScreen> {
               const Center(child: Text('MirrorSpeed VPN', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold))),
               const SizedBox(height: 8),
               Center(child: Text('高速安全，全球加速', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 15))),
+
               const Spacer(),
 
-              if (_sent) ...[
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: kSuccess.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: kSuccess.withOpacity(0.3)),
-                  ),
-                  child: Column(children: [
-                    const Icon(Icons.mark_email_read_rounded, color: kSuccess, size: 36),
-                    const SizedBox(height: 12),
-                    const Text('登录链接已发送', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-                    const SizedBox(height: 6),
-                    Text('请查收发往 ${_emailCtrl.text} 的邮件，点击其中的链接完成登录', textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white.withOpacity(0.6), height: 1.5)),
-                  ]),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => setState(() { _sent = false; }),
-                  child: const Text('换个邮箱重试'),
-                ),
-              ] else ...[
-                // Magic Link
+              // ── 第一步：输入邮箱 ─────────────────────────────────
+              if (!_sent) ...[
                 TextField(
-                  controller: _emailCtrl,
+                  controller:   _emailCtrl,
                   keyboardType: TextInputType.emailAddress,
-                  autocorrect: false,
+                  autocorrect:  false,
+                  enabled:      !_loading,
                   decoration: const InputDecoration(
-                    hintText: '输入邮箱地址',
-                    prefixIcon: Icon(Icons.email_outlined, color: Colors.grey),
+                    hintText:    '输入邮箱地址',
+                    prefixIcon:  Icon(Icons.email_outlined, color: Colors.grey),
                   ),
-                  onSubmitted: (_) => _sendMagicLink(),
+                  onSubmitted: (_) => _sendOtp(),
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton(
-                  onPressed: _loading ? null : _sendMagicLink,
+                  onPressed: _loading ? null : _sendOtp,
                   child: _loading
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('发送登录链接'),
+                      : const Text('发送验证码'),
                 ),
 
                 const SizedBox(height: 20),
@@ -134,32 +146,111 @@ class _LoginScreenState extends State<LoginScreen> {
                 ]),
                 const SizedBox(height: 20),
 
-                // OAuth buttons
                 _OAuthButton(
-                  onTap: _loading ? null : _googleLogin,
-                  icon: Icons.g_mobiledata_rounded,
-                  label: '使用 Google 账号登录',
+                  onTap:  _loading ? null : _googleLogin,
+                  icon:   Icons.g_mobiledata_rounded,
+                  label:  '使用 Google 账号登录',
                 ),
                 const SizedBox(height: 10),
                 _OAuthButton(
-                  onTap: _loading ? null : _microsoftLogin,
-                  icon: Icons.window_rounded,
-                  label: '使用 Microsoft 账号登录',
+                  onTap:  _loading ? null : _microsoftLogin,
+                  icon:   Icons.window_rounded,
+                  label:  '使用 Microsoft 账号登录',
                 ),
-
-                if (_error != null) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: kDanger.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: kDanger.withOpacity(0.3)),
-                    ),
-                    child: Text(_error!, style: const TextStyle(color: kDanger, fontSize: 13), textAlign: TextAlign.center),
-                  ),
-                ],
               ],
+
+              // ── 第二步：输入验证码 ────────────────────────────────
+              if (_sent) ...[
+                // 提示卡片
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color:        kSuccess.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(14),
+                    border:       Border.all(color: kSuccess.withOpacity(0.25)),
+                  ),
+                  child: Column(children: [
+                    const Icon(Icons.mark_email_read_rounded, color: kSuccess, size: 32),
+                    const SizedBox(height: 10),
+                    const Text('验证码已发送', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 6),
+                    Text(
+                      '请查收发往 ${_emailCtrl.text} 的邮件\n输入其中的 8 位数字验证码',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 13, height: 1.5),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 24),
+
+                // 验证码输入框
+                TextField(
+                  controller:     _otpCtrl,
+                  keyboardType:   TextInputType.number,
+                  textAlign:      TextAlign.center,
+                  maxLength:      8,
+                  enabled:        !_loading,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: const TextStyle(
+                    fontSize:      32,
+                    fontWeight:    FontWeight.bold,
+                    letterSpacing: 14,
+                    fontFamily:    'monospace',
+                  ),
+                  decoration: InputDecoration(
+                    hintText:       '──────',
+                    hintStyle:      TextStyle(color: Colors.white.withOpacity(0.15), letterSpacing: 10),
+                    counterText:    '',   // 隐藏字数计数
+                    contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  onSubmitted: (_) => _verifyOtp(),
+                  onChanged: (v) {
+                    // 自动提交：输满 8 位立刻验证
+                    if (v.length == 8) _verifyOtp();
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                ElevatedButton(
+                  onPressed: _loading ? null : _verifyOtp,
+                  child: _loading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('验证登录'),
+                ),
+                const SizedBox(height: 12),
+
+                // 重新发送 / 换邮箱
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  TextButton(
+                    onPressed: _loading ? null : _sendOtp,
+                    child: const Text('重新发送', style: TextStyle(fontSize: 13)),
+                  ),
+                  Text('·', style: TextStyle(color: Colors.white.withOpacity(0.3))),
+                  TextButton(
+                    onPressed: _loading ? null : () => setState(() {
+                      _sent = false;
+                      _otpCtrl.clear();
+                      _error = null;
+                    }),
+                    child: const Text('换个邮箱', style: TextStyle(fontSize: 13)),
+                  ),
+                ]),
+              ],
+
+              // ── 错误提示 ─────────────────────────────────────────
+              if (_error != null) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color:        kDanger.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border:       Border.all(color: kDanger.withOpacity(0.3)),
+                  ),
+                  child: Text(_error!, style: const TextStyle(color: kDanger, fontSize: 13), textAlign: TextAlign.center),
+                ),
+              ],
+
               const Spacer(),
             ],
           ),
@@ -178,10 +269,10 @@ class _OAuthButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: kCard,
+      color:        kCard,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: onTap,
+        onTap:        onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 14),

@@ -119,12 +119,23 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── 发送 Magic Link ──────────────────────────────────────────
+  // ── 发送 OTP 验证码（同时支持验证码输入 和 邮件链接直接登录）──
   Future<void> signInWithEmail(String email) async {
     await _supabase.auth.signInWithOtp(
       email:           email,
-      emailRedirectTo: kAuthCallbackUrl,
+      shouldCreateUser: true,
+      emailRedirectTo: kAuthCallbackUrl, // 邮件同时含链接（点击直接登录）和 6 位验证码（手动输入）
     );
+  }
+
+  // ── 验证 OTP 验证码 ──────────────────────────────────────────
+  Future<void> verifyOtp(String email, String token) async {
+    await _supabase.auth.verifyOTP(
+      email: email,
+      token: token,
+      type:  OtpType.email,
+    );
+    // 验证成功后 onAuthStateChange 会自动触发 _onLoggedIn()
   }
 
   // ── OAuth 登录 ───────────────────────────────────────────────
