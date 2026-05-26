@@ -45,7 +45,14 @@ class VpnProvider extends ChangeNotifier {
   void _onStage(VpnStage stage) {
     switch (stage) {
       case VpnStage.connected:
-        _fallbackTimer?.cancel(); // 握手成功，取消回退计时器
+        if (_switchingToRelay) {
+          // 中继模式握手成功，可以放心取消计时器
+          _fallbackTimer?.cancel();
+        } else {
+          // 直连模式：Android VPN 接口已 UP，但 WireGuard 握手可能还没完成。
+          // 不在此处取消计时器，等连通性验证通过后再取消。
+          _postConnectCheck(_activeServer);
+        }
         _status = VpnStatus.connected;
         _startTimer();
       case VpnStage.connecting:
@@ -109,10 +116,12 @@ class VpnProvider extends ChangeNotifier {
   }
 
   // ── WebSocket 中继回退 ───────────────────────────────────────
-  Future<void> _switchToRelay(ServerConfig server) async {
-    if (_status == VpnStatus.connected) return; // 已直连成功，无需切换
+  // [force] = true：由连通性验证失败触发，此时 status 已是 connected
+  //            但流量实际不通，需要强制切换。
+  Future<void> _switchToRelay(ServerConfig server, {bool force = false}) async {
+    if (!force && _status == VpnStatus.connected) return; // 正常直连已成功，无需切换
 
-    debugPrint('[VPN] 直连 12 秒超时，切换 WebSocket 中继...');
+    debugPrint('[VPN] ${force ? '连通性验证失败' : '直连 12 秒超时'}，切换 WebSocket 中继...');
     _switchingToRelay = true;
     _protocol         = VpnProtocol.relay;
     _status           = VpnStatus.connecting;
@@ -296,14 +305,41 @@ class VpnProvider extends ChangeNotifier {
     _elapsedSecs = null;
   }
 
-  // ── 延迟测量（HTTP HEAD 计时，无需 ICMP 权限）──────────────
+  // ── 连通性验证（直连模式握手后约 4 秒执行）──────────────────
+  // WireGuard UDP 被 GFW 过滤时，Android VPN 接口仍会报 connected，
+  // 但实际流量无法通过。通过请求外网地址判断隧道是否真正打通。
+  Future<void> _postConnectCheck(ServerConfig? server) async {
+    await Future.delayed(const Duration(seconds: 4));
+    // 如果已切换中继或已断开，跳过
+    if (_status != VpnStatus.connected || _protocol == VpnProtocol.relay || server == null) return;
+
+    bool ok = false;
+    try {
+      final res = await http.get(
+        Uri.parse('https://connectivitycheck.gstatic.com/generate_204'),
+      ).timeout(const Duration(seconds: 5));
+      ok = res.statusCode == 204 || res.statusCode < 400;
+    } catch (_) {}
+
+    if (ok) {
+      _fallbackTimer?.cancel(); // 流量畅通，取消中继切换计时器
+      debugPrint('[VPN] 连通性验证成功，保持直连');
+    } else {
+      // UDP 握手失败或流量被墙，立即切换 WebSocket 中继
+      debugPrint('[VPN] 连通性验证失败，切换 WebSocket 中继');
+      await _switchToRelay(server, force: true);
+    }
+  }
+
+  // ── 延迟测量（请求各自服务器的 health 端点）──────────────────
+  // 每台 VPN 服务器单独测量，反映从用户当前网络到该服务器的真实延迟。
   Future<void> measureLatencies(List<ServerConfig> servers) async {
     await Future.wait(servers.map((s) async {
       try {
         final sw = Stopwatch()..start();
-        await http.head(
-          Uri.parse('$kApiBase/api/releases/latest'),
-        ).timeout(const Duration(seconds: 3));
+        await http.get(
+          Uri.parse('https://${s.endpoint}/vpn-api/health'),
+        ).timeout(const Duration(seconds: 5));
         sw.stop();
         s.latencyMs = sw.elapsedMilliseconds;
       } catch (_) {
