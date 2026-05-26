@@ -20,7 +20,7 @@ $ErrorActionPreference = 'Stop'
 $SUPABASE_URL  = 'https://yqckjzfwibklwokialac.supabase.co'
 $SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxY2tqemZ3aWJrbHdva2lhbGFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxOTY1MzcsImV4cCI6MjA5NDc3MjUzN30.NDxrGI6mgVMjgJvBchTkOCcT_ldiEEWtpJkFOhFGYNA'
 $API_BASE      = 'https://mirrorspeed.mirrorquant.com'
-$CRON_SECRET   = '7Hs2Ri8mhnBy3A4vdGFCKVSoc1qQYrPM'
+$CRON_SECRET   = 'lFCBNQtNmuEpIclLTTMhvfqgb2FDX9Pj'
 $GITHUB_REPO   = 'lonzo-huang/mirrorspeed'
 $TAG           = "v$Version"
 
