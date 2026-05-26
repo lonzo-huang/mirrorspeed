@@ -81,7 +81,13 @@ export default function DownloadPage() {
               </div>
             ) : nativeAssets.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {nativeAssets.map(asset => (
+                {nativeAssets.map(asset => {
+                  const cnUrl = asset.platform === 'android'
+                    ? release?.cn_apk_url
+                    : asset.platform === 'windows'
+                      ? release?.cn_win_url
+                      : null
+                  return (
                   <div key={asset.name} className="glass-panel rounded-2xl p-6 flex items-center justify-between gap-4 hover:border-mirror/40 transition-colors">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
@@ -97,15 +103,26 @@ export default function DownloadPage() {
                       </p>
                     </div>
                     <div className="flex flex-col gap-2 shrink-0">
+                      {cnUrl && (
+                        <a
+                          href={cnUrl}
+                          className="text-xs font-bold bg-red-500/80 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition-colors text-center whitespace-nowrap"
+                          title="通过国内镜像高速下载"
+                        >
+                          🇨🇳 高速下载
+                        </a>
+                      )}
                       <a
                         href={`/api/download?id=${asset.id}&name=${encodeURIComponent(asset.name)}`}
-                        className="text-xs font-bold bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-mirror transition-colors text-center"
+                        className="text-xs font-bold bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-mirror transition-colors text-center whitespace-nowrap"
+                        title="通过 GitHub 下载"
                       >
-                        下载
+                        {cnUrl ? '备用下载' : '下载'}
                       </a>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               /* 尚未发布时的占位 */

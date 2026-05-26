@@ -154,6 +154,93 @@ if ((-not $SkipWindows) -and (Test-Path $WIN_DST)) {
     Ok "Windows ZIP uploaded"
 }
 
+# --- Upload to CN mirror (Vercel Blob CDN) -----------------------------------
+Step "Uploading to CN mirror (Vercel Blob)"
+
+function Upload-ToCnMirror {
+    param([string]$FilePath, [string]$Platform)
+
+    $filename = Split-Path $FilePath -Leaf
+    $mimeType = if ($Platform -eq 'android') {
+        'application/vnd.android.package-archive'
+    } else {
+        'application/zip'
+    }
+
+    try {
+        # Step 1: Request a client upload token from the portal
+        $tokenBody = @{
+            type    = "blob.generate-client-token"
+            payload = @{
+                pathname    = "apk/$filename"
+                callbackUrl = "$API_BASE/api/admin/mirror-token"
+                multipart   = $false
+            }
+        } | ConvertTo-Json -Depth 5
+
+        $tokenResp = Invoke-RestMethod `
+            -Uri "$API_BASE/api/admin/mirror-token" `
+            -Method POST `
+            -ContentType "application/json" `
+            -Headers @{ "x-upload-secret" = $CRON_SECRET } `
+            -Body $tokenBody
+
+        if (-not $tokenResp.clientToken -or -not $tokenResp.url) {
+            throw "No clientToken or url in response"
+        }
+
+        # Step 2: Upload file directly to Vercel Blob CDN
+        $uploadHeaders = @{
+            "Authorization" = "Bearer $($tokenResp.clientToken)"
+            "Content-Type"  = $mimeType
+            "x-mimeType"    = $mimeType
+        }
+        $uploadResp = Invoke-RestMethod `
+            -Uri $tokenResp.url `
+            -Method PUT `
+            -InFile $FilePath `
+            -Headers $uploadHeaders
+
+        # Determine final URL (blob.url or fallback to tokenResp.url)
+        $blobUrl = if ($uploadResp.url) { $uploadResp.url } else { $tokenResp.url }
+
+        # Step 3: Register URL with portal (backup in case onUploadCompleted callback failed)
+        $registerBody = @{
+            token    = $CRON_SECRET
+            platform = $Platform
+            version  = $Version
+            url      = $blobUrl
+        } | ConvertTo-Json
+        Invoke-RestMethod `
+            -Uri "$API_BASE/api/admin/mirror-register" `
+            -Method POST `
+            -ContentType "application/json" `
+            -Body $registerBody | Out-Null
+
+        return $blobUrl
+    } catch {
+        throw $_
+    }
+}
+
+if ((-not $SkipAndroid) -and (Test-Path $APK_DST)) {
+    try {
+        $cnApkUrl = Upload-ToCnMirror -FilePath $APK_DST -Platform "android"
+        Ok "APK → CN mirror: $cnApkUrl"
+    } catch {
+        Warn "CN mirror upload failed: $_"
+    }
+}
+
+if ((-not $SkipWindows) -and (Test-Path $WIN_DST)) {
+    try {
+        $cnWinUrl = Upload-ToCnMirror -FilePath $WIN_DST -Platform "windows"
+        Ok "Windows → CN mirror: $cnWinUrl"
+    } catch {
+        Warn "CN mirror upload failed: $_"
+    }
+}
+
 # --- Trigger Vercel cache revalidation ---------------------------------------
 Step "Revalidating Vercel download page"
 
