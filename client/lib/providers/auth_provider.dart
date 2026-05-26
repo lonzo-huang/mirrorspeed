@@ -119,12 +119,14 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── 发送 OTP 验证码（同时支持验证码输入 和 邮件链接直接登录）──
+  // ── 发送 OTP 验证码 ──────────────────────────────────────────
+  // 不设 emailRedirectTo，Supabase 发纯数字 OTP 邮件（8 位验证码）。
+  // 设置 emailRedirectTo 会触发 Magic Link 样式邮件（内容变成"确认邮箱地址"），
+  // 手机端体验不佳且深链跳转不稳定，故去掉。
   Future<void> signInWithEmail(String email) async {
     await _supabase.auth.signInWithOtp(
-      email:           email,
+      email:            email,
       shouldCreateUser: true,
-      emailRedirectTo: kAuthCallbackUrl, // 邮件同时含链接（点击直接登录）和 6 位验证码（手动输入）
     );
   }
 
