@@ -185,24 +185,26 @@ function Upload-ToCnMirror {
             -Headers @{ "x-upload-secret" = $CRON_SECRET } `
             -Body $tokenBody
 
-        if (-not $tokenResp.clientToken -or -not $tokenResp.url) {
-            throw "No clientToken or url in response"
+        if (-not $tokenResp.clientToken) {
+            throw "No clientToken in response"
         }
 
-        # Step 2: Upload file directly to Vercel Blob CDN
+        # Step 2: Upload directly to Vercel Blob CDN
+        # URL: https://blob.vercel-storage.com/{pathname}
+        $pathname  = "apk/$filename"
+        $uploadUrl = "https://blob.vercel-storage.com/$pathname"
         $uploadHeaders = @{
             "Authorization" = "Bearer $($tokenResp.clientToken)"
             "Content-Type"  = $mimeType
             "x-mimeType"    = $mimeType
         }
         $uploadResp = Invoke-RestMethod `
-            -Uri $tokenResp.url `
+            -Uri $uploadUrl `
             -Method PUT `
             -InFile $FilePath `
             -Headers $uploadHeaders
 
-        # Determine final URL (blob.url or fallback to tokenResp.url)
-        $blobUrl = if ($uploadResp.url) { $uploadResp.url } else { $tokenResp.url }
+        $blobUrl = $uploadResp.url
 
         # Step 3: Register URL with portal (backup in case onUploadCompleted callback failed)
         $registerBody = @{
