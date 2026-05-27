@@ -8,36 +8,45 @@ export function CheckoutButton({ planKey }: { planKey: string }) {
   const { t } = useI18n()
   const [loading, setLoading] = useState(false)
 
+  const [errMsg, setErrMsg] = useState<string | null>(null)
+
   async function startCheckout() {
     setLoading(true)
+    setErrMsg(null)
     try {
       const res = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan: planKey }),
       })
-      const { url, error } = await res.json()
-      if (url) {
-        window.location.href = url
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
       } else {
-        alert(error ?? t.dash.manage)
+        setErrMsg(data.error ?? 'Unknown error')
         setLoading(false)
       }
-    } catch {
+    } catch (e: any) {
+      setErrMsg(e?.message ?? 'Network error')
       setLoading(false)
     }
   }
 
   return (
-    <button
-      onClick={startCheckout}
-      disabled={loading}
-      className="btn-primary w-full flex items-center justify-center gap-2"
-    >
-      {loading
-        ? <><RefreshCw className="h-4 w-4 animate-spin" /> {t.dash.manage}</>
-        : <><CreditCard className="h-4 w-4" /> {t.pricing.featured}</>
-      }
-    </button>
+    <div className="space-y-2">
+      <button
+        onClick={startCheckout}
+        disabled={loading}
+        className="btn-primary w-full flex items-center justify-center gap-2"
+      >
+        {loading
+          ? <><RefreshCw className="h-4 w-4 animate-spin" /> Redirecting...</>
+          : <><CreditCard className="h-4 w-4" /> {t.pricing.featured}</>
+        }
+      </button>
+      {errMsg && (
+        <p className="text-xs text-red-400 text-center">{errMsg}</p>
+      )}
+    </div>
   )
 }

@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
     profile?.display_name ?? undefined
   )
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!
+  // 优先用环境变量，否则从请求 Origin 推导（兼容未设置 NEXT_PUBLIC_APP_URL 的情况）
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin).replace(/\/$/, '')
 
   // 创建 Stripe Checkout Session（订阅模式）
   const session = await stripe.checkout.sessions.create({
