@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart'; // PlatformException
+import 'package:flutter/services.dart'; // PlatformException + rootBundle
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wireguard_flutter/wireguard_flutter.dart';
@@ -9,8 +9,12 @@ import '../models/server_config.dart';
 import '../services/ws_relay_service.dart';
 import '../env.dart';
 
-enum VpnStatus   { disconnected, connecting, connected, disconnecting, error }
-enum VpnProtocol { direct, relay }
+enum VpnStatus    { disconnected, connecting, connected, disconnecting, error }
+enum VpnProtocol  { direct, relay }
+/// 路由模式
+/// - [global]：全局模式，所有流量走 VPN（0.0.0.0/0）
+/// - [smart] ：智能模式，中国大陆 IP 直连，境外流量走 VPN
+enum RoutingMode  { global, smart }
 
 class VpnProvider extends ChangeNotifier {
   VpnStatus     _status        = VpnStatus.disconnected;
@@ -25,12 +29,16 @@ class VpnProvider extends ChangeNotifier {
   bool               _switchingToRelay = false;
   final WsRelayService _relay          = WsRelayService();
 
+  RoutingMode        _routingMode      = RoutingMode.global;
+  List<String>?      _cachedNonCnRoutes;   // 懒加载，首次连接时计算并缓存
+
   VpnStatus     get status       => _status;
   ServerConfig? get activeServer => _activeServer;
   int?          get elapsedSecs  => _elapsedSecs;
   String?       get error        => _error;
   VpnProtocol   get protocol     => _protocol;
   bool          get isRelayMode  => _protocol == VpnProtocol.relay;
+  RoutingMode   get routingMode  => _routingMode;
 
   bool get isConnected => _status == VpnStatus.connected;
   bool get isBusy      => _status == VpnStatus.connecting ||
@@ -40,6 +48,24 @@ class VpnProvider extends ChangeNotifier {
   Future<void> initialize() async {
     await WireGuardFlutter.instance.initialize(interfaceName: 'wg0');
     _stageSub = WireGuardFlutter.instance.vpnStageSnapshot.listen(_onStage);
+
+    // 恢复上次选择的路由模式
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('routing_mode');
+    if (saved == RoutingMode.smart.name) {
+      _routingMode = RoutingMode.smart;
+      notifyListeners();
+    }
+  }
+
+  // ── 切换路由模式 ─────────────────────────────────────────
+  Future<void> setRoutingMode(RoutingMode mode) async {
+    if (_routingMode == mode) return;
+    _routingMode       = mode;
+    _cachedNonCnRoutes = null; // 切换模式时清除缓存，强制重新计算
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('routing_mode', mode.name);
   }
 
   void _onStage(VpnStage stage) {
@@ -84,9 +110,14 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 智能模式：覆盖 AllowedIPs 为非中国大陆 IP 段
+      final wgConf = _routingMode == RoutingMode.smart
+          ? await _applySmartRouting(server.wgConf, excludeIp: null)
+          : server.wgConf;
+
       await WireGuardFlutter.instance.startVpn(
         serverAddress:            '${server.endpoint}:${server.port}',
-        wgQuickConfig:            server.wgConf,
+        wgQuickConfig:            wgConf,
         providerBundleIdentifier: kProviderBundle,
       );
 
@@ -153,7 +184,7 @@ class VpnProvider extends ChangeNotifier {
 
     try {
       final localPort = await _relay.start(wsBaseUrl, server.port);
-      final relayConf = _buildRelayConf(server.wgConf, localPort, serverIp);
+      final relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
 
       await WireGuardFlutter.instance.startVpn(
         serverAddress:            '127.0.0.1:$localPort',
@@ -198,18 +229,24 @@ class VpnProvider extends ChangeNotifier {
   ///      - 仅 VPN 内网流量走隧道，互联网流量走物理网卡
   ///      - DNS 走物理网卡，国内 DNS 会污染境外域名
   ///      - 降级为国内 DNS（114.114.114.114）以保证基本可用
-  String _buildRelayConf(String wgConf, int relayPort, String? serverIp) {
+  Future<String> _buildRelayConf(String wgConf, int relayPort, String? serverIp) async {
     // 1. Endpoint 改为本地中继端口
     var conf = wgConf.replaceAll(
       RegExp(r'Endpoint\s*=\s*\S+'),
       'Endpoint     = 127.0.0.1:$relayPort',
     );
 
-    // 2. AllowedIPs
+    // 2. AllowedIPs（根据路由模式 + serverIp 可用性决定）
     String allowedIps;
     if (serverIp != null) {
-      // 全隧道：覆盖 0.0.0.0/0，但排除服务器 IP（防 WebSocket 回环）
-      allowedIps = _ipv4AllExcept(serverIp).join(', ');
+      if (_routingMode == RoutingMode.smart) {
+        // 智能模式：排除中国IP + 服务器IP（防 WebSocket 中继回环）
+        final routes = await _getSmartRoutes(excludeIp: serverIp);
+        allowedIps = routes.join(', ');
+      } else {
+        // 全局模式：0.0.0.0/0 排除服务器IP
+        allowedIps = _ipv4AllExcept(serverIp).join(', ');
+      }
     } else {
       // 无法解析服务器 IP → 退化为仅路由 VPN 子网
       final addrMatch = RegExp(r'Address\s*=\s*([\d.]+)/').firstMatch(conf);
@@ -228,8 +265,150 @@ class VpnProvider extends ChangeNotifier {
     return conf;
   }
 
+  // ── 智能路由：将 WireGuard 配置的 AllowedIPs 改为非中国IP段 ──
+  Future<String> _applySmartRouting(String wgConf, {required String? excludeIp}) async {
+    final routes = await _getSmartRoutes(excludeIp: excludeIp);
+    return wgConf.replaceAll(
+      RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
+      'AllowedIPs   = ${routes.join(', ')}',
+    );
+  }
+
+  /// 获取智能模式的 AllowedIPs 列表（非中国IP段，可选排除指定IP）。
+  /// 结果在会话内缓存，切换模式时自动清除。
+  Future<List<String>> _getSmartRoutes({required String? excludeIp}) async {
+    if (_cachedNonCnRoutes == null) {
+      final text = await rootBundle.loadString('assets/routes/cn_cidr.txt');
+      final cnCidrs = text
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty && !l.startsWith('#'))
+          .toList();
+      _cachedNonCnRoutes = _computeComplementCidrs(cnCidrs);
+      debugPrint('[VPN] 智能路由：加载 ${cnCidrs.length} 条中国IP段，计算 ${_cachedNonCnRoutes!.length} 条 AllowedIPs');
+    }
+
+    if (excludeIp == null) return _cachedNonCnRoutes!;
+
+    // 从已有路由中再排除服务器IP（防中继回环）
+    return _subtractIp(_cachedNonCnRoutes!, excludeIp);
+  }
+
+  /// 计算 CIDR 列表的互补集（全 IPv4 空间 MINUS 给定 CIDRs）。
+  static List<String> _computeComplementCidrs(List<String> excludeCidrs) {
+    // 1. 解析为 (start, end) 闭区间
+    final ranges = <(int, int)>[];
+    for (final cidr in excludeCidrs) {
+      final slash = cidr.indexOf('/');
+      if (slash < 0) continue;
+      final ipParts = cidr.substring(0, slash).split('.');
+      if (ipParts.length != 4) continue;
+      try {
+        final ip     = (int.parse(ipParts[0]) << 24) |
+                       (int.parse(ipParts[1]) << 16) |
+                       (int.parse(ipParts[2]) << 8)  |
+                        int.parse(ipParts[3]);
+        final prefix = int.parse(cidr.substring(slash + 1));
+        final mask   = prefix == 0 ? 0 : (0xFFFFFFFF - ((1 << (32 - prefix)) - 1));
+        final start  = ip & mask;
+        final size   = prefix == 0 ? 0x100000000 : (1 << (32 - prefix));
+        ranges.add((start, start + size - 1));
+      } catch (_) { continue; }
+    }
+
+    // 2. 排序 + 合并重叠区间
+    ranges.sort((a, b) => a.$1.compareTo(b.$1));
+    final merged = <(int, int)>[];
+    for (final r in ranges) {
+      if (merged.isEmpty || r.$1 > merged.last.$2 + 1) {
+        merged.add(r);
+      } else {
+        final last = merged.removeLast();
+        merged.add((last.$1, r.$2 > last.$2 ? r.$2 : last.$2));
+      }
+    }
+
+    // 3. 收集"空隙"作为结果
+    final result = <String>[];
+    int cursor   = 0;
+    for (final (start, end) in merged) {
+      if (cursor < start) result.addAll(_rangeToCidrs(cursor, start - 1));
+      cursor = end + 1;
+      if (cursor > 0xFFFFFFFF) break;
+    }
+    if (cursor <= 0xFFFFFFFF) result.addAll(_rangeToCidrs(cursor, 0xFFFFFFFF));
+    return result;
+  }
+
+  /// 从 CIDR 列表中裁减掉单个 /32 IP（用于排除 VPN 服务器IP）。
+  static List<String> _subtractIp(List<String> cidrs, String ip) {
+    final parts = ip.split('.');
+    if (parts.length != 4) return cidrs;
+    final target = (int.parse(parts[0]) << 24) |
+                   (int.parse(parts[1]) << 16) |
+                   (int.parse(parts[2]) << 8)  |
+                    int.parse(parts[3]);
+
+    final result = <String>[];
+    for (final cidr in cidrs) {
+      final slash   = cidr.indexOf('/');
+      if (slash < 0) { result.add(cidr); continue; }
+      final ipParts = cidr.substring(0, slash).split('.');
+      if (ipParts.length != 4) { result.add(cidr); continue; }
+      try {
+        final netIp  = (int.parse(ipParts[0]) << 24) |
+                       (int.parse(ipParts[1]) << 16) |
+                       (int.parse(ipParts[2]) << 8)  |
+                        int.parse(ipParts[3]);
+        final prefix = int.parse(cidr.substring(slash + 1));
+        final mask   = prefix == 0 ? 0 : (0xFFFFFFFF - ((1 << (32 - prefix)) - 1));
+        if ((target & mask) != (netIp & mask)) {
+          result.add(cidr); // target 不在此 CIDR 中，直接保留
+        } else {
+          // target 在此 CIDR 中，用 _ipv4AllExcept 拆分
+          result.addAll(_ipv4AllExcept(ip).where((r) {
+            // 只保留与原 CIDR 交集的部分（防止拆分超出原范围）
+            final rSlash  = r.indexOf('/');
+            final rParts  = r.substring(0, rSlash).split('.');
+            final rIp     = (int.parse(rParts[0]) << 24) |
+                            (int.parse(rParts[1]) << 16) |
+                            (int.parse(rParts[2]) << 8)  |
+                             int.parse(rParts[3]);
+            final rPrefix = int.parse(r.substring(rSlash + 1));
+            final rMask   = rPrefix == 0 ? 0 : (0xFFFFFFFF - ((1 << (32 - rPrefix)) - 1));
+            // r 的网络地址必须在原 CIDR 内
+            return (rIp & mask) == (netIp & mask);
+          }));
+        }
+      } catch (_) { result.add(cidr); }
+    }
+    return result;
+  }
+
+  /// 将连续 IP 区间 [start, end] 拆分为最精简的 CIDR 列表。
+  static List<String> _rangeToCidrs(int start, int end) {
+    if (start > end) return [];
+    final cidrs = <String>[];
+    int curr = start;
+    while (curr <= end) {
+      int prefix = 32;
+      for (int p = 0; p <= 32; p++) {
+        final blockSize = p == 0 ? 0x100000000 : (1 << (32 - p));
+        if (curr % blockSize == 0 && curr + blockSize - 1 <= end) {
+          prefix = p;
+          break;
+        }
+      }
+      cidrs.add('${_intToIp(curr)}/$prefix');
+      final blockSize = prefix == 0 ? 0x100000000 : (1 << (32 - prefix));
+      curr = curr + blockSize;
+      if (curr > 0xFFFFFFFF) break;
+    }
+    return cidrs;
+  }
+
   /// 替换或插入 WireGuard 配置中的 DNS 行
-  String _setDns(String conf, String dnsServers) {
+  static String _setDns(String conf, String dnsServers) {
     final line = 'DNS          = $dnsServers';
     if (conf.contains(RegExp(r'^\s*DNS\s*=', multiLine: true))) {
       return conf.replaceAll(
@@ -242,7 +421,7 @@ class VpnProvider extends ChangeNotifier {
   ///
   /// 原理：沿二叉树从根（0.0.0.0/0）走到目标叶子（excludeIp/32），
   /// 在每一层收集"另一半"子树，这些子树的并集 = 全空间 − excludeIp/32。
-  List<String> _ipv4AllExcept(String excludeIp) {
+  static List<String> _ipv4AllExcept(String excludeIp) {
     final parts = excludeIp.split('.');
     if (parts.length != 4) return ['0.0.0.0/0'];
 
@@ -263,7 +442,7 @@ class VpnProvider extends ChangeNotifier {
     return routes;
   }
 
-  String _intToIp(int n) =>
+  static String _intToIp(int n) =>
       '${(n >> 24) & 0xFF}.${(n >> 16) & 0xFF}.${(n >> 8) & 0xFF}.${n & 0xFF}';
 
   // ── 断开 ────────────────────────────────────────────────────

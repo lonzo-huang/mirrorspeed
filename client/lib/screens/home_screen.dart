@@ -15,7 +15,7 @@ class HomeScreen extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     final vpn  = context.watch<VpnProvider>();
 
-    final server  = vpn.activeServer ?? (auth.servers.isNotEmpty ? auth.servers.first : null);
+    final server = vpn.activeServer ?? (auth.servers.isNotEmpty ? auth.servers.first : null);
 
     return Scaffold(
       backgroundColor: kBg,
@@ -32,43 +32,14 @@ class HomeScreen extends StatelessWidget {
             child: const Icon(Icons.shield_rounded, size: 18, color: Colors.white),
           ),
           const SizedBox(width: 10),
-          const Text('MirrorSpeed VPN', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const Text('MirrorSpeed VPN',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
         ]),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, size: 20),
             tooltip: '刷新配置',
             onPressed: () => auth.refreshConfigs(),
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded),
-            color: kCard,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            onSelected: (v) async {
-              if (v == 'logout') {
-                if (vpn.isConnected) await vpn.disconnect();
-                await auth.signOut();
-              }
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'device',
-                child: Row(children: [
-                  const Icon(Icons.devices_rounded, size: 18, color: Colors.white70),
-                  const SizedBox(width: 10),
-                  Text(auth.deviceLabel ?? '我的设备', style: const TextStyle(fontSize: 13)),
-                ]),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'logout',
-                child: Row(children: [
-                  Icon(Icons.logout_rounded, size: 18, color: kDanger),
-                  SizedBox(width: 10),
-                  Text('退出登录', style: TextStyle(color: kDanger, fontSize: 13)),
-                ]),
-              ),
-            ],
           ),
         ],
       ),
@@ -140,14 +111,22 @@ class HomeScreen extends StatelessWidget {
 
               const Spacer(),
 
-              // ── 当前节点卡片 ──────────────────────────────────
-              if (server != null) _ServerCard(
-                server:    server,
-                isActive:  vpn.isConnected,
-                onTap: () => _showServerList(context),
+              // ── 智能 / 全局 模式切换 ──────────────────────────
+              _RoutingModeToggle(
+                mode:     vpn.routingMode,
+                onChanged: (m) => vpn.setRoutingMode(m),
               ),
 
               const SizedBox(height: 16),
+
+              // ── 当前节点卡片 ──────────────────────────────────
+              if (server != null) _ServerCard(
+                server:   server,
+                isActive: vpn.isConnected,
+                onTap:    () => _showServerList(context),
+              ),
+
+              const SizedBox(height: 12),
 
               // ── 切换节点按钮 ──────────────────────────────────
               SizedBox(
@@ -155,23 +134,24 @@ class HomeScreen extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: () => _showServerList(context),
                   style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.white.withOpacity(0.15)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side:           BorderSide(color: Colors.white.withOpacity(0.15)),
+                    shape:          RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
+                    padding:        const EdgeInsets.symmetric(vertical: 13),
                     foregroundColor: Colors.white70,
                   ),
-                  icon: const Icon(Icons.language_rounded, size: 18),
+                  icon:  const Icon(Icons.language_rounded, size: 18),
                   label: Text('选择节点 (${auth.servers.length} 个可用)'),
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
-              // ── 流量进度条（免费用户显示）────────────────────────
+              // ── 流量进度条（免费用户）────────────────────────────
               if (auth.dailyQuotaBytes != null)
                 _QuotaBar(
-                  used:  auth.dailyBytesUsed,
-                  quota: auth.dailyQuotaBytes!,
+                  used:      auth.dailyBytesUsed,
+                  quota:     auth.dailyQuotaBytes!,
                   suspended: auth.isSuspended,
                 ),
 
@@ -382,44 +362,127 @@ class _QuotaBar extends StatelessWidget {
 class _UpgradeButton extends StatelessWidget {
   const _UpgradeButton();
 
-  static const _pricingUrl = 'https://mirrorspeed.mirrorquant.com/pricing';
+  static const _pricingUrl = 'https://mirrorspeed.com/pricing';
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      margin:  const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color:         kDanger.withOpacity(0.1),
+        borderRadius:  BorderRadius.circular(12),
+        border:        Border.all(color: kDanger.withOpacity(0.3)),
+      ),
+      child: const Row(children: [
+        Icon(Icons.block_rounded, color: kDanger, size: 16),
+        SizedBox(width: 8),
+        Expanded(
+          child: Text('今日免费流量已用完，明日自动恢复',
+            style: TextStyle(color: kDanger, fontSize: 12)),
+        ),
+      ]),
+    ),
+    SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: () => launchUrl(
+          Uri.parse(_pricingUrl),
+          mode: LaunchMode.externalApplication,
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: kBrand,
+          shape:   RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+        icon:  const Icon(Icons.workspace_premium_rounded, size: 20),
+        label: const Text('升级专业版 · 无限流量',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+      ),
+    ),
+  ]);
+}
+
+// ── 智能 / 全局 模式切换 Toggle ──────────────────────────────────────────────
+class _RoutingModeToggle extends StatelessWidget {
+  final RoutingMode              mode;
+  final ValueChanged<RoutingMode> onChanged;
+  const _RoutingModeToggle({required this.mode, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-          color: kDanger.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: kDanger.withOpacity(0.3)),
-        ),
-        child: Row(children: [
-          const Icon(Icons.block_rounded, color: kDanger, size: 16),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text('今日免费流量已用完，明日自动恢复',
-              style: TextStyle(color: kDanger, fontSize: 12)),
-          ),
-        ]),
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color:        kCard,
+        borderRadius: BorderRadius.circular(12),
+        border:       Border.all(color: Colors.white.withOpacity(0.08)),
       ),
-      SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
-          onPressed: () => launchUrl(
-            Uri.parse(_pricingUrl),
-            mode: LaunchMode.externalApplication,
+      child: Row(children: [
+        _ToggleItem(
+          label:    '智能模式',
+          icon:     Icons.psychology_rounded,
+          selected: mode == RoutingMode.smart,
+          onTap:    () => onChanged(RoutingMode.smart),
+          tooltip:  '中国IP直连，境外走VPN',
+        ),
+        _ToggleItem(
+          label:    '全局模式',
+          icon:     Icons.public_rounded,
+          selected: mode == RoutingMode.global,
+          onTap:    () => onChanged(RoutingMode.global),
+          tooltip:  '所有流量走VPN',
+        ),
+      ]),
+    );
+  }
+}
+
+class _ToggleItem extends StatelessWidget {
+  final String       label;
+  final IconData     icon;
+  final bool         selected;
+  final VoidCallback onTap;
+  final String       tooltip;
+  const _ToggleItem({
+    required this.label, required this.icon, required this.selected,
+    required this.onTap, required this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Tooltip(
+        message: tooltip,
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin:       const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color:        selected ? kBrand.withOpacity(0.2) : Colors.transparent,
+              borderRadius: BorderRadius.circular(9),
+              border:       selected
+                  ? Border.all(color: kBrand.withOpacity(0.5))
+                  : Border.all(color: Colors.transparent),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 14,
+                  color: selected ? kBrand : Colors.white.withOpacity(0.4)),
+                const SizedBox(width: 5),
+                Text(label,
+                  style: TextStyle(
+                    fontSize:   13,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                    color:      selected ? kBrand : Colors.white.withOpacity(0.4),
+                  )),
+              ],
+            ),
           ),
-          style: FilledButton.styleFrom(
-            backgroundColor: kBrand,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            padding: const EdgeInsets.symmetric(vertical: 16),
-          ),
-          icon: const Icon(Icons.workspace_premium_rounded, size: 20),
-          label: const Text('升级专业版 · 无限流量', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         ),
       ),
-    ]);
+    );
   }
 }

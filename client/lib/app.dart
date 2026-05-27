@@ -6,6 +6,8 @@ import 'providers/vpn_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/main_shell.dart';
 import 'screens/no_subscription_screen.dart';
 import 'theme.dart';
 
@@ -33,10 +35,18 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp> {
       routes: [
         GoRoute(path: '/',                builder: (_, __) => const SplashScreen()),
         GoRoute(path: '/login',           builder: (_, __) => const LoginScreen()),
-        GoRoute(path: '/home',            builder: (_, __) => const HomeScreen()),
         GoRoute(path: '/no-subscription', builder: (_, __) => const NoSubscriptionScreen()),
         // OAuth / magic-link callback deep link (mirrorspeed://login-callback)
         GoRoute(path: '/login-callback',  builder: (_, __) => const SplashScreen()),
+
+        // ── 主界面（带底部导航栏）────────────────────────────
+        ShellRoute(
+          builder: (context, state, child) => MainShell(child: child),
+          routes: [
+            GoRoute(path: '/home',    builder: (_, __) => const HomeScreen()),
+            GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+          ],
+        ),
       ],
     );
   }
