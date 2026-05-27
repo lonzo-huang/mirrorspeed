@@ -1,6 +1,6 @@
 name: mirrorspeed_vpn
 description: MirrorSpeed VPN — 高速全球加速
-version: 1.0.13+13
+version: 1.0.14+14
 publish_to: none
 
 environment:
@@ -29,6 +29,9 @@ dependencies:
 
   # ── Navigation ───────────────────────────────────────────────
   go_router: ^14.2.0
+
+  # ── Crypto (for wstunnel v9 JWT generation) ──────────────────
+  crypto: ^3.0.3
 
   # ── Device info ──────────────────────────────────────────────
   device_info_plus: ^10.1.2

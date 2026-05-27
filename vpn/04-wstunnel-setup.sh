@@ -15,7 +15,7 @@ WG_PORT=39666              # WireGuard 实际 UDP 端口
 INSTALL_DIR="/usr/local/bin"
 WSTUNNEL_BIN="${INSTALL_DIR}/wstunnel"
 
-echo "[1/4] 下载 wstunnel 最新版..."
+echo "[1/4] 下载 wstunnel v9.7.4..."
 ARCH=$(uname -m)
 case "${ARCH}" in
     x86_64)  ARCH_TAG="amd64" ;;
@@ -23,11 +23,10 @@ case "${ARCH}" in
     *)       echo "ERROR: 不支持的架构: ${ARCH}"; exit 1 ;;
 esac
 
-# 通过 GitHub API 获取最新 Release tag
-LATEST_TAG=$(curl -fsSL "https://api.github.com/repos/erebe/wstunnel/releases/latest" \
-    | grep '"tag_name"' | cut -d'"' -f4)
-[[ -z "${LATEST_TAG}" ]] && { echo "ERROR: 无法获取 wstunnel 版本信息，请检查网络"; exit 1; }
-echo "  最新版本: ${LATEST_TAG}"
+# 锁定 v9.7.4：v10+ 协议完全变更（不再用 URL 路径编码目的地），
+# 客户端 Dart WebSocket 只兼容 v9 的 /udp/{host}/{port} 路径格式。
+LATEST_TAG="v9.7.4"
+echo "  使用版本: ${LATEST_TAG}"
 
 # 下载并验证二进制（无 GPG，校验文件大小>1MB）
 DOWNLOAD_URL="https://github.com/erebe/wstunnel/releases/download/${LATEST_TAG}/wstunnel_${LATEST_TAG#v}_linux_${ARCH_TAG}.tar.gz"

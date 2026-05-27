@@ -132,10 +132,9 @@ class VpnProvider extends ChangeNotifier {
     try { await WireGuardFlutter.instance.stopVpn(); } catch (_) {}
     await Future.delayed(const Duration(milliseconds: 600));
 
-    // wstunnel v10+ WebSocket 路径：/v1/udp/127.0.0.1/<WG端口>
+    // wstunnel v9.7+ 协议：路径 /v1/events + JWT（secret: "champignonfrais"）
     // Nginx /secure-tunnel/ 代理 → wstunnel:2080 → WireGuard UDP
-    final wsUrl = 'wss://${server.endpoint}/secure-tunnel/'
-                  'v1/udp/127.0.0.1/${server.port}';
+    final wsBaseUrl = 'wss://${server.endpoint}/secure-tunnel';
 
     // 解析服务器 IP，用于在 AllowedIPs 中排除（防止 WebSocket 中继回环）
     // 此时 VPN 未启动，DNS 走物理网卡，域名本身不被封所以能正常解析
@@ -153,7 +152,7 @@ class VpnProvider extends ChangeNotifier {
     }
 
     try {
-      final localPort = await _relay.start(wsUrl);
+      final localPort = await _relay.start(wsBaseUrl, server.port);
       final relayConf = _buildRelayConf(server.wgConf, localPort, serverIp);
 
       await WireGuardFlutter.instance.startVpn(
