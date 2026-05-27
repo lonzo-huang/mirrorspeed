@@ -10,6 +10,7 @@ import 'screens/profile_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/no_subscription_screen.dart';
 import 'theme.dart';
+import 'env.dart';
 
 class MirrorSpeedApp extends StatefulWidget {
   const MirrorSpeedApp({super.key});
@@ -84,7 +85,7 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp> {
         ChangeNotifierProvider.value(value: _vpn),
       ],
       child: MaterialApp.router(
-        title:        'MirrorSpeed VPN',
+        title:        kIsCnFlavor ? '镜速加速器' : 'MirrorSpeed VPN',
         theme:        buildTheme(),
         routerConfig: _router,
         debugShowCheckedModeBanner: false,

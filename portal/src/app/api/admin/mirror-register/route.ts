@@ -24,7 +24,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing platform or url' }, { status: 400 })
   }
 
-  const key = platform === 'android' ? 'cn_apk_url' : 'cn_win_url'
+  const key =
+    platform === 'android'    ? 'cn_apk_url'    :
+    platform === 'android_cn' ? 'cn_apk_cn_url' :
+    'cn_win_url'
   const admin = createAdminClient()
 
   const { error } = await (admin.from('app_config' as any) as any)

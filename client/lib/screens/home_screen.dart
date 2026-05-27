@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
+import '../env.dart';
 import '../theme.dart';
 import '../widgets/connect_button.dart';
 import 'server_list_screen.dart';
@@ -32,8 +33,8 @@ class HomeScreen extends StatelessWidget {
             child: const Icon(Icons.shield_rounded, size: 18, color: Colors.white),
           ),
           const SizedBox(width: 10),
-          const Text('MirrorSpeed VPN',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          Text(kIsCnFlavor ? '镜速加速器' : 'MirrorSpeed VPN',
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
         ]),
         actions: [
           IconButton(
@@ -111,13 +112,14 @@ class HomeScreen extends StatelessWidget {
 
               const Spacer(),
 
-              // ── 智能 / 全局 模式切换 ──────────────────────────
-              _RoutingModeToggle(
-                mode:     vpn.routingMode,
-                onChanged: (m) => vpn.setRoutingMode(m),
-              ),
-
-              const SizedBox(height: 16),
+              // ── 智能 / 全局 模式切换（仅中文版）─────────────────
+              if (kIsCnFlavor) ...[
+                _RoutingModeToggle(
+                  mode:      vpn.routingMode,
+                  onChanged: (m) => vpn.setRoutingMode(m),
+                ),
+                const SizedBox(height: 16),
+              ],
 
               // ── 当前节点卡片 ──────────────────────────────────
               if (server != null) _ServerCard(

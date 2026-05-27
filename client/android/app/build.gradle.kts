@@ -14,7 +14,7 @@ val keyProps = Properties().apply {
 }
 
 android {
-    namespace = "com.mirrorspeed.mirrorspeed_vpn"
+    namespace = "com.mirrorspeed.mirrorspeed_vpn"   // shared namespace for R class
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -28,11 +28,27 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.mirrorspeed.mirrorspeed_vpn"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    flavorDimensions += "env"
+
+    productFlavors {
+        create("global") {
+            dimension    = "env"
+            applicationId = "com.mirrorspeed.mirrorspeed_vpn"
+            resValue("string", "app_name", "MirrorSpeed VPN")
+            manifestPlaceholders["deepLinkScheme"] = "mirrorspeed"
+        }
+        create("cn") {
+            dimension    = "env"
+            applicationId = "com.mirrorspeed.jinsu"
+            resValue("string", "app_name", "镜速加速器")
+            manifestPlaceholders["deepLinkScheme"] = "jinsuapp"
+        }
     }
 
     signingConfigs {

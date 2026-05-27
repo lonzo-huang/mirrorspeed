@@ -14,14 +14,15 @@ export interface ReleaseAsset {
 }
 
 export interface LatestRelease {
-  version:    string
-  tag:        string
-  name:       string
-  body:       string
-  published:  string
-  assets:     ReleaseAsset[]
-  cn_apk_url: string | null   // Vercel Blob CDN URL for Android (CN fast download)
-  cn_win_url: string | null   // Vercel Blob CDN URL for Windows (CN fast download)
+  version:       string
+  tag:           string
+  name:          string
+  body:          string
+  published:     string
+  assets:        ReleaseAsset[]
+  cn_apk_url:    string | null   // Vercel Blob CDN URL for Global Android APK
+  cn_win_url:    string | null   // Vercel Blob CDN URL for Windows ZIP
+  cn_apk_cn_url: string | null   // Vercel Blob CDN URL for CN-flavor APK (镜速加速器)
 }
 
 function detectPlatform(name: string): ReleaseAsset['platform'] {
@@ -71,17 +72,19 @@ export async function GET() {
     const data = await res.json()
 
     // Fetch CN CDN URLs from Supabase app_config
-    let cnApkUrl: string | null = null
-    let cnWinUrl: string | null = null
+    let cnApkUrl:   string | null = null
+    let cnWinUrl:   string | null = null
+    let cnApkCnUrl: string | null = null
     try {
       const admin = createAdminClient()
       const { data: cfgs } = await (admin.from('app_config' as any) as any)
         .select('key, value')
-        .in('key', ['cn_apk_url', 'cn_win_url'])
+        .in('key', ['cn_apk_url', 'cn_win_url', 'cn_apk_cn_url'])
       if (Array.isArray(cfgs)) {
         for (const row of cfgs) {
-          if (row.key === 'cn_apk_url') cnApkUrl = row.value
-          if (row.key === 'cn_win_url') cnWinUrl = row.value
+          if (row.key === 'cn_apk_url')    cnApkUrl   = row.value
+          if (row.key === 'cn_win_url')    cnWinUrl   = row.value
+          if (row.key === 'cn_apk_cn_url') cnApkCnUrl = row.value
         }
       }
     } catch { /* non-fatal: CN URLs are optional */ }
@@ -101,8 +104,9 @@ export async function GET() {
             platform:             detectPlatform(a.name),
           }))
         : [],
-      cn_apk_url: cnApkUrl,
-      cn_win_url: cnWinUrl,
+      cn_apk_url:    cnApkUrl,
+      cn_win_url:    cnWinUrl,
+      cn_apk_cn_url: cnApkCnUrl,
     }
 
     return NextResponse.json(release, {

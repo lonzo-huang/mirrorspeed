@@ -30,8 +30,10 @@ $DEFINES = @(
     "--dart-define=API_BASE=$API_BASE"
 )
 
-$APK_SRC = "build\app\outputs\flutter-apk\app-release.apk"
-$APK_DST = "build\MirrorSpeed-$Version-android.apk"
+$APK_GLOBAL_SRC = "build\app\outputs\flutter-apk\app-global-release.apk"
+$APK_GLOBAL_DST = "build\MirrorSpeed-$Version-android.apk"
+$APK_CN_SRC     = "build\app\outputs\flutter-apk\app-cn-release.apk"
+$APK_CN_DST     = "build\JinSu-$Version-android.apk"
 $WIN_SRC = "build\windows\x64\runner\Release"
 $WIN_DST = "build\MirrorSpeed-$Version-windows.zip"
 
@@ -68,20 +70,34 @@ if (-not $DryRun) {
 New-Item -ItemType Directory -Path build -Force | Out-Null
 Ok "Version=$Version  Tag=$TAG  DryRun=$DryRun"
 
-# --- Build Android APK -------------------------------------------------------
+# --- Build Android APK (Global flavor) ---------------------------------------
 if (-not $SkipAndroid) {
-    Step "Building Android APK"
+    Step "Building Android APK — Global flavor (MirrorSpeed VPN)"
     $t0 = Get-Date
 
-    flutter build apk --release @DEFINES
-    if ($LASTEXITCODE -ne 0) { Fail "flutter build apk failed" }
+    flutter build apk --release --flavor global --dart-define=APP_FLAVOR=global @DEFINES
+    if ($LASTEXITCODE -ne 0) { Fail "flutter build apk (global) failed" }
 
-    if (-not (Test-Path $APK_SRC)) { Fail "APK not found at: $APK_SRC" }
-    Copy-Item $APK_SRC $APK_DST -Force
+    if (-not (Test-Path $APK_GLOBAL_SRC)) { Fail "Global APK not found at: $APK_GLOBAL_SRC" }
+    Copy-Item $APK_GLOBAL_SRC $APK_GLOBAL_DST -Force
 
-    $mb  = [math]::Round((Get-Item $APK_DST).Length / 1MB, 1)
+    $mb  = [math]::Round((Get-Item $APK_GLOBAL_DST).Length / 1MB, 1)
     $sec = [math]::Round(((Get-Date) - $t0).TotalSeconds)
-    Ok "APK ready: $APK_DST  ($mb MB, ${sec}s)"
+    Ok "Global APK ready: $APK_GLOBAL_DST  ($mb MB, ${sec}s)"
+
+    # --- Build Android APK (CN flavor) ----------------------------------------
+    Step "Building Android APK — CN flavor (镜速加速器)"
+    $t0 = Get-Date
+
+    flutter build apk --release --flavor cn --dart-define=APP_FLAVOR=cn @DEFINES
+    if ($LASTEXITCODE -ne 0) { Fail "flutter build apk (cn) failed" }
+
+    if (-not (Test-Path $APK_CN_SRC)) { Fail "CN APK not found at: $APK_CN_SRC" }
+    Copy-Item $APK_CN_SRC $APK_CN_DST -Force
+
+    $mb  = [math]::Round((Get-Item $APK_CN_DST).Length / 1MB, 1)
+    $sec = [math]::Round(((Get-Date) - $t0).TotalSeconds)
+    Ok "CN APK ready: $APK_CN_DST  ($mb MB, ${sec}s)"
 } else {
     Warn "Skipping Android build"
 }
@@ -110,8 +126,9 @@ if (-not $SkipWindows) {
 # --- DryRun: stop here -------------------------------------------------------
 if ($DryRun) {
     Write-Host "`nDryRun complete. Artifacts:" -ForegroundColor Green
-    if (Test-Path $APK_DST) { Write-Host "  APK: $APK_DST" }
-    if (Test-Path $WIN_DST) { Write-Host "  WIN: $WIN_DST" }
+    if (Test-Path $APK_GLOBAL_DST) { Write-Host "  APK (Global): $APK_GLOBAL_DST" }
+    if (Test-Path $APK_CN_DST)     { Write-Host "  APK (CN):     $APK_CN_DST" }
+    if (Test-Path $WIN_DST)        { Write-Host "  WIN:          $WIN_DST" }
     exit 0
 }
 
@@ -140,11 +157,18 @@ Ok "GitHub Release created"
 # --- Upload artifacts --------------------------------------------------------
 Step "Uploading artifacts"
 
-if ((-not $SkipAndroid) -and (Test-Path $APK_DST)) {
-    Write-Host "  Uploading APK..."
-    gh release upload $TAG $APK_DST --repo $GITHUB_REPO --clobber
-    if ($LASTEXITCODE -ne 0) { Fail "APK upload failed" }
-    Ok "APK uploaded"
+if ((-not $SkipAndroid) -and (Test-Path $APK_GLOBAL_DST)) {
+    Write-Host "  Uploading Global APK..."
+    gh release upload $TAG $APK_GLOBAL_DST --repo $GITHUB_REPO --clobber
+    if ($LASTEXITCODE -ne 0) { Fail "Global APK upload failed" }
+    Ok "Global APK uploaded"
+}
+
+if ((-not $SkipAndroid) -and (Test-Path $APK_CN_DST)) {
+    Write-Host "  Uploading CN APK..."
+    gh release upload $TAG $APK_CN_DST --repo $GITHUB_REPO --clobber
+    if ($LASTEXITCODE -ne 0) { Fail "CN APK upload failed" }
+    Ok "CN APK uploaded"
 }
 
 if ((-not $SkipWindows) -and (Test-Path $WIN_DST)) {
@@ -225,10 +249,19 @@ function Upload-ToCnMirror {
     }
 }
 
-if ((-not $SkipAndroid) -and (Test-Path $APK_DST)) {
+if ((-not $SkipAndroid) -and (Test-Path $APK_GLOBAL_DST)) {
     try {
-        $cnApkUrl = Upload-ToCnMirror -FilePath $APK_DST -Platform "android"
-        Ok "APK → CN mirror: $cnApkUrl"
+        $cnApkUrl = Upload-ToCnMirror -FilePath $APK_GLOBAL_DST -Platform "android"
+        Ok "Global APK → CN mirror: $cnApkUrl"
+    } catch {
+        Warn "CN mirror upload failed: $_"
+    }
+}
+
+if ((-not $SkipAndroid) -and (Test-Path $APK_CN_DST)) {
+    try {
+        $cnApkUrl = Upload-ToCnMirror -FilePath $APK_CN_DST -Platform "android_cn"
+        Ok "CN APK → CN mirror: $cnApkUrl"
     } catch {
         Warn "CN mirror upload failed: $_"
     }
