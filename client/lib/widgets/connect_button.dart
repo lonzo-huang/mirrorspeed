@@ -14,7 +14,7 @@ class ConnectButton extends StatelessWidget {
       VpnStatus.connecting     => (kBrand,    kBrand,    Icons.refresh_rounded,     '连接中…'),
       VpnStatus.disconnecting  => (Colors.orange, Colors.orange, Icons.refresh_rounded, '断开中…'),
       VpnStatus.error          => (kDanger,   kDanger,   Icons.error_outline_rounded, '出错了'),
-      _                        => (kSurface,  Colors.transparent, Icons.power_settings_new_rounded, '点击连接'),
+      _                        => (Colors.white70, Colors.white24, Icons.power_settings_new_rounded, '点击连接'),
     };
 
     final isSpinning = status == VpnStatus.connecting || status == VpnStatus.disconnecting;
@@ -27,8 +27,8 @@ class ConnectButton extends StatelessWidget {
         width: 160, height: 160,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: color.withOpacity(status == VpnStatus.disconnected ? 0.15 : 0.2),
-          border: Border.all(color: color, width: 2.5),
+          color: color.withOpacity(status == VpnStatus.disconnected ? 0.10 : 0.2),
+          border: Border.all(color: color, width: status == VpnStatus.disconnected ? 2.0 : 2.5),
           boxShadow: status != VpnStatus.disconnected
               ? [BoxShadow(color: shadow.withOpacity(0.35), blurRadius: 40, spreadRadius: 4)]
               : [],

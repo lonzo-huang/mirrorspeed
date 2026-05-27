@@ -88,9 +88,9 @@ export default function HomePage() {
           {/* latency proof */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
             {featured.map((s) => (
-              <div key={s.code} className="glass-panel p-4 rounded-2xl text-left">
+              <div key={s.region} className="glass-panel p-4 rounded-2xl text-left">
                 <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                  {s.flag} {s.code}
+                  {s.flag} {s.region}
                 </span>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-2xl font-bold font-mono">{s.latency}</span>
@@ -180,7 +180,7 @@ export default function HomePage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {featured.map((s) => (
-              <ServerCard key={s.code} node={s} />
+              <ServerCard key={s.region} node={s} />
             ))}
           </div>
           <div className="mt-6 md:hidden text-center">

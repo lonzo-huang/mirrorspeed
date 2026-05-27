@@ -137,7 +137,8 @@ function ServerCard({ server }: { server: ServerInfo }) {
 }
 
 // ── 主组件 ────────────────────────────────────────────────────────────────
-export function ServerStatus() {
+export function ServerStatus({ isAdmin }: { isAdmin?: boolean }) {
+  if (!isAdmin) return null
   const [servers,   setServers]   = useState<ServerInfo[]>([])
   const [loading,   setLoading]   = useState(true)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)

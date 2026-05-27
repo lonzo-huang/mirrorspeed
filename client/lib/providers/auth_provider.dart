@@ -103,7 +103,18 @@ class AuthProvider extends ChangeNotifier {
       _configs = await ApiService.instance.fetchConfigs(deviceId: devId);
       _error   = null;
     } on ApiException catch (e) {
-      _error = e.message;
+      // 如果是 401 Unauthorized，先刷新 token 再重试一次
+      if (e.message.contains('401') || e.message.contains('Unauthorized')) {
+        try {
+          await _supabase.auth.refreshSession();
+          _configs = await ApiService.instance.fetchConfigs(deviceId: devId);
+          _error   = null;
+        } catch (_) {
+          _error = e.message;
+        }
+      } else {
+        _error = e.message;
+      }
     } catch (e) {
       _error = e.toString();
     }

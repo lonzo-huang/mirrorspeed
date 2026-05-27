@@ -31,12 +31,12 @@ export default function ServersPage() {
             </div>
             <div className="text-right font-mono text-[10px] uppercase text-muted-foreground tracking-widest">
               <div>Last refresh: {now}</div>
-              <div className="mt-1">{SERVERS.length} nodes · avg {avgLatency}ms</div>
+              <div className="mt-1">{SERVERS.length} locations · avg {avgLatency}ms</div>
             </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {SERVERS.map((s) => <ServerCard key={s.code} node={s} />)}
+            {SERVERS.map((s) => <ServerCard key={s.region} node={s} />)}
           </div>
         </div>
       </main>

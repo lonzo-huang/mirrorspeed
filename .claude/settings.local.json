@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_in_Chrome__computer",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "mcp__Claude_in_Chrome__find",
+      "mcp__Claude_in_Chrome__form_input",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__tabs_create_mcp",
+      "PowerShell(vercel --version 2>&1)",
+      "Bash(curl -s -H 'Authorization: Bearer vca_1Q47aQDrSydRq1zYmv2qjiNOutvWKaDRn3jtelVT0K0QW6Xrt30iW1F3' 'https://api.vercel.com/v2/teams?personal=true')",
+      "Bash(curl -s -H 'Authorization: Bearer vca_1Q47aQDrSydRq1zYmv2qjiNOutvWKaDRn3jtelVT0K0QW6Xrt30iW1F3' 'https://api.vercel.com/v1/deployments?limit=3')",
+      "Bash(vercel deploy *)",
+      "Bash(curl -s -H 'Authorization: Bearer vca_1Q47aQDrSydRq1zYmv2qjiNOutvWKaDRn3jtelVT0K0QW6Xrt30iW1F3' https://api.vercel.com/v1/account)",
+      "Bash(curl -s -H 'Authorization: Bearer vca_1Q47aQDrSydRq1zYmv2qjiNOutvWKaDRn3jtelVT0K0QW6Xrt30iW1F3' 'https://api.vercel.com/v2/teams?limit=100&teamMembership=all')",
+      "Bash(curl -s -X POST -H 'Authorization: Bearer vca_1Q47aQDrSydRq1zYmv2qjiNOutvWKaDRn3jtelVT0K0QW6Xrt30iW1F3' -H 'Content-Type: application/json' -d '{\"slug\":\"mirrorspeed\",\"name\":\"mirrorspeed\"}' https://api.vercel.com/v1/teams)",
+      "Bash(curl -s -X POST -H 'Authorization: Bearer vca_1Q47aQDrSydRq1zYmv2qjiNOutvWKaDRn3jtelVT0K0QW6Xrt30iW1F3' -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s -X POST -H 'Authorization: Bearer vca_1Q47aQDrSydRq1zYmv2qjiNOutvWKaDRn3jtelVT0K0QW6Xrt30iW1F3' -H 'Content-Type: application/json' -d '[ *)",
+      "Bash(node -e ' *)",
+      "Bash(npm show *)",
+      "Bash(node -e \"const c=[];process.stdin.on\\('data',d=>c.push\\(d\\)\\);process.stdin.on\\('end',\\(\\)=>{const v=JSON.parse\\(c.join\\(''\\)\\);const v5=v.filter\\(x=>x.startsWith\\('5.'\\)&&!x.includes\\('dev'\\)&&!x.includes\\('rc'\\)&&!x.includes\\('beta'\\)\\);console.log\\('TS 5.x latest:',v5.slice\\(-5\\)\\);}\\)\")",
+      "Bash(curl -s -H 'Authorization: Bearer vca_1Q47aQDrSydRq1zYmv2qjiNOutvWKaDRn3jtelVT0K0QW6Xrt30iW1F3' 'https://api.vercel.com/v6/deployments?teamId=team_K5ONtajk32v0YVUJkF1hks8V&limit=3&projectId=prj_9mp5c6ufbeBuUvr7dXuHaIGOPhja')",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(find \"D:/tmp/projects/replit-mirrorspeed/mirrorspeed\" -type f -not -path \"*/.git/*\" -not -path \"*/.local/*\" -not -path \"*/node_modules/*\" | sort)",
+      "Bash(find /c/Users/Administrator -name \"*.token\" 2>/dev/null | head -5; ls /c/Users/Administrator/.config/ 2>/dev/null | head -20)",
+      "Bash(Get-ChildItem -Path \"D:\\\\projects\\\\MirrorSpeed\" -Recurse -File)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)"
+    ]
+  }
+}

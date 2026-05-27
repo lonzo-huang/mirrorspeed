@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { ExternalLink, RefreshCw } from 'lucide-react'
+import { useI18n } from '@/lib/i18n'
 
-export function ManageButton({ label = '管理订阅 / 更换付款方式' }: { label?: string }) {
+export function ManageButton() {
+  const { t } = useI18n()
   const [loading, setLoading] = useState(false)
 
   async function openPortal() {
@@ -13,18 +15,18 @@ export function ManageButton({ label = '管理订阅 / 更换付款方式' }: { 
     if (url) {
       window.location.href = url
     } else {
-      alert(error ?? '跳转失败')
+      alert(error ?? t.dash.manage)
       setLoading(false)
     }
   }
 
   return (
-    <button onClick={openPortal} disabled={loading} className="btn-secondary w-full">
+    <button onClick={openPortal} disabled={loading} className="btn-secondary w-full flex items-center justify-center gap-2">
       {loading
         ? <RefreshCw className="h-4 w-4 animate-spin" />
         : <ExternalLink className="h-4 w-4" />
       }
-      {loading ? '跳转中...' : label}
+      {loading ? '...' : t.dash.renew}
     </button>
   )
 }

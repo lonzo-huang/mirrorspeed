@@ -78,36 +78,8 @@ class HomeScreen extends StatelessWidget {
                         style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w200,
                           fontFeatures: [FontFeature.tabularFigures()]))
                     : Text(_statusText(vpn),
-                        key: const ValueKey('status'),
-                        style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 15)),
-              ),
-
-              // ── 中继模式标识徽章 ──────────────────────────────
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: vpn.isRelayMode
-                    ? Padding(
-                        key: const ValueKey('relay-badge'),
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.amber.withOpacity(0.35)),
-                          ),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            const Icon(Icons.alt_route_rounded, size: 13, color: Colors.amber),
-                            const SizedBox(width: 5),
-                            Text(
-                              vpn.isConnected ? 'WebSocket 中继' : '切换 WebSocket 中继…',
-                              style: const TextStyle(color: Colors.amber, fontSize: 11,
-                                fontWeight: FontWeight.w600),
-                            ),
-                          ]),
-                        ),
-                      )
-                    : const SizedBox.shrink(key: ValueKey('no-badge')),
+                        key: ValueKey(vpn.status.name + vpn.isRelayMode.toString()),
+                        style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 15)),
               ),
 
               const Spacer(),
@@ -200,11 +172,10 @@ class HomeScreen extends StatelessWidget {
   }
 
   String _statusText(VpnProvider vpn) {
-    if (vpn.status == VpnStatus.connecting && vpn.isRelayMode) {
-      return '正在通过中继连接…';
+    if (vpn.status == VpnStatus.connecting) {
+      return vpn.isRelayMode ? '切换为强力模式连接中…' : '快速模式连接中…';
     }
     return switch (vpn.status) {
-      VpnStatus.connecting    => '正在建立连接…',
       VpnStatus.disconnecting => '正在断开…',
       VpnStatus.error         => '连接出错',
       _                       => '未连接',
@@ -303,7 +274,7 @@ class _LatencyBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
-      child: Text('${ms}ms', style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      child: Text('${(ms / 10).round()}ms', style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
     );
   }
 }

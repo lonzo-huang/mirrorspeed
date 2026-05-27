@@ -1,5 +1,8 @@
 'use client'
 
+// 元数据需要在 layout 层定义，此处通过 generateMetadata 不适用于 client component
+// 所以在 cn/layout.tsx 或 head 里设置 — 见 cn/metadata.ts
+
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
