@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sync-servers",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/check-subscriptions",
+      "schedule": "0 2 * * *"
     }
   ]
 }

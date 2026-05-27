@@ -150,6 +150,53 @@ export async function POST(req: NextRequest) {
         break
       }
 
+      // ── Alipay / WeChat Pay one-time payment succeeded ──────────
+      case 'payment_intent.succeeded': {
+        const pi      = event.data.object as Stripe.PaymentIntent
+        const meta    = pi.metadata ?? {}
+        const userId  = meta.supabase_user_id
+        const planKey = meta.plan
+        const payType = meta.payment_type
+
+        // Only handle our CN one-time payments
+        if (!userId || !planKey || payType !== 'cn_onetime') break
+
+        const days    = PLAN_DURATION[planKey] ?? 30
+        const now     = new Date()
+        const expires = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
+
+        // Activate subscription (no Stripe sub ID for one-time payments)
+        await (admin.from('subscriptions' as any) as any).upsert({
+          user_id:              userId,
+          stripe_subscription_id: null,
+          status:               'active',
+          plan_key:             planKey,
+          expires_at:           expires.toISOString(),
+          cancel_at_period_end: false,
+          updated_at:           now.toISOString(),
+        }, { onConflict: 'user_id' })
+
+        // Record payment
+        const customerId = typeof pi.customer === 'string' ? pi.customer : null
+        if (customerId) {
+          const { data: profile } = await (admin.from('profiles' as any) as any)
+            .select('id').eq('stripe_customer_id', customerId).single()
+
+          if (profile?.id) {
+            await (admin.from('payments' as any) as any).insert({
+              user_id:      profile.id,
+              amount_cents: pi.amount,
+              currency:     pi.currency,
+              status:       'succeeded',
+              stripe_payment_intent_id: pi.id,
+              created_at:   now.toISOString(),
+            })
+          }
+        }
+
+        break
+      }
+
       default:
         // Unhandled event — ignore
         break

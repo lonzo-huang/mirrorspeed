@@ -1078,7 +1078,15 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const setLang = (l: Lang) => {
     setLangState(l);
-    if (typeof window !== "undefined") localStorage.setItem("ms-lang", l);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ms-lang", l);
+      // Persist to server for email notifications (best-effort, no await)
+      fetch("/api/user/lang", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lang: l }),
+      }).catch(() => {});
+    }
   };
 
   return <I18nCtx.Provider value={{ lang, setLang, t: dict[lang] }}>{children}</I18nCtx.Provider>;

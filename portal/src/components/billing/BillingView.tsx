@@ -3,6 +3,7 @@
 import { CheckCircle, CreditCard, Clock } from 'lucide-react'
 import { format } from 'date-fns'
 import { CheckoutButton } from '@/components/billing/checkout-button'
+import { CnCheckoutButton } from '@/components/billing/cn-checkout-button'
 import { ManageButton } from '@/components/billing/manage-button'
 import { useI18n } from '@/lib/i18n'
 
@@ -31,7 +32,9 @@ interface Props {
 const CURRENCY_SYMBOL: Record<string, string> = { usd: '$', eur: '€', cny: '¥' }
 
 export function BillingView({ subscription, payments }: Props) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+  // Show CNY payment options when the app is in Chinese
+  const isChinese   = lang === 'zh'
   const pricing = t.pricing
   const dash    = t.dash
 
@@ -116,6 +119,7 @@ export function BillingView({ subscription, payments }: Props) {
                     ))}
                   </ul>
                   <CheckoutButton planKey={key} />
+                  {isChinese && <CnCheckoutButton planKey={key} />}
                 </div>
               )
             })}
