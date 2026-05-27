@@ -1,7 +1,7 @@
 /**
- * Email utility via Resend API.
- * Requires RESEND_API_KEY in environment variables.
- * Sign up at https://resend.com and add a verified sending domain.
+ * Email utility via Brevo (formerly Sendinblue) HTTP API.
+ * Requires BREVO_API_KEY in environment variables.
+ * Get your key at: https://app.brevo.com/settings/keys/api
  */
 
 interface SendEmailOptions {
@@ -11,26 +11,32 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, subject, html }: SendEmailOptions): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY
+  const apiKey = process.env.BREVO_API_KEY
   if (!apiKey) {
-    console.warn('[email] RESEND_API_KEY not configured, skipping email to', to)
+    console.warn('[email] BREVO_API_KEY not configured, skipping email to', to)
     return
   }
 
-  const from = process.env.EMAIL_FROM ?? 'MirrorSpeed <noreply@mirrorspeed.com>'
+  const fromEmail = process.env.EMAIL_FROM_ADDRESS ?? 'noreply@mirrorspeed.com'
+  const fromName  = process.env.EMAIL_FROM_NAME    ?? 'MirrorSpeed'
 
-  const res = await fetch('https://api.resend.com/emails', {
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method:  'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type':  'application/json',
+      'api-key':      apiKey,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ from, to, subject, html }),
+    body: JSON.stringify({
+      sender:   { name: fromName, email: fromEmail },
+      to:       [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
   })
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    console.error('[email] Resend error:', res.status, text)
+    console.error('[email] Brevo error:', res.status, text)
   }
 }
 
