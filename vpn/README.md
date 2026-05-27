@@ -631,6 +631,35 @@ curl -v --max-time 5 http://127.0.0.1:2080/
 systemctl restart wstunnel
 ```
 
+**⚠️ 重要：wstunnel 版本锁定在 v9.7.4**
+
+`04-wstunnel-setup.sh` 固定安装 v9.7.4，**不可升级到 v10+**。
+
+原因：wstunnel v9.7.4 使用 JWT 协议（路径 `/v1/events`，`Sec-WebSocket-Protocol` 头携带 JWT），
+而 v10+ 完全重写了协议（HTTP2 + 不同的认证机制），与 MirrorSpeed 客户端不兼容。
+
+验证 wstunnel 是否正常响应 v9 协议：
+
+```bash
+# 应返回 HTTP/1.1 101 Switching Protocols
+curl -v --max-time 3 -N \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Protocol: v1, authorization.bearer.eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMCIsInAiOnsiVWRwIjp7InRpbWVvdXQiOm51bGx9fSwiciI6IjEyNy4wLjAuMSIsInJwIjozOTY2Nn0.placeholder" \
+  "http://127.0.0.1:2080/v1/events" 2>&1 | grep "< HTTP"
+```
+
+若意外升级到了 v10+，执行以下命令降回 v9.7.4：
+
+```bash
+curl -fsSL https://github.com/erebe/wstunnel/releases/download/v9.7.4/wstunnel_9.7.4_linux_amd64.tar.gz \
+  -o /tmp/ws.tar.gz && tar -xzf /tmp/ws.tar.gz -C /tmp
+sudo install -m 755 /tmp/wstunnel /usr/local/bin/wstunnel
+sudo systemctl restart wstunnel
+wstunnel --version  # 应显示 wstunnel 9.7.4
+```
+
 ---
 
 ## 7. 安全维护
