@@ -863,10 +863,10 @@ bash scripts/register-server.sh \
 
 ```bash
 # 查看所有服务器状态
-curl https://mirrorspeed.mirrorquant.com/api/servers | python3 -m json.tool
+curl https://www.mirrorspeed.com/api/servers | python3 -m json.tool
 
 # 触发状态同步（等约 1 分钟也会自动同步）
-curl https://mirrorspeed.mirrorquant.com/api/cron/sync-servers \
+curl https://www.mirrorspeed.com/api/cron/sync-servers \
   -H "Authorization: Bearer <CRON_SECRET>"
 ```
 

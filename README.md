@@ -220,7 +220,7 @@ wg show wg0
 ### 手动触发流量同步 / 额度检查
 ```bash
 curl -H "Authorization: Bearer <CRON_SECRET>" \
-  https://mirrorspeed.mirrorquant.com/api/cron/sync-servers
+  https://www.mirrorspeed.com/api/cron/sync-servers
 ```
 
 ### 添加 / 删除用户设备
