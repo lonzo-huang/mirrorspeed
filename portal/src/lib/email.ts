@@ -1,17 +1,14 @@
 /**
- * Email utility via Brevo SMTP (nodemailer).
- * Reuses existing Brevo SMTP credentials — no extra setup needed.
+ * Email utility via Brevo HTTP API.
+ * No IP restrictions — works reliably on Vercel serverless.
  *
  * Required Vercel env var:
- *   BREVO_SMTP_KEY  — the SMTP key from Brevo (SMTP & API → SMTP Keys)
+ *   BREVO_API_KEY  — from Brevo → SMTP & API → API keys & MCP → Create API key
  *
- * Optional overrides (have sensible defaults):
- *   BREVO_SMTP_USER    — defaults to ac24c8001@smtp-brevo.com
+ * Optional:
  *   EMAIL_FROM_ADDRESS — defaults to noreply@mirrorspeed.com
  *   EMAIL_FROM_NAME    — defaults to MirrorSpeed
  */
-
-import nodemailer from 'nodemailer'
 
 interface SendEmailOptions {
   to:      string
@@ -19,40 +16,33 @@ interface SendEmailOptions {
   html:    string
 }
 
-function getTransporter() {
-  const smtpKey = process.env.BREVO_SMTP_KEY
-  if (!smtpKey) return null
-
-  return nodemailer.createTransport({
-    host:   'smtp-relay.brevo.com',
-    port:   587,
-    secure: false,
-    auth: {
-      user: process.env.BREVO_SMTP_USER ?? 'ac24c8001@smtp-brevo.com',
-      pass: smtpKey,
-    },
-  })
-}
-
 export async function sendEmail({ to, subject, html }: SendEmailOptions): Promise<void> {
-  const transporter = getTransporter()
-  if (!transporter) {
-    console.warn('[email] BREVO_SMTP_KEY not configured, skipping email to', to)
+  const apiKey = process.env.BREVO_API_KEY
+  if (!apiKey) {
+    console.warn('[email] BREVO_API_KEY not configured, skipping email to', to)
     return
   }
 
   const fromEmail = process.env.EMAIL_FROM_ADDRESS ?? 'noreply@mirrorspeed.com'
   const fromName  = process.env.EMAIL_FROM_NAME    ?? 'MirrorSpeed'
 
-  try {
-    await transporter.sendMail({
-      from:    `"${fromName}" <${fromEmail}>`,
-      to,
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method:  'POST',
+    headers: {
+      'api-key':      apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender:      { name: fromName, email: fromEmail },
+      to:          [{ email: to }],
       subject,
-      html,
-    })
-  } catch (err) {
-    console.error('[email] SMTP error:', err)
+      htmlContent: html,
+    }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    console.error('[email] Brevo API error:', res.status, text)
   }
 }
 
