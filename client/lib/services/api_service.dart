@@ -40,6 +40,32 @@ class ApiService {
     throw ApiException(err['error'] ?? '注册设备失败 (${res.statusCode})');
   }
 
+  // ── 邀请信息 ─────────────────────────────────────────────────
+  Future<Map<String, dynamic>> fetchReferralInfo() async {
+    final res = await http.get(
+      Uri.parse('$kApiBase/api/mobile/referral'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200) {
+      final err = jsonDecode(res.body);
+      throw ApiException(err['error'] ?? '获取邀请信息失败 (${res.statusCode})');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  // ── 绑定邀请码 ────────────────────────────────────────────────
+  Future<void> applyReferralCode(String code) async {
+    final res = await http.post(
+      Uri.parse('$kApiBase/api/mobile/referral'),
+      headers: _headers,
+      body: jsonEncode({'code': code}),
+    );
+    if (res.statusCode != 200) {
+      final err = jsonDecode(res.body);
+      throw ApiException(err['error'] ?? '绑定邀请码失败 (${res.statusCode})');
+    }
+  }
+
   // ── 拉取 WireGuard 配置 ──────────────────────────────────────
   Future<List<DeviceInfo>> fetchConfigs({ String? deviceId }) async {
     final uri = Uri.parse('$kApiBase/api/mobile/configs')

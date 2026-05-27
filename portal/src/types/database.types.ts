@@ -16,36 +16,66 @@ export interface Database {
     Tables: {
       profiles: {
         Row: {
-          id:                  string
-          email:               string
-          display_name:        string | null
-          avatar_url:          string | null
-          role:                string
-          preferred_currency:  string
-          stripe_customer_id:  string | null
-          created_at:          string
-          updated_at:          string
+          id:                         string
+          email:                      string
+          display_name:               string | null
+          avatar_url:                 string | null
+          role:                       string
+          preferred_currency:         string
+          stripe_customer_id:         string | null
+          referral_code:              string | null
+          referred_by:                string | null
+          referral_bonus_expires_at:  string | null
+          created_at:                 string
+          updated_at:                 string
         }
         Insert: {
-          id:                  string
-          email:               string
-          display_name?:       string | null
-          avatar_url?:         string | null
-          role?:               string
-          preferred_currency?: string
-          stripe_customer_id?: string | null
-          created_at?:         string
-          updated_at?:         string
+          id:                         string
+          email:                      string
+          display_name?:              string | null
+          avatar_url?:                string | null
+          role?:                      string
+          preferred_currency?:        string
+          stripe_customer_id?:        string | null
+          referral_code?:             string | null
+          referred_by?:               string | null
+          referral_bonus_expires_at?: string | null
+          created_at?:                string
+          updated_at?:                string
         }
         Update: {
-          id?:                 string
-          email?:              string
-          display_name?:       string | null
-          avatar_url?:         string | null
-          role?:               string
-          preferred_currency?: string
-          stripe_customer_id?: string | null
-          updated_at?:         string
+          id?:                        string
+          email?:                     string
+          display_name?:              string | null
+          avatar_url?:                string | null
+          role?:                      string
+          preferred_currency?:        string
+          stripe_customer_id?:        string | null
+          referral_code?:             string | null
+          referred_by?:               string | null
+          referral_bonus_expires_at?: string | null
+          updated_at?:                string
+        }
+      }
+      referral_rewards: {
+        Row: {
+          id:          string
+          referrer_id: string
+          invitee_id:  string
+          plan_name:   string | null
+          bonus_days:  number
+          created_at:  string
+        }
+        Insert: {
+          id?:         string
+          referrer_id: string
+          invitee_id:  string
+          plan_name?:  string | null
+          bonus_days:  number
+          created_at?: string
+        }
+        Update: {
+          bonus_days?: number
         }
       }
       plans: {

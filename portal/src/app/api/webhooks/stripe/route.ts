@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
         const currency = sub.metadata?.currency ?? 'usd'
         if (!userId) break
 
-        const status = stripeStatusToLocal(sub.status)
+        const status    = stripeStatusToLocal(sub.status)
         const expiresAt = new Date(sub.current_period_end * 1000).toISOString()
 
         // upsert 订阅记录
@@ -46,10 +46,10 @@ export async function POST(req: NextRequest) {
             updated_at:           new Date().toISOString(),
           }).eq('id', existing.id)
         } else {
-          // 查找套餐 ID
+          // 新订阅：查找套餐 ID
           const priceId = sub.items.data[0]?.price.id
           const { data: plan } = await admin.from('plans')
-            .select('id').or(`stripe_price_usd.eq.${priceId},stripe_price_eur.eq.${priceId},stripe_price_cny.eq.${priceId}`)
+            .select('id, name').or(`stripe_price_usd.eq.${priceId},stripe_price_eur.eq.${priceId},stripe_price_cny.eq.${priceId}`)
             .single()
 
           await admin.from('subscriptions').insert({
@@ -62,6 +62,11 @@ export async function POST(req: NextRequest) {
             stripe_subscription_id: sub.id,
             cancel_at_period_end:  sub.cancel_at_period_end,
           })
+
+          // ── 邀请奖励：仅首次订阅时触发 ─────────────────────────
+          if (status === 'active') {
+            await handleReferralReward(admin, userId, sub, plan?.name ?? null)
+          }
         }
 
         await admin.from('audit_log').insert({
@@ -161,4 +166,99 @@ function stripeStatusToLocal(status: Stripe.Subscription.Status): string {
     paused:             'cancelled',
   }
   return map[status] ?? 'pending'
+}
+
+// ── 邀请奖励：根据订阅时长计算奖励天数 ──────────────────────────────────────
+// 规则：1个月→3天，1季度→10天，1年→30天，2年→60天
+function getReferralBonusDays(interval: string, intervalCount: number): number {
+  const months = interval === 'year' ? intervalCount * 12 : intervalCount
+  if (months >= 24) return 60
+  if (months >= 12) return 30
+  if (months >= 3)  return 10
+  return 3
+}
+
+// ── 处理邀请奖励（仅新订阅首次触发）────────────────────────────────────────
+async function handleReferralReward(
+  admin:    ReturnType<typeof createAdminClient>,
+  inviteeUserId: string,
+  sub:      Stripe.Subscription,
+  planName: string | null,
+) {
+  try {
+    // 1. 查找被邀请人的 referred_by
+    const { data: inviteeProfile } = await admin
+      .from('profiles')
+      .select('id, referred_by')
+      .eq('id', inviteeUserId)
+      .single()
+
+    if (!inviteeProfile?.referred_by) return  // 没有邀请人，跳过
+
+    const referrerId  = inviteeProfile.referred_by
+
+    // 2. 检查是否已经为此被邀请人发放过奖励（invitee_id UNIQUE 防止重复）
+    const { data: existingReward } = await admin
+      .from('referral_rewards')
+      .select('id')
+      .eq('invitee_id', inviteeUserId)
+      .maybeSingle()
+
+    if (existingReward) return  // 已奖励过，续费不重复发放
+
+    // 3. 计算奖励天数
+    const price         = sub.items.data[0]?.price
+    const interval      = price?.recurring?.interval      ?? 'month'
+    const intervalCount = price?.recurring?.interval_count ?? 1
+    const bonusDays     = getReferralBonusDays(interval, intervalCount)
+
+    // 4. 写入 referral_rewards 记录
+    await admin.from('referral_rewards').insert({
+      referrer_id: referrerId,
+      invitee_id:  inviteeUserId,
+      plan_name:   planName,
+      bonus_days:  bonusDays,
+    })
+
+    // 5. 延长邀请人的奖励到期时间
+    //    - 如果已有 referral_bonus_expires_at 且未到期：在此基础上叠加
+    //    - 如果已到期或没有：从当天开始计算
+    const { data: referrerProfile } = await admin
+      .from('profiles')
+      .select('referral_bonus_expires_at')
+      .eq('id', referrerId)
+      .single()
+
+    const now         = new Date()
+    const currentExpiry = referrerProfile?.referral_bonus_expires_at
+      ? new Date(referrerProfile.referral_bonus_expires_at)
+      : null
+    const baseDate    = currentExpiry && currentExpiry > now ? currentExpiry : now
+    const newExpiry   = new Date(baseDate.getTime() + bonusDays * 86_400_000)
+
+    await admin
+      .from('profiles')
+      .update({ referral_bonus_expires_at: newExpiry.toISOString() })
+      .eq('id', referrerId)
+
+    // 6. 写入审计日志
+    await admin.from('audit_log').insert({
+      user_id: referrerId,
+      action:  'referral_reward_granted',
+      detail:  {
+        invitee_id:   inviteeUserId,
+        plan_name:    planName,
+        bonus_days:   bonusDays,
+        new_expiry:   newExpiry.toISOString(),
+      },
+    })
+
+    console.log(
+      `[referral] Granted ${bonusDays} days to referrer ${referrerId} ` +
+      `(invited by ${inviteeUserId}, plan: ${planName})`
+    )
+  } catch (err) {
+    // 奖励失败不影响主流程
+    console.error('[referral] Reward processing failed:', err)
+  }
 }

@@ -29,15 +29,24 @@ export async function GET(req: NextRequest) {
   const admin    = createAdminClient()
   const deviceId = req.nextUrl.searchParams.get('device_id')
 
-  // ── 订阅状态（决定是否有流量限制）────────────────────────────
-  const { data: sub } = await admin
-    .from('subscriptions')
-    .select('status')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .maybeSingle()
+  // ── 订阅状态（付费订阅 OR 邀请奖励期内均视为付费用户）────────
+  const [{ data: sub }, { data: profile }] = await Promise.all([
+    admin.from('subscriptions')
+      .select('status')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle(),
+    admin.from('profiles')
+      .select('referral_bonus_expires_at')
+      .eq('id', user.id)
+      .single(),
+  ])
 
-  const isPaidUser = !!sub
+  const hasActiveBonus = profile?.referral_bonus_expires_at
+    ? new Date(profile.referral_bonus_expires_at) > new Date()
+    : false
+
+  const isPaidUser = !!sub || hasActiveBonus
 
   // ── 免费额度（来自 app_config，付费用户不限制）──────────────
   let dailyQuotaBytes: number | null = null

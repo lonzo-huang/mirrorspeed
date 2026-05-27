@@ -1,13 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
+import '../services/api_service.dart';
 import '../theme.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+  @override State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  late Future<Map<String, dynamic>> _referralFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _referralFuture = ApiService.instance.fetchReferralInfo();
+  }
+
+  void _refreshReferral() => setState(() {
+    _referralFuture = ApiService.instance.fetchReferralInfo();
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -15,9 +32,7 @@ class ProfileScreen extends StatelessWidget {
     final vpn   = context.watch<VpnProvider>();
     final user  = Supabase.instance.client.auth.currentUser;
     final email = user?.email ?? '—';
-
-    final isPaid      = auth.dailyQuotaBytes == null;
-    final expiryLabel = _buildExpiryLabel(auth);
+    final isPaid = auth.dailyQuotaBytes == null;
 
     return Scaffold(
       backgroundColor: kBg,
@@ -39,19 +54,13 @@ class ProfileScreen extends StatelessWidget {
                 const Divider(height: 1, color: Colors.white10),
                 _InfoRow(icon: Icons.email_outlined, label: '邮箱', value: email),
                 _InfoRow(
-                  icon: isPaid
-                      ? Icons.workspace_premium_rounded
-                      : Icons.person_outline_rounded,
-                  label:  '账号类型',
-                  value:  isPaid ? '付费会员' : '免费用户',
+                  icon:       isPaid
+                                ? Icons.workspace_premium_rounded
+                                : Icons.person_outline_rounded,
+                  label:      '账号类型',
+                  value:      isPaid ? '付费会员' : '免费用户',
                   valueColor: isPaid ? kBrand : Colors.white54,
                 ),
-                if (expiryLabel != null)
-                  _InfoRow(
-                    icon:  Icons.access_time_rounded,
-                    label: '到期时间',
-                    value: expiryLabel,
-                  ),
                 _InfoRow(
                   icon:  Icons.devices_rounded,
                   label: '当前设备',
@@ -61,15 +70,35 @@ class ProfileScreen extends StatelessWidget {
 
               const SizedBox(height: 16),
 
-              // ── 流量/时长信息（免费用户）───────────────────
+              // ── 免费流量进度条 ──────────────────────────────
               if (!isPaid && auth.dailyQuotaBytes != null) ...[
                 _QuotaSection(auth: auth),
                 const SizedBox(height: 16),
               ],
 
-              // ── 升级按钮（免费用户）─────────────────────────
-              if (!isPaid)
+              // ── 升级卡片（免费用户）─────────────────────────
+              if (!isPaid) ...[
                 _UpgradeCard(),
+                const SizedBox(height: 16),
+              ],
+
+              // ── 邀请好友模块 ────────────────────────────────
+              FutureBuilder<Map<String, dynamic>>(
+                future: _referralFuture,
+                builder: (ctx, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const _InviteCardSkeleton();
+                  }
+                  if (snap.hasError || !snap.hasData) {
+                    return const SizedBox.shrink();
+                  }
+                  return _InviteCard(
+                    data:           snap.data!,
+                    onApplyCode:    () => _showApplyCodeDialog(context),
+                    onRefresh:      _refreshReferral,
+                  );
+                },
+              ),
 
               const SizedBox(height: 16),
 
@@ -125,11 +154,9 @@ class ProfileScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // ── 版本号 ──────────────────────────────────────
               Text('MirrorSpeed VPN  v1.0.14',
                 style: TextStyle(color: Colors.white.withOpacity(0.25),
                   fontSize: 12)),
-
               const SizedBox(height: 8),
             ],
           ),
@@ -138,27 +165,77 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  String? _buildExpiryLabel(AuthProvider auth) {
-    // 目前 DeviceInfo 不直接暴露到期时间；付费用户 dailyQuotaBytes == null
-    // 后续 API 如果返回 expires_at 可以在这里展示
-    return null;
+  Future<void> _showApplyCodeDialog(BuildContext context) async {
+    final ctrl = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('输入邀请码'),
+        content: TextField(
+          controller:    ctrl,
+          autofocus:     true,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(
+            hintText:    '例如：MX7K9P',
+            hintStyle:   TextStyle(color: Colors.white38),
+          ),
+          style: const TextStyle(
+            fontSize: 20, fontWeight: FontWeight.bold,
+            letterSpacing: 4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消', style: TextStyle(color: Colors.white54)),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final code = ctrl.text.trim();
+              if (code.isEmpty) return;
+              Navigator.pop(ctx);
+              try {
+                await ApiService.instance.applyReferralCode(code);
+                _refreshReferral();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('邀请码绑定成功 🎉'),
+                      backgroundColor: kSuccess),
+                  );
+                }
+              } on ApiException catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(e.message),
+                      backgroundColor: kDanger),
+                  );
+                }
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: kBrand),
+            child: const Text('确认'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<bool> _confirmLogout(BuildContext context) async {
     return await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor:  kCard,
-        shape:            RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-        title:            const Text('退出登录'),
-        content:          const Text('确定要退出当前账号吗？',
-                            style: TextStyle(color: Colors.white70)),
+        backgroundColor: kCard,
+        shape:           RoundedRectangleBorder(
+                           borderRadius: BorderRadius.circular(16)),
+        title:           const Text('退出登录'),
+        content:         const Text('确定要退出当前账号吗？',
+                           style: TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消',
-              style: TextStyle(color: Colors.white54)),
+            child: const Text('取消', style: TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -396,5 +473,244 @@ class _UpgradeCard extends StatelessWidget {
         child: const Text('升级', style: TextStyle(fontSize: 13)),
       ),
     ]),
+  );
+}
+
+// ── 邀请好友卡片 ──────────────────────────────────────────────
+class _InviteCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final VoidCallback         onApplyCode;
+  final VoidCallback         onRefresh;
+  const _InviteCard({
+    required this.data,
+    required this.onApplyCode,
+    required this.onRefresh,
+  });
+
+  String get _code         => data['referral_code']    as String? ?? '—';
+  String get _shareUrl     => data['share_url']         as String? ?? '';
+  int    get _inviteCount  => data['invite_count']      as int?    ?? 0;
+  int    get _bonusDays    => data['total_bonus_days']  as int?    ?? 0;
+  String? get _expiresAt  => data['bonus_expires_at']  as String?;
+  String? get _referredBy => data['referred_by_code']  as String?;
+
+  String get _expiryLabel {
+    if (_expiresAt == null) return '';
+    final dt  = DateTime.tryParse(_expiresAt!) ?? DateTime.now();
+    final now = DateTime.now();
+    if (dt.isBefore(now)) return '';
+    final days = dt.difference(now).inDays;
+    return '（还剩 $days 天）';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF7C3AED).withOpacity(0.18),
+            const Color(0xFF2563EB).withOpacity(0.12),
+          ],
+          begin: Alignment.topLeft,
+          end:   Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF7C3AED).withOpacity(0.3)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // 标题行
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+          child: Row(children: [
+            const Icon(Icons.card_giftcard_rounded,
+              color: Color(0xFFA78BFA), size: 18),
+            const SizedBox(width: 8),
+            const Text('邀请好友',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold,
+                color: Color(0xFFA78BFA))),
+            const Spacer(),
+            // 刷新按钮
+            GestureDetector(
+              onTap: onRefresh,
+              child: Icon(Icons.refresh_rounded,
+                color: Colors.white.withOpacity(0.35), size: 18),
+            ),
+          ]),
+        ),
+
+        // 统计数字
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(children: [
+            _StatChip(label: '已邀请', value: '$_inviteCount 人'),
+            const SizedBox(width: 12),
+            _StatChip(label: '累计获得', value: '$_bonusDays 天'),
+            if (_expiryLabel.isNotEmpty) ...[
+              const SizedBox(width: 12),
+              _StatChip(label: '奖励', value: _expiryLabel, accent: true),
+            ],
+          ]),
+        ),
+
+        const Divider(height: 1, color: Colors.white10),
+
+        // 邀请码 + 复制/分享
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('你的邀请码',
+                style: TextStyle(color: Colors.white.withOpacity(0.5),
+                  fontSize: 11)),
+              const SizedBox(height: 4),
+              Text(_code,
+                style: const TextStyle(
+                  fontSize: 26, fontWeight: FontWeight.bold,
+                  letterSpacing: 6, color: Color(0xFFE2E8F0),
+                  fontFeatures: [FontFeature.tabularFigures()],
+                )),
+            ]),
+            const Spacer(),
+            // 复制按钮
+            _IconBtn(
+              icon:    Icons.copy_rounded,
+              tooltip: '复制邀请码',
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: _code));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('邀请码已复制'),
+                    duration: Duration(seconds: 1)),
+                );
+              },
+            ),
+            const SizedBox(width: 8),
+            // 分享链接按钮
+            _IconBtn(
+              icon:    Icons.share_rounded,
+              tooltip: '分享邀请链接',
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: _shareUrl));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('邀请链接已复制到剪贴板'),
+                    duration: Duration(seconds: 2)),
+                );
+              },
+            ),
+          ]),
+        ),
+
+        // 说明文字
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          child: Text(
+            '好友首次付款后，你将获得对应时长：1个月→3天 · 1季度→10天 · 1年→30天',
+            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+          ),
+        ),
+
+        // 已绑定 / 去绑定邀请码
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+          child: _referredBy != null
+              ? Row(children: [
+                  Icon(Icons.check_circle_rounded,
+                    size: 14, color: kSuccess.withOpacity(0.7)),
+                  const SizedBox(width: 6),
+                  Text('已绑定邀请码：$_referredBy',
+                    style: TextStyle(color: Colors.white.withOpacity(0.4),
+                      fontSize: 12)),
+                ])
+              : GestureDetector(
+                  onTap: onApplyCode,
+                  child: Row(children: [
+                    Icon(Icons.link_rounded,
+                      size: 14, color: Colors.white.withOpacity(0.4)),
+                    const SizedBox(width: 6),
+                    Text('输入他人邀请码',
+                      style: TextStyle(
+                        color:          Colors.white.withOpacity(0.45),
+                        fontSize:       12,
+                        decoration:     TextDecoration.underline,
+                        decorationColor: Colors.white.withOpacity(0.3),
+                      )),
+                  ]),
+                ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool   accent;
+  const _StatChip({required this.label, required this.value,
+    this.accent = false});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color:        Colors.white.withOpacity(0.07),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label,
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.45), fontSize: 10)),
+      const SizedBox(height: 2),
+      Text(value,
+        style: TextStyle(
+          color:      accent ? kSuccess : Colors.white,
+          fontSize:   13,
+          fontWeight: FontWeight.w600,
+        )),
+    ]),
+  );
+}
+
+class _IconBtn extends StatelessWidget {
+  final IconData     icon;
+  final String       tooltip;
+  final VoidCallback onTap;
+  const _IconBtn({required this.icon, required this.tooltip,
+    required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip,
+    child: GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding:    const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color:        Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 18, color: Colors.white.withOpacity(0.7)),
+      ),
+    ),
+  );
+}
+
+// ── 邀请卡片加载骨架 ──────────────────────────────────────────
+class _InviteCardSkeleton extends StatelessWidget {
+  const _InviteCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 140,
+    decoration: BoxDecoration(
+      color:        kCard,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: const Center(
+      child: SizedBox(
+        width: 24, height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+    ),
   );
 }
