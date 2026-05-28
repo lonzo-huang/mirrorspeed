@@ -124,16 +124,20 @@ export async function POST(req: NextRequest) {
         if (!profile?.id) break
 
         // Record payment
-        await (admin.from('payments' as any) as any).insert({
-          user_id:      profile.id,
-          amount_cents: amountPaid,
-          currency:     currency,
-          status:       'succeeded',
-          stripe_payment_intent_id: typeof invoice.payment_intent === 'string'
-            ? invoice.payment_intent
-            : (invoice.payment_intent as any)?.id ?? null,
-          created_at:   new Date(invoice.created * 1000).toISOString(),
+        const paymentIntentId = typeof invoice.payment_intent === 'string'
+          ? invoice.payment_intent
+          : (invoice.payment_intent as any)?.id ?? null
+
+        const { error: payErr } = await (admin.from('payments' as any) as any).insert({
+          user_id:                  profile.id,
+          amount_cents:             amountPaid,
+          currency:                 currency,
+          status:                   'succeeded',
+          stripe_payment_intent_id: paymentIntentId,
+          created_at:               new Date(invoice.created * 1000).toISOString(),
         })
+
+        if (payErr) console.error('[webhook] payment insert error:', JSON.stringify(payErr))
 
         break
       }
