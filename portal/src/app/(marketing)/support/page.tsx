@@ -18,7 +18,7 @@ const COPY = {
     send:        'Send Message',
     sending:     'Sending…',
     successTitle: 'Message sent!',
-    successBody:  'We've received your message and will reply to your email shortly.',
+    successBody:  "We've received your message and will reply to your email shortly.",
     errorGeneric: 'Something went wrong. Please try again or email us directly.',
     required:    'Please fill in your name, email, and message.',
     cards: [
