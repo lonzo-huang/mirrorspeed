@@ -35,7 +35,7 @@ const dict = {
       title: "Why MirrorSpeed",
       sub: "Engineered for speed-of-light reflection.",
       items: [
-        { t: "WireGuard Core", d: "Modern protocol with state-of-the-art cryptography and minimal attack surface." },
+        { t: "Proprietary Core", d: "Proprietary dynamic encryption — fast, stealthy, and secure." },
         { t: "No-Logs Policy", d: "Independently audited zero-logs. Your traffic is your business, period." },
         { t: "Multi-Device", d: "Up to 8 devices on one account. Mac, Windows, iOS, Android, Linux." },
         { t: "Auto Failover", d: "Clash subscription auto-selects the fastest node in real time." },
@@ -165,7 +165,7 @@ const dict = {
       title: "为什么选择 MirrorSpeed",
       sub: "为光速反射而生。",
       items: [
-        { t: "WireGuard 内核", d: "现代协议，最先进的加密技术，攻击面极小。" },
+        { t: "自研内核", d: "独创动态加密技术，快速，隐蔽，安全。" },
         { t: "零日志承诺", d: "独立审计的无日志政策，您的流量只属于您。" },
         { t: "多设备支持", d: "单账户最多 8 设备：Mac/Win/iOS/Android/Linux。" },
         { t: "自动切换", d: "Clash 订阅实时自动选择最快节点。" },
@@ -295,7 +295,7 @@ const dict = {
       title: "Warum MirrorSpeed",
       sub: "Entwickelt für lichtschnelle Reflexion.",
       items: [
-        { t: "WireGuard-Kern", d: "Modernes Protokoll mit modernster Kryptographie und minimaler Angriffsfläche." },
+        { t: "Eigener Kern", d: "Proprietäre dynamische Verschlüsselung — schnell, verborgen und sicher." },
         { t: "Keine-Logs-Richtlinie", d: "Unabhängig geprüfte Zero-Logs. Ihr Datenverkehr geht niemanden etwas an." },
         { t: "Multi-Gerät", d: "Bis zu 8 Geräte pro Konto. Mac, Windows, iOS, Android, Linux." },
         { t: "Auto-Failover", d: "Clash-Abonnement wählt in Echtzeit automatisch den schnellsten Knoten." },
@@ -425,7 +425,7 @@ const dict = {
       title: "Pourquoi MirrorSpeed",
       sub: "Conçu pour une réflexion à la vitesse de la lumière.",
       items: [
-        { t: "Cœur WireGuard", d: "Protocole moderne avec cryptographie de pointe et surface d'attaque minimale." },
+        { t: "Noyau propriétaire", d: "Chiffrement dynamique exclusif — rapide, furtif et sécurisé." },
         { t: "Politique sans journaux", d: "Zéro journaux audité indépendamment. Votre trafic vous appartient." },
         { t: "Multi-appareils", d: "Jusqu'à 8 appareils par compte. Mac, Windows, iOS, Android, Linux." },
         { t: "Basculement automatique", d: "L'abonnement Clash sélectionne automatiquement le nœud le plus rapide en temps réel." },
@@ -555,7 +555,7 @@ const dict = {
       title: "Perché MirrorSpeed",
       sub: "Progettato per la riflessione alla velocità della luce.",
       items: [
-        { t: "Core WireGuard", d: "Protocollo moderno con crittografia all'avanguardia e superficie di attacco minima." },
+        { t: "Kernel proprietario", d: "Crittografia dinamica esclusiva — veloce, invisibile e sicura." },
         { t: "Politica no-log", d: "Zero log verificati indipendentemente. Il tuo traffico è affar tuo." },
         { t: "Multi-dispositivo", d: "Fino a 8 dispositivi per account. Mac, Windows, iOS, Android, Linux." },
         { t: "Failover automatico", d: "L'abbonamento Clash seleziona automaticamente il nodo più veloce in tempo reale." },
@@ -685,7 +685,7 @@ const dict = {
       title: "Por qué MirrorSpeed",
       sub: "Diseñado para reflexión a velocidad de la luz.",
       items: [
-        { t: "Núcleo WireGuard", d: "Protocolo moderno con criptografía de última generación y superficie de ataque mínima." },
+        { t: "Núcleo propio", d: "Cifrado dinámico exclusivo — rápido, sigiloso y seguro." },
         { t: "Política sin registros", d: "Cero registros auditados independientemente. Tu tráfico es solo tuyo." },
         { t: "Multi-dispositivo", d: "Hasta 8 dispositivos por cuenta. Mac, Windows, iOS, Android, Linux." },
         { t: "Conmutación automática", d: "La suscripción Clash selecciona automáticamente el nodo más rápido en tiempo real." },
@@ -815,7 +815,7 @@ const dict = {
       title: "Чому MirrorSpeed",
       sub: "Розроблено для відображення зі швидкістю світла.",
       items: [
-        { t: "Ядро WireGuard", d: "Сучасний протокол із передовою криптографією та мінімальною поверхнею атаки." },
+        { t: "Власне ядро", d: "Унікальне динамічне шифрування — швидке, приховане та безпечне." },
         { t: "Політика без журналів", d: "Нульові журнали, перевірені незалежно. Ваш трафік — тільки ваша справа." },
         { t: "Мультипристрій", d: "До 8 пристроїв на одному акаунті. Mac, Windows, iOS, Android, Linux." },
         { t: "Автоперемикання", d: "Підписка Clash автоматично обирає найшвидший вузол у реальному часі." },
@@ -945,7 +945,7 @@ const dict = {
       title: "MirrorSpeedを選ぶ理由",
       sub: "光速反射のために設計。",
       items: [
-        { t: "WireGuardコア", d: "最先端の暗号化と最小限の攻撃面を持つ最新プロトコル。" },
+        { t: "独自カーネル", d: "独自のダイナミック暗号化 — 高速、ステルス、安全。" },
         { t: "ノーログポリシー", d: "独立監査済みのゼロログ。あなたのトラフィックはあなただけのもの。" },
         { t: "マルチデバイス", d: "1アカウントで最大8台。Mac、Windows、iOS、Android、Linux対応。" },
         { t: "自動フェイルオーバー", d: "Clashサブスクリプションがリアルタイムで最速ノードを自動選択。" },
