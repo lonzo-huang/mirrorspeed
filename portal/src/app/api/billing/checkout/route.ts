@@ -42,9 +42,8 @@ export async function POST(req: NextRequest) {
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin).replace(/\/$/, '')
 
     const session = await stripe.checkout.sessions.create({
-      customer:             customerId,
-      automatic_payment_methods: { enabled: true },
-      mode:                      'subscription',
+      customer: customerId,
+      mode:     'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appUrl}/dashboard/billing?session={CHECKOUT_SESSION_ID}`,
       cancel_url:  `${appUrl}/dashboard/billing?cancelled=1`,
