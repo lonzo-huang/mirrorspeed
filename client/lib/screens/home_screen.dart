@@ -50,6 +50,10 @@ class HomeScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             children: [
+              // ── 订阅到期提醒 banner ───────────────────────────
+              if (auth.daysUntilExpiry != null && auth.daysUntilExpiry! <= 7)
+                _ExpiryBanner(days: auth.daysUntilExpiry!),
+
               const SizedBox(height: 32),
 
               // ── 连接按钮（超额时改为升级按钮）──────────────────
@@ -374,6 +378,51 @@ class _UpgradeButton extends StatelessWidget {
       ),
     ),
   ]);
+}
+
+// ── 订阅到期提醒 banner ───────────────────────────────────────────────────────
+class _ExpiryBanner extends StatelessWidget {
+  final int days;
+  const _ExpiryBanner({required this.days});
+
+  @override
+  Widget build(BuildContext context) {
+    final isUrgent = days <= 2;
+    final color    = isUrgent ? kDanger : Colors.amber;
+    final icon     = isUrgent
+        ? Icons.warning_rounded
+        : Icons.access_time_rounded;
+    final text     = days == 0
+        ? '您的订阅今天到期，请尽快续费'
+        : '您的订阅将在 $days 天后到期';
+
+    return GestureDetector(
+      onTap: () => launchUrl(
+        Uri.parse('https://mirrorspeed.com/dashboard/billing'),
+        mode: LaunchMode.externalApplication,
+      ),
+      child: Container(
+        width: double.infinity,
+        margin:  const EdgeInsets.only(top: 12, bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color:        color.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(12),
+          border:       Border.all(color: color.withOpacity(0.35)),
+        ),
+        child: Row(children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+              style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500)),
+          ),
+          Text('续费 →',
+            style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+        ]),
+      ),
+    );
+  }
 }
 
 // ── 智能 / 全局 模式切换 Toggle ──────────────────────────────────────────────

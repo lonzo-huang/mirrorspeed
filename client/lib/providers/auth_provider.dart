@@ -18,6 +18,7 @@ class AuthProvider extends ChangeNotifier {
   String?             _deviceLabel;
   List<DeviceInfo>    _configs   = [];
   String?             _error;
+  DateTime?           _subExpiresAt;
 
   AuthStatus       get status      => _status;
   String?          get deviceId    => _deviceId;
@@ -25,6 +26,14 @@ class AuthProvider extends ChangeNotifier {
   List<DeviceInfo> get configs          => _configs;
   List<ServerConfig> get servers        => _configs.isNotEmpty ? _configs.first.servers : [];
   String?          get error            => _error;
+  DateTime?        get subExpiresAt     => _subExpiresAt;
+
+  /// Days until subscription expires. null = no subscription or already expired.
+  int? get daysUntilExpiry {
+    if (_subExpiresAt == null) return null;
+    final days = _subExpiresAt!.difference(DateTime.now()).inDays;
+    return days >= 0 ? days : null;
+  }
 
   // ── 流量额度（取第一个设备，通常用户只有一台设备）──────────
   int?  get dailyQuotaBytes  => _configs.isNotEmpty ? _configs.first.dailyQuotaBytes  : null;
@@ -81,6 +90,9 @@ class AuthProvider extends ChangeNotifier {
       // 拉取所有节点配置
       await refreshConfigs();
 
+      // 拉取订阅到期时间（用于到期提醒）
+      await _fetchSubscriptionExpiry();
+
       _status = AuthStatus.authenticated;
     } on ApiException catch (e) {
       if (e.message.contains('订阅')) {
@@ -94,6 +106,25 @@ class AuthProvider extends ChangeNotifier {
       _status = AuthStatus.authenticated;
     }
     notifyListeners();
+  }
+
+  // ── 订阅到期时间 ─────────────────────────────────────────────
+  Future<void> _fetchSubscriptionExpiry() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+      final res = await _supabase
+          .from('subscriptions')
+          .select('expires_at')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .maybeSingle();
+      if (res != null && res['expires_at'] != null) {
+        _subExpiresAt = DateTime.parse(res['expires_at'] as String).toLocal();
+      }
+    } catch (_) {
+      // non-fatal
+    }
   }
 
   // ── 刷新配置 ─────────────────────────────────────────────────
