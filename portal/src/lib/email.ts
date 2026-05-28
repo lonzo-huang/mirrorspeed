@@ -132,7 +132,7 @@ export function makeSubscriptionConfirmEmail(opts: {
   }
 }
 
-export function makeSubscriptionConfirmEmail(opts: {
+export function makeExpiryWarningEmail(opts: {
   displayName: string
   expiresAt:   Date
   planKey:     string
