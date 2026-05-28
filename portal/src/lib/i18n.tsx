@@ -87,7 +87,7 @@ const dict = {
     dash: {
       welcome: "Welcome back", plan: "Active Plan", expires: "Expires in", days: "days",
       subUrl: "Clash Subscription URL", encrypted: "Encrypted", copy: "Copy", copied: "Copied!",
-      devices: "Connected Devices", account: "Account", renew: "Renew Plan", billing: "Billing History",
+      devices: "Connected Devices", account: "Account", renew: "Manage Subscription", billing: "Billing History",
       manage: "Update billing info or upgrade plan.", logout: "Log out",
       usage: "Data Usage", thisMonth: "This month",
       overview: "Overview", myDevices: "My Devices", billingNav: "Billing", adminLabel: "Admin", logoutBtn: "Log out",
@@ -217,7 +217,7 @@ const dict = {
     dash: {
       welcome: "欢迎回来", plan: "当前方案", expires: "剩余", days: "天",
       subUrl: "Clash 订阅链接", encrypted: "已加密", copy: "复制", copied: "已复制！",
-      devices: "在线设备", account: "账户管理", renew: "续费", billing: "账单记录",
+      devices: "在线设备", account: "账户管理", renew: "管理订阅", billing: "账单记录",
       manage: "更新账单信息或升级方案。", logout: "退出登录",
       usage: "流量使用", thisMonth: "本月",
       overview: "概览", myDevices: "我的设备", billingNav: "订阅与账单", adminLabel: "管理", logoutBtn: "退出登录",
@@ -347,7 +347,7 @@ const dict = {
     dash: {
       welcome: "Willkommen zurück", plan: "Aktiver Plan", expires: "Läuft ab in", days: "Tagen",
       subUrl: "Clash-Abonnement-URL", encrypted: "Verschlüsselt", copy: "Kopieren", copied: "Kopiert!",
-      devices: "Verbundene Geräte", account: "Konto", renew: "Plan verlängern", billing: "Abrechnungsverlauf",
+      devices: "Verbundene Geräte", account: "Konto", renew: "Abonnement verwalten", billing: "Abrechnungsverlauf",
       manage: "Abrechnungsdaten aktualisieren oder Plan upgraden.", logout: "Abmelden",
       usage: "Datennutzung", thisMonth: "Diesen Monat",
       overview: "Übersicht", myDevices: "Meine Geräte", billingNav: "Abrechnung", adminLabel: "Admin", logoutBtn: "Abmelden",
@@ -477,7 +477,7 @@ const dict = {
     dash: {
       welcome: "Content de vous revoir", plan: "Plan actif", expires: "Expire dans", days: "jours",
       subUrl: "URL d'abonnement Clash", encrypted: "Chiffré", copy: "Copier", copied: "Copié !",
-      devices: "Appareils connectés", account: "Compte", renew: "Renouveler le plan", billing: "Historique de facturation",
+      devices: "Appareils connectés", account: "Compte", renew: "Gérer l'abonnement", billing: "Historique de facturation",
       manage: "Mettre à jour les informations de facturation ou mettre à niveau le plan.", logout: "Se déconnecter",
       usage: "Utilisation des données", thisMonth: "Ce mois-ci",
       overview: "Aperçu", myDevices: "Mes appareils", billingNav: "Facturation", adminLabel: "Admin", logoutBtn: "Se déconnecter",
@@ -607,7 +607,7 @@ const dict = {
     dash: {
       welcome: "Bentornato", plan: "Piano attivo", expires: "Scade tra", days: "giorni",
       subUrl: "URL abbonamento Clash", encrypted: "Crittografato", copy: "Copia", copied: "Copiato!",
-      devices: "Dispositivi connessi", account: "Account", renew: "Rinnova piano", billing: "Cronologia fatturazione",
+      devices: "Dispositivi connessi", account: "Account", renew: "Gestisci abbonamento", billing: "Cronologia fatturazione",
       manage: "Aggiorna le informazioni di fatturazione o aggiorna il piano.", logout: "Esci",
       usage: "Utilizzo dati", thisMonth: "Questo mese",
       overview: "Panoramica", myDevices: "I miei dispositivi", billingNav: "Fatturazione", adminLabel: "Admin", logoutBtn: "Esci",
@@ -737,7 +737,7 @@ const dict = {
     dash: {
       welcome: "Bienvenido de nuevo", plan: "Plan activo", expires: "Expira en", days: "días",
       subUrl: "URL de suscripción Clash", encrypted: "Cifrado", copy: "Copiar", copied: "¡Copiado!",
-      devices: "Dispositivos conectados", account: "Cuenta", renew: "Renovar plan", billing: "Historial de facturación",
+      devices: "Dispositivos conectados", account: "Cuenta", renew: "Gestionar suscripción", billing: "Historial de facturación",
       manage: "Actualizar información de facturación o mejorar el plan.", logout: "Cerrar sesión",
       usage: "Uso de datos", thisMonth: "Este mes",
       overview: "Resumen", myDevices: "Mis dispositivos", billingNav: "Facturación", adminLabel: "Admin", logoutBtn: "Cerrar sesión",
@@ -867,7 +867,7 @@ const dict = {
     dash: {
       welcome: "З поверненням", plan: "Активний план", expires: "Закінчується через", days: "днів",
       subUrl: "URL підписки Clash", encrypted: "Зашифровано", copy: "Копіювати", copied: "Скопійовано!",
-      devices: "Підключені пристрої", account: "Акаунт", renew: "Поновити план", billing: "Історія рахунків",
+      devices: "Підключені пристрої", account: "Акаунт", renew: "Керувати підпискою", billing: "Історія рахунків",
       manage: "Оновити платіжну інформацію або оновити план.", logout: "Вийти",
       usage: "Використання даних", thisMonth: "Цього місяця",
       overview: "Огляд", myDevices: "Мої пристрої", billingNav: "Оплата", adminLabel: "Адмін", logoutBtn: "Вийти",
@@ -997,7 +997,7 @@ const dict = {
     dash: {
       welcome: "おかえりなさい", plan: "有効なプラン", expires: "残り", days: "日",
       subUrl: "Clashサブスクリプション URL", encrypted: "暗号化済み", copy: "コピー", copied: "コピーしました！",
-      devices: "接続デバイス", account: "アカウント", renew: "プランを更新", billing: "請求履歴",
+      devices: "接続デバイス", account: "アカウント", renew: "サブスクリプション管理", billing: "請求履歴",
       manage: "請求情報を更新またはプランをアップグレード。", logout: "ログアウト",
       usage: "データ使用量", thisMonth: "今月",
       overview: "概要", myDevices: "デバイス", billingNav: "請求", adminLabel: "管理", logoutBtn: "ログアウト",
