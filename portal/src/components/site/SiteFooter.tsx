@@ -23,10 +23,10 @@ export function SiteFooter() {
         <div>
           <h5 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">{t.footer.legal}</h5>
           <ul className="text-sm space-y-2 text-foreground/80">
+            <li><Link href="/terms"      className="hover:text-mirror transition-colors">Terms of Service</Link></li>
+            <li><Link href="/privacy"    className="hover:text-mirror transition-colors">Privacy Policy</Link></li>
+            <li><Link href="/cookies"    className="hover:text-mirror transition-colors">Cookie Policy</Link></li>
             <li><Link href="/disclaimer" className="hover:text-mirror transition-colors">{t.footer.disclaimer}</Link></li>
-            <li><a href="#" className="hover:text-mirror transition-colors">Privacy</a></li>
-            <li><a href="#" className="hover:text-mirror transition-colors">Terms</a></li>
-            <li><a href="#" className="hover:text-mirror transition-colors">No-Logs</a></li>
           </ul>
         </div>
       </div>
