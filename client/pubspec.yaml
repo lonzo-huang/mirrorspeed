@@ -36,6 +36,9 @@ dependencies:
   # ── Device info ──────────────────────────────────────────────
   device_info_plus: ^10.1.2
 
+  # ── Deep links / OAuth callback ──────────────────────────────
+  app_links: ^6.3.0
+
   # ── UI ───────────────────────────────────────────────────────
   google_fonts: ^6.2.1
   url_launcher: ^6.3.0

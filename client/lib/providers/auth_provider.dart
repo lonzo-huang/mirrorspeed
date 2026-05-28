@@ -161,16 +161,27 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── 发送 OTP 验证码（同时支持验证码输入 和 邮件链接直接登录）──
-  // emailRedirectTo 触发 Supabase "Magic Link" 模板，邮件同时包含：
-  //   - {{ .Token }}           → 8 位数字验证码（手动输入）
-  //   - {{ .ConfirmationURL }} → 可点击直接登录的链接
+  // ── 发送 OTP 验证码 ───────────────────────────────────────────
   Future<void> signInWithEmail(String email) async {
-    await _supabase.auth.signInWithOtp(
-      email:            email,
-      shouldCreateUser: true,
-      emailRedirectTo:  kAuthCallbackUrl,
-    );
+    try {
+      await _supabase.auth.signInWithOtp(
+        email:            email,
+        shouldCreateUser: true,
+        emailRedirectTo:  kAuthCallbackUrl,
+      );
+    } on AuthException catch (e) {
+      // Map common Supabase error codes to friendlier Chinese messages
+      final msg = e.message.toLowerCase();
+      if (msg.contains('rate limit') || msg.contains('too many')) {
+        throw Exception('发送太频繁，请稍后再试（每小时限 5 次）');
+      } else if (msg.contains('invalid email') || msg.contains('email')) {
+        throw Exception('邮箱地址无效，请检查后重试');
+      } else if (msg.contains('server') || msg.contains('500')) {
+        throw Exception('服务器暂时出错，请稍等片刻再重试');
+      } else {
+        throw Exception('发送失败：${e.message}');
+      }
+    }
   }
 
   // ── 验证 OTP 验证码 ──────────────────────────────────────────
@@ -185,17 +196,14 @@ class AuthProvider extends ChangeNotifier {
 
   // ── OAuth 登录 ───────────────────────────────────────────────
   Future<void> signInWithGoogle() async {
-    await _supabase.auth.signInWithOAuth(
-      OAuthProvider.google,
-      redirectTo: kAuthCallbackUrl,
-    );
-  }
-
-  Future<void> signInWithMicrosoft() async {
-    await _supabase.auth.signInWithOAuth(
-      OAuthProvider.azure,
-      redirectTo: kAuthCallbackUrl,
-    );
+    try {
+      await _supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kAuthCallbackUrl,
+      );
+    } on AuthException catch (e) {
+      throw Exception('Google 登录失败：${e.message}');
+    }
   }
 
   // ── 工具方法 ─────────────────────────────────────────────────

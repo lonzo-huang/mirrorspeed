@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -66,21 +68,28 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       await context.read<AuthProvider>().signInWithGoogle();
+      // On Windows, the browser opens for OAuth. After the user authenticates,
+      // the OS launches the app via mirrorspeed:// deep link and app_links
+      // completes the session. Show a hint while waiting.
+      if (!kIsWeb && Platform.isWindows) {
+        setState(() {
+          _error = null;
+          _loading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('浏览器已打开，请在浏览器中完成 Google 登录后自动返回'),
+              duration: Duration(seconds: 8),
+            ),
+          );
+        }
+        return;
+      }
     } catch (e) {
-      setState(() { _error = e.toString(); });
+      setState(() { _error = e.toString().replaceFirst('Exception: ', ''); });
     } finally {
-      setState(() { _loading = false; });
-    }
-  }
-
-  Future<void> _microsoftLogin() async {
-    setState(() { _loading = true; _error = null; });
-    try {
-      await context.read<AuthProvider>().signInWithMicrosoft();
-    } catch (e) {
-      setState(() { _error = e.toString(); });
-    } finally {
-      setState(() { _loading = false; });
+      if (mounted) setState(() { _loading = false; });
     }
   }
 
@@ -150,12 +159,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   onTap:  _loading ? null : _googleLogin,
                   icon:   Icons.g_mobiledata_rounded,
                   label:  '使用 Google 账号登录',
-                ),
-                const SizedBox(height: 10),
-                _OAuthButton(
-                  onTap:  _loading ? null : _microsoftLogin,
-                  icon:   Icons.window_rounded,
-                  label:  '使用 Microsoft 账号登录',
                 ),
               ],
 
