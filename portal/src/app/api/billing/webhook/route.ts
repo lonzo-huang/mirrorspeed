@@ -47,16 +47,18 @@ export async function POST(req: NextRequest) {
         const now     = new Date()
         const expires = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
 
-        // Upsert subscription
-        await (admin.from('subscriptions' as any) as any).upsert({
-          user_id:              userId,
+        // Upsert subscription (one record per user)
+        const { error: upsertErr } = await (admin.from('subscriptions' as any) as any).upsert({
+          user_id:                userId,
           stripe_subscription_id: session.subscription as string | null,
-          status:               'active',
-          plan_key:             planKey,
-          expires_at:           expires.toISOString(),
-          cancel_at_period_end: false,
-          updated_at:           now.toISOString(),
+          status:                 'active',
+          plan_key:               planKey,
+          expires_at:             expires.toISOString(),
+          cancel_at_period_end:   false,
+          updated_at:             now.toISOString(),
         }, { onConflict: 'user_id' })
+
+        if (upsertErr) console.error('[webhook] subscription upsert error:', upsertErr)
 
         break
       }
@@ -67,19 +69,26 @@ export async function POST(req: NextRequest) {
         const userId = sub.metadata?.supabase_user_id
         if (!userId) break
 
-        const status              = sub.status === 'active' ? 'active'
-                                  : sub.status === 'past_due' ? 'past_due'
-                                  : sub.status === 'canceled' ? 'cancelled'
-                                  : sub.status
-        const periodEnd           = new Date(sub.current_period_end * 1000)
-        const cancelAtPeriodEnd   = sub.cancel_at_period_end
+        const status = sub.status === 'active'   ? 'active'
+                     : sub.status === 'past_due'  ? 'past_due'
+                     : sub.status === 'canceled'  ? 'cancelled'
+                     : sub.status
 
-        await (admin.from('subscriptions' as any) as any).update({
+        // current_period_end may be undefined in newer Stripe API versions
+        const periodEndTs = (sub as any).current_period_end
+        const periodEnd   = periodEndTs ? new Date(periodEndTs * 1000) : null
+
+        const updatePayload: Record<string, any> = {
           status,
-          expires_at:           periodEnd.toISOString(),
-          cancel_at_period_end: cancelAtPeriodEnd,
+          cancel_at_period_end: sub.cancel_at_period_end,
           updated_at:           new Date().toISOString(),
-        }).eq('user_id', userId)
+        }
+        if (periodEnd) updatePayload.expires_at = periodEnd.toISOString()
+
+        const { error } = await (admin.from('subscriptions' as any) as any)
+          .update(updatePayload).eq('user_id', userId)
+
+        if (error) console.error('[webhook] subscription update error:', error)
 
         break
       }
