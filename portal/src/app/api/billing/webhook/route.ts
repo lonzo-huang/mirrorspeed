@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { createAdminClient } from '@/lib/supabase/server'
+import { sendEmail, makeSubscriptionConfirmEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +60,27 @@ export async function POST(req: NextRequest) {
         }, { onConflict: 'user_id' })
 
         if (upsertErr) console.error('[webhook] subscription upsert error:', upsertErr)
+
+        // Send confirmation email
+        const { data: profile } = await (admin.from('profiles' as any) as any)
+          .select('email, display_name, lang').eq('id', userId).single()
+
+        if (profile?.email) {
+          const displayName = profile.display_name ?? profile.email.split('@')[0]
+          const lang        = profile.lang ?? 'en'
+          // Use checkout session amount if available, else 0
+          const amountTotal = session.amount_total ?? 0
+          const currency    = session.currency ?? 'usd'
+          const { subject, html } = makeSubscriptionConfirmEmail({
+            displayName,
+            planKey,
+            expiresAt: expires,
+            amountCents: amountTotal,
+            currency,
+            lang,
+          })
+          await sendEmail({ to: profile.email, subject, html })
+        }
 
         break
       }

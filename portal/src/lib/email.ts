@@ -48,7 +48,91 @@ export async function sendEmail({ to, subject, html }: SendEmailOptions): Promis
 
 // ── Email templates ────────────────────────────────────────────────────────
 
-export function makeExpiryWarningEmail(opts: {
+export function makeSubscriptionConfirmEmail(opts: {
+  displayName: string
+  planKey:     string
+  expiresAt:   Date
+  amountCents: number
+  currency:    string
+  lang:        string
+}): { subject: string; html: string } {
+  const { displayName, planKey, expiresAt, amountCents, currency, lang } = opts
+  const dateStr  = expiresAt.toISOString().split('T')[0]
+  const symbol   = currency === 'cny' ? '¥' : currency === 'eur' ? '€' : '$'
+  const amount   = `${symbol}${(amountCents / 100).toFixed(2)}`
+  const isChinese = lang === 'zh'
+
+  if (isChinese) {
+    return {
+      subject: '【镜速加速器】订阅成功确认',
+      html: `
+<!DOCTYPE html><html lang="zh"><body style="font-family:sans-serif;background:#0a0a0a;color:#e5e5e5;padding:32px">
+<div style="max-width:560px;margin:0 auto;background:#111;border:1px solid #222;border-radius:16px;padding:32px">
+  <h1 style="color:#a78bfa;margin:0 0 8px">镜速加速器</h1>
+  <p style="color:#aaa;margin:0 0 24px;font-size:14px">MirrorSpeed</p>
+  <p>您好 ${displayName}，</p>
+  <p>🎉 您的订阅已成功激活！</p>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
+    <tr style="border-bottom:1px solid #333">
+      <td style="padding:10px 0;color:#aaa">套餐</td>
+      <td style="padding:10px 0;text-align:right;color:#a78bfa;font-weight:bold;text-transform:capitalize">${planKey}</td>
+    </tr>
+    <tr style="border-bottom:1px solid #333">
+      <td style="padding:10px 0;color:#aaa">付款金额</td>
+      <td style="padding:10px 0;text-align:right">${amount}</td>
+    </tr>
+    <tr>
+      <td style="padding:10px 0;color:#aaa">有效期至</td>
+      <td style="padding:10px 0;text-align:right">${dateStr}</td>
+    </tr>
+  </table>
+  <div style="margin:24px 0;text-align:center">
+    <a href="https://mirrorspeed.com/dashboard"
+       style="display:inline-block;padding:12px 32px;background:#a78bfa;color:#000;font-weight:700;border-radius:10px;text-decoration:none">
+      进入控制台
+    </a>
+  </div>
+  <p style="color:#666;font-size:12px">如有疑问，请联系 support@mirrorspeed.com</p>
+</div>
+</body></html>`,
+    }
+  }
+
+  return {
+    subject: '[MirrorSpeed] Subscription Confirmed',
+    html: `
+<!DOCTYPE html><html lang="en"><body style="font-family:sans-serif;background:#0a0a0a;color:#e5e5e5;padding:32px">
+<div style="max-width:560px;margin:0 auto;background:#111;border:1px solid #222;border-radius:16px;padding:32px">
+  <h1 style="color:#a78bfa;margin:0 0 24px">MirrorSpeed</h1>
+  <p>Hi ${displayName},</p>
+  <p>🎉 Your subscription is now active!</p>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
+    <tr style="border-bottom:1px solid #333">
+      <td style="padding:10px 0;color:#aaa">Plan</td>
+      <td style="padding:10px 0;text-align:right;color:#a78bfa;font-weight:bold;text-transform:capitalize">${planKey}</td>
+    </tr>
+    <tr style="border-bottom:1px solid #333">
+      <td style="padding:10px 0;color:#aaa">Amount paid</td>
+      <td style="padding:10px 0;text-align:right">${amount}</td>
+    </tr>
+    <tr>
+      <td style="padding:10px 0;color:#aaa">Valid until</td>
+      <td style="padding:10px 0;text-align:right">${dateStr}</td>
+    </tr>
+  </table>
+  <div style="margin:24px 0;text-align:center">
+    <a href="https://mirrorspeed.com/dashboard"
+       style="display:inline-block;padding:12px 32px;background:#a78bfa;color:#000;font-weight:700;border-radius:10px;text-decoration:none">
+      Go to Dashboard
+    </a>
+  </div>
+  <p style="color:#666;font-size:12px">Questions? Email support@mirrorspeed.com</p>
+</div>
+</body></html>`,
+  }
+}
+
+export function makeSubscriptionConfirmEmail(opts: {
   displayName: string
   expiresAt:   Date
   planKey:     string
