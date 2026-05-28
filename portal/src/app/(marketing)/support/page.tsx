@@ -129,7 +129,7 @@ export default function SupportPage() {
                       value={name}
                       onChange={e => setName(e.target.value)}
                       required
-                      className="w-full rounded-xl border border-border bg-background/50 px-4 py-2.5 text-sm
+                      className="w-full rounded-xl border border-border bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400
                                  focus:border-mirror focus:outline-none focus:ring-1 focus:ring-mirror transition"
                     />
                   </div>
@@ -140,7 +140,7 @@ export default function SupportPage() {
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       required
-                      className="w-full rounded-xl border border-border bg-background/50 px-4 py-2.5 text-sm
+                      className="w-full rounded-xl border border-border bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400
                                  focus:border-mirror focus:outline-none focus:ring-1 focus:ring-mirror transition"
                     />
                   </div>
@@ -152,7 +152,7 @@ export default function SupportPage() {
                     type="text"
                     value={subject}
                     onChange={e => setSubject(e.target.value)}
-                    className="w-full rounded-xl border border-border bg-background/50 px-4 py-2.5 text-sm
+                    className="w-full rounded-xl border border-border bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400
                                focus:border-mirror focus:outline-none focus:ring-1 focus:ring-mirror transition"
                   />
                 </div>
@@ -164,7 +164,7 @@ export default function SupportPage() {
                     onChange={e => setMessage(e.target.value)}
                     required
                     rows={6}
-                    className="w-full rounded-xl border border-border bg-background/50 px-4 py-2.5 text-sm
+                    className="w-full rounded-xl border border-border bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400
                                focus:border-mirror focus:outline-none focus:ring-1 focus:ring-mirror transition resize-none"
                   />
                 </div>
