@@ -6,7 +6,7 @@ export type Lang = "en" | "zh" | "de" | "fr" | "it" | "es" | "uk" | "ja";
 
 const dict = {
   en: {
-    nav: { servers: "Servers", pricing: "Pricing", download: "Download", faq: "FAQ", dashboard: "Dashboard", login: "Login", signup: "Sign Up" },
+    nav: { servers: "Servers", pricing: "Pricing", download: "Download", faq: "FAQ", dashboard: "Dashboard", login: "Login", signup: "Sign Up", support: "Support", blog: "Blog" },
     hero: {
       badge: "Global Network Online",
       title1: "Reflection is",
@@ -100,8 +100,16 @@ const dict = {
       noPayments: "No records", recNodes: "Recommended Nodes",
       viewAll: "View All", nodeOnline: "Online", notSubscribed: "Not subscribed",
       serverStatusTitle: "Server Status",
+      devDesc: "Each account supports up to 3 devices, each connectable via WireGuard to all nodes.",
+      devNoSubMsg: "Please visit Billing to activate VPN service first.",
+      devItem: "Device", devConnectedNodes: "Connected to {n} node(s)", devConfiguring: "Configuring nodes…",
+      devConnect: "Connect", devRemoveTitle: "Remove device",
+      devRemoveConfirm: "Remove this device? It will immediately lose VPN access.",
+      devAddNew: "Add new device", devAddFailed: "Failed to add",
+      devLabelPlaceholder: "Device name, e.g. Work MacBook",
+      devAdding: "Adding…", devAdd: "Add", devEmpty: "No devices yet",
     },
-    footer: { tagline: "The infrastructure of the open mirror-web.", product: "Product", legal: "Legal", support: "Support", contact: "Contact", disclaimer: "Disclaimer" },
+    footer: { tagline: "The infrastructure of the open mirror-web.", product: "Product", legal: "Legal", support: "Support", contact: "Contact", disclaimer: "Disclaimer", blog: "Blog" },
     download: {
       title: "Download MirrorSpeed",
       sub: "Native WireGuard app for Android & Windows. One tap to connect.",
@@ -136,7 +144,7 @@ const dict = {
   },
 
   zh: {
-    nav: { servers: "服务器", pricing: "价格", download: "下载", faq: "常见问题", dashboard: "控制台", login: "登录", signup: "注册" },
+    nav: { servers: "服务器", pricing: "价格", download: "下载", faq: "常见问题", dashboard: "控制台", login: "登录", signup: "注册", support: "联系支持", blog: "博客" },
     hero: {
       badge: "全球节点在线",
       title1: "镜面反射",
@@ -230,8 +238,16 @@ const dict = {
       noPayments: "暂无记录", recNodes: "推荐节点",
       viewAll: "查看全部", nodeOnline: "在线", notSubscribed: "未订阅",
       serverStatusTitle: "服务器状态",
+      devDesc: "每个账号最多添加 3 台设备，每台设备可通过 WireGuard 接入所有节点。",
+      devNoSubMsg: "请先前往订阅与账单开通 VPN 服务。",
+      devItem: "设备", devConnectedNodes: "已连接 {n} 个节点", devConfiguring: "正在配置节点…",
+      devConnect: "连接", devRemoveTitle: "删除设备",
+      devRemoveConfirm: "确认删除设备？该设备将立即失去 VPN 访问权限。",
+      devAddNew: "添加新设备", devAddFailed: "添加失败",
+      devLabelPlaceholder: "设备名称，如「公司 MacBook」",
+      devAdding: "添加中...", devAdd: "添加", devEmpty: "暂无设备",
     },
-    footer: { tagline: "开放镜面网络的基础设施。", product: "产品", legal: "法律", support: "支持", contact: "联系我们", disclaimer: "免责声明" },
+    footer: { tagline: "开放镜面网络的基础设施。", product: "产品", legal: "法律", support: "支持", contact: "联系我们", disclaimer: "免责声明", blog: "博客" },
     download: {
       title: "下载镜速加速器",
       sub: "Android 和 Windows 原生 WireGuard 客户端，一键连接。",
@@ -266,7 +282,7 @@ const dict = {
   },
 
   de: {
-    nav: { servers: "Server", pricing: "Preise", download: "Download", faq: "FAQ", dashboard: "Dashboard", login: "Anmelden", signup: "Registrieren" },
+    nav: { servers: "Server", pricing: "Preise", download: "Download", faq: "FAQ", dashboard: "Dashboard", login: "Anmelden", signup: "Registrieren", support: "Support", blog: "Blog" },
     hero: {
       badge: "Globales Netzwerk online",
       title1: "Reflexion ist",
@@ -360,8 +376,16 @@ const dict = {
       noPayments: "Keine Einträge", recNodes: "Empfohlene Knoten",
       viewAll: "Alle anzeigen", nodeOnline: "Online", notSubscribed: "Nicht abonniert",
       serverStatusTitle: "Serverstatus",
+      devDesc: "Jedes Konto unterstützt bis zu 3 Geräte, jedes über WireGuard mit allen Knoten verbindbar.",
+      devNoSubMsg: "Bitte gehen Sie zur Abrechnung, um den VPN-Dienst zu aktivieren.",
+      devItem: "Gerät", devConnectedNodes: "{n} Knoten verbunden", devConfiguring: "Knoten werden konfiguriert…",
+      devConnect: "Verbinden", devRemoveTitle: "Gerät entfernen",
+      devRemoveConfirm: "Dieses Gerät entfernen? Es verliert sofort den VPN-Zugang.",
+      devAddNew: "Neues Gerät hinzufügen", devAddFailed: "Hinzufügen fehlgeschlagen",
+      devLabelPlaceholder: "Gerätename, z.B. Büro MacBook",
+      devAdding: "Wird hinzugefügt…", devAdd: "Hinzufügen", devEmpty: "Keine Geräte",
     },
-    footer: { tagline: "Die Infrastruktur des offenen Spiegel-Webs.", product: "Produkt", legal: "Rechtliches", support: "Support", contact: "Kontakt", disclaimer: "Haftungsausschluss" },
+    footer: { tagline: "Die Infrastruktur des offenen Spiegel-Webs.", product: "Produkt", legal: "Rechtliches", support: "Support", contact: "Kontakt", disclaimer: "Haftungsausschluss", blog: "Blog" },
     download: {
       title: "MirrorSpeed herunterladen",
       sub: "Native WireGuard-App für Android & Windows. Ein Tipp zum Verbinden.",
@@ -396,7 +420,7 @@ const dict = {
   },
 
   fr: {
-    nav: { servers: "Serveurs", pricing: "Tarifs", download: "Télécharger", faq: "FAQ", dashboard: "Tableau de bord", login: "Connexion", signup: "S'inscrire" },
+    nav: { servers: "Serveurs", pricing: "Tarifs", download: "Télécharger", faq: "FAQ", dashboard: "Tableau de bord", login: "Connexion", signup: "S'inscrire", support: "Support", blog: "Blog" },
     hero: {
       badge: "Réseau mondial en ligne",
       title1: "La réflexion est",
@@ -490,8 +514,16 @@ const dict = {
       noPayments: "Aucun enregistrement", recNodes: "Nœuds recommandés",
       viewAll: "Voir tout", nodeOnline: "En ligne", notSubscribed: "Non abonné",
       serverStatusTitle: "Statut du serveur",
+      devDesc: "Chaque compte prend en charge jusqu'à 3 appareils, chacun connectable via WireGuard à tous les nœuds.",
+      devNoSubMsg: "Veuillez accéder à la facturation pour activer le service VPN.",
+      devItem: "Appareil", devConnectedNodes: "Connecté à {n} nœud(s)", devConfiguring: "Configuration des nœuds…",
+      devConnect: "Connecter", devRemoveTitle: "Supprimer l'appareil",
+      devRemoveConfirm: "Supprimer cet appareil ? Il perdra immédiatement l'accès VPN.",
+      devAddNew: "Ajouter un nouvel appareil", devAddFailed: "Échec de l'ajout",
+      devLabelPlaceholder: "Nom de l'appareil, ex. MacBook Bureau",
+      devAdding: "Ajout en cours…", devAdd: "Ajouter", devEmpty: "Aucun appareil",
     },
-    footer: { tagline: "L'infrastructure du web miroir ouvert.", product: "Produit", legal: "Légal", support: "Support", contact: "Contact", disclaimer: "Avertissement" },
+    footer: { tagline: "L'infrastructure du web miroir ouvert.", product: "Produit", legal: "Légal", support: "Support", contact: "Contact", disclaimer: "Avertissement", blog: "Blog" },
     download: {
       title: "Télécharger MirrorSpeed",
       sub: "Application WireGuard native pour Android & Windows. Un seul tap pour se connecter.",
@@ -526,7 +558,7 @@ const dict = {
   },
 
   it: {
-    nav: { servers: "Server", pricing: "Prezzi", download: "Scarica", faq: "FAQ", dashboard: "Dashboard", login: "Accedi", signup: "Registrati" },
+    nav: { servers: "Server", pricing: "Prezzi", download: "Scarica", faq: "FAQ", dashboard: "Dashboard", login: "Accedi", signup: "Registrati", support: "Supporto", blog: "Blog" },
     hero: {
       badge: "Rete globale online",
       title1: "Il riflesso è",
@@ -620,8 +652,16 @@ const dict = {
       noPayments: "Nessun record", recNodes: "Nodi consigliati",
       viewAll: "Vedi tutti", nodeOnline: "Online", notSubscribed: "Non abbonato",
       serverStatusTitle: "Stato del server",
+      devDesc: "Ogni account supporta fino a 3 dispositivi, ognuno collegabile tramite WireGuard a tutti i nodi.",
+      devNoSubMsg: "Vai alla sezione Fatturazione per attivare il servizio VPN.",
+      devItem: "Dispositivo", devConnectedNodes: "Connesso a {n} nodo/i", devConfiguring: "Configurazione nodi in corso…",
+      devConnect: "Connetti", devRemoveTitle: "Rimuovi dispositivo",
+      devRemoveConfirm: "Rimuovere questo dispositivo? Perderà immediatamente l'accesso VPN.",
+      devAddNew: "Aggiungi nuovo dispositivo", devAddFailed: "Aggiunta fallita",
+      devLabelPlaceholder: "Nome dispositivo, es. MacBook Ufficio",
+      devAdding: "Aggiunta in corso…", devAdd: "Aggiungi", devEmpty: "Nessun dispositivo",
     },
-    footer: { tagline: "L'infrastruttura del web speculare aperto.", product: "Prodotto", legal: "Legale", support: "Supporto", contact: "Contatto", disclaimer: "Disclaimer" },
+    footer: { tagline: "L'infrastruttura del web speculare aperto.", product: "Prodotto", legal: "Legale", support: "Supporto", contact: "Contatto", disclaimer: "Disclaimer", blog: "Blog" },
     download: {
       title: "Scarica MirrorSpeed",
       sub: "App WireGuard nativa per Android e Windows. Un tap per connettersi.",
@@ -656,7 +696,7 @@ const dict = {
   },
 
   es: {
-    nav: { servers: "Servidores", pricing: "Precios", download: "Descargar", faq: "FAQ", dashboard: "Panel", login: "Iniciar sesión", signup: "Registrarse" },
+    nav: { servers: "Servidores", pricing: "Precios", download: "Descargar", faq: "FAQ", dashboard: "Panel", login: "Iniciar sesión", signup: "Registrarse", support: "Soporte", blog: "Blog" },
     hero: {
       badge: "Red global en línea",
       title1: "El reflejo es",
@@ -750,8 +790,16 @@ const dict = {
       noPayments: "Sin registros", recNodes: "Nodos recomendados",
       viewAll: "Ver todo", nodeOnline: "En línea", notSubscribed: "No suscrito",
       serverStatusTitle: "Estado del servidor",
+      devDesc: "Cada cuenta admite hasta 3 dispositivos, cada uno conectable vía WireGuard a todos los nodos.",
+      devNoSubMsg: "Por favor, vaya a Facturación para activar el servicio VPN.",
+      devItem: "Dispositivo", devConnectedNodes: "Conectado a {n} nodo(s)", devConfiguring: "Configurando nodos…",
+      devConnect: "Conectar", devRemoveTitle: "Eliminar dispositivo",
+      devRemoveConfirm: "¿Eliminar este dispositivo? Perderá el acceso VPN inmediatamente.",
+      devAddNew: "Añadir nuevo dispositivo", devAddFailed: "Error al añadir",
+      devLabelPlaceholder: "Nombre del dispositivo, ej. MacBook Oficina",
+      devAdding: "Añadiendo…", devAdd: "Añadir", devEmpty: "Sin dispositivos",
     },
-    footer: { tagline: "La infraestructura de la web espejo abierta.", product: "Producto", legal: "Legal", support: "Soporte", contact: "Contacto", disclaimer: "Aviso legal" },
+    footer: { tagline: "La infraestructura de la web espejo abierta.", product: "Producto", legal: "Legal", support: "Soporte", contact: "Contacto", disclaimer: "Aviso legal", blog: "Blog" },
     download: {
       title: "Descargar MirrorSpeed",
       sub: "App WireGuard nativa para Android y Windows. Un toque para conectar.",
@@ -786,7 +834,7 @@ const dict = {
   },
 
   uk: {
-    nav: { servers: "Сервери", pricing: "Ціни", download: "Завантажити", faq: "FAQ", dashboard: "Панель", login: "Увійти", signup: "Реєстрація" },
+    nav: { servers: "Сервери", pricing: "Ціни", download: "Завантажити", faq: "FAQ", dashboard: "Панель", login: "Увійти", signup: "Реєстрація", support: "Підтримка", blog: "Блог" },
     hero: {
       badge: "Глобальна мережа онлайн",
       title1: "Відображення —",
@@ -880,8 +928,16 @@ const dict = {
       noPayments: "Немає записів", recNodes: "Рекомендовані вузли",
       viewAll: "Переглянути всі", nodeOnline: "Онлайн", notSubscribed: "Не підписаний",
       serverStatusTitle: "Статус сервера",
+      devDesc: "Кожен акаунт підтримує до 3 пристроїв, кожен підключається через WireGuard до всіх вузлів.",
+      devNoSubMsg: "Будь ласка, перейдіть до Оплати, щоб активувати сервіс VPN.",
+      devItem: "Пристрій", devConnectedNodes: "Підключено до {n} вузол(ів)", devConfiguring: "Налаштування вузлів…",
+      devConnect: "Підключити", devRemoveTitle: "Видалити пристрій",
+      devRemoveConfirm: "Видалити цей пристрій? Він негайно втратить доступ до VPN.",
+      devAddNew: "Додати новий пристрій", devAddFailed: "Помилка додавання",
+      devLabelPlaceholder: "Назва пристрою, напр. MacBook Офіс",
+      devAdding: "Додавання…", devAdd: "Додати", devEmpty: "Немає пристроїв",
     },
-    footer: { tagline: "Інфраструктура відкритого дзеркального вебу.", product: "Продукт", legal: "Правова інформація", support: "Підтримка", contact: "Контакт", disclaimer: "Відмова від відповідальності" },
+    footer: { tagline: "Інфраструктура відкритого дзеркального вебу.", product: "Продукт", legal: "Правова інформація", support: "Підтримка", contact: "Контакт", disclaimer: "Відмова від відповідальності", blog: "Блог" },
     download: {
       title: "Завантажити MirrorSpeed",
       sub: "Нативний застосунок WireGuard для Android і Windows. Одне торкання для підключення.",
@@ -916,7 +972,7 @@ const dict = {
   },
 
   ja: {
-    nav: { servers: "サーバー", pricing: "料金", download: "ダウンロード", faq: "よくある質問", dashboard: "ダッシュボード", login: "ログイン", signup: "登録" },
+    nav: { servers: "サーバー", pricing: "料金", download: "ダウンロード", faq: "よくある質問", dashboard: "ダッシュボード", login: "ログイン", signup: "登録", support: "サポート", blog: "ブログ" },
     hero: {
       badge: "グローバルネットワーク稼働中",
       title1: "反射は",
@@ -1010,8 +1066,16 @@ const dict = {
       noPayments: "記録なし", recNodes: "おすすめノード",
       viewAll: "すべて見る", nodeOnline: "オンライン", notSubscribed: "未購入",
       serverStatusTitle: "サーバー状態",
+      devDesc: "各アカウントは最大3台のデバイスに対応し、WireGuardを通じてすべてのノードに接続できます。",
+      devNoSubMsg: "まず請求ページでVPNサービスを有効にしてください。",
+      devItem: "デバイス", devConnectedNodes: "{n}ノードに接続済み", devConfiguring: "ノードを設定中…",
+      devConnect: "接続", devRemoveTitle: "デバイスを削除",
+      devRemoveConfirm: "このデバイスを削除しますか？すぐにVPNアクセスが失われます。",
+      devAddNew: "新しいデバイスを追加", devAddFailed: "追加に失敗しました",
+      devLabelPlaceholder: "デバイス名、例：会社のMacBook",
+      devAdding: "追加中…", devAdd: "追加", devEmpty: "デバイスなし",
     },
-    footer: { tagline: "オープンミラーウェブのインフラ。", product: "製品", legal: "法的事項", support: "サポート", contact: "お問い合わせ", disclaimer: "免責事項" },
+    footer: { tagline: "オープンミラーウェブのインフラ。", product: "製品", legal: "法的事項", support: "サポート", contact: "お問い合わせ", disclaimer: "免責事項", blog: "ブログ" },
     download: {
       title: "MirrorSpeedをダウンロード",
       sub: "Android・Windows向けネイティブWireGuardアプリ。ワンタップで接続。",

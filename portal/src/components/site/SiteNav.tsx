@@ -94,6 +94,8 @@ export function SiteNav() {
             {navLink("/pricing",  t.nav.pricing)}
             {navLink("/download", t.nav.download)}
             <a href="/#faq" className="text-muted-foreground hover:text-foreground transition-colors">{t.nav.faq}</a>
+            {navLink("/blog",     t.nav.blog)}
+            {navLink("/support",  t.nav.support)}
           </div>
         </div>
 
@@ -120,6 +122,8 @@ export function SiteNav() {
           {navLink("/pricing",  t.nav.pricing,  true)}
           {navLink("/download", t.nav.download, true)}
           <a href="/#faq" onClick={() => setMobileOpen(false)} className="block py-3 text-base border-b border-white/5 text-muted-foreground hover:text-foreground transition-colors">{t.nav.faq}</a>
+          {navLink("/blog",    t.nav.blog,    true)}
+          {navLink("/support", t.nav.support, true)}
           <div className="flex gap-3 pt-4">
             <Link href="/login" onClick={() => setMobileOpen(false)} className="flex-1 text-center py-2.5 border border-white/15 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">{t.nav.login}</Link>
             <Link href="/login" onClick={() => setMobileOpen(false)} className="flex-1 text-center py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold hover:bg-mirror transition-all">{t.nav.signup}</Link>

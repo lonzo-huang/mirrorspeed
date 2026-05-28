@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Monitor, Plus, Trash2, RefreshCw, Smartphone, Laptop, Wifi } from 'lucide-react'
 import { ConnectDialog } from '@/components/dashboard/connect-dialog'
+import { useI18n } from '@/lib/i18n'
 import type { Tables } from '@/types/database.types'
 
 type Device = Tables<'vpn_devices'>
@@ -24,6 +25,7 @@ const OS_ICONS: Record<string, React.ReactNode> = {
 
 export default function DevicesPage() {
   const supabase                            = createClient()
+  const { t }                               = useI18n()
   const [devices,      setDevices]          = useState<Device[]>([])
   const [devicePeers,  setDevicePeers]      = useState<Record<string, ServerPeer[]>>({})
   const [loading,      setLoading]          = useState(true)
@@ -82,7 +84,7 @@ export default function DevicesPage() {
         body:    JSON.stringify({ label: newLabel.trim(), os: newOs }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? '添加失败')
+      if (!res.ok) throw new Error(json.error ?? t.dash.devAddFailed)
       setNewLabel('')
       await loadData()
     } catch (e: any) {
@@ -93,7 +95,7 @@ export default function DevicesPage() {
   }
 
   async function removeDevice(deviceId: string) {
-    if (!confirm('确认删除设备？该设备将立即失去 VPN 访问权限。')) return
+    if (!confirm(t.dash.devRemoveConfirm)) return
     const res = await fetch('/api/devices', {
       method:  'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -113,18 +115,16 @@ export default function DevicesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">我的设备</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          每个账号最多添加 2 台设备，每台设备可通过 Clash 订阅或 WireGuard 接入所有节点。
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900">{t.dash.myDevices}</h1>
+        <p className="mt-1 text-sm text-gray-500">{t.dash.devDesc}</p>
       </div>
 
       {!hasSub && (
         <div className="card border-yellow-200 bg-yellow-50">
           <p className="text-sm text-yellow-800">
-            添加设备前，请先前往
-            <a href="/dashboard/billing" className="font-medium underline mx-1">订阅与账单</a>
-            开通 VPN 服务。
+            {t.dash.devNoSubMsg.split(t.dash.billingNav)[0]}
+            <a href="/dashboard/billing" className="font-medium underline mx-1">{t.dash.billingNav}</a>
+            {t.dash.devNoSubMsg.split(t.dash.billingNav)[1]}
           </p>
         </div>
       )}
@@ -142,12 +142,13 @@ export default function DevicesPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-gray-900">{device.device_label}</p>
-                      <span className="badge-active">设备 {i + 1}</span>
+                      <span className="badge-active">{t.dash.devItem} {i + 1}</span>
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {servers.length > 0
-                        ? `已连接 ${servers.length} 个节点 · ${servers.map(s => s.flag_emoji).join(' ')}`
-                        : '正在配置节点…'
+                        ? t.dash.devConnectedNodes.replace('{n}', String(servers.length))
+                          + ' · ' + servers.map(s => s.flag_emoji).join(' ')
+                        : t.dash.devConfiguring
                       }
                     </p>
                   </div>
@@ -159,12 +160,12 @@ export default function DevicesPage() {
                     className="btn-primary text-sm px-3 py-1.5 flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Wifi className="h-3.5 w-3.5" />
-                    连接
+                    {t.dash.devConnect}
                   </button>
                   <button
                     onClick={() => removeDevice(device.id)}
                     className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                    title="删除设备"
+                    title={t.dash.devRemoveTitle}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -174,11 +175,11 @@ export default function DevicesPage() {
           )
         })}
 
-        {devices.length < 2 && hasSub && (
+        {devices.length < 3 && hasSub && (
           <div className="card border-dashed border-gray-300">
             <div className="flex items-center gap-3 mb-4">
               <Plus className="h-5 w-5 text-gray-400" />
-              <h3 className="font-medium text-gray-700">添加新设备</h3>
+              <h3 className="font-medium text-gray-700">{t.dash.devAddNew}</h3>
             </div>
 
             {error && (
@@ -190,7 +191,7 @@ export default function DevicesPage() {
                 type="text"
                 value={newLabel}
                 onChange={e => setNewLabel(e.target.value)}
-                placeholder="设备名称，如「公司 MacBook」"
+                placeholder={t.dash.devLabelPlaceholder}
                 className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm
                            focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
                 onKeyDown={e => e.key === 'Enter' && addDevice()}
@@ -213,7 +214,7 @@ export default function DevicesPage() {
                 className="btn-primary"
               >
                 {adding ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                {adding ? '添加中...' : '添加'}
+                {adding ? t.dash.devAdding : t.dash.devAdd}
               </button>
             </div>
           </div>
@@ -222,7 +223,7 @@ export default function DevicesPage() {
         {devices.length === 0 && !hasSub && (
           <div className="text-center py-12 text-gray-400">
             <Monitor className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p>暂无设备</p>
+            <p>{t.dash.devEmpty}</p>
           </div>
         )}
       </div>

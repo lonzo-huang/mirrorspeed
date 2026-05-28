@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
 
 export function SiteFooter() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const isZh = lang === 'zh';
   return (
     <footer className="py-20 px-6 border-t border-border mt-24">
       <div className="max-w-6xl mx-auto grid md:grid-cols-4 gap-12">
@@ -18,14 +19,16 @@ export function SiteFooter() {
             <li><Link href="/servers"  className="hover:text-mirror transition-colors">{t.nav.servers}</Link></li>
             <li><Link href="/pricing"  className="hover:text-mirror transition-colors">{t.nav.pricing}</Link></li>
             <li><Link href="/download" className="hover:text-mirror transition-colors">{t.nav.download}</Link></li>
+            <li><Link href="/blog"     className="hover:text-mirror transition-colors">{t.footer.blog}</Link></li>
+            <li><Link href="/support"  className="hover:text-mirror transition-colors">{t.footer.support}</Link></li>
           </ul>
         </div>
         <div>
           <h5 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">{t.footer.legal}</h5>
           <ul className="text-sm space-y-2 text-foreground/80">
-            <li><Link href="/terms"      className="hover:text-mirror transition-colors">Terms of Service</Link></li>
-            <li><Link href="/privacy"    className="hover:text-mirror transition-colors">Privacy Policy</Link></li>
-            <li><Link href="/cookies"    className="hover:text-mirror transition-colors">Cookie Policy</Link></li>
+            <li><Link href="/terms"      className="hover:text-mirror transition-colors">{isZh ? '服务条款' : 'Terms of Service'}</Link></li>
+            <li><Link href="/privacy"    className="hover:text-mirror transition-colors">{isZh ? '隐私政策' : 'Privacy Policy'}</Link></li>
+            <li><Link href="/cookies"    className="hover:text-mirror transition-colors">{isZh ? 'Cookie 政策' : 'Cookie Policy'}</Link></li>
             <li><Link href="/disclaimer" className="hover:text-mirror transition-colors">{t.footer.disclaimer}</Link></li>
           </ul>
         </div>
