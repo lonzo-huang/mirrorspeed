@@ -17,7 +17,7 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        // AmneziaWG Android library on JitPack
+        // JitPack — kept for future amneziawg-android migration
         maven { url 'https://jitpack.io' }
     }
 }
@@ -53,9 +53,12 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     implementation 'androidx.appcompat:appcompat:1.6.1'
 
-    // AmneziaWG Android tunnel library
-    // Drop-in replacement for com.wireguard.android:tunnel
-    // Same API (GoBackend, Tunnel, Config) under org.amnezia.awg package
-    // Source: https://github.com/amnezia-vpn/amneziawg-android
-    implementation 'com.github.amnezia-vpn:amneziawg-android:1.0.0'
+    // WireGuard Android tunnel library (stable, well-tested).
+    // AWG-specific config keys (Jc/Jmin/Jmax/S1/S2/H1-H4) are stripped in the
+    // plugin's Kotlin code before parsing, so the tunnel works as standard
+    // WireGuard on Android.  Port hopping + wstunnel fallback remain active.
+    //
+    // TODO: migrate to com.github.amnezia-vpn:amneziawg-android once JitPack
+    //       builds are available and stable.
+    implementation 'com.wireguard.android:tunnel:1.0.20230427'
 }

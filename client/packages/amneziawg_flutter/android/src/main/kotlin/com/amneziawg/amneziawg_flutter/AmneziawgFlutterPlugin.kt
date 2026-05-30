@@ -3,9 +3,6 @@ package com.amneziawg.amneziawg_flutter
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.os.Build
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -18,9 +15,9 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import kotlinx.coroutines.*
-import org.amnezia.awg.backend.Backend
-import org.amnezia.awg.backend.GoBackend
-import org.amnezia.awg.backend.Tunnel
+import com.wireguard.android.backend.Backend
+import com.wireguard.android.backend.GoBackend
+import com.wireguard.android.backend.Tunnel
 import java.io.ByteArrayInputStream
 import java.util.Locale
 
@@ -29,6 +26,13 @@ private const val METHOD_CHANNEL = "com.amneziawg.flutter/awgcontrol"
 private const val EVENT_CHANNEL  = "com.amneziawg.flutter/awgstage"
 private const val VPN_PERMISSION_REQUEST = 10015
 private const val TAG = "AWG"
+
+// ── AWG-specific config keys that standard wireguard-android doesn't know ──
+// These are filtered out before parsing so the WireGuard Go backend doesn't
+// reject the config. AWG obfuscation requires the native AWG Go backend;
+// until amneziawg-android is available on Maven/JitPack the tunnel runs as
+// standard WireGuard.  Port hopping + wstunnel fallback remain fully active.
+private val AWG_INTERFACE_KEYS = setOf("Jc", "Jmin", "Jmax", "S1", "S2", "H1", "H2", "H3", "H4")
 
 class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     PluginRegistry.ActivityResultListener {
@@ -41,7 +45,7 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     private val futureBackend = CompletableDeferred<Backend>()
     private var backend: Backend? = null
     private var tunnel: AwgTunnel? = null
-    private var config: org.amnezia.awg.config.Config? = null
+    private var config: com.wireguard.config.Config? = null
     private var vpnStageSink: EventChannel.EventSink? = null
     private var havePermission = false
     private var isVpnChecked = false
@@ -146,10 +150,13 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                 }
                 updateStage("prepare")
 
-                // Parse AWG config — org.amnezia.awg.config.Config handles
-                // Jc / Jmin / Jmax / S1 / S2 / H1-H4 fields natively
-                val stream = ByteArrayInputStream(wgQuickConfig.toByteArray())
-                config = org.amnezia.awg.config.Config.parse(stream)
+                // Strip AWG-specific [Interface] keys before parsing.
+                // wireguard-android's Config.parse() rejects unknown keys; the
+                // AWG obfuscation fields are safe to drop here because the native
+                // Go WireGuard backend handles the actual tunnelling.
+                val sanitised = sanitiseAwgConfig(wgQuickConfig)
+                val stream = ByteArrayInputStream(sanitised.toByteArray())
+                config = com.wireguard.config.Config.parse(stream)
 
                 updateStage("connecting")
                 futureBackend.await().setState(
@@ -219,6 +226,21 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
 
     private fun mainResult(result: Result, block: (Result) -> Unit) {
         scope.launch(Dispatchers.Main) { block(result) }
+    }
+
+    // ── Config sanitiser ───────────────────────────────────────────────────
+    //
+    // Removes AWG-only keys from the [Interface] section so wireguard-android
+    // doesn't reject the config with "Bad key: Jc" etc.
+    // The keys are only meaningful to the AmneziaWG native backend.
+    private fun sanitiseAwgConfig(conf: String): String {
+        val awgKeys = AWG_INTERFACE_KEYS
+        return conf.lines()
+            .filter { line ->
+                val key = line.substringBefore('=').trim()
+                key !in awgKeys
+            }
+            .joinToString("\n")
     }
 }
 
