@@ -32,7 +32,6 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
-        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -59,6 +58,4 @@ dependencies {
     // Same API (GoBackend, Tunnel, Config) under org.amnezia.awg package
     // Source: https://github.com/amnezia-vpn/amneziawg-android
     implementation 'com.github.amnezia-vpn:amneziawg-android:1.0.0'
-
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 }
