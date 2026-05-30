@@ -4,10 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart'; // PlatformException + rootBundle
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:wireguard_flutter/wireguard_flutter.dart';
+import 'package:amneziawg_flutter/amneziawg_flutter.dart';
 import '../models/server_config.dart';
 import '../services/ws_relay_service.dart';
+import '../services/port_hopping.dart';
 import '../env.dart';
+
+export 'package:amneziawg_flutter/amneziawg_flutter.dart' show VpnStage;
 
 enum VpnStatus    { disconnected, connecting, connected, disconnecting, error }
 enum VpnProtocol  { direct, relay }
@@ -46,8 +49,8 @@ class VpnProvider extends ChangeNotifier {
 
   // ── 初始化（app 启动时调用一次）────────────────────────────
   Future<void> initialize() async {
-    await WireGuardFlutter.instance.initialize(interfaceName: 'wg0');
-    _stageSub = WireGuardFlutter.instance.vpnStageSnapshot.listen(_onStage);
+    await AmneziaWG.instance.initialize(interfaceName: 'awg0');
+    _stageSub = AmneziaWG.instance.vpnStageSnapshot.listen(_onStage);
 
     // 恢复上次选择的路由模式
     final prefs = await SharedPreferences.getInstance();
@@ -75,7 +78,7 @@ class VpnProvider extends ChangeNotifier {
           // 中继模式握手成功，可以放心取消计时器
           _fallbackTimer?.cancel();
         } else {
-          // 直连模式：Android VPN 接口已 UP，但 WireGuard 握手可能还没完成。
+          // 直连模式：Android VPN 接口已 UP，但 AWG 握手可能还没完成。
           // 不在此处取消计时器，等连通性验证通过后再取消。
           _postConnectCheck(_activeServer);
         }
@@ -99,7 +102,7 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── 连接（直连 WireGuard，12 秒超时后自动回退到 WebSocket 中继）──
+  // ── 连接（首选 AmneziaWG 直连 + 端口跳变，12 秒超时后自动回退到 wstunnel 443）──
   Future<void> connect(ServerConfig server) async {
     _error            = null;
     _status           = VpnStatus.connecting;
@@ -110,18 +113,25 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 智能模式：覆盖 AllowedIPs 为非中国大陆 IP 段
-      final wgConf = _routingMode == RoutingMode.smart
+      // 1. 计算实际连接端口（端口跳变 or 固定端口）
+      final effectivePort = _computePort(server);
+
+      // 2. 将 AWG 配置中的端点端口替换为跳变端口
+      String wgConf = _routingMode == RoutingMode.smart
           ? await _applySmartRouting(server.wgConf, excludeIp: null)
           : server.wgConf;
+      wgConf = PortHoppingService.instance
+          .rewriteEndpointPort(wgConf, effectivePort);
 
-      await WireGuardFlutter.instance.startVpn(
-        serverAddress:            '${server.endpoint}:${server.port}',
+      debugPrint('[VPN] 直连 AmneziaWG，端口=$effectivePort');
+
+      await AmneziaWG.instance.startVpn(
+        serverAddress:            '${server.endpoint}:$effectivePort',
         wgQuickConfig:            wgConf,
         providerBundleIdentifier: kProviderBundle,
       );
 
-      // 12 秒内未收到 connected 事件 → 自动切换中继
+      // 12 秒内未收到 connected 事件 → 自动切换 wstunnel 443 中继
       _fallbackTimer = Timer(
         const Duration(seconds: 12),
         () => _switchToRelay(server),
@@ -146,13 +156,23 @@ class VpnProvider extends ChangeNotifier {
     }
   }
 
-  // ── WebSocket 中继回退 ───────────────────────────────────────
+  /// 计算端口（端口跳变 or 固定端口）
+  int _computePort(ServerConfig server) {
+    if (server.portSecret == null || server.portSecret!.isEmpty) {
+      return server.port;
+    }
+    // 尝试当前 hour，连通性验证失败后 fallback 到 wstunnel，不在此处遍历 ±1
+    return PortHoppingService.instance
+        .computePort(server.portSecret!, hourOffset: 0);
+  }
+
+  // ── wstunnel 443 中继回退 ──────────────────────────────────────────────────
   // [force] = true：由连通性验证失败触发，此时 status 已是 connected
   //            但流量实际不通，需要强制切换。
   Future<void> _switchToRelay(ServerConfig server, {bool force = false}) async {
     if (!force && _status == VpnStatus.connected) return; // 正常直连已成功，无需切换
 
-    debugPrint('[VPN] ${force ? '连通性验证失败' : '直连 12 秒超时'}，切换 WebSocket 中继...');
+    debugPrint('[VPN] ${force ? '连通性验证失败' : '直连 12 秒超时'}，切换 wstunnel 443 中继...');
     _switchingToRelay = true;
     _protocol         = VpnProtocol.relay;
     _status           = VpnStatus.connecting;
@@ -160,15 +180,13 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
 
     // 停止正在进行的直连尝试
-    try { await WireGuardFlutter.instance.stopVpn(); } catch (_) {}
+    try { await AmneziaWG.instance.stopVpn(); } catch (_) {}
     await Future.delayed(const Duration(milliseconds: 600));
 
-    // wstunnel v9.7+ 协议：路径 /v1/events + JWT（secret: "champignonfrais"）
-    // Nginx /secure-tunnel/ 代理 → wstunnel:2080 → WireGuard UDP
+    // wstunnel v9.7+ 协议：路径 /secure-tunnel/
     final wsBaseUrl = 'wss://${server.endpoint}/secure-tunnel';
 
     // 解析服务器 IP，用于在 AllowedIPs 中排除（防止 WebSocket 中继回环）
-    // 此时 VPN 未启动，DNS 走物理网卡，域名本身不被封所以能正常解析
     String? serverIp;
     try {
       final addrs = await InternetAddress.lookup(server.endpoint)
@@ -186,7 +204,7 @@ class VpnProvider extends ChangeNotifier {
       final localPort = await _relay.start(wsBaseUrl, server.port);
       final relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
 
-      await WireGuardFlutter.instance.startVpn(
+      await AmneziaWG.instance.startVpn(
         serverAddress:            '127.0.0.1:$localPort',
         wgQuickConfig:            relayConf,
         providerBundleIdentifier: kProviderBundle,
@@ -265,7 +283,7 @@ class VpnProvider extends ChangeNotifier {
     return conf;
   }
 
-  // ── 智能路由：将 WireGuard 配置的 AllowedIPs 改为非中国IP段 ──
+  // ── 智能路由：将 AWG 配置的 AllowedIPs 改为非中国IP段 ────────────────────
   Future<String> _applySmartRouting(String wgConf, {required String? excludeIp}) async {
     final routes = await _getSmartRoutes(excludeIp: excludeIp);
     return wgConf.replaceAll(
@@ -418,9 +436,6 @@ class VpnProvider extends ChangeNotifier {
   }
 
   /// 计算覆盖整个 IPv4 地址空间但排除指定 /32 的 CIDR 列表（共 32 条）。
-  ///
-  /// 原理：沿二叉树从根（0.0.0.0/0）走到目标叶子（excludeIp/32），
-  /// 在每一层收集"另一半"子树，这些子树的并集 = 全空间 − excludeIp/32。
   static List<String> _ipv4AllExcept(String excludeIp) {
     final parts = excludeIp.split('.');
     if (parts.length != 4) return ['0.0.0.0/0'];
@@ -451,7 +466,7 @@ class VpnProvider extends ChangeNotifier {
     _status = VpnStatus.disconnecting;
     notifyListeners();
     try {
-      await WireGuardFlutter.instance.stopVpn();
+      await AmneziaWG.instance.stopVpn();
       await _relay.stop();
       _protocol = VpnProtocol.direct;
     } catch (e) {
@@ -484,7 +499,7 @@ class VpnProvider extends ChangeNotifier {
   }
 
   // ── 连通性验证（直连模式握手后约 4 秒执行）──────────────────
-  // WireGuard UDP 被 GFW 过滤时，Android VPN 接口仍会报 connected，
+  // AWG UDP 被 GFW 过滤时，Android VPN 接口仍会报 connected，
   // 但实际流量无法通过。通过请求外网地址判断隧道是否真正打通。
   Future<void> _postConnectCheck(ServerConfig? server) async {
     await Future.delayed(const Duration(seconds: 4));
@@ -503,8 +518,8 @@ class VpnProvider extends ChangeNotifier {
       _fallbackTimer?.cancel(); // 流量畅通，取消中继切换计时器
       debugPrint('[VPN] 连通性验证成功，保持直连');
     } else {
-      // UDP 握手失败或流量被墙，立即切换 WebSocket 中继
-      debugPrint('[VPN] 连通性验证失败，切换 WebSocket 中继');
+      // UDP 握手失败或流量被墙，立即切换 wstunnel 443 中继
+      debugPrint('[VPN] 连通性验证失败，切换 wstunnel 443 中继');
       await _switchToRelay(server, force: true);
     }
   }

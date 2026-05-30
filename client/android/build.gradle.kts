@@ -2,6 +2,8 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // AmneziaWG Android library (com.github.amnezia-vpn:amneziawg-android)
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

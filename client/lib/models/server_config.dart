@@ -1,12 +1,16 @@
 class ServerConfig {
-  final String id;
-  final String displayName;
-  final String flagEmoji;
-  final String location;
-  final String endpoint;
-  final int    port;
-  final String wgConf;
-  int?         latencyMs; // 运行时测量
+  final String  id;
+  final String  displayName;
+  final String  flagEmoji;
+  final String  location;
+  final String  endpoint;
+  final int     port;
+  final String  wgConf;
+  /// HMAC-SHA256 secret used for server-side port hopping.
+  /// Present when the server is configured with 05-port-hopping.sh.
+  /// Null means port hopping is disabled for this server (use [port] directly).
+  final String? portSecret;
+  int?          latencyMs; // 运行时测量
 
   ServerConfig({
     required this.id,
@@ -16,6 +20,7 @@ class ServerConfig {
     required this.endpoint,
     required this.port,
     required this.wgConf,
+    this.portSecret,
     this.latencyMs,
   });
 
@@ -27,6 +32,7 @@ class ServerConfig {
     endpoint:    j['endpoint']     as String,
     port:        j['port']         as int,
     wgConf:      j['wg_conf']      as String,
+    portSecret:  j['port_secret']  as String?,
   );
 
   String get label => '$flagEmoji $displayName';

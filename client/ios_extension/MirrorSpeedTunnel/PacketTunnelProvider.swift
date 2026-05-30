@@ -1,53 +1,72 @@
 import NetworkExtension
-import WireGuardKit
 
-// MirrorSpeed VPN — iOS Network Extension (Packet Tunnel Provider)
-// Bundle ID 必须与 env.dart 中的 kProviderBundle 一致：com.mirrorspeed.vpn.network
+// AmneziaWireGuardKit replaces WireGuardKit — same API, adds AWG obfuscation params.
+// SPM: https://github.com/amnezia-vpn/amnezia-client (AmneziaWireGuardKit target)
+// Or:  https://github.com/amnezia-vpn/AmneziaWireGuardKit
+import AmneziaWireGuardKit
+
+// MirrorSpeed VPN — iOS/macOS Network Extension (Packet Tunnel Provider)
+// Bundle ID must match kProviderBundle in env.dart: com.mirrorspeed.vpn.network
 class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private var adapter: WireGuardAdapter?
 
-    // ── 启动 VPN 隧道 ──────────────────────────────────────────
-    override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
-        // wireguard_flutter 通过 protocolConfiguration.providerConfiguration 传入 wg-quick 格式的配置
+    // ── Start tunnel ───────────────────────────────────────────────────────
+    override func startTunnel(
+        options: [String: NSObject]?,
+        completionHandler: @escaping (Error?) -> Void
+    ) {
         guard
             let proto    = protocolConfiguration as? NETunnelProviderProtocol,
             let confDict = proto.providerConfiguration,
             let confStr  = confDict["wg_conf"] as? String
         else {
-            completionHandler(PacketTunnelError.missingConfig)
+            completionHandler(ProviderError.missingConfig)
             return
         }
 
+        // AmneziaWireGuardKit's TunnelConfiguration parses AWG-specific fields
+        // (Jc, Jmin, Jmax, S1, S2, H1-H4) in addition to standard WireGuard fields.
         let tunnelConf: TunnelConfiguration
         do {
-            tunnelConf = try TunnelConfiguration(fromWgQuickConfig: confStr, called: "wg0")
+            tunnelConf = try TunnelConfiguration(fromWgQuickConfig: confStr, called: "awg0")
         } catch {
+            NSLog("[AWG] Config parse failed: \(error)")
             completionHandler(error)
             return
         }
 
         adapter = WireGuardAdapter(with: self) { _, message in
-            NSLog("WireGuard: \(message)")
+            NSLog("[AWG] \(message)")
         }
 
         adapter?.start(tunnelConfiguration: tunnelConf) { error in
+            if let e = error {
+                NSLog("[AWG] Start failed: \(e)")
+            }
             completionHandler(error)
         }
     }
 
-    // ── 停止 VPN 隧道 ──────────────────────────────────────────
-    override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
+    // ── Stop tunnel ────────────────────────────────────────────────────────
+    override func stopTunnel(
+        with reason: NEProviderStopReason,
+        completionHandler: @escaping () -> Void
+    ) {
         adapter?.stop { _ in completionHandler() }
     }
 
-    // ── 处理来自主 App 的消息 ──────────────────────────────────
-    override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
-        // 可通过此通道传递统计信息等
+    // ── App <-> Extension messaging ────────────────────────────────────────
+    override func handleAppMessage(
+        _ messageData: Data,
+        completionHandler: ((Data?) -> Void)?
+    ) {
+        // Extend here to return runtime stats (rx/tx bytes, last handshake, etc.)
         completionHandler?(nil)
     }
 }
 
-enum PacketTunnelError: Error {
+// ── Errors ─────────────────────────────────────────────────────────────────
+enum ProviderError: Error {
     case missingConfig
 }
