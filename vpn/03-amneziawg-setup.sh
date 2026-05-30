@@ -57,10 +57,18 @@ fi
 command -v awg       || { echo "ERROR: awg 命令未找到"; exit 1; }
 command -v awg-quick || { echo "ERROR: awg-quick 命令未找到"; exit 1; }
 
-# 加载内核模块
+# 加载内核模块（apt 的 DKMS post-install 会 rmmod 再重建，需要在安装后重新 modprobe）
+echo "  加载 amneziawg 内核模块..."
+modprobe amneziawg || true
+sleep 1
 if ! lsmod | grep -q amneziawg; then
-    modprobe amneziawg 2>/dev/null || true
-    lsmod | grep -q amneziawg || { echo "ERROR: amneziawg 内核模块加载失败，检查 DKMS 安装"; exit 1; }
+    echo "ERROR: amneziawg 内核模块加载失败"
+    echo "  当前内核: $(uname -r)"
+    echo "  DKMS 状态:"
+    dkms status | grep amnezia || echo "  (无 amneziawg DKMS 记录)"
+    echo "  modprobe 详细输出:"
+    modprobe --verbose amneziawg 2>&1 || true
+    exit 1
 fi
 echo "  amneziawg 内核模块已加载"
 
