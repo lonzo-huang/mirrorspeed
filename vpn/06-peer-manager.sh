@@ -11,8 +11,9 @@ set -euo pipefail
 [[ $EUID -ne 0 ]] && { echo "ERROR: 必须以 root 执行"; exit 1; }
 
 AWG_DIR="/etc/wireguard"
+AWG_CONF_DIR="/etc/amnezia/amneziawg"
 AWG_IFACE="awg0"
-AWG_CONF="${AWG_DIR}/${AWG_IFACE}.conf"
+AWG_CONF="${AWG_CONF_DIR}/${AWG_IFACE}.conf"
 PEERS_DIR="${AWG_DIR}/peers"
 SERVER_PUBLIC=$(cat "${AWG_DIR}/server-public.key")
 

@@ -12,7 +12,8 @@ set -euo pipefail
 
 [[ $EUID -ne 0 ]] && { echo "ERROR: 必须以 root 执行"; exit 1; }
 
-AWG_DIR="/etc/wireguard"
+AWG_DIR="/etc/wireguard"                  # 密钥、参数存放目录
+AWG_CONF_DIR="/etc/amnezia/amneziawg"    # awg-quick 读取 conf 的目录（Amnezia PPA 约定）
 AWG_IFACE="awg0"
 AWG_PORT=51820          # 内部固定端口，不直接暴露给客户端（由 port-hopping 映射）
 AWG_SUBNET="10.200.0.0/24"
@@ -152,8 +153,10 @@ echo "${WAN_IF}" > "${AWG_DIR}/.wan-interface"
 
 # ── 写入 awg0.conf ─────────────────────────────────────────────────────────
 echo "[4/5] 生成 ${AWG_IFACE}.conf（含 AWG 混淆参数）..."
+mkdir -p "${AWG_CONF_DIR}"
+chmod 700 "${AWG_CONF_DIR}"
 
-cat > "${AWG_DIR}/${AWG_IFACE}.conf" << EOF
+cat > "${AWG_CONF_DIR}/${AWG_IFACE}.conf" << EOF
 [Interface]
 Address    = ${AWG_SERVER_IP}/24
 ListenPort = ${AWG_PORT}
@@ -180,7 +183,7 @@ PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACC
 # Peer 配置由 06-peer-manager.sh 追加，无需手动编辑
 EOF
 
-chmod 600 "${AWG_DIR}/${AWG_IFACE}.conf"
+chmod 600 "${AWG_CONF_DIR}/${AWG_IFACE}.conf"
 
 # ── 启动 AmneziaWG 服务 ────────────────────────────────────────────────────
 echo "[5/5] 启动 AmneziaWG 服务 (awg-quick@${AWG_IFACE})..."
