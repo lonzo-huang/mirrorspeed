@@ -5,13 +5,13 @@
 # 但 2080 端口从未有服务监听。wstunnel 填补这个缺口。
 #
 # 数据流：
-#   客户端 WireGuard UDP → wstunnel client → WSS 443 → Nginx → wstunnel server:2080 → WireGuard server UDP 39666
+#   客户端 AWG UDP → wstunnel client → WSS 443 → Nginx → wstunnel server:2080 → AmneziaWG server UDP 51820
 set -euo pipefail
 
 [[ $EUID -ne 0 ]] && { echo "ERROR: 必须以 root 执行"; exit 1; }
 
 WSTUNNEL_PORT=2080         # Nginx 反向代理目标端口（仅 127.0.0.1 监听）
-WG_PORT=39666              # WireGuard 实际 UDP 端口
+WG_PORT=51820              # AmneziaWG 实际 UDP 端口（内部固定端口）
 INSTALL_DIR="/usr/local/bin"
 WSTUNNEL_BIN="${INSTALL_DIR}/wstunnel"
 
