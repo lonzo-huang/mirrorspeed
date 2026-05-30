@@ -1,5 +1,5 @@
 #!/bin/bash
-# 06-peer-manager.sh — WireGuard 客户端 Peer 管理（新增组件）
+# 06-peer-manager.sh — AmneziaWG 客户端 Peer 管理
 # 用法:
 #   ./06-peer-manager.sh add    <用户名>           # 添加新客户端
 #   ./06-peer-manager.sh remove <用户名>           # 移除客户端
@@ -10,17 +10,23 @@ set -euo pipefail
 
 [[ $EUID -ne 0 ]] && { echo "ERROR: 必须以 root 执行"; exit 1; }
 
-WG_DIR="/etc/wireguard"
-WG_IFACE="wg0"
-WG_CONF="${WG_DIR}/${WG_IFACE}.conf"
-PEERS_DIR="${WG_DIR}/peers"
-SERVER_PUBLIC=$(cat "${WG_DIR}/server-public.key")
-SERVER_PORT=39666
+AWG_DIR="/etc/wireguard"
+AWG_IFACE="awg0"
+AWG_CONF="${AWG_DIR}/${AWG_IFACE}.conf"
+PEERS_DIR="${AWG_DIR}/peers"
+SERVER_PUBLIC=$(cat "${AWG_DIR}/server-public.key")
 
-# 从服务端配置读取服务器 Address（用于确定子网）
-SERVER_SUBNET=$(grep '^Address' "${WG_CONF}" | awk '{print $3}' | cut -d'/' -f1 | awk -F. '{print $1"."$2"."$3}')
-# e.g. 10.200.0
+# 加载 AWG 混淆参数
+AWG_PARAMS_FILE="${AWG_DIR}/awg-params.env"
+[[ -f "${AWG_PARAMS_FILE}" ]] || { echo "ERROR: ${AWG_PARAMS_FILE} 不存在，请先执行 03-amneziawg-setup.sh"; exit 1; }
+# shellcheck source=/dev/null
+source "${AWG_PARAMS_FILE}"
 
+# 加载当前派生端口
+CURRENT_PORTS_FILE="${AWG_DIR}/.current-ports"
+[[ -f "${CURRENT_PORTS_FILE}" ]] && source "${CURRENT_PORTS_FILE}" || PORT_CUR=""
+
+# 服务器域名（从 nginx 配置读取）
 DOMAIN=$(grep -oP '(?<=server_name )[\w.-]+' /etc/nginx/sites-available/enterprise-vpn 2>/dev/null | head -1)
 DOMAIN="${DOMAIN:-remote.yourcompany.com}"
 
@@ -29,7 +35,6 @@ chmod 700 "${PEERS_DIR}"
 
 # ── 内部函数 ─────────────────────────────────────────────────────────────
 
-# 获取当前已用的最大 IP 末位（从 .meta 文件读取，不依赖 wg show 格式）
 _next_ip() {
     local max_octet=1  # 服务端占用 .1
     for meta in "${PEERS_DIR}"/*.meta; do
@@ -54,15 +59,17 @@ cmd_add() {
 
     local next_octet
     next_octet=$(_next_ip)
-    (( next_octet > 254 )) && { echo "ERROR: 子网 ${SERVER_SUBNET}.0/24 地址已耗尽"; exit 1; }
+    (( next_octet > 254 )) && { echo "ERROR: 子网地址已耗尽"; exit 1; }
 
+    local SERVER_SUBNET
+    SERVER_SUBNET=$(grep '^Address' "${AWG_CONF}" | awk '{print $3}' | cut -d'/' -f1 | awk -F. '{print $1"."$2"."$3}')
     local client_ip="${SERVER_SUBNET}.${next_octet}"
 
-    echo "[*] 为 '${name}' 生成密钥对..."
+    echo "[*] 为 '${name}' 生成 AmneziaWG 密钥对..."
     local client_private client_public preshared_key
-    client_private=$(wg genkey)
-    client_public=$(echo "${client_private}" | wg pubkey)
-    preshared_key=$(wg genpsk)   # 预共享密钥：增加 PQ 前向安全性
+    client_private=$(awg genkey)
+    client_public=$(echo "${client_private}" | awg pubkey)
+    preshared_key=$(awg genpsk)
 
     echo "[*] 写入 Peer 元数据..."
     cat > "${PEERS_DIR}/${name}.meta" << METAEOF
@@ -74,13 +81,12 @@ added=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 METAEOF
     chmod 600 "${PEERS_DIR}/${name}.meta"
 
-    # 存储客户端私钥（供 config 子命令使用，仅 root 可读）
-    echo "${client_private}"  > "${PEERS_DIR}/${name}.private"
-    echo "${preshared_key}"   > "${PEERS_DIR}/${name}.psk"
+    echo "${client_private}" > "${PEERS_DIR}/${name}.private"
+    echo "${preshared_key}"  > "${PEERS_DIR}/${name}.psk"
     chmod 600 "${PEERS_DIR}/${name}.private" "${PEERS_DIR}/${name}.psk"
 
-    echo "[*] 追加 Peer 到 wg0.conf..."
-    cat >> "${WG_CONF}" << PEEREOF
+    echo "[*] 追加 Peer 到 ${AWG_IFACE}.conf..."
+    cat >> "${AWG_CONF}" << PEEREOF
 
 # Peer: ${name} | IP: ${client_ip} | Added: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 [Peer]
@@ -89,8 +95,8 @@ PresharedKey = ${preshared_key}
 AllowedIPs   = ${client_ip}/32
 PEEREOF
 
-    echo "[*] 热加载新 Peer（不中断现有连接）..."
-    wg syncconf "${WG_IFACE}" <(wg-quick strip "${WG_IFACE}")
+    echo "[*] 热加载新 Peer..."
+    awg syncconf "${AWG_IFACE}" <(awg-quick strip "${AWG_IFACE}")
 
     echo ""
     echo "Peer '${name}' 添加成功："
@@ -108,20 +114,16 @@ cmd_remove() {
     _peer_exists "${name}" || { echo "ERROR: Peer '${name}' 不存在"; exit 1; }
 
     local pub_key
-    # 用 sed 截取首个 = 之后的所有内容，保留 Base64 末尾的 = padding
     pub_key=$(grep "^client_public=" "${PEERS_DIR}/${name}.meta" | sed 's/^client_public=//')
 
-    echo "[*] 从 wg0.conf 移除 Peer '${name}'..."
-    # 删除 wg0.conf 中该 Peer 的注释行及 [Peer] 块（3行固定格式）
-    # 使用 Python 确保多行删除准确，避免 sed 跨行问题
-    python3 - "${WG_CONF}" "${name}" "${pub_key}" << 'PYEOF'
+    echo "[*] 从 ${AWG_IFACE}.conf 移除 Peer '${name}'..."
+    python3 - "${AWG_CONF}" "${name}" "${pub_key}" << 'PYEOF'
 import sys, re
 
 conf_path, peer_name, pub_key = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(conf_path, 'r') as f:
     content = f.read()
 
-# 删除 peer 注释行 + [Peer] 块（直到下一个空白行或文件末尾）
 pattern = rf'\n# Peer: {re.escape(peer_name)}.*?\n\[Peer\]\nPublicKey\s*=\s*{re.escape(pub_key)}\nPresharedKey\s*=\s*\S+\nAllowedIPs\s*=\s*\S+'
 content = re.sub(pattern, '', content, flags=re.DOTALL)
 
@@ -131,8 +133,7 @@ print(f"  已从配置文件移除 Peer: {peer_name}")
 PYEOF
 
     echo "[*] 从运行中接口撤销 Peer..."
-    # || true：若 peer 已不在运行时接口中则忽略错误，继续清理文件
-    wg set "${WG_IFACE}" peer "${pub_key}" remove || true
+    awg set "${AWG_IFACE}" peer "${pub_key}" remove || true
 
     echo "[*] 清理 Peer 文件..."
     rm -f "${PEERS_DIR}/${name}.meta" \
@@ -163,8 +164,16 @@ cmd_list() {
     [[ ${found} -eq 0 ]] && echo "  (暂无 Peer，使用 '$0 add <name>' 添加)"
 
     echo ""
-    echo "=== WireGuard 运行时状态 ==="
-    wg show "${WG_IFACE}" 2>/dev/null || echo "  WireGuard 未运行"
+    echo "=== AmneziaWG 运行时状态 ==="
+    awg show "${AWG_IFACE}" 2>/dev/null || echo "  AmneziaWG 未运行"
+
+    echo ""
+    echo "=== 当前端口跳变状态 ==="
+    if [[ -f "${AWG_DIR}/.current-ports" ]]; then
+        cat "${AWG_DIR}/.current-ports"
+    else
+        echo "  端口跳变未配置（请执行 08-port-hopping-setup.sh）"
+    fi
 }
 
 # ── 子命令：config ────────────────────────────────────────────────────────
@@ -178,12 +187,18 @@ cmd_config() {
     preshared_key=$(cat "${PEERS_DIR}/${name}.psk")
     client_ip=$(grep '^client_ip=' "${PEERS_DIR}/${name}.meta" | cut -d= -f2)
 
-    # 生成客户端配置（分流模式：仅企业内网走隧道）
+    # 端点端口：优先使用当前派生端口，未配置则提示
+    local endpoint_port="${PORT_CUR:-<运行08-port-hopping-setup.sh后填写>}"
+
     cat << CLIENTEOF
 # ============================================================
-# WireGuard 客户端配置 — ${name}
+# AmneziaWG 客户端配置 — ${name}
 # 生成时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-# 模式：分流（仅企业内网 RFC1918 走 VPN）
+#
+# 端口说明：
+#   Endpoint 中的端口每小时自动变化（UTC 整点）。
+#   客户端 App 内置相同的派生公式，连接前自动计算当前端口，
+#   无需手动更新此配置文件。
 # ============================================================
 
 [Interface]
@@ -191,51 +206,72 @@ PrivateKey = ${client_private}
 Address    = ${client_ip}/32
 DNS        = 8.8.8.8, 1.1.1.1
 
+# ── AmneziaWG 混淆参数（必须与服务端完全一致）────────────────────────────
+Jc   = ${AWG_JC}
+Jmin = ${AWG_JMIN}
+Jmax = ${AWG_JMAX}
+S1   = ${AWG_S1}
+S2   = ${AWG_S2}
+H1   = ${AWG_H1}
+H2   = ${AWG_H2}
+H3   = ${AWG_H3}
+H4   = ${AWG_H4}
+
 [Peer]
 PublicKey    = ${SERVER_PUBLIC}
 PresharedKey = ${preshared_key}
-Endpoint     = ${DOMAIN}:${SERVER_PORT}
+# 端口每小时变化，客户端 App 自动计算（此处为生成时刻的当前端口）
+Endpoint     = ${DOMAIN}:${endpoint_port}
 
-# 全量公网模式：所有公网流量走 VPN，LAN（RFC1918）直连
-# 等价于 0.0.0.0/0 减去 10/8、172.16/12、192.168/16，并单独放行 VPN 子网
+# 全量公网模式（LAN RFC1918 直连，其余走 VPN）
 AllowedIPs = 0.0.0.0/5, 8.0.0.0/7, 11.0.0.0/8, 12.0.0.0/6, 16.0.0.0/4, 32.0.0.0/3, 64.0.0.0/2, 128.0.0.0/3, 160.0.0.0/5, 168.0.0.0/6, 172.0.0.0/12, 172.32.0.0/11, 172.64.0.0/10, 172.128.0.0/9, 173.0.0.0/8, 174.0.0.0/7, 176.0.0.0/4, 192.0.0.0/9, 192.128.0.0/11, 192.160.0.0/13, 192.169.0.0/16, 192.170.0.0/15, 192.172.0.0/14, 192.176.0.0/12, 192.192.0.0/10, 193.0.0.0/8, 194.0.0.0/7, 196.0.0.0/6, 200.0.0.0/5, 208.0.0.0/4, 10.200.0.0/24, 2000::/3
 
 PersistentKeepalive = 25
 
-# ── TLS 包装模式说明（UDP 受限网络使用）────────────────────────────────
-# 若直连 UDP 39666 被封锁，改用 wstunnel 包装：
+# ── WebSocket 回落说明（UDP 被封时使用）──────────────────────────────────
+# 若动态 UDP 端口全部被封，改用 wstunnel 包装走 TCP 443：
 # 1. 在客户端运行：
 #    wstunnel client \\
-#        -L "udp://127.0.0.1:39666:127.0.0.1:39666?timeout_sec=0" \\
+#        -L "udp://127.0.0.1:51820:127.0.0.1:51820?timeout_sec=0" \\
 #        wss://${DOMAIN}/secure-tunnel/
-# 2. 将上方 Endpoint 改为：127.0.0.1:39666
+# 2. 将上方 Endpoint 改为：127.0.0.1:51820
 CLIENTEOF
 
     # 同时写入文件
     local conf_file="${PEERS_DIR}/${name}.conf"
-    cmd_config_raw "${name}" > "${conf_file}"
+    _config_raw "${name}" > "${conf_file}"
     chmod 600 "${conf_file}"
     echo ""
     echo "配置已保存至: ${conf_file}"
 }
 
-cmd_config_raw() {
+_config_raw() {
     local name="$1"
     local client_private client_ip preshared_key
     client_private=$(cat "${PEERS_DIR}/${name}.private")
     preshared_key=$(cat "${PEERS_DIR}/${name}.psk")
     client_ip=$(grep '^client_ip=' "${PEERS_DIR}/${name}.meta" | cut -d= -f2)
+    local endpoint_port="${PORT_CUR:-0}"
 
     cat << RAWEOF
 [Interface]
 PrivateKey = ${client_private}
 Address    = ${client_ip}/32
 DNS        = 8.8.8.8, 1.1.1.1
+Jc   = ${AWG_JC}
+Jmin = ${AWG_JMIN}
+Jmax = ${AWG_JMAX}
+S1   = ${AWG_S1}
+S2   = ${AWG_S2}
+H1   = ${AWG_H1}
+H2   = ${AWG_H2}
+H3   = ${AWG_H3}
+H4   = ${AWG_H4}
 
 [Peer]
 PublicKey    = ${SERVER_PUBLIC}
 PresharedKey = ${preshared_key}
-Endpoint     = ${DOMAIN}:${SERVER_PORT}
+Endpoint     = ${DOMAIN}:${endpoint_port}
 AllowedIPs   = 0.0.0.0/5, 8.0.0.0/7, 11.0.0.0/8, 12.0.0.0/6, 16.0.0.0/4, 32.0.0.0/3, 64.0.0.0/2, 128.0.0.0/3, 160.0.0.0/5, 168.0.0.0/6, 172.0.0.0/12, 172.32.0.0/11, 172.64.0.0/10, 172.128.0.0/9, 173.0.0.0/8, 174.0.0.0/7, 176.0.0.0/4, 192.0.0.0/9, 192.128.0.0/11, 192.160.0.0/13, 192.169.0.0/16, 192.170.0.0/15, 192.172.0.0/14, 192.176.0.0/12, 192.192.0.0/10, 193.0.0.0/8, 194.0.0.0/7, 196.0.0.0/6, 200.0.0.0/5, 208.0.0.0/4, 10.200.0.0/24, 2000::/3
 PersistentKeepalive = 25
 RAWEOF
@@ -251,10 +287,10 @@ cmd_qrcode() {
         apt-get install -y qrencode
     fi
 
-    echo "=== ${name} 客户端二维码（手机 WireGuard App 扫码导入）==="
-    cmd_config_raw "${name}" | qrencode -t UTF8
+    echo "=== ${name} 客户端二维码（AmneziaWG App 扫码导入）==="
+    _config_raw "${name}" | qrencode -t UTF8
     echo ""
-    echo "（二维码仅含配置，私钥已包含在内，请勿在公共场所展示）"
+    echo "（需使用支持 AmneziaWG 的客户端 App，标准 WireGuard App 不兼容）"
 }
 
 # ── 主入口 ────────────────────────────────────────────────────────────────
@@ -268,14 +304,14 @@ case "${CMD}" in
     config) cmd_config "${1:-}" ;;
     qrcode) cmd_qrcode "${1:-}" ;;
     help|--help|-h)
-        echo "WireGuard Peer 管理工具"
+        echo "AmneziaWG Peer 管理工具"
         echo ""
         echo "用法:"
         echo "  $0 add    <用户名>   — 添加新客户端 Peer"
         echo "  $0 remove <用户名>   — 移除客户端 Peer"
         echo "  $0 list              — 列出所有 Peer 及运行状态"
-        echo "  $0 config <用户名>   — 显示并保存客户端配置"
-        echo "  $0 qrcode <用户名>   — 终端显示二维码（手机扫码）"
+        echo "  $0 config <用户名>   — 显示并保存客户端配置（含 AWG 混淆参数）"
+        echo "  $0 qrcode <用户名>   — 终端显示二维码（AmneziaWG App 扫码）"
         ;;
     *)
         echo "未知命令: ${CMD}。使用 '$0 help' 查看帮助"

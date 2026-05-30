@@ -74,9 +74,10 @@ info "前置检查完成"
 SCRIPTS=(
     "01-system-tune.sh"
     "02-nginx-setup.sh"
-    "03-wireguard-setup.sh"
+    "03-amneziawg-setup.sh"
     "04-wstunnel-setup.sh"
     "05-nftables-setup.sh"
+    "08-port-hopping-setup.sh"
 )
 
 for s in "${SCRIPTS[@]}"; do
@@ -85,6 +86,7 @@ for s in "${SCRIPTS[@]}"; do
 done
 chmod +x "${SCRIPT_DIR}/06-peer-manager.sh"
 [[ -f "${SCRIPT_DIR}/07-vpnapi-setup.sh" ]] && chmod +x "${SCRIPT_DIR}/07-vpnapi-setup.sh"
+[[ -f "${SCRIPT_DIR}/08-port-hopping-setup.sh" ]] && chmod +x "${SCRIPT_DIR}/08-port-hopping-setup.sh"
 
 # ── 开始逐步部署 ──────────────────────────────────────────────────────────
 
@@ -94,8 +96,8 @@ bash "${SCRIPT_DIR}/01-system-tune.sh"
 section "第 2 步：Nginx TLS 前置层"
 DOMAIN="${DOMAIN}" EMAIL="${EMAIL}" bash "${SCRIPT_DIR}/02-nginx-setup.sh" "${DOMAIN}" "${EMAIL}"
 
-section "第 3 步：WireGuard 核心隧道"
-bash "${SCRIPT_DIR}/03-wireguard-setup.sh"
+section "第 3 步：AmneziaWG 核心隧道（混淆增强版）"
+bash "${SCRIPT_DIR}/03-amneziawg-setup.sh"
 
 section "第 4 步：wstunnel WebSocket 封装层"
 bash "${SCRIPT_DIR}/04-wstunnel-setup.sh"
@@ -108,6 +110,7 @@ bash "${SCRIPT_DIR}/06-peer-manager.sh" add "${FIRST_CLIENT}"
 bash "${SCRIPT_DIR}/06-peer-manager.sh" config "${FIRST_CLIENT}"
 
 section "第 7 步：vpn-api 管理接口"
+# 注意：vpn-api/main.py 中的 wg 命令需更新为 awg（见 07-vpnapi-setup.sh 说明）
 if [[ -f "${SCRIPT_DIR}/07-vpnapi-setup.sh" ]]; then
     if [[ -n "${VPN_API_SECRET}" ]]; then
         VPN_API_SECRET="${VPN_API_SECRET}" bash "${SCRIPT_DIR}/07-vpnapi-setup.sh"
@@ -115,6 +118,7 @@ if [[ -f "${SCRIPT_DIR}/07-vpnapi-setup.sh" ]]; then
         warn "VPN_API_SECRET 未设置，跳过 vpn-api 部署"
         warn "如需 Portal 远程管理，请手动执行:"
         warn "  VPN_API_SECRET=<密钥> bash ${SCRIPT_DIR}/07-vpnapi-setup.sh"
+        warn "部署完成后还需更新 vpn-api main.py 中的 wg 命令为 awg"
     fi
 else
     warn "07-vpnapi-setup.sh 不存在，跳过 vpn-api 部署"
@@ -135,55 +139,74 @@ check() {
     fi
 }
 
-check "nginx 服务运行"          systemctl is-active nginx
-check "wireguard 接口在线"      wg show wg0
-check "wstunnel 服务运行"       systemctl is-active wstunnel
-check "nftables 规则已加载"     nft list ruleset
-check "sysctl ip_forward=1"    bash -c '[[ $(sysctl -n net.ipv4.ip_forward) -eq 1 ]]'
-check "BBR 拥塞控制已启用"      bash -c '[[ $(sysctl -n net.ipv4.tcp_congestion_control) == "bbr" ]]'
-check "wstunnel 端口 2080 监听" ss -ulnp
-check "WG UDP 39666 端口监听"   bash -c 'ss -ulnp | grep -q 39666'
-check "443 TLS 证书可访问"      bash -c "curl -fsSk --max-time 5 https://${DOMAIN}/ -o /dev/null"
+check "nginx 服务运行"              systemctl is-active nginx
+check "AmneziaWG 接口在线"         awg show awg0
+check "wstunnel 服务运行"          systemctl is-active wstunnel
+check "nftables 规则已加载"        nft list ruleset
+check "sysctl ip_forward=1"       bash -c '[[ $(sysctl -n net.ipv4.ip_forward) -eq 1 ]]'
+check "BBR 拥塞控制已启用"         bash -c '[[ $(sysctl -n net.ipv4.tcp_congestion_control) == "bbr" ]]'
+check "wstunnel 端口 2080 监听"    ss -ulnp
+check "AWG UDP 51820 端口监听"     bash -c 'ss -ulnp | grep -q 51820'
+check "端口跳变规则已加载"         bash -c 'iptables -t nat -L AWG_HOP | grep -q REDIRECT'
+check "443 TLS 证书可访问"         bash -c "curl -fsSk --max-time 5 https://${DOMAIN}/ -o /dev/null"
 [[ -n "${VPN_API_SECRET}" ]] && \
     check "vpn-api 服务运行"    systemctl is-active vpn-api
 
 # ── 最终汇总 ──────────────────────────────────────────────────────────────
 section "部署汇总"
 
-WG_PUBLIC=$(cat /etc/wireguard/server-public.key)
+AWG_PUBLIC=$(cat /etc/wireguard/server-public.key)
 WAN_IF=$(cat /etc/wireguard/.wan-interface)
+
+# 读取当前派生端口
+AWG_CUR_PORT=""
+[[ -f /etc/wireguard/.current-ports ]] && \
+    AWG_CUR_PORT=$(grep '^PORT_CUR=' /etc/wireguard/.current-ports | cut -d= -f2)
+
+# 读取 PORT_SECRET（脱敏显示）
+PORT_SECRET_PREVIEW=""
+[[ -f /etc/wireguard/.port-secret ]] && \
+    PORT_SECRET_PREVIEW=$(cat /etc/wireguard/.port-secret | head -c 8)...
 
 cat << SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  企业 VPN 服务端部署完成
+  MirrorSpeed VPN 服务端部署完成（AmneziaWG 混淆版）
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  域名:         ${DOMAIN}
-  WAN 网卡:     ${WAN_IF}
-  服务端公钥:   ${WG_PUBLIC}
-  WireGuard 子网: 10.200.0.0/24
+  域名:           ${DOMAIN}
+  WAN 网卡:       ${WAN_IF}
+  服务端公钥:     ${AWG_PUBLIC}
+  VPN 子网:       10.200.0.0/24
 
-  开放端口:
-    TCP 443   — Nginx HTTPS（伪装站 + WS隧道入口）
-    UDP 39666 — WireGuard 直连
+  传输层配置:
+    TCP 443     — Nginx HTTPS（wstunnel WebSocket 回落）
+    UDP 动态端口 — AmneziaWG 直连（每小时变化，当前: ${AWG_CUR_PORT:-未知}）
+    UDP 51820   — AWG 内部端口（不对外暴露，仅 iptables DNAT 内部转发）
 
   各层服务:
-    Nginx     $(systemctl is-active nginx)
-    WireGuard $(systemctl is-active wg-quick@wg0)
-    wstunnel  $(systemctl is-active wstunnel)
-    nftables  $(systemctl is-active nftables)
+    Nginx        $(systemctl is-active nginx)
+    AmneziaWG    $(systemctl is-active awg-quick@awg0)
+    wstunnel     $(systemctl is-active wstunnel)
+    nftables     $(systemctl is-active nftables)
+    port-rotate  $(systemctl is-active awg-port-rotate.timer 2>/dev/null || echo inactive)
 
   验证结果: ${PASS} 通过 / ${FAIL} 失败
 
   初始客户端配置:
     /etc/wireguard/peers/${FIRST_CLIENT}.conf
+    （含 AWG 混淆参数，需使用 AmneziaWG 兼容客户端）
 
   后续操作:
     添加客户端: bash 06-peer-manager.sh add <用户名>
     移除客户端: bash 06-peer-manager.sh remove <用户名>
     查看状态:   bash 06-peer-manager.sh list
     扫码导入:   bash 06-peer-manager.sh qrcode <用户名>
-    手动轮换密钥: /usr/local/bin/wg-rotate-keys.sh
+    轮换密钥:   /usr/local/bin/awg-rotate-keys.sh
+
+  注册 Portal 所需信息:
+    域名:        ${DOMAIN}
+    公钥:        ${AWG_PUBLIC}
+    PORT_SECRET: ${PORT_SECRET_PREVIEW}（完整值见 /etc/wireguard/.port-secret）
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SUMMARY

@@ -32,7 +32,7 @@ table inet enterprise-fw {
         flags dynamic
     }
 
-    set udp39666_connlimit {
+    set udp51820_connlimit {
         type ipv4_addr
         flags dynamic
     }
@@ -56,17 +56,22 @@ table inet enterprise-fw {
         # ── SSH 运维端口（严格限速：每分钟 5 次新连接）──────────────────
         tcp dport 22 ct state new limit rate 5/minute burst 10 packets accept
 
+        # ── HTTP 80（certbot 续期验证 + HTTP→HTTPS 跳转）────────────────────
+        tcp dport 80 ct state new accept
+
         # ── Nginx HTTPS 443 端口 ──────────────────────────────────────────
         # per-IP 最多 100 并发连接（防单 IP 连接耗尽）
         tcp dport 443 ct state new \
             add @tcp443_connlimit { ip saddr ct count over 100 } drop
         tcp dport 443 ct state new accept
 
-        # ── WireGuard UDP 39666 ───────────────────────────────────────────
+        # ── AmneziaWG UDP 51820（内部固定端口）───────────────────────────
+        # 外部动态端口由 iptables DNAT 在 PREROUTING 阶段重写为 51820，
+        # 到达此链时已是 51820，无需在此开放动态端口范围。
         # per-IP 最多 10 并发 session（单用户正常用量）
-        udp dport 39666 \
-            add @udp39666_connlimit { ip saddr ct count over 10 } drop
-        udp dport 39666 accept
+        udp dport 51820 \
+            add @udp51820_connlimit { ip saddr ct count over 10 } drop
+        udp dport 51820 accept
 
         # 其余全部丢弃（policy drop 已覆盖，此行为明确意图）
         drop
@@ -115,7 +120,8 @@ systemctl restart nftables
 
 echo ""
 echo "nftables 防火墙策略已部署（持久化至 /etc/nftables.conf）："
-echo "  入站放行端口: TCP 22 (SSH 限速), TCP 443 (HTTPS), UDP 39666 (WireGuard)"
+echo "  入站放行端口: TCP 22 (SSH 限速), TCP 80 (HTTP/certbot), TCP 443 (HTTPS), UDP 51820 (AmneziaWG 内部)"
 echo "  WireGuard 子网: 10.200.0.0/24 NAT 出站通过 ${WAN_IF}"
-echo "  per-IP 并发: 443 ≤ 100连接，39666 ≤ 10连接"
+echo "  per-IP 并发: 443 ≤ 100连接，51820 ≤ 10连接"
+echo "  动态端口跳变: 由 iptables AWG_HOP 链 DNAT 至 51820，nftables 无需感知"
 echo "  其余入站: 全部丢弃"
