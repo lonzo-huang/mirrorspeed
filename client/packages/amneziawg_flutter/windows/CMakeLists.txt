@@ -27,6 +27,11 @@ set(flutter_wrapper_plugin flutter_wrapper_plugin)
 
 apply_standard_settings(${PLUGIN_NAME})
 
+# Force MSVC to read source files as UTF-8 (avoids C4819 on Chinese Windows)
+if(MSVC)
+  target_compile_options(${PLUGIN_NAME} PRIVATE /utf-8)
+endif()
+
 set_target_properties(${PLUGIN_NAME} PROPERTIES
   CXX_VISIBILITY_PRESET hidden)
 

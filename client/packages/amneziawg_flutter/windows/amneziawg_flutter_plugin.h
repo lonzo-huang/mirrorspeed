@@ -14,7 +14,7 @@
 
 namespace amneziawg_flutter {
 
-// ── AWG Windows tunnel manager ────────────────────────────────────────────────
+// -- AWG Windows tunnel manager ------------------------------------------------
 //
 // On Windows, AmneziaWG (and WireGuard) tunnels are managed as Windows
 // services. This plugin:
@@ -49,7 +49,7 @@ class AmneziawgFlutterPlugin final : public flutter::Plugin {
   AmneziawgFlutterPlugin& operator=(const AmneziawgFlutterPlugin&) = delete;
 
  private:
-  // ── State ──────────────────────────────────────────────────────────────────
+  // -- State ------------------------------------------------------------------
   flutter::PluginRegistrarWindows* registrar_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> method_channel_;
   std::unique_ptr<flutter::EventChannel<flutter::EncodableValue>> event_channel_;
@@ -60,12 +60,12 @@ class AmneziawgFlutterPlugin final : public flutter::Plugin {
   std::atomic<bool> monitor_running_{false};
   std::thread monitor_thread_;
 
-  // ── Method / Event handlers ────────────────────────────────────────────────
+  // -- Method / Event handlers ------------------------------------------------
   void HandleMethodCall(
       const flutter::MethodCall<flutter::EncodableValue>& call,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
-  // ── Tunnel operations ──────────────────────────────────────────────────────
+  // -- Tunnel operations ------------------------------------------------------
   void Initialize(const std::string& tunnel_name,
                   std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
   void StartTunnel(const std::string& wg_conf,
@@ -74,7 +74,7 @@ class AmneziawgFlutterPlugin final : public flutter::Plugin {
   void StopTunnel(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
   void GetStage(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // -- Helpers ----------------------------------------------------------------
   std::wstring GetConfDir() const;
   std::wstring GetSvcExePath() const;
   bool WriteConfFile(const std::wstring& path, const std::string& contents);

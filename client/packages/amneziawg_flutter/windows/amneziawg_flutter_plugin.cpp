@@ -29,7 +29,7 @@
 
 namespace amneziawg_flutter {
 
-// ── String helpers ─────────────────────────────────────────────────────────
+// -- String helpers ---------------------------------------------------------
 
 static std::wstring Utf8ToWide(const std::string& s) {
   if (s.empty()) return {};
@@ -63,7 +63,7 @@ static std::string LastErrorString() {
   return msg;
 }
 
-// ── Registration ──────────────────────────────────────────────────────────
+// -- Registration ----------------------------------------------------------
 
 // static
 void AmneziawgFlutterPlugin::RegisterWithRegistrar(
@@ -122,7 +122,7 @@ AmneziawgFlutterPlugin::~AmneziawgFlutterPlugin() {
   StopMonitoring();
 }
 
-// ── Method dispatch ────────────────────────────────────────────────────────
+// -- Method dispatch --------------------------------------------------------
 
 void AmneziawgFlutterPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue>& call,
@@ -173,7 +173,7 @@ void AmneziawgFlutterPlugin::HandleMethodCall(
   }
 }
 
-// ── Tunnel operations ──────────────────────────────────────────────────────
+// -- Tunnel operations ------------------------------------------------------
 
 void AmneziawgFlutterPlugin::Initialize(
     const std::string& tunnel_name,
@@ -243,7 +243,7 @@ void AmneziawgFlutterPlugin::GetStage(
   result->Success(flutter::EncodableValue(stage));
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// -- Helpers ----------------------------------------------------------------
 
 std::wstring AmneziawgFlutterPlugin::GetConfDir() const {
   wchar_t tmp[MAX_PATH];
@@ -390,7 +390,7 @@ std::string AmneziawgFlutterPlugin::QueryServiceStage(
   }
 }
 
-// ── Event / monitoring ─────────────────────────────────────────────────────
+// -- Event / monitoring -----------------------------------------------------
 
 void AmneziawgFlutterPlugin::StartMonitoring() {
   if (monitor_running_.exchange(true)) return; // already running
