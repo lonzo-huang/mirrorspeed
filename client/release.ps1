@@ -55,7 +55,7 @@ if (-not $DryRun) {
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
         Fail "gh CLI not found. Install with: winget install GitHub.cli"
     }
-    $ghStatus = gh auth status 2>&1
+    gh auth status | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Fail "gh not logged in. Run: gh auth login"
     }
@@ -70,13 +70,35 @@ if (-not $DryRun) {
 New-Item -ItemType Directory -Path build -Force | Out-Null
 Ok "Version=$Version  Tag=$TAG  DryRun=$DryRun"
 
+# --- Stop stale Gradle/Kotlin daemons BEFORE cleaning ------------------------
+Step "Stopping Gradle daemons + cleaning build cache"
+Write-Host "  Stopping Gradle/Kotlin daemons..."
+$androidGradlew = Join-Path $PSScriptRoot "android\gradlew.bat"
+if (Test-Path $androidGradlew) {
+    $ErrorActionPreference = 'Continue'
+    & $androidGradlew --stop 2>$null
+    $ErrorActionPreference = 'Stop'
+}
+# Also kill any lingering java processes from previous builds
+Get-Process java -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+
+$ErrorActionPreference = 'Continue'; flutter clean;   $ec = $LASTEXITCODE; $ErrorActionPreference = 'Stop'
+if ($ec -ne 0) { Fail "flutter clean failed" }
+$ErrorActionPreference = 'Continue'; flutter pub get; $ec = $LASTEXITCODE; $ErrorActionPreference = 'Stop'
+if ($ec -ne 0) { Fail "flutter pub get failed" }
+Ok "Clean done"
+
 # --- Build Android APK (Global flavor) ---------------------------------------
 if (-not $SkipAndroid) {
     Step "Building Android APK — Global flavor (MirrorSpeed VPN)"
     $t0 = Get-Date
 
-    flutter build apk --release --flavor global --dart-define=APP_FLAVOR=global @DEFINES
-    if ($LASTEXITCODE -ne 0) { Fail "flutter build apk (global) failed" }
+    $ErrorActionPreference = 'Continue'
+    flutter build apk --release --flavor global --dart-define=APP_FLAVOR=global --no-tree-shake-icons @DEFINES
+    $ec = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($ec -ne 0) { Fail "flutter build apk (global) failed" }
 
     if (-not (Test-Path $APK_GLOBAL_SRC)) { Fail "Global APK not found at: $APK_GLOBAL_SRC" }
     Copy-Item $APK_GLOBAL_SRC $APK_GLOBAL_DST -Force
@@ -89,8 +111,11 @@ if (-not $SkipAndroid) {
     Step "Building Android APK — CN flavor (镜速加速器)"
     $t0 = Get-Date
 
-    flutter build apk --release --flavor cn --dart-define=APP_FLAVOR=cn @DEFINES
-    if ($LASTEXITCODE -ne 0) { Fail "flutter build apk (cn) failed" }
+    $ErrorActionPreference = 'Continue'
+    flutter build apk --release --flavor cn --dart-define=APP_FLAVOR=cn --no-tree-shake-icons @DEFINES
+    $ec = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($ec -ne 0) { Fail "flutter build apk (cn) failed" }
 
     if (-not (Test-Path $APK_CN_SRC)) { Fail "CN APK not found at: $APK_CN_SRC" }
     Copy-Item $APK_CN_SRC $APK_CN_DST -Force
@@ -107,10 +132,95 @@ if (-not $SkipWindows) {
     Step "Building Windows"
     $t0 = Get-Date
 
-    flutter build windows --release @DEFINES
-    if ($LASTEXITCODE -ne 0) { Fail "flutter build windows failed" }
+    # --obfuscate replaces Dart class/function names with random identifiers
+    # --split-debug-info keeps debug symbols separate (required with --obfuscate)
+    $ErrorActionPreference = 'Continue'
+    flutter build windows --release --no-tree-shake-icons --obfuscate --split-debug-info=build/debug_symbols/windows @DEFINES
+    $ec = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($ec -ne 0) { Fail "flutter build windows failed" }
 
     if (-not (Test-Path $WIN_SRC)) { Fail "Windows build dir not found: $WIN_SRC" }
+
+    # --- Post-build: rename tell-tale DLL names --------------------------------
+    # Patches PE import-table strings in-place (same byte length = no RVA shift)
+    # then renames the actual files to match.
+    #
+    # Mappings (all replacements are the same byte length as the original):
+    #   flutter_windows.dll                      (19) -> app_core_render.dll                      (19)
+    #   wireguard_flutter_plugin.dll             (28) -> ms_network_security_core.dll             (28)
+    #   flutter_secure_storage_windows_plugin.dll(41) -> ms_secure_data_store_windows_plugin_x.dll(41)
+    #
+    # NOTE: flutter_assets folder is NOT renamed.
+    # Flutter engine loads MaterialIcons and all assets from data\flutter_assets\.
+    # Renaming the folder breaks font loading → all icons render as blank boxes.
+    # The Flutter engine stores this path as UTF-16 wide strings internally,
+    # which a simple ASCII byte-patch cannot fix.
+    #
+    # NOTE: wireguard.dll and wireguard_svc.exe are NOT renamed.
+    # They use UTF-16 wide strings internally to reference each other,
+    # which a simple ASCII byte-patch cannot fix without breaking VPN functionality.
+
+    Step "Obfuscating Windows build (DLL rename + asset folder rename)"
+
+    function Patch-PE {
+        param(
+            [string]$File,
+            [string]$OldStr,
+            [string]$NewStr
+        )
+        if (-not (Test-Path $File)) { return }
+        $old = [System.Text.Encoding]::ASCII.GetBytes($OldStr + "`0")
+        $new = [System.Text.Encoding]::ASCII.GetBytes($NewStr + "`0")
+        if ($old.Length -ne $new.Length) {
+            Write-Host "  [SKIP] Length mismatch for '$OldStr' vs '$NewStr'" -ForegroundColor Yellow
+            return
+        }
+        $bytes = [System.IO.File]::ReadAllBytes($File)
+        $hits  = 0
+        for ($i = 0; $i -le ($bytes.Length - $old.Length); $i++) {
+            $match = $true
+            for ($j = 0; $j -lt $old.Length; $j++) {
+                if ($bytes[$i + $j] -ne $old[$j]) { $match = $false; break }
+            }
+            if ($match) {
+                for ($j = 0; $j -lt $new.Length; $j++) { $bytes[$i + $j] = $new[$j] }
+                $hits++
+            }
+        }
+        [System.IO.File]::WriteAllBytes($File, $bytes)
+        if ($hits -gt 0) {
+            Write-Host ("  Patched {0}: '{1}' x{2}" -f ([System.IO.Path]::GetFileName($File)), $OldStr, $hits)
+        }
+    }
+
+    # Patch ALL exe/dll files in the release dir for every rename
+    $allBinaries = Get-ChildItem -Path $WIN_SRC -Include "*.exe","*.dll" -Recurse
+
+    foreach ($bin in $allBinaries) {
+        Patch-PE $bin.FullName "flutter_windows.dll"                       "app_core_render.dll"
+        Patch-PE $bin.FullName "amneziawg_flutter_plugin.dll"              "ms_network_security_core.dll"
+        Patch-PE $bin.FullName "flutter_secure_storage_windows_plugin.dll" "ms_secure_data_store_windows_plugin_x.dll"
+        # flutter_assets NOT patched/renamed — see comment above
+    }
+
+    # Rename DLL / EXE files (Move-Item -Force overwrites if target already exists)
+    if (Test-Path "$WIN_SRC\flutter_windows.dll") {
+        Move-Item "$WIN_SRC\flutter_windows.dll" "$WIN_SRC\app_core_render.dll" -Force
+        Ok "flutter_windows.dll -> app_core_render.dll"
+    }
+    if (Test-Path "$WIN_SRC\amneziawg_flutter_plugin.dll") {
+        Move-Item "$WIN_SRC\amneziawg_flutter_plugin.dll" "$WIN_SRC\ms_network_security_core.dll" -Force
+        Ok "amneziawg_flutter_plugin.dll -> ms_network_security_core.dll"
+    }
+    if (Test-Path "$WIN_SRC\flutter_secure_storage_windows_plugin.dll") {
+        Move-Item "$WIN_SRC\flutter_secure_storage_windows_plugin.dll" "$WIN_SRC\ms_secure_data_store_windows_plugin_x.dll" -Force
+        Ok "flutter_secure_storage_windows_plugin.dll -> ms_secure_data_store_windows_plugin_x.dll"
+    }
+
+
+
+    Ok "Obfuscation done"
 
     Write-Host "  Packaging as ZIP..."
     if (Test-Path $WIN_DST) { Remove-Item $WIN_DST -Force }
@@ -139,19 +249,27 @@ $notes = "## MirrorSpeed VPN v$Version`n`n" +
          "**Android**: Download APK and install (allow unknown sources)`n" +
          "**Windows**: Download ZIP, extract and run mirrorspeed_vpn.exe (run as admin on first launch for WireGuard driver)"
 
+$ErrorActionPreference = 'Continue'
 git tag $TAG
-if ($LASTEXITCODE -ne 0) { Fail "git tag failed" }
+$ec = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+if ($ec -ne 0) { Fail "git tag failed" }
 
+$ErrorActionPreference = 'Continue'
 git push origin $TAG
-if ($LASTEXITCODE -ne 0) { Fail "git push tag failed" }
+$ec = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+if ($ec -ne 0) { Fail "git push tag failed" }
 Ok "Tag $TAG pushed"
 
+$ErrorActionPreference = 'Continue'
 gh release create $TAG `
     --repo $GITHUB_REPO `
     --title "MirrorSpeed VPN v$Version" `
     --notes $notes
-
-if ($LASTEXITCODE -ne 0) { Fail "gh release create failed" }
+$ec = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+if ($ec -ne 0) { Fail "gh release create failed" }
 Ok "GitHub Release created"
 
 # --- Upload artifacts --------------------------------------------------------
@@ -159,22 +277,22 @@ Step "Uploading artifacts"
 
 if ((-not $SkipAndroid) -and (Test-Path $APK_GLOBAL_DST)) {
     Write-Host "  Uploading Global APK..."
-    gh release upload $TAG $APK_GLOBAL_DST --repo $GITHUB_REPO --clobber
-    if ($LASTEXITCODE -ne 0) { Fail "Global APK upload failed" }
+    $ErrorActionPreference = 'Continue'; gh release upload $TAG $APK_GLOBAL_DST --repo $GITHUB_REPO --clobber; $ec = $LASTEXITCODE; $ErrorActionPreference = 'Stop'
+    if ($ec -ne 0) { Fail "Global APK upload failed" }
     Ok "Global APK uploaded"
 }
 
 if ((-not $SkipAndroid) -and (Test-Path $APK_CN_DST)) {
     Write-Host "  Uploading CN APK..."
-    gh release upload $TAG $APK_CN_DST --repo $GITHUB_REPO --clobber
-    if ($LASTEXITCODE -ne 0) { Fail "CN APK upload failed" }
+    $ErrorActionPreference = 'Continue'; gh release upload $TAG $APK_CN_DST --repo $GITHUB_REPO --clobber; $ec = $LASTEXITCODE; $ErrorActionPreference = 'Stop'
+    if ($ec -ne 0) { Fail "CN APK upload failed" }
     Ok "CN APK uploaded"
 }
 
 if ((-not $SkipWindows) -and (Test-Path $WIN_DST)) {
     Write-Host "  Uploading Windows ZIP..."
-    gh release upload $TAG $WIN_DST --repo $GITHUB_REPO --clobber
-    if ($LASTEXITCODE -ne 0) { Fail "Windows ZIP upload failed" }
+    $ErrorActionPreference = 'Continue'; gh release upload $TAG $WIN_DST --repo $GITHUB_REPO --clobber; $ec = $LASTEXITCODE; $ErrorActionPreference = 'Stop'
+    if ($ec -ne 0) { Fail "Windows ZIP upload failed" }
     Ok "Windows ZIP uploaded"
 }
 

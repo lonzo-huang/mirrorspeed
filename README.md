@@ -1,8 +1,8 @@
 # MirrorSpeed VPN — 项目总览
 
-> **技术栈**：WireGuard · wstunnel · Nginx TLS 1.3 · FastAPI · Next.js 14 · Supabase · Stripe · Vercel · Flutter  
+> **技术栈**：AmneziaWG · wstunnel · Nginx TLS 1.3 · FastAPI · Next.js 14 · Supabase · Stripe · Vercel · Flutter  
 > **VPN 服务器系统**：Ubuntu 22.04 / 24.04 LTS  
-> **客户端**：Android / Windows（Flutter 原生，自动 WireGuard → WebSocket 中继回退）
+> **客户端**：Android / Windows / iOS（Flutter 原生，自动 AmneziaWG → WebSocket 中继回退）
 
 ---
 
@@ -10,13 +10,19 @@
 
 ```
 MirrorSpeed/
-├── client/              # Flutter 移动端（Android / Windows）
+├── client/              # Flutter 客户端（Android / Windows / iOS）
+│   ├── lib/             #   Dart 源码
+│   ├── packages/
+│   │   └── amneziawg_flutter/  # 自研 AWG 插件（Android/iOS/Windows）
+│   ├── android/         #   Android 原生层
+│   ├── windows/         #   Windows 原生层
+│   └── ios_extension/   #   iOS Network Extension（PacketTunnelProvider）
 ├── portal/              # Next.js 官网 + 管理后台（托管于 Vercel）
 ├── vpn/                 # VPN 服务器安装
 │   ├── docker/          #   ├─ Docker Compose 安装（推荐）
 │   │   ├── docker-compose.yml
 │   │   ├── .env.example
-│   │   ├── vpn/         #   │    WireGuard + wstunnel + vpn-api
+│   │   ├── vpn/         #   │    AmneziaWG + wstunnel + vpn-api
 │   │   └── nginx/       #   │    Nginx + Let's Encrypt
 │   ├── install.sh       #   └─ Shell 脚本一键安装（裸机）
 │   └── 0x-*.sh          #      分步安装脚本
@@ -31,14 +37,17 @@ MirrorSpeed/
 ```
 用户手机 / PC（Flutter App）
   │
-  ├─[直连] UDP 39666 ────────────────────────────────────┐
-  │                                                       │
-  └─[中继] WSS 443 → Nginx /secure-tunnel/ → wstunnel ──┤
-                                                         ↓
-                                               WireGuard 服务器
-                                               10.200.0.0/24
-                                                         │
-                                               企业内网 / 公网出口
+  ├─[直连] AmneziaWG UDP（动态端口跳变）──────────────────────┐
+  │        端口 = 30000 + HMAC-SHA256(portSecret, UTC_hour) % 20000
+  │        服务器同时开放 ±1 hour 共 3 个端口（防时钟偏差）
+  │
+  └─[回退] WSS 443 → Nginx /secure-tunnel/ → wstunnel 9.7 ──┤
+                                                             ↓
+                                                   AmneziaWG 服务器
+                                                   接口: awg0 / 10.200.0.0/24
+                                                   混淆参数: Jc/Jmin/Jmax/S1/S2/H1-H4
+                                                             │
+                                                   企业内网 / 公网出口
 
 浏览器（用户注册 / 订阅 / 管理设备）
   │ HTTPS
@@ -48,8 +57,8 @@ Vercel（Next.js Portal）
   ├──→ Supabase（用户 / 设备 / 订阅 / 流量数据）
   │ X-API-Secret
   └──→ VPN 服务器 FastAPI（vpn-api）
-         ├─ 创建 / 删除 WireGuard Peer
-         ├─ 查询 Peer 流量（wg show dump）
+         ├─ 创建 / 删除 AmneziaWG Peer
+         ├─ 查询 Peer 流量（awg show dump）
          └─ 暂停 / 恢复 Peer（AllowedIPs 清零）
 ```
 
@@ -71,11 +80,14 @@ UPDATE public.app_config SET value = '1073741824' WHERE key = 'free_daily_bytes'
 UPDATE public.app_config SET value = '524288000'  WHERE key = 'free_daily_bytes'; -- 500 MB（默认）
 ```
 
-### 2.2 连接协议回退
+### 2.2 连接协议（默认 + 回退）
 
 App 连接时自动选择最优方式：
 
-1. **直连 WireGuard**（UDP 39666）— 延迟最低，优先使用
+1. **直连 AmneziaWG**（HMAC 动态端口）— 延迟最低，优先使用  
+   - 端口 = `30000 + HMAC-SHA256(portSecret, UTC_hour)[0:4] % 20000`  
+   - 服务器同时监听 current ±1 共 3 个端口  
+   - AWG 混淆参数（Jc/Jmin/Jmax/S1/S2/H1-H4）对 DPI 隐藏 WireGuard 流量特征  
 2. **WebSocket 中继**（WSS 443 → wstunnel）— 12 秒内未连接自动切换，绕过 GFW 封锁
 
 切换后 App 主页显示橙色"WebSocket 中继"徽章。
@@ -84,7 +96,7 @@ App 连接时自动选择最优方式：
 
 Vercel Cron 每分钟调用 `/api/cron/sync-servers`，自动完成：
 - 同步每台服务器 CPU / 内存 / 带宽 / 延迟状态
-- 更新每个 Peer 的今日已用流量（`wg show dump`）
+- 更新每个 Peer 的今日已用流量（`awg show dump`）
 - 超额免费用户：自动暂停 Peer（断开连接）
 - 次日 UTC 0 点：自动恢复 Peer
 
@@ -125,17 +137,23 @@ VPN_API_SECRET="<同所有服务器的密钥>" \
 bash /opt/mirrorspeed/install.sh
 ```
 
-安装完成后记录输出的 **WireGuard 服务端公钥**，注册服务器时需要。
+安装完成后记录输出的 **AmneziaWG 服务端公钥**，注册服务器时需要。
+
+**裸机安装后查看端口跳变 secret：**
+```bash
+cat /etc/wireguard/.port-secret
+```
 
 ### 3.2 Supabase 数据库
 
 在 [Supabase Dashboard](https://supabase.com/dashboard) → SQL Editor 依次执行：
 
 ```
-portal/supabase/migrations/001_schema.sql    # 基础表结构
-portal/supabase/migrations/002_rls.sql       # 行级安全策略
-portal/supabase/migrations/003_servers.sql   # 多服务器支持
-portal/supabase/migrations/004_free_quota.sql # 免费流量额度追踪
+portal/supabase/migrations/001_schema.sql         # 基础表结构
+portal/supabase/migrations/002_rls.sql            # 行级安全策略
+portal/supabase/migrations/003_servers.sql        # 多服务器支持
+portal/supabase/migrations/004_free_quota.sql     # 免费流量额度追踪
+portal/supabase/migrations/009_fix_new_user_trigger.sql  # 修复注册触发器
 ```
 
 ### 3.3 Portal（Vercel）
@@ -161,15 +179,18 @@ vercel --prod --yes
 -- 在 Supabase SQL Editor 执行
 INSERT INTO public.vpn_servers (
   name, display_name, location, country_code, flag_emoji,
-  endpoint, port, public_key, api_url, sort_order
+  endpoint, port, public_key, api_url, port_secret, sort_order
 ) VALUES (
-  'HK01', '香港 01', 'Hong Kong', 'HK', '🇭🇰',
-  'hk01.yourdomain.com', 39666,
-  '<WireGuard 服务端公钥>',
-  'https://hk01.yourdomain.com/vpn-api',
+  'ES01', '西班牙 01', 'Spain', 'ES', '🇪🇸',
+  'spain01.yourdomain.com', 51820,
+  '<AmneziaWG 服务端公钥>',
+  'https://spain01.yourdomain.com/vpn-api',
+  '<cat /etc/wireguard/.port-secret 的输出>',
   1
 );
 ```
+
+> `port_secret` 字段由 Portal API 下发给客户端，客户端用它计算 HMAC 动态端口。
 
 ---
 
@@ -181,13 +202,13 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 $env:PATH = "C:\tools\flutter\bin;C:\Program Files\GitHub CLI\;" + $env:PATH
 
 # 仅 Android
-.\release.ps1 1.0.7 -SkipWindows
+.\release.ps1 1.0.23 -SkipWindows
 
 # Android + Windows
-.\release.ps1 1.0.7
+.\release.ps1 1.0.23
 ```
 
-脚本自动完成：构建 APK / ZIP → 打 Git Tag → 创建 GitHub Release → 上传产物。
+脚本自动完成：构建 APK / ZIP → 打 Git Tag → 创建 GitHub Release → 上传产物 → CN 镜像。
 
 ---
 
@@ -199,7 +220,7 @@ $env:PATH = "C:\tools\flutter\bin;C:\Program Files\GitHub CLI\;" + $env:PATH
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase 匿名密钥 | Vercel |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase 管理员密钥 | Vercel |
 | `VPN_API_SECRET` | VPN 服务器 API 鉴权（所有服务器共用） | Vercel + 每台 VPN 服务器 `.env` |
-| `APP_ENCRYPTION_SECRET` | WireGuard 私钥加密密钥 | Vercel |
+| `APP_ENCRYPTION_SECRET` | AWG 私钥加密密钥 | Vercel |
 | `CRON_SECRET` | Vercel Cron 鉴权 | Vercel + `client/release.ps1` |
 | `GITHUB_TOKEN` | 私有仓库 Release 下载 | Vercel |
 | `GITHUB_REPO` | 仓库路径（`owner/repo`） | Vercel |
@@ -211,10 +232,13 @@ $env:PATH = "C:\tools\flutter\bin;C:\Program Files\GitHub CLI\;" + $env:PATH
 ### 查看服务器状态
 ```bash
 # 服务器上执行
-systemctl status nginx wg-quick@wg0 wstunnel nftables vpn-api
+systemctl status nginx awg-quick@awg0 wstunnel nftables vpn-api
 
 # 查看活跃 VPN 连接
-wg show wg0
+awg show awg0
+
+# 查看当前动态端口（端口跳变）
+bash /opt/mirrorspeed/vpn/05-port-hopping.sh status
 ```
 
 ### 手动触发流量同步 / 额度检查
@@ -235,27 +259,40 @@ curl -H "Authorization: Bearer <CRON_SECRET>" \
 
 | 症状 | 检查点 |
 |------|--------|
-| App 连接不上 | 服务器 UDP 39666 是否开放；`wg show wg0` 有无该 Peer |
+| App 直连不上 | 端口跳变是否正常：`bash 05-port-hopping.sh status`；nftables DNAT 规则是否存在 |
+| App 中继也连不上 | `systemctl status wstunnel`；Nginx `/secure-tunnel/` 路径配置；WSS 证书有效性 |
 | 显示 0 个节点 | `vpn_device_peers` 是否有记录；`vpn-api /peers` 是否正常 |
-| 流量不同步 | Vercel Cron 是否启用；`CRON_SECRET` 是否与 vercel.json 一致 |
+| 流量不同步 | Vercel Cron 是否启用；`awg show awg0` dump 是否返回数据 |
 | 下载页版本不更新 | `GITHUB_TOKEN` 是否配置；`/api/releases/latest` 是否返回 200 |
-| 中继模式不生效 | `wstunnel` 服务是否运行；Nginx `/secure-tunnel/` 配置是否存在 |
 | 付费用户被限速 | `subscriptions` 表 `status` 是否为 `active` |
 
 ---
 
 ## 8. 技术架构详解
 
-### WireGuard 配置生成流程
+### AmneziaWG 配置生成流程
 
 ```
 用户登录 → 注册设备（vpn_devices）
   → Portal 调用每台 VPN 服务器 vpn-api POST /peers
-  → 服务器生成密钥对，写入 wg0.conf
+  → 服务器生成密钥对，写入 awg0.conf（含 AWG 混淆参数）
   → Portal 将加密私钥存入 vpn_device_peers
   → App 调用 GET /api/mobile/configs
-  → Portal 解密私钥，生成 wg_conf 字符串
-  → App 用 wireguard_flutter 建立 VPN 隧道
+  → Portal 解密私钥，生成 wg_conf 字符串（AWG Quick 格式）
+  → Portal 同时返回 port_secret（HMAC 端口跳变密钥）
+  → App 用 amneziawg_flutter 建立 VPN 隧道
+```
+
+### 端口跳变机制
+
+```
+服务器（05-port-hopping.sh，每小时 cron）：
+  port = 30000 + HMAC-SHA256(PORT_SECRET, "YYYY-MM-DD HH")[0:4] % 20000
+  iptables DNAT：UDP port → 51820（维护 3 个相邻 hour 窗口，容忍时钟偏差）
+
+客户端（port_hopping.dart）：
+  同公式，计算 current / current-1 / current+1 三个候选端口
+  首先尝试 current，连通性验证失败则 fallback → wstunnel 443
 ```
 
 ### 流量计量流程
@@ -263,8 +300,23 @@ curl -H "Authorization: Bearer <CRON_SECRET>" \
 ```
 Vercel Cron (每分钟)
   → 调用 vpn-api GET /peers（含 rx_bytes + tx_bytes）
-  → 计算增量（处理 WireGuard 重启归零）
+  → 计算增量（处理 AWG 重启归零）
   → 更新 vpn_device_peers.daily_bytes
   → 超过 app_config.free_daily_bytes → PATCH /peers/{name}/status {active: false}
   → 次日 UTC 0 点 → PATCH /peers/{name}/status {active: true}，重置计数器
+```
+
+### 客户端插件架构（packages/amneziawg_flutter）
+
+```
+AmneziaWG.instance（Dart）
+  │
+  ├─ Android: org.amnezia.awg.backend.GoBackend（JitPack）
+  │            原生解析 AWG 混淆参数（Jc/Jmin/Jmax/S1/S2/H1-H4）
+  │
+  ├─ iOS:     NETunnelProviderManager → PacketTunnelProvider
+  │            import AmneziaWireGuardKit（CocoaPods）
+  │
+  └─ Windows: Win32 服务管理（SCM）→ amneziawg_svc.exe
+               需手动放置 AWG DLL（tunnel.dll/wireguard.dll/wintun.dll）
 ```
