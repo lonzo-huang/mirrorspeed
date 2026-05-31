@@ -29,11 +29,20 @@ function formatBytes(bytes: number) {
 }
 
 function isCnApk(name: string) {
-  return name.toLowerCase().includes('jinsu')
+  const n = name.toLowerCase()
+  // Matches: jinsu*, *-cn-*, *cn-arm64*, etc.
+  return n.includes('jinsu') || n.match(/[_-]cn[_-]/) !== null
 }
 
 function isGlobalApk(name: string) {
-  return name.toLowerCase().includes('mirrorspeed') && name.toLowerCase().endsWith('.apk')
+  const n = name.toLowerCase()
+  // Matches: mirrorspeed*, *-global-*, *global-arm64*, etc.
+  return (n.includes('mirrorspeed') || n.match(/[_-]global[_-]/) !== null) && n.endsWith('.apk')
+}
+
+function isArm64Apk(name: string) {
+  const n = name.toLowerCase()
+  return n.includes('arm64') || n.includes('aarch64')
 }
 
 export default function DownloadPage() {
@@ -52,17 +61,21 @@ export default function DownloadPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  // For Chinese: show CN-flavor APK (JinSu) + Windows; for others: show global APK + Windows
+  // For Chinese: show CN-flavor arm64 APK + Windows; for others: show global arm64 APK + Windows
   const displayedAssets: ReleaseAsset[] = (() => {
     if (!release?.assets) return []
     if (isChinese) {
-      // Prefer JinSu APK; fall back to regular android asset if not found
-      const cnApk   = release.assets.find(a => isCnApk(a.name))
+      // Prefer CN-flavor arm64 APK; fall back to any android arm64 asset
+      const cnApk   = release.assets.find(a => isCnApk(a.name) && isArm64Apk(a.name))
+                   ?? release.assets.find(a => isCnApk(a.name))
+                   ?? release.assets.find(a => a.platform === 'android' && isArm64Apk(a.name))
       const winAsset = release.assets.find(a => a.platform === 'windows')
       return [cnApk, winAsset].filter(Boolean) as ReleaseAsset[]
     } else {
-      // Show MirrorSpeed (global) APK + Windows
-      const globalApk = release.assets.find(a => isGlobalApk(a.name))
+      // Show global arm64 APK + Windows
+      const globalApk = release.assets.find(a => isGlobalApk(a.name) && isArm64Apk(a.name))
+                     ?? release.assets.find(a => isGlobalApk(a.name))
+                     ?? release.assets.find(a => a.platform === 'android' && isArm64Apk(a.name) && !isCnApk(a.name))
                      ?? release.assets.find(a => a.platform === 'android' && !isCnApk(a.name))
       const winAsset  = release.assets.find(a => a.platform === 'windows')
       return [globalApk, winAsset].filter(Boolean) as ReleaseAsset[]
