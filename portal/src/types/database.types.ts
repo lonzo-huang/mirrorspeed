@@ -245,6 +245,7 @@ export interface Database {
           sort_order:      number
           is_active:       boolean
           created_at:      string
+          port_secret:     string | null
         }
         Insert: {
           id?:             string
@@ -257,6 +258,7 @@ export interface Database {
           port?:           number
           public_key:      string
           api_url:         string
+          port_secret?:    string | null
           status?:         string
           latency_ms?:     number | null
           active_peers?:   number

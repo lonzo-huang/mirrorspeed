@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
     .select(`
       device_id, private_key_enc, preshared_key_enc, vpn_ip,
       peer_name, daily_bytes, is_suspended,
-      server:vpn_servers(id, display_name, flag_emoji, location, endpoint, port, public_key)
+      server:vpn_servers(id, display_name, flag_emoji, location, endpoint, port, public_key, port_secret)
     `)
     .in('device_id', deviceIds)
     .eq('is_active', true)
@@ -115,6 +115,7 @@ export async function GET(req: NextRequest) {
         endpoint:     srv.endpoint,
         port:         srv.port,
         wg_conf:      wgConf,
+        port_secret:  srv.port_secret ?? null,
       }
     }).filter(Boolean)
 
