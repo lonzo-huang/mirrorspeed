@@ -15,9 +15,15 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import kotlinx.coroutines.*
-import com.wireguard.android.backend.Backend
-import com.wireguard.android.backend.GoBackend
-import com.wireguard.android.backend.Tunnel
+
+// AmneziaWG Android backend — supports AWG packet-level obfuscation.
+// Jc/Jmin/Jmax/S1/S2/H1-H4 params in the wgConf are parsed natively by the
+// AWG Go backend; no stripping is needed.
+import org.amnezia.awg.backend.Backend
+import org.amnezia.awg.backend.GoBackend
+import org.amnezia.awg.backend.Tunnel
+import org.amnezia.awg.config.Config
+
 import java.io.ByteArrayInputStream
 import java.util.Locale
 
@@ -26,13 +32,6 @@ private const val METHOD_CHANNEL = "com.amneziawg.flutter/awgcontrol"
 private const val EVENT_CHANNEL  = "com.amneziawg.flutter/awgstage"
 private const val VPN_PERMISSION_REQUEST = 10015
 private const val TAG = "AWG"
-
-// ── AWG-specific config keys that standard wireguard-android doesn't know ──
-// These are filtered out before parsing so the WireGuard Go backend doesn't
-// reject the config. AWG obfuscation requires the native AWG Go backend;
-// until amneziawg-android is available on Maven/JitPack the tunnel runs as
-// standard WireGuard.  Port hopping + wstunnel fallback remain fully active.
-private val AWG_INTERFACE_KEYS = setOf("Jc", "Jmin", "Jmax", "S1", "S2", "H1", "H2", "H3", "H4")
 
 class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     PluginRegistry.ActivityResultListener {
@@ -45,7 +44,7 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     private val futureBackend = CompletableDeferred<Backend>()
     private var backend: Backend? = null
     private var tunnel: AwgTunnel? = null
-    private var config: com.wireguard.config.Config? = null
+    private var config: Config? = null
     private var vpnStageSink: EventChannel.EventSink? = null
     private var havePermission = false
     private var isVpnChecked = false
@@ -97,13 +96,13 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
             }
         })
 
-        // Initialise backend off main thread
+        // Initialise AWG backend off main thread
         scope.launch(Dispatchers.IO) {
             try {
                 backend = GoBackend(context)
                 futureBackend.complete(backend!!)
             } catch (e: Throwable) {
-                Log.e(TAG, "Backend init failed: ${e.message}", e)
+                Log.e(TAG, "AWG backend init failed: ${e.message}", e)
             }
         }
     }
@@ -150,13 +149,11 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                 }
                 updateStage("prepare")
 
-                // Strip AWG-specific [Interface] keys before parsing.
-                // wireguard-android's Config.parse() rejects unknown keys; the
-                // AWG obfuscation fields are safe to drop here because the native
-                // Go WireGuard backend handles the actual tunnelling.
-                val sanitised = sanitiseAwgConfig(wgQuickConfig)
-                val stream = ByteArrayInputStream(sanitised.toByteArray())
-                config = com.wireguard.config.Config.parse(stream)
+                // Pass config directly to the AmneziaWG backend.
+                // AWG-specific [Interface] keys (Jc/Jmin/Jmax/S1/S2/H1-H4) are
+                // parsed natively by org.amnezia.awg — no stripping needed.
+                val stream = ByteArrayInputStream(wgQuickConfig.toByteArray())
+                config = Config.parse(stream)
 
                 updateStage("connecting")
                 futureBackend.await().setState(
@@ -164,7 +161,7 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                     Tunnel.State.UP,
                     config,
                 )
-                Log.i(TAG, "Tunnel UP")
+                Log.i(TAG, "AWG tunnel UP")
                 mainResult(result) { it.success("") }
             } catch (e: Exception) {
                 Log.e(TAG, "startTunnel error: ${e.message}", e)
@@ -183,7 +180,7 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                     Tunnel.State.DOWN,
                     config,
                 )
-                Log.i(TAG, "Tunnel DOWN")
+                Log.i(TAG, "AWG tunnel DOWN")
                 mainResult(result) { it.success("") }
             } catch (e: Exception) {
                 Log.e(TAG, "stopTunnel error: ${e.message}", e)
@@ -226,21 +223,6 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
 
     private fun mainResult(result: Result, block: (Result) -> Unit) {
         scope.launch(Dispatchers.Main) { block(result) }
-    }
-
-    // ── Config sanitiser ───────────────────────────────────────────────────
-    //
-    // Removes AWG-only keys from the [Interface] section so wireguard-android
-    // doesn't reject the config with "Bad key: Jc" etc.
-    // The keys are only meaningful to the AmneziaWG native backend.
-    private fun sanitiseAwgConfig(conf: String): String {
-        val awgKeys = AWG_INTERFACE_KEYS
-        return conf.lines()
-            .filter { line ->
-                val key = line.substringBefore('=').trim()
-                key !in awgKeys
-            }
-            .joinToString("\n")
     }
 }
 

@@ -12,7 +12,7 @@
              AWG obfuscation params are stripped before config parsing;
              port hopping + wstunnel fallback are handled Dart-side. -->
         <service
-            android:name="com.wireguard.android.backend.GoBackend$VpnService"
+            android:name="org.amnezia.awg.backend.GoBackend$VpnService"
             android:exported="false"
             android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE">

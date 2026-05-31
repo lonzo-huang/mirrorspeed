@@ -81,7 +81,8 @@ export async function GET(req: NextRequest) {
     .select(`
       device_id, private_key_enc, preshared_key_enc, vpn_ip,
       peer_name, daily_bytes, is_suspended,
-      server:vpn_servers(id, display_name, flag_emoji, location, endpoint, port, public_key, port_secret)
+      server:vpn_servers(id, display_name, flag_emoji, location, endpoint, port, public_key, port_secret,
+        awg_jc, awg_jmin, awg_jmax, awg_s1, awg_s2, awg_h1, awg_h2, awg_h3, awg_h4, cf_relay_url)
     `)
     .in('device_id', deviceIds)
     .eq('is_active', true)
@@ -99,6 +100,19 @@ export async function GET(req: NextRequest) {
     const servers = devPeers.map(p => {
       const srv = (p as any).server
       if (!srv) return null
+      // Build AWG obfuscation params (only when Jc > 0)
+      const awgParams = (srv.awg_jc > 0) ? {
+        jc:   srv.awg_jc,
+        jmin: srv.awg_jmin,
+        jmax: srv.awg_jmax,
+        s1:   srv.awg_s1,
+        s2:   srv.awg_s2,
+        h1:   srv.awg_h1,
+        h2:   srv.awg_h2,
+        h3:   srv.awg_h3,
+        h4:   srv.awg_h4,
+      } : undefined
+
       const wgConf = generateWgConf({
         clientPrivateKey: decryptKey(p.private_key_enc),
         clientIp:         p.vpn_ip.includes('/') ? p.vpn_ip : `${p.vpn_ip}/32`,
@@ -106,16 +120,18 @@ export async function GET(req: NextRequest) {
         presharedKey:     decryptKey(p.preshared_key_enc),
         serverEndpoint:   srv.endpoint,
         serverPort:       srv.port,
+        awgParams,
       })
       return {
-        id:           srv.id,
-        display_name: srv.display_name,
-        flag_emoji:   srv.flag_emoji ?? '',
-        location:     srv.location   ?? '',
-        endpoint:     srv.endpoint,
-        port:         srv.port,
-        wg_conf:      wgConf,
-        port_secret:  srv.port_secret ?? null,
+        id:            srv.id,
+        display_name:  srv.display_name,
+        flag_emoji:    srv.flag_emoji  ?? '',
+        location:      srv.location    ?? '',
+        endpoint:      srv.endpoint,
+        port:          srv.port,
+        wg_conf:       wgConf,
+        port_secret:   srv.port_secret  ?? null,
+        cf_relay_url:  srv.cf_relay_url ?? null,
       }
     }).filter(Boolean)
 

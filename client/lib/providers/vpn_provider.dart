@@ -102,7 +102,12 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── 连接（首选 AmneziaWG 直连 + 端口跳变，12 秒超时后自动回退到 wstunnel 443）──
+  // ── 连接（三层防护机制）───────────────────────────────────────────────────────
+  //
+  //  层 1：AmneziaWG 直连 + 端口跳变（AWG 包混淆，GFW 难以识别）
+  //  层 2：wstunnel WebSocket over HTTPS 443（流量伪装为 HTTPS）
+  //  层 3：Cloudflare Tunnel（服务器 IP 完全隐藏，GFW 无从封锁）
+  //
   Future<void> connect(ServerConfig server) async {
     _error            = null;
     _status           = VpnStatus.connecting;
@@ -131,10 +136,10 @@ class VpnProvider extends ChangeNotifier {
         providerBundleIdentifier: kProviderBundle,
       );
 
-      // 12 秒内未收到 connected 事件 → 自动切换 wstunnel 443 中继
+      // 12 秒内未收到 connected 事件 → 自动切换 wstunnel 443 中继（层 2）
       _fallbackTimer = Timer(
         const Duration(seconds: 12),
-        () => _switchToRelay(server),
+        () => _switchToRelay(server, relayBaseUrl: 'wss://${server.endpoint}'),
       );
 
       final prefs = await SharedPreferences.getInstance();
@@ -166,25 +171,32 @@ class VpnProvider extends ChangeNotifier {
         .computePort(server.portSecret!, hourOffset: 0);
   }
 
-  // ── wstunnel 443 中继回退 ──────────────────────────────────────────────────
-  // [force] = true：由连通性验证失败触发，此时 status 已是 connected
-  //            但流量实际不通，需要强制切换。
-  Future<void> _switchToRelay(ServerConfig server, {bool force = false}) async {
-    if (!force && _status == VpnStatus.connected) return; // 正常直连已成功，无需切换
+  // ── 中继回退（层 2 = wstunnel 443，层 3 = Cloudflare Tunnel）─────────────────
+  //
+  // [relayBaseUrl]  中继服务器 WebSocket 基础 URL，不含路径（如 wss://host.com）
+  //                 ws_relay_service 会自动追加 /secure-tunnel/v1/events
+  // [force]         true = 由连通性验证失败强制触发
+  //
+  Future<void> _switchToRelay(
+    ServerConfig server, {
+    required String relayBaseUrl,
+    bool force = false,
+  }) async {
+    if (!force && _status == VpnStatus.connected) return; // 直连已成功，无需切换
 
-    debugPrint('[VPN] ${force ? '连通性验证失败' : '直连 12 秒超时'}，切换 wstunnel 443 中继...');
+    final primaryBase = 'wss://${server.endpoint}';
+    final isCf        = relayBaseUrl != primaryBase;
+    debugPrint('[VPN] 切换到${isCf ? ' Cloudflare' : ' wstunnel-443'} 中继: $relayBaseUrl');
+
     _switchingToRelay = true;
     _protocol         = VpnProtocol.relay;
     _status           = VpnStatus.connecting;
     _error            = null;
     notifyListeners();
 
-    // 停止正在进行的直连尝试
+    // 停止正在进行的隧道
     try { await AmneziaWG.instance.stopVpn(); } catch (_) {}
     await Future.delayed(const Duration(milliseconds: 600));
-
-    // wstunnel v9.7+ 协议：路径 /secure-tunnel/
-    final wsBaseUrl = 'wss://${server.endpoint}/secure-tunnel';
 
     // 解析服务器 IP，用于在 AllowedIPs 中排除（防止 WebSocket 中继回环）
     String? serverIp;
@@ -201,7 +213,9 @@ class VpnProvider extends ChangeNotifier {
     }
 
     try {
-      final localPort = await _relay.start(wsBaseUrl, server.port);
+      // ws_relay_service 追加 /v1/events；nginx 代理 /secure-tunnel/ → wstunnel
+      final localPort = await _relay.start(
+          '$relayBaseUrl/secure-tunnel', server.port);
       final relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
 
       await AmneziaWG.instance.startVpn(
@@ -210,14 +224,21 @@ class VpnProvider extends ChangeNotifier {
         providerBundleIdentifier: kProviderBundle,
       );
 
-      // 中继模式额外等 20 秒
+      // 等 20 秒确认连通；超时则尝试下一层
       _fallbackTimer?.cancel();
       _fallbackTimer = Timer(const Duration(seconds: 20), () async {
         if (_status != VpnStatus.connected) {
           await _relay.stop();
-          _error  = '无法连接到 VPN（直连与中继均失败，请检查网络）';
-          _status = VpnStatus.error;
-          notifyListeners();
+          final cfUrl = server.cfRelayUrl;
+          if (!isCf && cfUrl != null) {
+            // 层 3：wstunnel-443 超时 → 尝试 Cloudflare Tunnel
+            await _switchToRelay(server, relayBaseUrl: cfUrl, force: true);
+          } else {
+            // 所有层均失败
+            _error  = '无法连接到 VPN（AWG + wstunnel + Cloudflare 均失败，请检查网络）';
+            _status = VpnStatus.error;
+            notifyListeners();
+          }
         }
       });
     } on PlatformException catch (e) {
@@ -518,9 +539,13 @@ class VpnProvider extends ChangeNotifier {
       _fallbackTimer?.cancel(); // 流量畅通，取消中继切换计时器
       debugPrint('[VPN] 连通性验证成功，保持直连');
     } else {
-      // UDP 握手失败或流量被墙，立即切换 wstunnel 443 中继
+      // UDP 握手失败或流量被墙，立即切换 wstunnel 443 中继（层 2）
       debugPrint('[VPN] 连通性验证失败，切换 wstunnel 443 中继');
-      await _switchToRelay(server, force: true);
+      await _switchToRelay(
+        server,
+        relayBaseUrl: 'wss://${server.endpoint}',
+        force: true,
+      );
     }
   }
 

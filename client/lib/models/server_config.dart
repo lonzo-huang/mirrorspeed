@@ -7,10 +7,13 @@ class ServerConfig {
   final int     port;
   final String  wgConf;
   /// HMAC-SHA256 secret used for server-side port hopping.
-  /// Present when the server is configured with 05-port-hopping.sh.
   /// Null means port hopping is disabled for this server (use [port] directly).
   final String? portSecret;
-  int?          latencyMs; // 运行时测量
+  /// Cloudflare Tunnel WebSocket base URL, e.g. "wss://xxx.cfargotunnel.com".
+  /// Used as tertiary relay if wstunnel on 443 fails.
+  /// Null means Cloudflare relay is not configured for this server.
+  final String? cfRelayUrl;
+  int?          latencyMs; // measured at runtime
 
   ServerConfig({
     required this.id,
@@ -21,6 +24,7 @@ class ServerConfig {
     required this.port,
     required this.wgConf,
     this.portSecret,
+    this.cfRelayUrl,
     this.latencyMs,
   });
 
@@ -33,6 +37,7 @@ class ServerConfig {
     port:        j['port']         as int,
     wgConf:      j['wg_conf']      as String,
     portSecret:  j['port_secret']  as String?,
+    cfRelayUrl:  j['cf_relay_url'] as String?,
   );
 
   String get label => '$flagEmoji $displayName';
@@ -42,7 +47,7 @@ class DeviceInfo {
   final String             id;
   final String             label;
   final List<ServerConfig> servers;
-  final int?               dailyQuotaBytes; // null = 无限制（付费用户）
+  final int?               dailyQuotaBytes; // null = unlimited (paid users)
   final int                dailyBytesUsed;
   final bool               isSuspended;
 
@@ -66,11 +71,11 @@ class DeviceInfo {
         .toList(),
   );
 
-  /// 剩余免费流量（null = 不限量）
+  /// Remaining free quota (null = unlimited)
   int? get dailyBytesRemaining =>
       dailyQuotaBytes == null ? null : (dailyQuotaBytes! - dailyBytesUsed).clamp(0, dailyQuotaBytes!);
 
-  /// 已使用比例 0.0~1.0（null = 不限量）
+  /// Usage ratio 0.0–1.0 (null = unlimited)
   double? get usageRatio => dailyQuotaBytes == null
       ? null
       : (dailyBytesUsed / dailyQuotaBytes!).clamp(0.0, 1.0);

@@ -1,5 +1,5 @@
-// WireGuard 客户端配置生成
-// AllowedIPs = 全量公网，LAN（RFC1918）直连，单独放行 VPN 子网
+// WireGuard / AmneziaWG client configuration generation
+// AllowedIPs = full public internet, LAN (RFC1918) bypassed, VPN subnet included
 export const WG_ALLOWED_IPS =
   '0.0.0.0/5, 8.0.0.0/7, 11.0.0.0/8, 12.0.0.0/6, 16.0.0.0/4, ' +
   '32.0.0.0/3, 64.0.0.0/2, 128.0.0.0/3, 160.0.0.0/5, 168.0.0.0/6, ' +
@@ -10,6 +10,20 @@ export const WG_ALLOWED_IPS =
   '194.0.0.0/7, 196.0.0.0/6, 200.0.0.0/5, 208.0.0.0/4, ' +
   '10.200.0.0/24, 2000::/3'
 
+// AmneziaWG obfuscation parameters (must match server awg0.conf exactly).
+// Jc = 0 means obfuscation disabled (standard WireGuard behaviour).
+export interface AwgParams {
+  jc:   number   // Junk packet count (0 = disabled)
+  jmin: number   // Min junk packet size (bytes)
+  jmax: number   // Max junk packet size (bytes)
+  s1:   number   // Init packet extra junk size
+  s2:   number   // Response packet extra junk size
+  h1:   number   // Magic header 1
+  h2:   number   // Magic header 2
+  h3:   number   // Magic header 3
+  h4:   number   // Magic header 4
+}
+
 export interface WgPeerConfig {
   clientPrivateKey: string
   clientIp:         string   // e.g. '10.200.0.5/32'
@@ -17,14 +31,39 @@ export interface WgPeerConfig {
   presharedKey:     string
   serverEndpoint:   string
   serverPort:       number
+  awgParams?:       AwgParams  // Omit or set jc=0 for standard WireGuard
 }
 
-export function generateWgConf({ clientPrivateKey, clientIp, serverPublicKey, presharedKey, serverEndpoint, serverPort }: WgPeerConfig): string {
+export function generateWgConf({
+  clientPrivateKey,
+  clientIp,
+  serverPublicKey,
+  presharedKey,
+  serverEndpoint,
+  serverPort,
+  awgParams,
+}: WgPeerConfig): string {
+  // Include AWG obfuscation section only when Jc > 0
+  const awgSection = (awgParams && awgParams.jc > 0)
+    ? [
+        `Jc         = ${awgParams.jc}`,
+        `Jmin       = ${awgParams.jmin}`,
+        `Jmax       = ${awgParams.jmax}`,
+        `S1         = ${awgParams.s1}`,
+        `S2         = ${awgParams.s2}`,
+        `H1         = ${awgParams.h1}`,
+        `H2         = ${awgParams.h2}`,
+        `H3         = ${awgParams.h3}`,
+        `H4         = ${awgParams.h4}`,
+      ].join('\n') + '\n'
+    : ''
+
   return (
     `[Interface]\n` +
     `PrivateKey = ${clientPrivateKey}\n` +
     `Address    = ${clientIp}\n` +
     `DNS        = 8.8.8.8, 1.1.1.1\n` +
+    awgSection +
     `\n` +
     `[Peer]\n` +
     `PublicKey    = ${serverPublicKey}\n` +

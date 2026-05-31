@@ -53,12 +53,9 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     implementation 'androidx.appcompat:appcompat:1.6.1'
 
-    // WireGuard Android tunnel library (stable, well-tested).
-    // AWG-specific config keys (Jc/Jmin/Jmax/S1/S2/H1-H4) are stripped in the
-    // plugin's Kotlin code before parsing, so the tunnel works as standard
-    // WireGuard on Android.  Port hopping + wstunnel fallback remain active.
-    //
-    // TODO: migrate to com.github.amnezia-vpn:amneziawg-android once JitPack
-    //       builds are available and stable.
-    implementation 'com.wireguard.android:tunnel:1.0.20230427'
+    // AmneziaWG Android tunnel library — supports AWG packet-level obfuscation.
+    // The Jc/Jmin/Jmax/S1/S2/H1-H4 parameters in the wgConf are passed directly
+    // to the AWG Go backend without stripping, enabling full obfuscated tunnelling.
+    // dev-305b3df553-1 is the first JitPack-buildable snapshot (confirmed working).
+    implementation 'com.github.amnezia-vpn:amneziawg-android:dev-305b3df553-1'
 }

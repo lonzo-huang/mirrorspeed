@@ -246,6 +246,16 @@ export interface Database {
           is_active:       boolean
           created_at:      string
           port_secret:     string | null
+          awg_jc:          number
+          awg_jmin:        number
+          awg_jmax:        number
+          awg_s1:          number
+          awg_s2:          number
+          awg_h1:          number
+          awg_h2:          number
+          awg_h3:          number
+          awg_h4:          number
+          cf_relay_url:    string | null
         }
         Insert: {
           id?:             string
@@ -259,6 +269,16 @@ export interface Database {
           public_key:      string
           api_url:         string
           port_secret?:    string | null
+          awg_jc?:         number
+          awg_jmin?:       number
+          awg_jmax?:       number
+          awg_s1?:         number
+          awg_s2?:         number
+          awg_h1?:         number
+          awg_h2?:         number
+          awg_h3?:         number
+          awg_h4?:         number
+          cf_relay_url?:   string | null
           status?:         string
           latency_ms?:     number | null
           active_peers?:   number
