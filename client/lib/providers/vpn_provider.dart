@@ -75,8 +75,11 @@ class VpnProvider extends ChangeNotifier {
     switch (stage) {
       case VpnStage.connected:
         if (_switchingToRelay) {
-          // 中继模式握手成功，可以放心取消计时器
+          // 中继模式握手成功：取消超时计时器，重置切换标志
           _fallbackTimer?.cancel();
+          _switchingToRelay = false;
+          // 验证中继流量是否真正畅通（5 秒后）
+          _postRelayCheck(_activeServer);
         } else {
           // 直连模式：Android VPN 接口已 UP，但 AWG 握手可能还没完成。
           // 不在此处取消计时器，等连通性验证通过后再取消。
@@ -89,11 +92,13 @@ class VpnProvider extends ChangeNotifier {
       case VpnStage.disconnected:
         _status = VpnStatus.disconnected;
         _stopTimer();
-        // 中继切换过程中不清除 activeServer
+        // 中继切换过程中不清除 activeServer；
+        // _switchingToRelay 在此处故意不重置——需等到
+        // relay 的 startVpn 触发 connected 后才置 false，
+        // 以便 connected 分支能正确识别并取消 _fallbackTimer。
         if (!_switchingToRelay && _activeServer != null && _error == null) {
           _activeServer = null;
         }
-        _switchingToRelay = false;
       case VpnStage.disconnecting:
         _status = VpnStatus.disconnecting;
       default:
@@ -172,6 +177,11 @@ class VpnProvider extends ChangeNotifier {
         .computePort(server.portSecret!, hourOffset: 0);
   }
 
+  // AWG 在服务器上的内部监听端口（wstunnel --restrict-to 匹配此端口）。
+  // 注意：server.port 是对外暴露的端口（可能经过 iptables DNAT），
+  // 而 wstunnel 直接连接 AWG 内部端口（不经过 DNAT），因此必须用固定值 51820。
+  static const int _awgInternalPort = 51820;
+
   // ── 中继回退（层 2 = wstunnel 443，层 3 = Cloudflare Tunnel）─────────────────
   //
   // [relayBaseUrl]  中继服务器 WebSocket 基础 URL，不含路径（如 wss://host.com）
@@ -215,8 +225,10 @@ class VpnProvider extends ChangeNotifier {
 
     try {
       // ws_relay_service 追加 /v1/events；nginx 代理 /secure-tunnel/ → wstunnel
+      // JWT 中的 rp 必须等于 AWG 内部监听端口（51820），与 wstunnel --restrict-to 一致。
+      // server.port 是对外暴露端口（可能经 iptables DNAT），不适合此处。
       final localPort = await _relay.start(
-          '$relayBaseUrl/secure-tunnel', server.port);
+          '$relayBaseUrl/secure-tunnel', _awgInternalPort);
       final relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
 
       await AmneziaWG.instance.startVpn(
@@ -485,6 +497,7 @@ class VpnProvider extends ChangeNotifier {
   // ── 断开 ────────────────────────────────────────────────────
   Future<void> disconnect() async {
     _fallbackTimer?.cancel();
+    _switchingToRelay = false;   // 确保 disconnected 事件不误判为中继切换中
     _status = VpnStatus.disconnecting;
     notifyListeners();
     try {
@@ -547,6 +560,40 @@ class VpnProvider extends ChangeNotifier {
         relayBaseUrl: 'wss://${server.relayHost}',  // 域名，确保 TLS 匹配
         force: true,
       );
+    }
+  }
+
+  // ── 连通性验证（中继模式，握手后约 5 秒执行）────────────────
+  // 中继模式下 AWG 握手可能成功（ICMP/UDP 层通了），但 WebSocket
+  // 出口侧流量仍可能不通（如 wstunnel 路由配置错误）。
+  // 5 秒后用同一个 HTTP 204 检测实际网络可达性；
+  // 失败则尝试层 3（Cloudflare Tunnel），或报错。
+  Future<void> _postRelayCheck(ServerConfig? server) async {
+    await Future.delayed(const Duration(seconds: 5));
+    if (_status != VpnStatus.connected || _protocol != VpnProtocol.relay || server == null) return;
+
+    bool ok = false;
+    try {
+      final res = await http.get(
+        Uri.parse('https://connectivitycheck.gstatic.com/generate_204'),
+      ).timeout(const Duration(seconds: 8));
+      ok = res.statusCode == 204 || res.statusCode < 400;
+    } catch (_) {}
+
+    if (ok) {
+      debugPrint('[VPN] 中继连通性验证成功');
+    } else {
+      debugPrint('[VPN] 中继连通性验证失败，尝试 Cloudflare Tunnel（层 3）');
+      await _relay.stop();
+      final cfUrl = server.cfRelayUrl;
+      if (cfUrl != null && cfUrl.isNotEmpty) {
+        await _switchToRelay(server, relayBaseUrl: cfUrl, force: true);
+      } else {
+        // Cloudflare 未配置，报告失败
+        _error  = '中继连接成功但流量不通（wstunnel 层），请检查服务器 wstunnel 配置';
+        _status = VpnStatus.error;
+        notifyListeners();
+      }
     }
   }
 
