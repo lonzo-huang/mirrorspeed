@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
       device_id, private_key_enc, preshared_key_enc, vpn_ip,
       peer_name, daily_bytes, is_suspended,
       server:vpn_servers(id, display_name, flag_emoji, location, endpoint, port, public_key, port_secret,
-        awg_jc, awg_jmin, awg_jmax, awg_s1, awg_s2, awg_h1, awg_h2, awg_h3, awg_h4, cf_relay_url)
+        api_url, awg_jc, awg_jmin, awg_jmax, awg_s1, awg_s2, awg_h1, awg_h2, awg_h3, awg_h4, cf_relay_url)
     `)
     .in('device_id', deviceIds)
     .eq('is_active', true)
@@ -113,6 +113,14 @@ export async function GET(req: NextRequest) {
         h4:   srv.awg_h4,
       } : undefined
 
+      // Derive relay hostname from api_url (always a domain, never a raw IP).
+      // This ensures the wstunnel WebSocket TLS cert matches the hostname even
+      // when the endpoint column stores a raw IP address.
+      let relayHost: string = srv.endpoint
+      try {
+        relayHost = new URL(srv.api_url as string).hostname  // e.g. 'spain01.ionos.mirrorspeed.com'
+      } catch { /* keep endpoint as fallback */ }
+
       const wgConf = generateWgConf({
         clientPrivateKey: decryptKey(p.private_key_enc),
         clientIp:         p.vpn_ip.includes('/') ? p.vpn_ip : `${p.vpn_ip}/32`,
@@ -128,6 +136,7 @@ export async function GET(req: NextRequest) {
         flag_emoji:    srv.flag_emoji  ?? '',
         location:      srv.location    ?? '',
         endpoint:      srv.endpoint,
+        relay_host:    relayHost,
         port:          srv.port,
         wg_conf:       wgConf,
         port_secret:   srv.port_secret  ?? null,

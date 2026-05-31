@@ -30,12 +30,12 @@ android {
     namespace 'com.amneziawg.amneziawg_flutter'
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '17'
     }
 
     sourceSets {
@@ -52,10 +52,20 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.code.findbugs:jsr305:3.0.2'
 
-    // AmneziaWG Android tunnel library — supports AWG packet-level obfuscation.
-    // The Jc/Jmin/Jmax/S1/S2/H1-H4 parameters in the wgConf are passed directly
-    // to the AWG Go backend without stripping, enabling full obfuscated tunnelling.
-    // dev-305b3df553-1 is the first JitPack-buildable snapshot (confirmed working).
-    implementation 'com.github.amnezia-vpn:amneziawg-android:dev-305b3df553-1'
+    // AmneziaWG Android tunnel library — bundled locally.
+    //
+    // Source:  https://github.com/amnezia-vpn/amneziawg-android (tunnel module)
+    //          copied to android/src/main/java/org/amnezia/awg/
+    //
+    // Native:  Pre-built libwg-go.so + libwg.so + libwg-quick.so from the
+    //          AmneziaWG v2.0.0 official APK release, extracted to
+    //          android/src/main/jniLibs/{abi}/.
+    //
+    // The JitPack approach (dev-305b3df553-1) was attempted but JitPack's build
+    // servers lack Go 1.24.2 + Linux NDK environment required for the native lib.
+    // Pre-built .so files sidestep this entirely.
+    //
+    // No external tunnel library dependency — all AWG classes are bundled above.
 }

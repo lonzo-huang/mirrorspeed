@@ -137,9 +137,10 @@ class VpnProvider extends ChangeNotifier {
       );
 
       // 12 秒内未收到 connected 事件 → 自动切换 wstunnel 443 中继（层 2）
+      // 使用 relayHost（域名）而非 endpoint（可能为 IP），确保 TLS 证书匹配
       _fallbackTimer = Timer(
         const Duration(seconds: 12),
-        () => _switchToRelay(server, relayBaseUrl: 'wss://${server.endpoint}'),
+        () => _switchToRelay(server, relayBaseUrl: 'wss://${server.relayHost}'),
       );
 
       final prefs = await SharedPreferences.getInstance();
@@ -184,7 +185,7 @@ class VpnProvider extends ChangeNotifier {
   }) async {
     if (!force && _status == VpnStatus.connected) return; // 直连已成功，无需切换
 
-    final primaryBase = 'wss://${server.endpoint}';
+    final primaryBase = 'wss://${server.relayHost}';
     final isCf        = relayBaseUrl != primaryBase;
     debugPrint('[VPN] 切换到${isCf ? ' Cloudflare' : ' wstunnel-443'} 中继: $relayBaseUrl');
 
@@ -543,7 +544,7 @@ class VpnProvider extends ChangeNotifier {
       debugPrint('[VPN] 连通性验证失败，切换 wstunnel 443 中继');
       await _switchToRelay(
         server,
-        relayBaseUrl: 'wss://${server.endpoint}',
+        relayBaseUrl: 'wss://${server.relayHost}',  // 域名，确保 TLS 匹配
         force: true,
       );
     }

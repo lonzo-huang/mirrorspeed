@@ -4,6 +4,10 @@ class ServerConfig {
   final String  flagEmoji;
   final String  location;
   final String  endpoint;
+  /// Hostname for wstunnel TLS relay connections.
+  /// Always a domain name (never a raw IP), derived from the server's api_url
+  /// by the portal. Falls back to [endpoint] if the portal doesn't provide it.
+  final String  relayHost;
   final int     port;
   final String  wgConf;
   /// HMAC-SHA256 secret used for server-side port hopping.
@@ -21,12 +25,13 @@ class ServerConfig {
     required this.flagEmoji,
     required this.location,
     required this.endpoint,
+    String?  relayHost,
     required this.port,
     required this.wgConf,
     this.portSecret,
     this.cfRelayUrl,
     this.latencyMs,
-  });
+  }) : relayHost = relayHost ?? endpoint;
 
   factory ServerConfig.fromJson(Map<String, dynamic> j) => ServerConfig(
     id:          j['id']           as String,
@@ -34,6 +39,7 @@ class ServerConfig {
     flagEmoji:   j['flag_emoji']   as String? ?? '',
     location:    j['location']     as String? ?? '',
     endpoint:    j['endpoint']     as String,
+    relayHost:   j['relay_host']   as String?,  // null → falls back to endpoint
     port:        j['port']         as int,
     wgConf:      j['wg_conf']      as String,
     portSecret:  j['port_secret']  as String?,
