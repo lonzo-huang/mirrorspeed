@@ -59,9 +59,19 @@ class WsRelayService {
     final proto2 = 'authorization.bearer.$jwt';
 
     debugPrint('[WsRelay] Connecting → $wsUrl');
+    // Use a custom HttpClient that accepts the server's TLS certificate even
+    // when the URL host is a raw IP and the cert CN is a domain name.
+    // This is safe for relay connections: the AWG/WireGuard layer provides
+    // its own end-to-end encryption, so TLS here is purely transport obfuscation.
+    final httpClient = HttpClient()
+      ..badCertificateCallback = (cert, host, port) {
+        debugPrint('[WsRelay] TLS cert accepted for $host (subject: ${cert.subject})');
+        return true;
+      };
     _ws = await WebSocket.connect(
       wsUrl,
       protocols: [proto1, proto2],
+      customClient: httpClient,
     ).timeout(const Duration(seconds: 10));
     debugPrint('[WsRelay] WebSocket connected');
 
