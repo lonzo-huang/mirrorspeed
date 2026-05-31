@@ -3,10 +3,10 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  amneziawg_flutter
   app_links
   flutter_secure_storage_windows
   url_launcher_windows
-  wireguard_flutter
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
