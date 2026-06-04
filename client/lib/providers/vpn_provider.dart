@@ -35,6 +35,11 @@ class VpnProvider extends ChangeNotifier {
   RoutingMode        _routingMode      = RoutingMode.global;
   List<String>?      _cachedNonCnRoutes;   // 懒加载，首次连接时计算并缓存
 
+  // 会话级钉死端口：UDP 直连时在 connect() 时基于时间计算一次并保存。
+  // 一旦连接建立，整个会话期间复用此端口，绝不重算——即使将来加入断线
+  // 自动重连，也必须沿用此值，避免跨小时窗口时端口漂移。disconnect() 清空。
+  int?               _sessionPort;
+
   VpnStatus     get status       => _status;
   ServerConfig? get activeServer => _activeServer;
   int?          get elapsedSecs  => _elapsedSecs;
@@ -120,11 +125,14 @@ class VpnProvider extends ChangeNotifier {
     _protocol         = VpnProtocol.direct;
     _switchingToRelay = false;
     _fallbackTimer?.cancel();
+    _sessionPort      = null;   // 用户主动连接 = 一次重连，按当前时间重新算端口
     notifyListeners();
 
     try {
-      // 1. 计算实际连接端口（端口跳变 or 固定端口）
+      // 1. 计算实际连接端口（端口跳变 or 固定端口），并钉死到本次会话。
+      //    端口只在此处基于时间计算一次；连上后整个会话不再改变。
       final effectivePort = _computePort(server);
+      _sessionPort = effectivePort;
 
       // 2. 将 AWG 配置中的端点端口替换为跳变端口
       String wgConf = _routingMode == RoutingMode.smart
@@ -167,8 +175,13 @@ class VpnProvider extends ChangeNotifier {
     }
   }
 
-  /// 计算端口（端口跳变 or 固定端口）
+  /// 计算端口（端口跳变 or 固定端口）。
+  ///
+  /// 本次会话已钉死端口时（_sessionPort 非空）直接复用，确保连接建立后
+  /// 即便 connect() 被再次进入（如断线自动重连）也不会跨小时窗口换端口。
+  /// 只有在主动 disconnect() 清空 _sessionPort 后，才会重新基于时间计算。
   int _computePort(ServerConfig server) {
+    if (_sessionPort != null) return _sessionPort!;
     if (server.portSecret == null || server.portSecret!.isEmpty) {
       return server.port;
     }
@@ -193,6 +206,11 @@ class VpnProvider extends ChangeNotifier {
     required String relayBaseUrl,
     bool force = false,
   }) async {
+    // 立即取消定时器：防止 _postConnectCheck 和定时器同时触发时的竞争条件
+    // （两者都可能在 T≈12s 时触发，并发调用会导致 _localPort 被清零后再 ! 解引用）
+    _fallbackTimer?.cancel();
+    _fallbackTimer = null;
+
     if (!force && _status == VpnStatus.connected) return; // 直连已成功，无需切换
 
     final primaryBase = 'wss://${server.relayHost}';
@@ -238,7 +256,6 @@ class VpnProvider extends ChangeNotifier {
       );
 
       // 等 20 秒确认连通；超时则尝试下一层
-      _fallbackTimer?.cancel();
       _fallbackTimer = Timer(const Duration(seconds: 20), () async {
         if (_status != VpnStatus.connected) {
           await _relay.stop();
@@ -497,6 +514,7 @@ class VpnProvider extends ChangeNotifier {
   // ── 断开 ────────────────────────────────────────────────────
   Future<void> disconnect() async {
     _fallbackTimer?.cancel();
+    _sessionPort      = null;    // 主动断开后，下次连接重新基于时间计算端口
     _switchingToRelay = false;   // 确保 disconnected 事件不误判为中继切换中
     _status = VpnStatus.disconnecting;
     notifyListeners();
@@ -540,6 +558,8 @@ class VpnProvider extends ChangeNotifier {
     await Future.delayed(const Duration(seconds: 4));
     // 如果已切换中继或已断开，跳过
     if (_status != VpnStatus.connected || _protocol == VpnProtocol.relay || server == null) return;
+    // 如果定时器已经抢先触发了 _switchToRelay，跳过避免并发
+    if (_switchingToRelay) return;
 
     bool ok = false;
     try {

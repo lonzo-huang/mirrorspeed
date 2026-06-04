@@ -96,7 +96,11 @@ class WsRelayService {
       },
     );
 
-    return _localPort!;
+    // _localPort can only be null here if stop() was called concurrently
+    // (e.g. a second _switchToRelay call racing with this one).
+    final port = _localPort;
+    if (port == null) throw StateError('WsRelay stopped during startup');
+    return port;
   }
 
   /// (Re-)establish the WebSocket connection.

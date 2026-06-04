@@ -3,10 +3,12 @@
 /// The server keeps three consecutive hour-windows open simultaneously
 /// (current − 1, current, current + 1), so mild clock skew is tolerated.
 ///
-/// Port formula (matches server-side 05-port-hopping.sh):
-///   port = 30000 + HMAC-SHA256(portSecret, UTC_hour_string)[0..3] % 20000
+/// Port formula (matches server-side awg-port-rotate.sh):
+///   window = floor(unix_epoch_seconds / 3600)          ← hours since epoch
+///   port   = 30000 + HMAC-SHA256(secret, BE_uint64(window))[0..3] % 20000
 ///
-/// The client tries the current hour first, then ±1 for resilience.
+/// The message is the window number encoded as a big-endian 8-byte uint64,
+/// exactly matching the Python struct.pack('>Q', window) on the server.
 library port_hopping;
 
 import 'dart:convert';
@@ -25,11 +27,10 @@ class PortHoppingService {
   ///   /etc/wireguard/.port-secret, returned by the VPN API).
   /// [hourOffset] is 0 (current), −1 (previous), +1 (next).
   int computePort(String portSecret, {int hourOffset = 0}) {
-    final now        = DateTime.now().toUtc();
-    final hourWindow = now.add(Duration(hours: hourOffset));
-    // Format: "YYYY-MM-DD HH" — must match the server-side format
-    final hourStr = _formatHour(hourWindow);
-    return _hmacPort(portSecret, hourStr);
+    // Hours since Unix epoch — matches server: W_CUR=$(( $(date -u +%s) / 3600 ))
+    final nowMs  = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final window = (nowMs ~/ 3600000) + hourOffset;
+    return _hmacPort(portSecret, window);
   }
 
   /// Return the three candidate ports to try in order: current, −1, +1.
@@ -53,21 +54,21 @@ class PortHoppingService {
 
   // ── Private ───────────────────────────────────────────────────────────────
 
-  /// Format DateTime as "YYYY-MM-DD HH" (zero-padded).
-  String _formatHour(DateTime dt) {
-    final y  = dt.year.toString().padLeft(4, '0');
-    final mo = dt.month.toString().padLeft(2, '0');
-    final d  = dt.day.toString().padLeft(2, '0');
-    final h  = dt.hour.toString().padLeft(2, '0');
-    return '$y-$mo-$d $h';
-  }
-
   /// Compute port = 30000 + first-4-bytes-big-endian-of-HMAC % 20000.
-  int _hmacPort(String secret, String message) {
-    final key    = utf8.encode(secret);
-    final msg    = utf8.encode(message);
-    final hmac   = Hmac(sha256, key);
-    final digest = hmac.convert(msg);
+  ///
+  /// [window] is hours since Unix epoch. The HMAC message is [window] encoded
+  /// as a big-endian 8-byte uint64 — matching server: struct.pack('>Q', window)
+  int _hmacPort(String secret, int window) {
+    final key = utf8.encode(secret);
+
+    // Big-endian uint64 encoding of window (8 bytes)
+    final buf = ByteData(8);
+    // Dart int is 64-bit on native; shift arithmetic is safe for window ≈ 5e5
+    buf.setUint32(0, (window >> 32) & 0xFFFFFFFF, Endian.big);
+    buf.setUint32(4,  window        & 0xFFFFFFFF, Endian.big);
+    final msg = buf.buffer.asUint8List();
+
+    final digest = Hmac(sha256, key).convert(msg);
 
     // Take first 4 bytes as big-endian uint32
     final bytes = Uint8List.fromList(digest.bytes.sublist(0, 4));
