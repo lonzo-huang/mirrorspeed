@@ -233,6 +233,7 @@ export interface Database {
           port:            number
           public_key:      string
           api_url:         string
+          api_secret:      string | null
           status:          string
           latency_ms:      number | null
           active_peers:    number
@@ -268,6 +269,7 @@ export interface Database {
           port?:           number
           public_key:      string
           api_url:         string
+          api_secret?:     string | null
           port_secret?:    string | null
           awg_jc?:         number
           awg_jmin?:       number
@@ -293,6 +295,7 @@ export interface Database {
           created_at?:     string
         }
         Update: {
+          api_secret?:     string | null
           status?:         string
           latency_ms?:     number | null
           active_peers?:   number
