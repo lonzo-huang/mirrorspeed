@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
 import '../services/api_service.dart';
 import '../theme.dart';
+import '../version.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -154,7 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 24),
 
-              Text('MirrorSpeed VPN  v1.0.14',
+              Text('MirrorSpeed VPN  v$kAppVersion',
                 style: TextStyle(color: Colors.white.withOpacity(0.25),
                   fontSize: 12)),
               const SizedBox(height: 8),

@@ -70,6 +70,48 @@ if (-not $DryRun) {
 New-Item -ItemType Directory -Path build -Force | Out-Null
 Ok "Version=$Version  Tag=$TAG  DryRun=$DryRun"
 
+# --- Bump version in pubspec.yaml and lib/version.dart -----------------------
+Step "Bumping version files to $Version"
+$pubspecPath  = Join-Path $PSScriptRoot "pubspec.yaml"
+$versionDart  = Join-Path $PSScriptRoot "lib\version.dart"
+
+# Use Python to safely edit pubspec.yaml (avoids PowerShell UTF-8/encoding issues)
+$pyScript = @"
+import re, sys
+path = sys.argv[1]
+ver  = sys.argv[2]
+with open(path, encoding='utf-8') as f:
+    txt = f.read()
+m = re.search(r'^version:\s+[\d.]+\+(\d+)', txt, re.MULTILINE)
+build = (int(m.group(1)) + 1) if m else 1
+new_ver_line = f'version: {ver}+{build}'
+# Only replace the standalone version: line (not inside description or comments)
+txt2 = re.sub(r'^version:\s+[\d.]+\+\d+', new_ver_line, txt, flags=re.MULTILINE)
+with open(path, 'w', encoding='utf-8') as f:
+    f.write(txt2)
+print(f'{ver}+{build}')
+"@
+$pyScript | Out-File -Encoding utf8 -FilePath "$env:TEMP\bump_pubspec.py"
+$newVerFull = python "$env:TEMP\bump_pubspec.py" "$pubspecPath" "$Version" 2>&1
+if ($LASTEXITCODE -ne 0) { Fail "Failed to update pubspec.yaml: $newVerFull" }
+Ok "pubspec.yaml → version: $newVerFull"
+
+# Write version.dart using Python to ensure UTF-8 without BOM
+$pyDart = @"
+import sys
+path, ver = sys.argv[1], sys.argv[2]
+content = f'''// Auto-updated by the release script -- do not edit manually.
+// Keep in sync with pubspec.yaml version field.
+const String kAppVersion = '{ver}';
+'''
+with open(path, 'w', encoding='utf-8') as f:
+    f.write(content)
+"@
+$pyDart | Out-File -Encoding utf8 -FilePath "$env:TEMP\write_version_dart.py"
+python "$env:TEMP\write_version_dart.py" "$versionDart" "$Version" 2>&1
+if ($LASTEXITCODE -ne 0) { Fail "Failed to update lib/version.dart" }
+Ok "lib/version.dart → kAppVersion = '$Version'"
+
 # --- Stop stale Gradle/Kotlin daemons BEFORE cleaning ------------------------
 Step "Stopping Gradle daemons + cleaning build cache"
 Write-Host "  Stopping Gradle/Kotlin daemons..."

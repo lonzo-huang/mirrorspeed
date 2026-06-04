@@ -27,7 +27,8 @@
       "Bash(find /c/Users/Administrator -name \"*.token\" 2>/dev/null | head -5; ls /c/Users/Administrator/.config/ 2>/dev/null | head -20)",
       "Bash(Get-ChildItem -Path \"D:\\\\projects\\\\MirrorSpeed\" -Recurse -File)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(Sort-Object)"
+      "Bash(Sort-Object)",
+      "Bash(powershell -Command \"\\(Get-Content pubspec.yaml\\) -replace 'version: 1\\\\.0\\\\.31\\\\+36', 'version: 1.0.32+37' | Set-Content pubspec.yaml\")"
     ]
   }
 }

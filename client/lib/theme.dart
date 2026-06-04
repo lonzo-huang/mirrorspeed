@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 // ── 品牌色 ───────────────────────────────────────────────────
 const kBrand     = Color(0xFF6366F1);  // Indigo-500
@@ -20,7 +19,9 @@ ThemeData buildTheme() {
       surface:   kSurface,
       error:     kDanger,
     ),
-    textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
+    // Use system default font (Roboto/SF) — Google Fonts CDN is blocked in China
+    // and can corrupt Flutter's font registry, causing MaterialIcons to render as squares.
+    textTheme: base.textTheme.apply(
       bodyColor:    Colors.white,
       displayColor: Colors.white,
     ),

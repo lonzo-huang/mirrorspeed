@@ -50,19 +50,24 @@ static const wchar_t* kMutexName   = L"MirrorSpeedVPN_SingleInstance";
 static const wchar_t* kWindowClass = L"FLUTTER_RUNNER_WIN32_WINDOW";
 static const wchar_t* kWindowTitle = L"mirrorspeed_vpn";
 
-struct CopyDataLink { wchar_t url[2048]; };
+// APPLINK_MSG_ID must match the value in app_links_plugin.h: (WM_USER + 2)
+static const ULONG_PTR kAppLinkMsgId = WM_USER + 2;
 
 static bool ForwardToExistingInstance(const std::wstring& url) {
   HWND existing = FindWindowW(kWindowClass, kWindowTitle);
   if (!existing) return false;
 
-  CopyDataLink data{};
-  wcsncpy_s(data.url, url.c_str(), _TRUNCATE);
+  // app_links plugin reads lpData as char* (UTF-8), not wchar_t
+  int len = WideCharToMultiByte(CP_UTF8, 0, url.c_str(), -1,
+                                nullptr, 0, nullptr, nullptr);
+  std::string urlUtf8(len, '\0');
+  WideCharToMultiByte(CP_UTF8, 0, url.c_str(), -1,
+                      &urlUtf8[0], len, nullptr, nullptr);
 
   COPYDATASTRUCT cds{};
-  cds.dwData = WM_APP + 1;
-  cds.cbData = sizeof(data);
-  cds.lpData = &data;
+  cds.dwData = kAppLinkMsgId;           // matches APPLINK_MSG_ID in plugin
+  cds.cbData = static_cast<DWORD>(len); // includes null terminator
+  cds.lpData = &urlUtf8[0];
   SendMessageW(existing, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&cds));
   return true;
 }
