@@ -44,8 +44,10 @@ def verify_api_key(key: str = Security(api_key_header)) -> str:
 
 # ── 常量 ─────────────────────────────────────────────────────────────────
 PEER_MANAGER = Path("/opt/mirrorspeed/06-peer-manager.sh")
-WG_DIR       = Path("/etc/wireguard")
-WG_IFACE     = os.getenv("WG_INTERFACE", "wg0")
+# 注意：Peer 元数据文件（.meta / .private / .psk）由 06-peer-manager.sh 存储在
+# /etc/wireguard/peers/，与 AWG 配置目录 /etc/amnezia/amneziawg/ 分开。
+WG_DIR       = Path(os.getenv("WG_DIR",       "/etc/wireguard"))
+WG_IFACE     = os.getenv("WG_INTERFACE",      "awg0")
 PEERS_DIR    = WG_DIR / "peers"
 WAN_IF_FILE  = WG_DIR / ".wan-interface"
 WAN_IF       = WAN_IF_FILE.read_text().strip() if WAN_IF_FILE.exists() else "eth0"
@@ -96,8 +98,8 @@ def read_peer_meta(peer_name: str) -> dict:
     return meta
 
 def get_wg_peers_runtime() -> dict[str, dict]:
-    """wg show wg0 dump → {public_key: {endpoint, last_handshake, rx, tx}}"""
-    result = run(["wg", "show", WG_IFACE, "dump"], check=False)
+    """awg show awg0 dump → {public_key: {endpoint, last_handshake, rx, tx}}"""
+    result = run(["awg", "show", WG_IFACE, "dump"], check=False)
     peers  = {}
     if result.returncode != 0:
         return peers
@@ -216,7 +218,7 @@ def get_stats(_key: str = Security(verify_api_key)):
 @app.get("/health")
 def health():
     """轻量健康检查，不需要 API Key，供负载均衡器和延迟探测使用"""
-    wg = run(["wg", "show", WG_IFACE], check=False)
+    wg = run(["awg", "show", WG_IFACE], check=False)
     return {
         "status":    "ok" if wg.returncode == 0 else "degraded",
         "wg_status": "up" if wg.returncode == 0 else "down",
@@ -307,6 +309,6 @@ def set_peer_active(peer_name: str, req: SetActiveRequest, _key: str = Security(
     client_ip = meta.get("client_ip", "")
 
     if req.active:
-        run(["wg", "set", WG_IFACE, "peer", pub_key, "allowed-ips", f"{client_ip}/32"])
+        run(["awg", "set", WG_IFACE, "peer", pub_key, "allowed-ips", f"{client_ip}/32"])
     else:
-        run(["wg", "set", WG_IFACE, "peer", pub_key, "allowed-ips", ""])
+        run(["awg", "set", WG_IFACE, "peer", pub_key, "allowed-ips", ""])
