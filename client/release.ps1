@@ -10,8 +10,14 @@ param(
     [string]$Version,
     [switch]$SkipAndroid,
     [switch]$SkipWindows,
-    [switch]$DryRun
+    [switch]$DryRun,
+    # Re-release ONLY the Windows artifact for an already-published tag:
+    # skips Android, skips the version bump, and reuses the existing GitHub
+    # Release + tag (clobber-uploads the new zip + refreshes the CN mirror).
+    [switch]$WindowsOnly
 )
+
+if ($WindowsOnly) { $SkipAndroid = $true }
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -62,8 +68,11 @@ if (-not $DryRun) {
     Ok "gh CLI authenticated"
 
     $existingTag = git tag -l $TAG 2>$null
-    if ($existingTag) {
+    if ($existingTag -and -not $WindowsOnly) {
         Fail "Tag $TAG already exists. Delete first: git tag -d $TAG  then  git push origin --delete $TAG"
+    }
+    if ($WindowsOnly -and -not $existingTag) {
+        Fail "-WindowsOnly expects tag $TAG to already exist, but it does not."
     }
 }
 
@@ -71,6 +80,10 @@ New-Item -ItemType Directory -Path build -Force | Out-Null
 Ok "Version=$Version  Tag=$TAG  DryRun=$DryRun"
 
 # --- Bump version in pubspec.yaml and lib/version.dart -----------------------
+if ($WindowsOnly) {
+    Step "Skipping version bump (-WindowsOnly re-release of existing $TAG)"
+}
+if (-not $WindowsOnly) {
 Step "Bumping version files to $Version"
 $pubspecPath  = Join-Path $PSScriptRoot "pubspec.yaml"
 $versionDart  = Join-Path $PSScriptRoot "lib\version.dart"
@@ -111,6 +124,7 @@ $pyDart | Out-File -Encoding utf8 -FilePath "$env:TEMP\write_version_dart.py"
 python "$env:TEMP\write_version_dart.py" "$versionDart" "$Version" 2>&1
 if ($LASTEXITCODE -ne 0) { Fail "Failed to update lib/version.dart" }
 Ok "lib/version.dart → kAppVersion = '$Version'"
+}  # end if (-not $WindowsOnly) version bump
 
 # --- Stop stale Gradle/Kotlin daemons BEFORE cleaning ------------------------
 Step "Stopping Gradle daemons + cleaning build cache"
@@ -285,6 +299,10 @@ if ($DryRun) {
 }
 
 # --- Create GitHub Release ---------------------------------------------------
+if ($WindowsOnly) {
+    Step "Re-releasing Windows only — reusing existing tag/release $TAG"
+}
+if (-not $WindowsOnly) {
 Step "Creating GitHub Release: $TAG"
 
 $notes = "## MirrorSpeed VPN v$Version`n`n" +
@@ -313,6 +331,7 @@ $ec = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 if ($ec -ne 0) { Fail "gh release create failed" }
 Ok "GitHub Release created"
+}  # end if (-not $WindowsOnly) tag + release creation
 
 # --- Upload artifacts --------------------------------------------------------
 Step "Uploading artifacts"
