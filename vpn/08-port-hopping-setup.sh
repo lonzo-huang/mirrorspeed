@@ -10,8 +10,9 @@
 #   UTC_hour_window = floor(unix_timestamp / 3600)  ← 每小时变化一次
 #
 # 服务端实现：
-#   iptables DNAT 将 "当前端口±1窗口" 全部重定向到 AWG 内部固定端口 51820
-#   GFW 每小时只能封一个端口，下一小时换新端口
+#   iptables DNAT 将 "当前端口±3窗口"（共 7 个）全部重定向到 AWG 内部固定
+#   端口 51820。多窗口并存让客户端钉死端口在深度休眠 ~3-4h 后唤醒仍有效，
+#   避免断流；GFW 每小时只能封一个新端口，对抗封锁性不受影响。
 #
 # 客户端实现（Flutter Dart，见注释末尾的参考代码）：
 #   同一公式派生端口，直接连接，无需服务器告知
@@ -80,17 +81,28 @@ print(30000 + val % 20000)
 PYEOF
 }
 
+# 保留窗口半径：当前窗口 ±WINDOW_RADIUS 个小时的端口同时开放。
+# 半径 3 = 7 个窗口同时 DNAT，客户端钉死端口在连接后最多可容忍约
+# 3–4 小时的设备深度休眠，唤醒时旧端口规则仍在 → 不断流。
+# （相对 20000 端口空间，多开 4 个端口对抗封锁性几乎无影响。）
+WINDOW_RADIUS=3
+
 NOW=$(date -u +%s)
 W_CUR=$(( NOW / 3600 ))
-W_PREV=$(( W_CUR - 1 ))
-W_NEXT=$(( W_CUR + 1 ))
 
-P_PREV=$(derive_port "${W_PREV}")
-P_CUR=$(derive_port "${W_CUR}")
-P_NEXT=$(derive_port "${W_NEXT}")
+PORTS=()
+for (( off = -WINDOW_RADIUS; off <= WINDOW_RADIUS; off++ )); do
+    PORTS+=( "$(derive_port "$(( W_CUR + off ))")" )
+done
 
-logger -t "${LOG_TAG}" "port-hop: prev=${P_PREV} cur=${P_CUR} next=${P_NEXT} -> ${AWG_PORT} (window=${W_CUR})"
-echo "[$(date -u +%H:%M:%SZ)] port-hop: prev=${P_PREV}  cur=${P_CUR}  next=${P_NEXT}  →  ${AWG_PORT}"
+# 向后兼容 .current-ports：从数组取 prev/cur/next 供 vpn-api 读取
+# （数组下标：off=0 在 WINDOW_RADIUS 处，故 prev/cur/next = RADIUS-1/RADIUS/RADIUS+1）
+P_PREV="${PORTS[$(( WINDOW_RADIUS - 1 ))]}"
+P_CUR="${PORTS[${WINDOW_RADIUS}]}"
+P_NEXT="${PORTS[$(( WINDOW_RADIUS + 1 ))]}"
+
+logger -t "${LOG_TAG}" "port-hop: radius=${WINDOW_RADIUS} ports=${PORTS[*]} -> ${AWG_PORT} (window=${W_CUR})"
+echo "[$(date -u +%H:%M:%SZ)] port-hop: cur=${P_CUR}  open=[${PORTS[*]}]  →  ${AWG_PORT}"
 
 # ── 刷新 iptables DNAT 链 ─────────────────────────────────────────────────
 # 确保自定义链存在
@@ -101,8 +113,8 @@ fi
 # 清空旧规则（仅清链内规则，不影响 PREROUTING）
 iptables -t nat -F "${CHAIN}"
 
-# 添加三个窗口的 DNAT 规则
-for port in "${P_PREV}" "${P_CUR}" "${P_NEXT}"; do
+# 添加全部窗口的 DNAT 规则（current ± WINDOW_RADIUS）
+for port in "${PORTS[@]}"; do
     iptables -t nat -A "${CHAIN}" -p udp --dport "${port}" \
         -j REDIRECT --to-port "${AWG_PORT}"
 done
@@ -175,7 +187,8 @@ echo "╔═══════════════════════�
 echo "  端口跳变配置完成"
 echo "  AWG 内部端口：UDP ${AWG_PORT}（不对外暴露）"
 echo "  当前生效端口：UDP ${PORT_CUR}（客户端此刻应使用此端口）"
-echo "  ±1 窗口备用：  UDP ${PORT_PREV} / ${PORT_NEXT}"
+echo "  备用窗口：     当前 ±3 小时端口同时开放（容忍客户端深度休眠 ~3-4h）"
+echo "  相邻窗口：     UDP ${PORT_PREV} / ${PORT_NEXT}"
 echo "  端口范围：     30000–49999（HMAC-SHA256 派生）"
 echo "  切换周期：     每小时整点 UTC（systemd timer）"
 echo ""
