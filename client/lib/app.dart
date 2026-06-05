@@ -17,7 +17,8 @@ class MirrorSpeedApp extends StatefulWidget {
   @override State<MirrorSpeedApp> createState() => _MirrorSpeedAppState();
 }
 
-class _MirrorSpeedAppState extends State<MirrorSpeedApp> {
+class _MirrorSpeedAppState extends State<MirrorSpeedApp>
+    with WidgetsBindingObserver {
   late final AuthProvider _auth;
   late final VpnProvider  _vpn;
   late final GoRouter     _router;
@@ -25,6 +26,7 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _auth = AuthProvider();
     _vpn  = VpnProvider()..initialize();
 
@@ -72,7 +74,17 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 从后台/深度休眠恢复时，检查直连隧道是否在休眠期间因端口轮换+conntrack
+    // 过期而失效；若已死则自动重连（见 VpnProvider.onAppResumed）。
+    if (state == AppLifecycleState.resumed) {
+      _vpn.onAppResumed();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _router.dispose();
     super.dispose();
   }

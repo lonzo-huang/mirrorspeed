@@ -551,6 +551,50 @@ class VpnProvider extends ChangeNotifier {
     _elapsedSecs = null;
   }
 
+  /// 通用连通性探测：经隧道请求外网 generate_204，5 秒超时。
+  /// 返回 true 表示隧道内流量真正畅通。
+  Future<bool> _probeConnectivity() async {
+    try {
+      final res = await http.get(
+        Uri.parse('https://connectivitycheck.gstatic.com/generate_204'),
+      ).timeout(const Duration(seconds: 5));
+      return res.statusCode == 204 || res.statusCode < 400;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ── App 从后台/深度休眠恢复时调用（由 app.dart 生命周期监听触发）──────────
+  //
+  // 长时间 Doze 休眠后存在一个无法自愈的死锁场景：
+  //   1. 休眠期间 PersistentKeepalive(25s) 定时器被系统冻结，服务端
+  //      conntrack UDP 条目（默认 120s）过期；
+  //   2. 同时服务端每小时端口轮换可能已刷掉本会话钉死端口的 DNAT 规则；
+  //   → 唤醒后隧道仍显示 connected，但发往钉死端口的包命中 NEW 状态、
+  //     无匹配规则被丢弃；WireGuard 重握手仍打向同一死端口，永远连不上。
+  //
+  // 这里在恢复时主动探测，若隧道已死则整体重连——disconnect() 清空
+  // _sessionPort，connect() 随即按当前时间重新派生一个有效端口。
+  Future<void> onAppResumed() async {
+    if (_status != VpnStatus.connected || _switchingToRelay) return;
+    final server = _activeServer;
+    if (server == null) return;
+
+    // 给系统网络栈一点恢复时间再探测，避免误判
+    await Future.delayed(const Duration(seconds: 2));
+    if (_status != VpnStatus.connected || _switchingToRelay) return;
+
+    if (await _probeConnectivity()) {
+      debugPrint('[VPN] resume 健康检查通过，保持连接');
+      return;
+    }
+
+    debugPrint('[VPN] resume 健康检查失败，隧道已死，重连中…');
+    await disconnect();                                  // 清空 _sessionPort
+    await Future.delayed(const Duration(milliseconds: 400));
+    await connect(server);                               // 重新派生端口并连接
+  }
+
   // ── 连通性验证（直连模式握手后约 4 秒执行）──────────────────
   // AWG UDP 被 GFW 过滤时，Android VPN 接口仍会报 connected，
   // 但实际流量无法通过。通过请求外网地址判断隧道是否真正打通。
@@ -561,13 +605,7 @@ class VpnProvider extends ChangeNotifier {
     // 如果定时器已经抢先触发了 _switchToRelay，跳过避免并发
     if (_switchingToRelay) return;
 
-    bool ok = false;
-    try {
-      final res = await http.get(
-        Uri.parse('https://connectivitycheck.gstatic.com/generate_204'),
-      ).timeout(const Duration(seconds: 5));
-      ok = res.statusCode == 204 || res.statusCode < 400;
-    } catch (_) {}
+    final ok = await _probeConnectivity();
 
     if (ok) {
       _fallbackTimer?.cancel(); // 流量畅通，取消中继切换计时器
