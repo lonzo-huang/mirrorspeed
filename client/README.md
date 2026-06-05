@@ -164,16 +164,17 @@ await AmneziaWG.instance.stopVpn();
 
 ### Windows 构建要求
 
-将以下文件放到 `packages/amneziawg_flutter/windows/bin/`，从 [amneziawg-windows](https://github.com/amnezia-vpn/amneziawg-windows) 编译：
+`packages/amneziawg_flutter/windows/bin/` 下需要两个文件（已随仓库提交）：
 
 ```
-amneziawg_svc.exe   # 隧道服务可执行文件
-tunnel.dll          # AWG 隧道库
-wireguard.dll       # WireGuard NT 适配器
-wintun.dll          # WinTun 驱动
+amneziawg_svc.exe   # 隧道服务宿主（从 amneziawg-windows 编译，见该目录 BUILD.md）
+wintun.dll          # WinTun 用户态 TUN 适配器（官方签名版）
 ```
 
-CMakeLists.txt 会在编译时自动将它们复制到 app .exe 旁边。
+AmneziaWG 在 Windows 上走用户态（amneziawg-go）+ WinTun，**不需要** `tunnel.dll`
+或 WireGuard-NT 驱动（`wireguard.dll`）。CMakeLists.txt 通过 Flutter 的
+`amneziawg_flutter_bundled_libraries` 约定，在打包时自动把它们装到 app .exe 旁边。
+构建复现方法见 `packages/amneziawg_flutter/windows/bin/BUILD.md`。
 
 ---
 
@@ -272,8 +273,9 @@ const String kProviderBundle = 'com.mirrorspeed.vpn.network';  // iOS Network Ex
 
 ### Windows 提示缺少 DLL 或隧道启动失败
 
-将 `amneziawg_svc.exe`、`tunnel.dll`、`wireguard.dll`、`wintun.dll` 放到 app .exe 所在目录，
-若未放置，插件会返回 `START_FAILED` 错误，客户端自动回退至 wstunnel 中继。
+确保 `amneziawg_svc.exe` 与 `wintun.dll` 在 app .exe 所在目录（构建时由
+`windows/bin/` 自动打包）。若缺失，插件会返回 `Failed to start AWG tunnel service:
+系统找不到指定的文件`，客户端随后自动回退至 wstunnel 中继。
 
 ### iOS Network Extension 无响应
 

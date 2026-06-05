@@ -47,31 +47,27 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE
 )
 
 # ── Bundled AWG binaries ──────────────────────────────────────────────────────
-# Place the following AmneziaWG Windows binaries in:
+# Place the AmneziaWG Windows runtime binaries in:
 #   packages/amneziawg_flutter/windows/bin/
 #
-# Required files (build from https://github.com/amnezia-vpn/amneziawg-windows):
-#   amneziawg_svc.exe   — tunnel service executable
-#   tunnel.dll          — AWG tunnel library
-#   wireguard.dll       — WireGuard NT adapter library
-#   wintun.dll          — WinTun driver shim
+# Required files:
+#   amneziawg_svc.exe   — tunnel service host (built from amneziawg-windows;
+#                         registered as a Windows service by the plugin)
+#   wintun.dll          — WinTun userspace TUN adapter (official signed build)
 #
-# They are copied next to the Flutter app .exe during packaging.
+# AmneziaWG runs in userspace (amneziawg-go) over WinTun, so neither tunnel.dll
+# nor a WireGuard-NT driver (wireguard.dll) is needed on Windows.
+#
+# Files are exported via the Flutter <plugin>_bundled_libraries convention; the
+# Flutter runner CMake then installs them next to the app .exe and copies them
+# for `flutter run`. (A raw install(FILES DESTINATION ".") fails the INSTALL
+# target with "file cannot create directory".)
 
 set(AWG_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin")
 if(EXISTS "${AWG_BIN_DIR}")
   file(GLOB AWG_BINARIES "${AWG_BIN_DIR}/*.exe" "${AWG_BIN_DIR}/*.dll")
-  foreach(BIN ${AWG_BINARIES})
-    install(FILES "${BIN}" DESTINATION ".")
-  endforeach()
-  # Also copy at build time so debug runs work
-  foreach(BIN ${AWG_BINARIES})
-    get_filename_component(BIN_NAME "${BIN}" NAME)
-    add_custom_command(
-      TARGET ${PLUGIN_NAME} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${BIN}"
-        "$<TARGET_FILE_DIR:${PLUGIN_NAME}>/${BIN_NAME}"
-    )
-  endforeach()
+  set(amneziawg_flutter_bundled_libraries
+    "${AWG_BINARIES}"
+    PARENT_SCOPE
+  )
 endif()
