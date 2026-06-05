@@ -16,26 +16,35 @@ and a WireGuard-NT driver (`wireguard.dll`) are **not** needed on Windows.
 `amneziawg_svc.exe` is the same `amneziawg-windows` module built as a normal
 executable instead of `tunnel.dll`. The upstream `main` is an empty stub (the
 module is meant to be built `-buildmode c-shared`); we add a real `main` that
-reads the `.conf` path argv and calls the service entry point `Run()`:
+reads the `.conf` path argv and calls the service entry point `Run()`.
+
+Two Windows-service gotchas are handled in `main`:
+
+1. **Invalid std handles.** A service has no console, so fd 0/1/2 are invalid;
+   stock Go's runtime writing to the invalid stderr aborts the process with
+   "The handle is invalid" (ERROR_INVALID_HANDLE) *before the tunnel starts*.
+   (WireGuard avoids this with a patched Go; amneziawg-windows uses stock Go.)
+   We redirect the std handles to a log file so those writes succeed.
+2. **Unreadable logs.** `InitGlobalLogger` redirects the `log` package to a
+   binary ring buffer (`log.bin`). We dump that ring buffer to the plain-text
+   `amneziawg_svc.log` (next to the conf) on exit, so failures are diagnosable.
 
 ```go
-// main.go — replace `func main() {}` with:
-func main() {
-	if len(os.Args) < 2 {
-		log.Fatalf("usage: %s <path-to.conf>", filepath.Base(os.Args[0]))
-	}
-	confPath := os.Args[1]
-	data, err := os.ReadFile(confPath)
-	if err != nil {
-		log.Fatalf("read conf %q: %v", confPath, err)
-	}
-	name := strings.TrimSuffix(filepath.Base(confPath), ".conf")
-	if err := Run(string(data), name); err != nil {
-		log.Fatalf("service run: %v", err)
-	}
-}
-// (add "os", "path/filepath", "strings" to imports)
+// main.go — replace `func main() {}` with main() + redirectStdHandles() that:
+//   - os.OpenFile(<confdir>/amneziawg_svc.log), SetStdHandle(STDOUT/STDERR),
+//     os.Stdout/os.Stderr = f, log.SetOutput(f)
+//   - read conf path argv, UseFixedGUIDInsteadOfDeterministic = true,
+//     Run(string(data), name)
+//   - defer: ringlogger.Global.WriteTo(logFile)
+// imports add: os, path/filepath, strings, ringlogger
+// (see git history of this dir / the amneziawg-windows fork for the full file)
 ```
+
+> **Plugin requirement:** the service must be created with a **service SID**
+> (`ChangeServiceConfig2(SERVICE_CONFIG_SERVICE_SID_INFO,
+> SERVICE_SID_TYPE_UNRESTRICTED)`), otherwise AmneziaWG's WFP firewall step
+> fails with "The specified group does not exist." See
+> `../amneziawg_flutter_plugin.cpp` `InstallAndStartService`.
 
 Build steps (Windows):
 

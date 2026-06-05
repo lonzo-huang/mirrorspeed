@@ -323,6 +323,15 @@ bool AmneziawgFlutterPlugin::InstallAndStartService(
     return false;
   }
 
+  // Give the service its own (unrestricted) service SID. AmneziaWG scopes its
+  // WFP firewall rules to the service's SID; without a service SID in the
+  // process token the tunnel fails at "Enabling firewall rules: The specified
+  // group does not exist." (firewall/helpers.go). This matches what WireGuard
+  // for Windows does when installing its tunnel service.
+  SERVICE_SID_INFO sidInfo{};
+  sidInfo.dwServiceSidType = SERVICE_SID_TYPE_UNRESTRICTED;
+  ChangeServiceConfig2W(svc, SERVICE_CONFIG_SERVICE_SID_INFO, &sidInfo);
+
   bool started = StartServiceW(svc, 0, nullptr) != FALSE;
   if (!started && GetLastError() == ERROR_SERVICE_ALREADY_RUNNING) {
     started = true;
