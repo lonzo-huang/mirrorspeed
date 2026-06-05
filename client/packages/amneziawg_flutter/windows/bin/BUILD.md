@@ -5,15 +5,15 @@ The Windows build bundles these two files next to `mirrorspeed_vpn.exe`
 
 | File                | Source                                                        |
 |---------------------|---------------------------------------------------------------|
-| `amneziawg_svc.exe` | Built from `amnezia-vpn/amneziawg-windows` (see below)        |
+| `mirrorspeed_svc.exe` | Built from `amnezia-vpn/amneziawg-windows` (see below)        |
 | `wintun.dll`        | Official signed build, fetched by amneziawg-windows `build.cmd` (`wintun-0.14.1`, amd64) |
 
 AmneziaWG runs in **userspace** (`amneziawg-go`) over WinTun, so `tunnel.dll`
 and a WireGuard-NT driver (`wireguard.dll`) are **not** needed on Windows.
 
-## How `amneziawg_svc.exe` was built
+## How `mirrorspeed_svc.exe` was built
 
-`amneziawg_svc.exe` is the same `amneziawg-windows` module built as a normal
+`mirrorspeed_svc.exe` is the same `amneziawg-windows` module built as a normal
 executable instead of `tunnel.dll`. The upstream `main` is an empty stub (the
 module is meant to be built `-buildmode c-shared`); we add a real `main` that
 reads the `.conf` path argv and calls the service entry point `Run()`.
@@ -27,11 +27,11 @@ Two Windows-service gotchas are handled in `main`:
    We redirect the std handles to a log file so those writes succeed.
 2. **Unreadable logs.** `InitGlobalLogger` redirects the `log` package to a
    binary ring buffer (`log.bin`). We dump that ring buffer to the plain-text
-   `amneziawg_svc.log` (next to the conf) on exit, so failures are diagnosable.
+   `mirrorspeed_svc.log` (next to the conf) on exit, so failures are diagnosable.
 
 ```go
 // main.go — replace `func main() {}` with main() + redirectStdHandles() that:
-//   - os.OpenFile(<confdir>/amneziawg_svc.log), SetStdHandle(STDOUT/STDERR),
+//   - os.OpenFile(<confdir>/mirrorspeed_svc.log), SetStdHandle(STDOUT/STDERR),
 //     os.Stdout/os.Stderr = f, log.SetOutput(f)
 //   - read conf path argv, UseFixedGUIDInsteadOfDeterministic = true,
 //     Run(string(data), name)
@@ -58,11 +58,11 @@ build.cmd                            :: fetches Go + llvm-mingw + wintun, builds
 set PATH=%CD%\.deps\llvm-mingw\bin;%CD%\.deps\go\bin;%PATH%
 set GOROOT=%CD%\.deps\go& set GOPATH=%CD%\.deps\gopath
 set GOOS=windows& set GOARCH=amd64& set CGO_ENABLED=1& set CC=x86_64-w64-mingw32-gcc
-go build -ldflags="-w -s" -trimpath -o amneziawg_svc.exe .
+go build -ldflags="-w -s" -trimpath -o mirrorspeed_svc.exe .
 ```
 
-Then copy `amneziawg_svc.exe` and `.deps\wintun\bin\amd64\wintun.dll` here.
+Then copy `mirrorspeed_svc.exe` and `.deps\wintun\bin\amd64\wintun.dll` here.
 
 The plugin (`../amneziawg_flutter_plugin.cpp`, `GetSvcExePath`) looks for
-`amneziawg_svc.exe` next to the app exe and registers it as a Windows service
+`mirrorspeed_svc.exe` next to the app exe and registers it as a Windows service
 with the generated `.conf` path as its argument.

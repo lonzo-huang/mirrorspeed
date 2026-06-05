@@ -142,15 +142,15 @@ void AmneziawgFlutterPlugin::HandleMethodCall(
   if (method == "initialize") {
     std::string name = get_str("win32ServiceName");
     if (name.empty()) name = get_str("localizedDescription");
-    if (name.empty()) name = "awg0";
+    if (name.empty()) name = "mirrorspeed";
     Initialize(name, std::move(result));
 
   } else if (method == "start") {
     std::string conf        = get_str("wgQuickConfig");
     std::string server_addr = get_str("serverAddress");
-    // The tunnel name was set during initialize; fall back to "awg0"
+    // The tunnel name was set during initialize; fall back to "mirrorspeed"
     std::string svc_name = service_name_.empty()
-                               ? "awg0"
+                               ? "mirrorspeed"
                                : WideToUtf8(service_name_);
     if (conf.empty()) {
       result->Error("MISSING_ARGS", "wgQuickConfig is required", nullptr);
@@ -248,10 +248,10 @@ void AmneziawgFlutterPlugin::GetStage(
 std::wstring AmneziawgFlutterPlugin::GetConfDir() const {
   wchar_t tmp[MAX_PATH];
   GetTempPathW(MAX_PATH, tmp);
-  return std::wstring(tmp) + L"awg";
+  return std::wstring(tmp) + L"mirrorspeed";
 }
 
-// Find amneziawg_svc.exe next to the running executable or in its bin/ folder.
+// Find mirrorspeed_svc.exe next to the running executable or in its bin/ folder.
 std::wstring AmneziawgFlutterPlugin::GetSvcExePath() const {
   wchar_t exePath[MAX_PATH];
   GetModuleFileNameW(nullptr, exePath, MAX_PATH);
@@ -261,11 +261,10 @@ std::wstring AmneziawgFlutterPlugin::GetSvcExePath() const {
   auto slash = dir.rfind(L'\\');
   if (slash != std::wstring::npos) dir = dir.substr(0, slash);
 
-  // Candidates: <exedir>\amneziawg_svc.exe, <exedir>\bin\amneziawg_svc.exe
+  // Candidates: <exedir>\mirrorspeed_svc.exe, <exedir>\bin\mirrorspeed_svc.exe
   std::vector<std::wstring> candidates = {
-      dir + L"\\amneziawg_svc.exe",
-      dir + L"\\bin\\amneziawg_svc.exe",
-      dir + L"\\amneziawg\\amneziawg_svc.exe",
+      dir + L"\\mirrorspeed_svc.exe",
+      dir + L"\\bin\\mirrorspeed_svc.exe",
   };
   for (const auto& c : candidates) {
     if (GetFileAttributesW(c.c_str()) != INVALID_FILE_ATTRIBUTES) return c;
@@ -286,7 +285,7 @@ bool AmneziawgFlutterPlugin::WriteConfFile(const std::wstring& path,
 }
 
 // Install and start a Windows service that runs the AWG tunnel.
-// amneziawg_svc.exe <conf_path> is the expected interface.
+// mirrorspeed_svc.exe <conf_path> is the expected interface.
 bool AmneziawgFlutterPlugin::InstallAndStartService(
     const std::wstring& conf_path,
     const std::wstring& service_name) {
@@ -310,7 +309,7 @@ bool AmneziawgFlutterPlugin::InstallAndStartService(
     svc = CreateServiceW(
         scm,
         service_name.c_str(),
-        (L"AmneziaWG Tunnel: " + service_name).c_str(),
+        L"MirrorSpeed VPN",
         SERVICE_ALL_ACCESS,
         SERVICE_WIN32_OWN_PROCESS,
         SERVICE_DEMAND_START,
@@ -323,7 +322,7 @@ bool AmneziawgFlutterPlugin::InstallAndStartService(
     return false;
   }
 
-  // Give the service its own (unrestricted) service SID. AmneziaWG scopes its
+  // Give the service its own (unrestricted) service SID. The tunnel scopes its
   // WFP firewall rules to the service's SID; without a service SID in the
   // process token the tunnel fails at "Enabling firewall rules: The specified
   // group does not exist." (firewall/helpers.go). This matches what WireGuard

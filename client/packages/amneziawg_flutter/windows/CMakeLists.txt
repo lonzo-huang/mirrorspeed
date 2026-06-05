@@ -51,9 +51,9 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE
 #   packages/amneziawg_flutter/windows/bin/
 #
 # Required files:
-#   amneziawg_svc.exe   — tunnel service host (built from amneziawg-windows;
-#                         registered as a Windows service by the plugin)
-#   wintun.dll          — WinTun userspace TUN adapter (official signed build)
+#   mirrorspeed_svc.exe — tunnel service host (registered as a Windows service
+#                         by the plugin)
+#   wintun.dll          — userspace TUN adapter (official signed build)
 #
 # AmneziaWG runs in userspace (amneziawg-go) over WinTun, so neither tunnel.dll
 # nor a WireGuard-NT driver (wireguard.dll) is needed on Windows.

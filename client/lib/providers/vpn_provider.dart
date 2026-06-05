@@ -54,7 +54,7 @@ class VpnProvider extends ChangeNotifier {
 
   // ── 初始化（app 启动时调用一次）────────────────────────────
   Future<void> initialize() async {
-    await AmneziaWG.instance.initialize(interfaceName: 'awg0');
+    await AmneziaWG.instance.initialize(interfaceName: 'mirrorspeed');
     _stageSub = AmneziaWG.instance.vpnStageSnapshot.listen(_onStage);
 
     // 恢复上次选择的路由模式
@@ -265,7 +265,7 @@ class VpnProvider extends ChangeNotifier {
             await _switchToRelay(server, relayBaseUrl: cfUrl, force: true);
           } else {
             // 所有层均失败
-            _error  = '无法连接到 VPN（AWG + wstunnel + Cloudflare 均失败，请检查网络）';
+            _error  = '无法连接到 VPN（全部线路尝试失败，请检查网络后重试）';
             _status = VpnStatus.error;
             notifyListeners();
           }
@@ -648,7 +648,7 @@ class VpnProvider extends ChangeNotifier {
         await _switchToRelay(server, relayBaseUrl: cfUrl, force: true);
       } else {
         // Cloudflare 未配置，报告失败
-        _error  = '中继连接成功但流量不通（wstunnel 层），请检查服务器 wstunnel 配置';
+        _error  = '已连接但流量不通，请稍后重试或更换节点';
         _status = VpnStatus.error;
         notifyListeners();
       }
