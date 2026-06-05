@@ -11,4 +11,15 @@
       <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
     </application>
   </compatibility>
+  <!-- AmneziaWG manages a Windows service (SCM) and creates a network adapter,
+       which both require elevation. Without this the tunnel fails to start with
+       "Failed to start AWG tunnel service: Access denied". Request admin so the
+       app always launches elevated (UAC), matching WireGuard for Windows. -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
 </assembly>
