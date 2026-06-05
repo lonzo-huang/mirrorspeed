@@ -63,6 +63,13 @@ export function generateWgConf({
     `PrivateKey = ${clientPrivateKey}\n` +
     `Address    = ${clientIp}\n` +
     `DNS        = 8.8.8.8, 1.1.1.1\n` +
+    // Conservative MTU so encrypted data packets fit within reduced path MTUs
+    // (PPPoE / mobile / constrained networks). Without it, amneziawg-go on
+    // Windows defaults to ~1420 → full-size data packets exceed the path MTU
+    // and are silently dropped: the tiny handshake succeeds but no data flows,
+    // so direct UDP appears to connect then falls back to relay. 1280 is the
+    // IPv6 minimum and traverses essentially any path.
+    `MTU        = 1280\n` +
     awgSection +
     `\n` +
     `[Peer]\n` +
