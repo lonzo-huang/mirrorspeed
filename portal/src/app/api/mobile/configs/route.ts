@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { decryptKey, encryptKey } from '@/lib/clash'
 import { generateWgConf, buildPeerName } from '@/lib/wireguard'
+import { lookup as dnsLookup } from 'node:dns/promises'
 import { NextRequest, NextResponse } from 'next/server'
 import type { Database } from '@/types/database.types'
 
@@ -265,6 +266,18 @@ export async function GET(req: NextRequest) {
   // 合并已有 + 新建 Peer
   const allPeers: PeerData[] = [...existingPeers, ...provisioned]
 
+  // ── 解析每个服务器端点的公网 IP（用于把它从 AllowedIPs 里抠掉，避免
+  //    客户端把发往端点的 WG 包又路由进隧道造成封装环路）────────────────
+  const endpointHosts = [...new Set(allPeers.map(p => p.server?.endpoint).filter(Boolean) as string[])]
+  const endpointIp = new Map<string, string>()
+  await Promise.all(endpointHosts.map(async host => {
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) { endpointIp.set(host, host); return }
+    try {
+      const { address } = await dnsLookup(host, { family: 4 })
+      endpointIp.set(host, address)
+    } catch { /* 解析失败则不抠（退回原列表） */ }
+  }))
+
   // ── 组装响应 ──────────────────────────────────────────────────
   const result = devices.map(dev => {
     const devPeers = allPeers.filter(p => p.device_id === dev.id)
@@ -308,6 +321,7 @@ export async function GET(req: NextRequest) {
         serverEndpoint:   srv.endpoint,
         serverPort:       srv.port,
         awgParams,
+        serverPublicIp:   endpointIp.get(srv.endpoint),
       })
 
       return {

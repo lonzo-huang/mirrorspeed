@@ -10,6 +10,48 @@ export const WG_ALLOWED_IPS =
   '194.0.0.0/7, 196.0.0.0/6, 200.0.0.0/5, 208.0.0.0/4, ' +
   '10.200.0.0/24, 2000::/3'
 
+const ipToInt = (ip: string) =>
+  ip.split('.').reduce((a, o) => ((a << 8) + (Number(o) & 255)) >>> 0, 0) >>> 0
+const intToIp = (n: number) =>
+  [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.')
+
+// Return WG_ALLOWED_IPS with `ip` carved out (the /32 removed by splitting the
+// covering CIDR). The VPN server's own public IP must NOT be routed into the
+// tunnel — otherwise the client's WireGuard packets to the endpoint get routed
+// back through the tunnel, creating an endless encapsulation loop (no traffic
+// flows). wg-quick / wireguard-windows only auto-exclude the endpoint for a
+// literal default route (0.0.0.0/0); with our split AllowedIPs we carve it out
+// explicitly so it works on Windows too (Android sidesteps this via socket
+// protect()).
+export function allowedIpsExcluding(ip: string | null | undefined): string {
+  if (!ip || !/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) return WG_ALLOWED_IPS
+  const target = ipToInt(ip)
+  const out: string[] = []
+  for (const raw of WG_ALLOWED_IPS.split(',').map(s => s.trim())) {
+    if (raw.includes(':')) { out.push(raw); continue }        // IPv6 untouched
+    const [base, bitsStr] = raw.split('/')
+    const bits = Number(bitsStr)
+    const mask = bits === 0 ? 0 : (0xFFFFFFFF << (32 - bits)) >>> 0
+    if ((target & mask) !== (ipToInt(base) & mask)) { out.push(raw); continue }
+    // CIDR contains target → split down to /32, keeping the sibling halves.
+    let lo = ipToInt(base) & mask
+    for (let p = bits; p < 32; p++) {
+      const childBits = p + 1
+      const half = (1 << (32 - childBits)) >>> 0
+      const left = lo
+      const right = (lo + half) >>> 0
+      const childMask = (0xFFFFFFFF << (32 - childBits)) >>> 0
+      if ((target & childMask) === (left & childMask)) {
+        out.push(`${intToIp(right)}/${childBits}`); lo = left
+      } else {
+        out.push(`${intToIp(left)}/${childBits}`);  lo = right
+      }
+    }
+    // lo === target/32 now → intentionally dropped
+  }
+  return out.join(', ')
+}
+
 // Deterministic peer name for a (device, server) pair. The SAME device+server
 // always yields the SAME name, so provisioning is idempotent and concurrent
 // requests collide on the unique (device_id, server_id) index instead of
@@ -42,6 +84,7 @@ export interface WgPeerConfig {
   serverEndpoint:   string
   serverPort:       number
   awgParams?:       AwgParams  // Omit or set jc=0 for standard WireGuard
+  serverPublicIp?:  string     // resolved endpoint IP, carved out of AllowedIPs
 }
 
 export function generateWgConf({
@@ -52,7 +95,11 @@ export function generateWgConf({
   serverEndpoint,
   serverPort,
   awgParams,
+  serverPublicIp,
 }: WgPeerConfig): string {
+  // Route everything per the split list EXCEPT the server's own public IP,
+  // which must reach the endpoint outside the tunnel (avoids the WG-in-WG loop).
+  const allowedIps = allowedIpsExcluding(serverPublicIp)
   // Include AWG obfuscation section only when Jc > 0
   const awgSection = (awgParams && awgParams.jc > 0)
     ? [
@@ -86,7 +133,7 @@ export function generateWgConf({
     `PublicKey    = ${serverPublicKey}\n` +
     `PresharedKey = ${presharedKey}\n` +
     `Endpoint     = ${serverEndpoint}:${serverPort}\n` +
-    `AllowedIPs   = ${WG_ALLOWED_IPS}\n` +
+    `AllowedIPs   = ${allowedIps}\n` +
     `PersistentKeepalive = 25\n`
   )
 }
