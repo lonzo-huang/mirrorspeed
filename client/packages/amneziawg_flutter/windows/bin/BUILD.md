@@ -40,6 +40,15 @@ Two Windows-service gotchas are handled in `main`:
 // (see git history of this dir / the amneziawg-windows fork for the full file)
 ```
 
+> **amneziawg-go patch (Windows UDP robustness):** the upstream Windows RIO
+> receive path (`conn/bind_windows.go`, `afWinRingBind.Receive`) treats any
+> non-zero completion status as fatal, so a single ICMP-induced
+> `WSAECONNRESET` (e.g. a port-unreachable from transient port-hopping/NAT
+> churn) permanently kills the receive routine and breaks the tunnel. Patch it
+> to `goto retry` on `WSAECONNRESET`/`WSAENETRESET`/`WSAECONNREFUSED` (same as
+> the existing `WSAEMSGSIZE` handling) via a `replace` directive to a local
+> copy of `amneziawg-go`. This is required for a stable long-lived tunnel.
+
 > **Plugin requirement:** the service must be created with a **service SID**
 > (`ChangeServiceConfig2(SERVICE_CONFIG_SERVICE_SID_INFO,
 > SERVICE_SID_TYPE_UNRESTRICTED)`), otherwise AmneziaWG's WFP firewall step

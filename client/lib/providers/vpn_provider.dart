@@ -149,10 +149,12 @@ class VpnProvider extends ChangeNotifier {
         providerBundleIdentifier: kProviderBundle,
       );
 
-      // 12 秒内未收到 connected 事件 → 自动切换 wstunnel 443 中继（层 2）
-      // 使用 relayHost（域名）而非 endpoint（可能为 IP），确保 TLS 证书匹配
+      // 直连兜底：到时仍未确认连通 → 切换 wstunnel 443 中继（层 2）。
+      // 16s 给 _postConnectCheck 的多次探测（约 4+5+1+5s）留足时间，避免
+      // 在直连其实可用、只是数据面稍慢稳定时被过早切走。
+      // 使用 relayHost（域名）而非 endpoint（可能为 IP），确保 TLS 证书匹配。
       _fallbackTimer = Timer(
-        const Duration(seconds: 12),
+        const Duration(seconds: 16),
         () => _switchToRelay(server, relayBaseUrl: 'wss://${server.relayHost}'),
       );
 
@@ -605,14 +607,27 @@ class VpnProvider extends ChangeNotifier {
     // 如果定时器已经抢先触发了 _switchToRelay，跳过避免并发
     if (_switchingToRelay) return;
 
-    final ok = await _probeConnectivity();
+    // 直连握手成功后，数据面（路由/防火墙）可能需要一两秒才稳定，首个探测
+    // 偶尔会误判为不通。多探测几次再决定，避免把其实可用的直连错误回退到中继。
+    bool ok = false;
+    for (var attempt = 1; attempt <= 2; attempt++) {
+      ok = await _probeConnectivity();
+      if (ok) break;
+      // 探测期间若已被定时器切走/断开，停止
+      if (_status != VpnStatus.connected ||
+          _protocol == VpnProtocol.relay ||
+          _switchingToRelay) {
+        return;
+      }
+      if (attempt < 2) await Future.delayed(const Duration(seconds: 1));
+    }
 
     if (ok) {
       _fallbackTimer?.cancel(); // 流量畅通，取消中继切换计时器
       debugPrint('[VPN] 连通性验证成功，保持直连');
     } else {
-      // UDP 握手失败或流量被墙，立即切换 wstunnel 443 中继（层 2）
-      debugPrint('[VPN] 连通性验证失败，切换 wstunnel 443 中继');
+      // UDP 握手失败或流量被墙，切换 wstunnel 443 中继（层 2）
+      debugPrint('[VPN] 连通性多次验证失败，切换 wstunnel 443 中继');
       await _switchToRelay(
         server,
         relayBaseUrl: 'wss://${server.relayHost}',  // 域名，确保 TLS 匹配
