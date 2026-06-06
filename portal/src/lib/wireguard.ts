@@ -10,6 +10,16 @@ export const WG_ALLOWED_IPS =
   '194.0.0.0/7, 196.0.0.0/6, 200.0.0.0/5, 208.0.0.0/4, ' +
   '10.200.0.0/24, 2000::/3'
 
+// Deterministic peer name for a (device, server) pair. The SAME device+server
+// always yields the SAME name, so provisioning is idempotent and concurrent
+// requests collide on the unique (device_id, server_id) index instead of
+// creating duplicate peers. Satisfies the server's [a-zA-Z0-9_-]{1,64} rule.
+export function buildPeerName(deviceId: string, serverId: string): string {
+  const dev = deviceId.replace(/-/g, '').slice(0, 8)
+  const srv = serverId.replace(/-/g, '').slice(0, 8)
+  return `ms-${dev}-${srv}`
+}
+
 // AmneziaWG obfuscation parameters (must match server awg0.conf exactly).
 // Jc = 0 means obfuscation disabled (standard WireGuard behaviour).
 export interface AwgParams {

@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { decryptKey, encryptKey } from '@/lib/clash'
-import { generateWgConf } from '@/lib/wireguard'
+import { generateWgConf, buildPeerName } from '@/lib/wireguard'
 import { NextRequest, NextResponse } from 'next/server'
 import type { Database } from '@/types/database.types'
 
@@ -73,12 +73,8 @@ async function provisionPeer(
     return null
   }
 
-  // Peer 名称：ms-{userId前8位}-{deviceId前8位}-{serverId前4位}
-  // 格式满足 [a-zA-Z0-9_-]{1,64}，在同一服务器上全局唯一
-  const uid8 = userId.replace(/-/g, '').slice(0, 8)
-  const dev8 = deviceId.replace(/-/g, '').slice(0, 8)
-  const srv4 = server.id.replace(/-/g, '').slice(0, 4)
-  const peerName = `ms-${uid8}-${dev8}-${srv4}`
+  // 确定性命名（同一 device+server 永远同名，幂等）；与 device 注册路径一致。
+  const peerName = buildPeerName(deviceId, server.id)
 
   // 调用 vpn-api（10 秒超时）
   let apiJson: {

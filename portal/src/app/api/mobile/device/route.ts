@@ -30,11 +30,12 @@ async function provisionPeers(
 
   const VPN_API_SECRET = process.env.VPN_API_SECRET!
   const { encryptKey } = await import('@/lib/clash')
-  const uid8           = userId.replace(/-/g, '').slice(0, 8)
-  const deviceShort    = crypto.randomUUID().replace(/-/g, '').slice(0, 4)
+  const { buildPeerName } = await import('@/lib/wireguard')
 
   const results = await Promise.allSettled(servers.map(async server => {
-    const peerName = `u${uid8}_${deviceShort}_${server.name.toLowerCase()}`
+    // 确定性命名（与 /api/mobile/configs 的自动配置完全一致），保证同一
+    // device+server 永远同名、幂等。
+    const peerName = buildPeerName(deviceId, server.id)
     const res = await fetch(`${server.api_url}/peers`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'X-API-Secret': VPN_API_SECRET },
@@ -45,7 +46,7 @@ async function provisionPeers(
       throw new Error(`VPN server ${server.name} returned ${res.status}: ${err}`)
     }
     const peerInfo = await res.json()
-    await admin.from('vpn_device_peers').insert({
+    const { error } = await admin.from('vpn_device_peers').insert({
       device_id:         deviceId,
       server_id:         server.id,
       user_id:           userId,
@@ -55,6 +56,11 @@ async function provisionPeers(
       preshared_key_enc: encryptKey(peerInfo.preshared_key),
       vpn_ip:            peerInfo.vpn_ip,
     })
+    // 23505 = 唯一索引冲突：另一并发请求已为该 (device, server) 建好 peer。
+    // 视为成功（已存在），不重复报错。
+    if (error && (error as { code?: string }).code !== '23505') {
+      throw new Error(`DB insert failed for ${server.name}: ${error.message}`)
+    }
   }))
 
   const failed = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]
