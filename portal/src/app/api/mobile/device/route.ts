@@ -24,21 +24,25 @@ async function provisionPeers(
   deviceId: string,
 ) {
   const { data: servers } = await admin
-    .from('vpn_servers').select('id, name, api_url').eq('is_active', true)
+    .from('vpn_servers').select('id, name, api_url, api_secret').eq('is_active', true)
 
   if (!servers?.length) return { ok: false, error: '当前没有可用的 VPN 服务器，请稍后再试' }
 
-  const VPN_API_SECRET = process.env.VPN_API_SECRET!
   const { encryptKey } = await import('@/lib/clash')
   const { buildPeerName } = await import('@/lib/wireguard')
 
-  const results = await Promise.allSettled(servers.map(async server => {
+  const results = await Promise.allSettled(servers.map(async (server: { id: string; name: string; api_url: string; api_secret: string | null }) => {
+    // 每个服务器用自己的 api_secret（数据库 per-server），与 /api/mobile/configs
+    // 一致，不再依赖 Vercel 环境变量。
+    if (!server.api_secret) {
+      throw new Error(`VPN server ${server.name} 未配置 api_secret`)
+    }
     // 确定性命名（与 /api/mobile/configs 的自动配置完全一致），保证同一
     // device+server 永远同名、幂等。
     const peerName = buildPeerName(deviceId, server.id)
     const res = await fetch(`${server.api_url}/peers`, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Secret': VPN_API_SECRET },
+      headers: { 'Content-Type': 'application/json', 'X-API-Secret': server.api_secret },
       body:    JSON.stringify({ peer_name: peerName }),
     })
     if (!res.ok) {
