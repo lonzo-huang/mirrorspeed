@@ -84,7 +84,8 @@ table inet enterprise-fw {
         ct state established,related accept
 
         # TCP MSS 钳位：防止 WireGuard MTU(1420) 导致大包被丢弃
-        tcp flags syn,rst syn tcp option maxseg size set 1360
+        # nftables 用「值 / 掩码」表达 iptables 的 --tcp-flags SYN,RST SYN
+        tcp flags syn / syn,rst tcp option maxseg size set 1360
 
         # 允许 WireGuard 子网出站（VPN 客户端访问公网）
         ip saddr 10.200.0.0/24 oif ${WAN_IF} accept
