@@ -125,12 +125,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 16),
 
-              // ── 免费流量进度条（用量本地计量 #8）──────────────
-              if (!isPaid && auth.dailyQuotaBytes != null) ...[
+              // ── 免费试用时长（按时间 #3）──────────────────────
+              if (vpn.isFreeTrial) ...[
                 _QuotaSection(
-                  used:      vpn.dailyUsed,
-                  quota:     auth.dailyQuotaBytes!,
-                  suspended: vpn.quotaExceeded,
+                  remainingSec: vpn.trialRemainingSec,
+                  totalSec:     vpn.trialTotalSec,
+                  exceeded:     vpn.quotaExceeded,
                 ),
                 const SizedBox(height: 16),
               ],
@@ -438,23 +438,22 @@ class _ActionRow extends StatelessWidget {
   );
 }
 
-// ── 流量进度条（免费用户）─────────────────────────────────────
+// ── 免费试用时长（按时间）─────────────────────────────────────
 class _QuotaSection extends StatelessWidget {
-  final int  used;
-  final int  quota;
-  final bool suspended;
-  const _QuotaSection({required this.used, required this.quota, required this.suspended});
+  final int  remainingSec;
+  final int  totalSec;
+  final bool exceeded;
+  const _QuotaSection({required this.remainingSec, required this.totalSec, required this.exceeded});
 
-  String _fmt(int bytes) {
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
-    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+  String _fmt(int s) {
+    final m = s ~/ 60, sec = s % 60;
+    return '${m.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final ratio    = (used / quota).clamp(0.0, 1.0);
-    final color    = suspended
-        ? kDanger : ratio > 0.8 ? Colors.amber : kSuccess;
+    final ratio = totalSec > 0 ? (remainingSec / totalSec).clamp(0.0, 1.0) : 0.0;
+    final color = exceeded ? kDanger : (ratio < 0.2 ? Colors.amber : kSuccess);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -465,15 +464,15 @@ class _QuotaSection extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.data_usage_rounded, size: 15, color: color),
+          Icon(Icons.timer_outlined, size: 15, color: color),
           const SizedBox(width: 6),
-          Text('今日免费流量',
+          Text('今日免费时长',
             style: TextStyle(color: color, fontSize: 13,
               fontWeight: FontWeight.w600)),
           const Spacer(),
-          Text(suspended
+          Text(exceeded
             ? '已用完'
-            : '${_fmt(used)} / ${_fmt(quota)}',
+            : '剩余 ${_fmt(remainingSec)}',
             style: TextStyle(color: color, fontSize: 12)),
         ]),
         const SizedBox(height: 10),

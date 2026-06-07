@@ -53,9 +53,19 @@ class VpnProvider extends ChangeNotifier {
   int                _dailyUsed   = 0;       // 今日已用字节（本地累计）
   String             _usageDay    = '';      // 当前计量所属 UTC 日期 yyyy-mm-dd
   int?               _statsBaseline;         // 上次轮询的隧道累计值，用于求增量
-  int?               _quotaBytes;            // 服务器下发的今日上限（null=无限/付费）
-  bool               _quotaExceeded = false; // 今日额度是否已用尽
+  int?               _quotaBytes;            // 服务器下发的今日上限（仅用于流量展示）
   Timer?             _usageTimer;
+
+  // ── 基于时间的免费试用（#3 + 看广告延长 #4）──────────────────────
+  // 免费用户首次连接成功当天记 _trialStartMs，倒计时按【墙钟】连续走，
+  // 断开也不停；到期当天禁连，次日(UTC)重置。上限 _timeLimitSec 从服务器拉取，
+  // 看激励广告每次 +kAdRewardMinutes 分钟累加到 _adBonusSec。
+  int?               _timeLimitSec;          // 服务器下发的每日试用秒数（null=无限/付费）
+  int?               _trialStartMs;          // 今日首次连接成功的时间戳(ms)
+  int                _adBonusSec = 0;        // 今日通过看广告累加的额外秒数
+  String             _trialDay   = '';       // 计量所属 UTC 日期
+  bool               _trialExceeded = false; // 今日试用是否已用尽
+  Timer?             _trialTimer;
 
   VpnStatus     get status       => _status;
   ServerConfig? get activeServer => _activeServer;
@@ -69,10 +79,24 @@ class VpnProvider extends ChangeNotifier {
   bool get isBusy      => _status == VpnStatus.connecting ||
                           _status == VpnStatus.disconnecting;
 
-  // ── 本地用量对外接口 ──────────────────────────────────────────
+  // ── 本地用量/试用对外接口 ────────────────────────────────────
   int   get dailyUsed     => _dailyUsed;
   int?  get quotaBytes    => _quotaBytes;
-  bool  get quotaExceeded => _quotaExceeded;
+
+  /// 当前是否处于「按时间免费试用」模式（免费用户）。
+  bool get isFreeTrial    => _timeLimitSec != null;
+  /// 今日总可用秒数 = 基础上限 + 看广告奖励。
+  int  get trialTotalSec  => (_timeLimitSec ?? 0) + _adBonusSec;
+  /// 今日剩余秒数（已开始则按墙钟扣减；未开始则等于总额度）。
+  int  get trialRemainingSec {
+    if (_timeLimitSec == null) return 0;
+    if (_trialStartMs == null) return trialTotalSec;
+    final elapsed = (DateTime.now().millisecondsSinceEpoch - _trialStartMs!) ~/ 1000;
+    final r = trialTotalSec - elapsed;
+    return r > 0 ? r : 0;
+  }
+  /// 试用是否已用尽（免费用户额度耗尽 → 禁连，可看广告或次日恢复）。
+  bool get quotaExceeded  => _trialExceeded;
 
   static String _utcDay() => DateTime.now().toUtc().toIso8601String().substring(0, 10);
 
@@ -128,6 +152,7 @@ class VpnProvider extends ChangeNotifier {
     );
     _stageSub = AmneziaWG.instance.vpnStageSnapshot.listen(_onStage);
     await _loadUsage();
+    await _loadTrial();
 
     // 恢复上次选择的路由模式
     final prefs = await SharedPreferences.getInstance();
@@ -703,6 +728,7 @@ class VpnProvider extends ChangeNotifier {
       _fallbackTimer?.cancel(); // 流量畅通，取消中继切换计时器
       _status = VpnStatus.connected;   // 验证通过才显示已连接（#5）
       _startUsagePolling();
+      _startTrialTracking();
       notifyListeners();
       debugPrint('[VPN] 连通性验证成功，保持直连（快速模式）');
     } else {
@@ -738,6 +764,7 @@ class VpnProvider extends ChangeNotifier {
     if (ok) {
       _status = VpnStatus.connected;   // 验证通过才显示已连接（#5）
       _startUsagePolling();
+      _startTrialTracking();
       notifyListeners();
       debugPrint('[VPN] 中继连通性验证成功（$modeLabel）');
     } else {
@@ -808,18 +835,16 @@ class VpnProvider extends ChangeNotifier {
   void _rollDayIfNeeded() {
     final today = _utcDay();
     if (_usageDay != today) {
-      _usageDay      = today;
-      _dailyUsed     = 0;
-      _quotaExceeded = false;
+      _usageDay  = today;
+      _dailyUsed = 0;
       _persistUsage();
     }
   }
 
-  /// 服务器下发的今日上限（null = 无限/付费用户）。由 AuthProvider 配置变化时调用。
+  /// 流量上限（仅展示用，不做强制；试用强制由时间额度负责）。
   void setDailyQuota(int? bytes) {
     _quotaBytes = bytes;
     _rollDayIfNeeded();
-    _enforceQuota();
     notifyListeners();
   }
 
@@ -848,25 +873,94 @@ class VpnProvider extends ChangeNotifier {
     _dailyUsed += delta;
     _persistUsage();
     notifyListeners();
-    _enforceQuota();
   }
 
-  // 超过本地额度即断开并标记，UI 显示「已用完」。付费用户(quota=null)不限。
-  void _enforceQuota() {
-    if (_quotaBytes == null) { _quotaExceeded = false; return; }
-    if (_dailyUsed >= _quotaBytes!) {
-      _quotaExceeded = true;
+  // ── 时间试用实现（#3）+ 看广告延长（#4）─────────────────────────
+  Future<void> _loadTrial() async {
+    final prefs = await SharedPreferences.getInstance();
+    _trialDay     = prefs.getString('trial_day') ?? _utcDay();
+    _trialStartMs = prefs.getInt('trial_start_ms');
+    _adBonusSec   = prefs.getInt('trial_bonus_sec') ?? 0;
+    _rollTrialDayIfNeeded();
+    _recomputeTrial();
+  }
+
+  Future<void> _persistTrial() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('trial_day', _trialDay);
+    if (_trialStartMs == null) {
+      await prefs.remove('trial_start_ms');
+    } else {
+      await prefs.setInt('trial_start_ms', _trialStartMs!);
+    }
+    await prefs.setInt('trial_bonus_sec', _adBonusSec);
+  }
+
+  void _rollTrialDayIfNeeded() {
+    final today = _utcDay();
+    if (_trialDay != today) {
+      _trialDay      = today;
+      _trialStartMs  = null;     // 次日重新开始一轮
+      _adBonusSec    = 0;
+      _trialExceeded = false;
+      _persistTrial();
+    }
+  }
+
+  /// 服务器下发的每日试用秒数（null = 无限/付费）。AuthProvider 配置变化时调用。
+  void setTimeQuota(int? seconds) {
+    _timeLimitSec = seconds;
+    _rollTrialDayIfNeeded();
+    _recomputeTrial();
+    notifyListeners();
+  }
+
+  // 免费用户首次连接成功：启动倒计时（一旦开始按墙钟连续走，断开也不停）。
+  void _startTrialTracking() {
+    if (_timeLimitSec == null) return;          // 付费用户不计
+    _rollTrialDayIfNeeded();
+    _trialStartMs ??= DateTime.now().millisecondsSinceEpoch;
+    _persistTrial();
+    _trialTimer?.cancel();
+    _trialTimer = Timer.periodic(const Duration(seconds: 1), (_) => _recomputeTrial());
+    _recomputeTrial();
+  }
+
+  // 计算剩余、刷新 UI、用尽则断开。
+  void _recomputeTrial() {
+    if (_timeLimitSec == null) { _trialExceeded = false; return; }
+    _rollTrialDayIfNeeded();
+    final exhausted = _trialStartMs != null && trialRemainingSec <= 0;
+    if (exhausted && !_trialExceeded) {
+      _trialExceeded = true;
       if (isConnected || _status == VpnStatus.connecting) {
-        debugPrint('[VPN] 今日本地额度已用尽，断开连接');
+        debugPrint('[VPN] 今日免费试用时长已用尽，断开连接');
         disconnect();
       }
     }
+    notifyListeners();
+  }
+
+  /// 看完一条激励视频 → 增加奖励时长（#4）。立即生效，可解除「已用尽」。
+  Future<void> addAdBonusMinutes(int minutes) async {
+    _rollTrialDayIfNeeded();
+    _adBonusSec += minutes * 60;
+    await _persistTrial();
+    if (trialRemainingSec > 0) _trialExceeded = false;
+    notifyListeners();
+  }
+
+  String get trialRemainingFormatted {
+    final s = trialRemainingSec;
+    final m = s ~/ 60, sec = s % 60;
+    return '${m.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}';
   }
 
   @override
   void dispose() {
     _fallbackTimer?.cancel();
     _usageTimer?.cancel();
+    _trialTimer?.cancel();
     _stageSub?.cancel();
     _timer?.cancel();
     // 应用销毁（退出）时务必拆除隧道，避免原生隧道/路由表残留导致退出后断网。

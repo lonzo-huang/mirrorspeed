@@ -26,3 +26,11 @@ const bool   kIsCnFlavor = kAppFlavor == 'cn';
 // OAuth 回调 URL Scheme（与 AndroidManifest deepLinkScheme 一致）
 const String kAuthCallbackScheme = kIsCnFlavor ? 'jinsuapp' : 'mirrorspeed';
 const String kAuthCallbackUrl    = '$kAuthCallbackScheme://login-callback';
+
+// ── AdMob 广告（仅 Android/iOS）──────────────────────────────────
+// App ID 同时写入 AndroidManifest / Info.plist。
+const String kAdMobAppId       = 'ca-app-pub-6444342069684995~8865360511';
+const String kAdRewardedUnitId = 'ca-app-pub-6444342069684995/6183660776'; // 激励视频 → 延长试用
+const String kAdAppOpenUnitId  = 'ca-app-pub-6444342069684995/6906245736'; // 开屏（可跳过）
+// 每看完一条激励视频奖励的免费时长（分钟）
+const int    kAdRewardMinutes  = 30;

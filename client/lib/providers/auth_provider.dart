@@ -36,7 +36,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // ── 流量额度（取第一个设备，通常用户只有一台设备）──────────
-  int?  get dailyQuotaBytes  => _configs.isNotEmpty ? _configs.first.dailyQuotaBytes  : null;
+  int?  get dailyQuotaBytes   => _configs.isNotEmpty ? _configs.first.dailyQuotaBytes   : null;
+  int?  get dailyQuotaSeconds => _configs.isNotEmpty ? _configs.first.dailyQuotaSeconds : null;
   int   get dailyBytesUsed   => _configs.isNotEmpty ? _configs.first.dailyBytesUsed   : 0;
   bool  get isSuspended      => _configs.isNotEmpty ? _configs.first.isSuspended      : false;
   double? get usageRatio     => _configs.isNotEmpty ? _configs.first.usageRatio       : null;

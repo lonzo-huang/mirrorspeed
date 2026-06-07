@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
+import '../services/ad_service.dart';
 import '../env.dart';
 import '../theme.dart';
 import '../widgets/connect_button.dart';
@@ -58,8 +59,11 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 32),
 
               // ── 连接按钮（超额时改为升级按钮）──────────────────
-              if (vpn.quotaExceeded && !vpn.isConnected)
-                _UpgradeButton()
+              if (vpn.quotaExceeded && !vpn.isConnected) ...[
+                _UpgradeButton(),
+                const SizedBox(height: 10),
+                const _AdExtendButton(),
+              ]
               else
                 ConnectButton(
                   status: vpn.status,
@@ -128,13 +132,16 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 12),
 
-              // ── 流量进度条（免费用户，用量本地计量 #8）──────────────
-              if (auth.dailyQuotaBytes != null)
-                _QuotaBar(
-                  used:      vpn.dailyUsed,
-                  quota:     auth.dailyQuotaBytes!,
-                  suspended: vpn.quotaExceeded,
+              // ── 免费试用倒计时（按时间 #3）+ 看广告延长（#4）──────────
+              if (vpn.isFreeTrial) ...[
+                _TrialBar(
+                  remainingSec: vpn.trialRemainingSec,
+                  totalSec:     vpn.trialTotalSec,
+                  exceeded:     vpn.quotaExceeded,
                 ),
+                const SizedBox(height: 8),
+                const _AdExtendButton(compact: true),
+              ],
 
               const SizedBox(height: 8),
 
@@ -276,25 +283,22 @@ class _VpnErrorBanner extends StatelessWidget {
   }
 }
 
-// ── 流量进度条 ───────────────────────────────────────────────────────────────
-class _QuotaBar extends StatelessWidget {
-  final int  used;
-  final int  quota;
-  final bool suspended;
-  const _QuotaBar({ required this.used, required this.quota, required this.suspended });
+// ── 免费试用倒计时条（按时间）────────────────────────────────────────────────
+class _TrialBar extends StatelessWidget {
+  final int  remainingSec;
+  final int  totalSec;
+  final bool exceeded;
+  const _TrialBar({ required this.remainingSec, required this.totalSec, required this.exceeded });
 
-  String _fmt(int bytes) {
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
-    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+  String _fmt(int s) {
+    final m = s ~/ 60, sec = s % 60;
+    return '${m.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final ratio = (used / quota).clamp(0.0, 1.0);
-    final color = suspended
-        ? kDanger
-        : ratio > 0.8 ? Colors.amber : kSuccess;
-
+    final ratio = totalSec > 0 ? (remainingSec / totalSec).clamp(0.0, 1.0) : 0.0;
+    final color = exceeded ? kDanger : (ratio < 0.2 ? Colors.amber : kSuccess);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -304,12 +308,12 @@ class _QuotaBar extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.data_usage_rounded, size: 13, color: color),
+          Icon(Icons.timer_outlined, size: 13, color: color),
           const SizedBox(width: 6),
-          Text('今日免费流量', style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text('今日免费时长', style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
           const Spacer(),
           Text(
-            suspended ? '已用完' : '${_fmt(used)} / ${_fmt(quota)}',
+            exceeded ? '已用完' : '剩余 ${_fmt(remainingSec)}',
             style: TextStyle(color: color, fontSize: 11, fontFamily: 'monospace'),
           ),
         ]),
@@ -324,6 +328,69 @@ class _QuotaBar extends StatelessWidget {
           ),
         ),
       ]),
+    );
+  }
+}
+
+// ── 看广告延长时长按钮（激励视频，仅 Android/iOS）──────────────────────────────
+class _AdExtendButton extends StatefulWidget {
+  final bool compact;
+  const _AdExtendButton({ this.compact = false });
+  @override State<_AdExtendButton> createState() => _AdExtendButtonState();
+}
+
+class _AdExtendButtonState extends State<_AdExtendButton> {
+  bool _busy = false;
+
+  Future<void> _watch() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final vpn = context.read<VpnProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    AdService.instance.showRewarded(
+      onReward: () => vpn.addAdBonusMinutes(kAdRewardMinutes),
+      onClosed: (rewarded) {
+        if (!mounted) return;
+        setState(() => _busy = false);
+        messenger.showSnackBar(SnackBar(
+          content: Text(rewarded ? '已增加 $kAdRewardMinutes 分钟免费时长 🎉' : '广告未加载好，请稍后再试'),
+          backgroundColor: rewarded ? kSuccess : kDanger,
+          duration: const Duration(seconds: 2),
+        ));
+      },
+    );
+    // 兜底：showRewarded 未就绪会立刻 onClosed(false)，这里防止卡在 busy
+    await Future.delayed(const Duration(seconds: 1));
+    if (mounted && _busy) setState(() => _busy = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = '看广告 +$kAdRewardMinutes 分钟';
+    if (widget.compact) {
+      return Align(
+        alignment: Alignment.center,
+        child: TextButton.icon(
+          onPressed: _busy ? null : _watch,
+          icon: const Icon(Icons.play_circle_outline_rounded, size: 16),
+          label: Text(label, style: const TextStyle(fontSize: 12)),
+          style: TextButton.styleFrom(foregroundColor: kBrand),
+        ),
+      );
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _busy ? null : _watch,
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: kBrand.withOpacity(0.5)),
+          foregroundColor: kBrand,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 13),
+        ),
+        icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
+        label: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+      ),
     );
   }
 }

@@ -187,14 +187,17 @@ export async function GET(req: NextRequest) {
   const isPaidUser = !!sub || hasActiveBonus
 
   // ── 免费额度（来自 app_config，付费用户不限制）──────────────
-  let dailyQuotaBytes: number | null = null
+  // 同时下发按流量(bytes，旧)与按时间(seconds，新)两个上限，客户端选用其一。
+  let dailyQuotaBytes:   number | null = null
+  let dailyQuotaSeconds: number | null = null
   if (!isPaidUser) {
-    const { data: cfg } = await admin
+    const { data: cfgRows } = await admin
       .from('app_config' as any)
-      .select('value')
-      .eq('key', 'free_daily_bytes')
-      .maybeSingle()
-    dailyQuotaBytes = cfg ? parseInt((cfg as any).value, 10) : 524288000 // fallback 500MB
+      .select('key, value')
+      .in('key', ['free_daily_bytes', 'free_daily_seconds'])
+    const m = new Map((cfgRows ?? []).map((r: any) => [r.key, r.value]))
+    dailyQuotaBytes   = m.has('free_daily_bytes')   ? parseInt(m.get('free_daily_bytes'), 10)   : 524288000 // 500MB
+    dailyQuotaSeconds = m.has('free_daily_seconds') ? parseInt(m.get('free_daily_seconds'), 10) : 3600       // 1h
   }
 
   // ── 拉取设备列表 ──────────────────────────────────────────────
@@ -342,9 +345,10 @@ export async function GET(req: NextRequest) {
     return {
       id:                dev.id,
       label:             dev.device_label,
-      daily_quota_bytes: dailyQuotaBytes,  // null = 無制限（有料ユーザー）
-      daily_bytes_used:  dailyBytesUsed,
-      is_suspended:      isSuspended,
+      daily_quota_bytes:   dailyQuotaBytes,    // null = 無制限（有料ユーザー）
+      daily_quota_seconds: dailyQuotaSeconds,  // 时间试用上限（秒）；null = 无限
+      daily_bytes_used:    dailyBytesUsed,
+      is_suspended:        isSuspended,
       servers,
     }
   })

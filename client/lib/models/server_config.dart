@@ -53,7 +53,8 @@ class DeviceInfo {
   final String             id;
   final String             label;
   final List<ServerConfig> servers;
-  final int?               dailyQuotaBytes; // null = unlimited (paid users)
+  final int?               dailyQuotaBytes;   // null = unlimited (paid users)
+  final int?               dailyQuotaSeconds; // 时间试用上限（秒）；null = 无限
   final int                dailyBytesUsed;
   final bool               isSuspended;
 
@@ -62,16 +63,18 @@ class DeviceInfo {
     required this.label,
     required this.servers,
     this.dailyQuotaBytes,
+    this.dailyQuotaSeconds,
     this.dailyBytesUsed = 0,
     this.isSuspended    = false,
   });
 
   factory DeviceInfo.fromJson(Map<String, dynamic> j) => DeviceInfo(
-    id:               j['id']    as String,
-    label:            j['label'] as String,
-    dailyQuotaBytes:  j['daily_quota_bytes'] as int?,
-    dailyBytesUsed:   (j['daily_bytes_used'] as num?)?.toInt() ?? 0,
-    isSuspended:      j['is_suspended'] as bool? ?? false,
+    id:                j['id']    as String,
+    label:             j['label'] as String,
+    dailyQuotaBytes:   j['daily_quota_bytes']   as int?,
+    dailyQuotaSeconds: (j['daily_quota_seconds'] as num?)?.toInt(),
+    dailyBytesUsed:    (j['daily_bytes_used'] as num?)?.toInt() ?? 0,
+    isSuspended:       j['is_suspended'] as bool? ?? false,
     servers: (j['servers'] as List)
         .map((s) => ServerConfig.fromJson(s as Map<String, dynamic>))
         .toList(),

@@ -47,6 +47,9 @@ dependencies:
   flutter_svg: ^2.0.10+1
   lottie: ^3.1.2
 
+  # ── 广告（AdMob：开屏 + 激励视频；仅 Android/iOS，Windows 不构建）──
+  google_mobile_ads: ^5.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -28,7 +28,8 @@ android {
     }
 
     defaultConfig {
-        minSdk = flutter.minSdkVersion
+        // AdMob (google_mobile_ads) 要求 minSdk >= 23；取两者较大值。
+        minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

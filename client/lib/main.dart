@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
 import 'env.dart';
 import 'app.dart';
+import 'services/ad_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,6 +39,14 @@ Future<void> main() async {
         await _handleOAuthCallback(uri);
       } catch (_) {}
     });
+  }
+
+  // ── 广告初始化（仅 Android/iOS）+ 开屏广告（可跳过，不阻塞启动）──────
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+    await AdService.instance.initialize();
+    // 给开屏广告 ~2.5s 加载时间；加载到就展示，没加载到就静默跳过。
+    Future.delayed(const Duration(milliseconds: 2500),
+        AdService.instance.showAppOpenIfAvailable);
   }
 
   runApp(const MirrorSpeedApp());

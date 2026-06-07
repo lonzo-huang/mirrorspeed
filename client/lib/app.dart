@@ -29,8 +29,12 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
     WidgetsBinding.instance.addObserver(this);
     _auth = AuthProvider();
     _vpn  = VpnProvider()..initialize();
-    // 本地用量计量的上限从服务器拉取：auth 配置变化时把每日额度同步给 VpnProvider（#8）。
-    _auth.addListener(() => _vpn.setDailyQuota(_auth.dailyQuotaBytes));
+    // 免费额度从服务器拉取：auth 配置变化时同步给 VpnProvider。
+    // 时间试用(#3)为强制额度；流量值仅作展示。
+    _auth.addListener(() {
+      _vpn.setDailyQuota(_auth.dailyQuotaBytes);
+      _vpn.setTimeQuota(_auth.dailyQuotaSeconds);
+    });
 
     _router = GoRouter(
       initialLocation: '/',

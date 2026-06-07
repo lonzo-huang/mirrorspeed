@@ -45,6 +45,9 @@
     </service>
 
     <meta-data android:name="flutterEmbedding" android:value="2"/>
+    <!-- AdMob 应用 ID（开屏 + 激励视频广告）-->
+    <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID"
+               android:value="ca-app-pub-6444342069684995~8865360511"/>
     <!-- Disable Impeller (Flutter 3.22+ default) — Impeller has font-rendering bugs
          on many Chinese Android ROMs / older GPU drivers, causing MaterialIcons to
          render as blank rectangular boxes.  Fall back to the stable Skia engine. -->
