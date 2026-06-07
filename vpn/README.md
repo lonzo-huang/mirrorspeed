@@ -750,9 +750,17 @@ apt-get upgrade -y
 
 vpn-api 是部署在每台 VPN 服务器上的 FastAPI 服务，供 Portal 远程管理 Peer。
 
+> **每台服务器独立密钥（更新）**：Portal 现在从 `vpn_servers.api_secret` 读取**每台服务器
+> 各自的**密钥（迁移 012），不再要求全机群共用同一个 `VPN_API_SECRET`。每台服务器
+> `.env` 的 `VPN_API_SECRET` 须与该服务器在 DB 中的 `api_secret` 一致即可。
+>
+> ⚠️ **AmneziaWG 配置路径**：`06-peer-manager.sh` 必须指向
+> `/etc/amnezia/amneziawg/awg0.conf`（不是 `/etc/wireguard/awg0.conf`）。仓库版本已正确；
+> 若服务器上是旧版，请同步仓库版本（临时可用软链 `ln -sf /etc/amnezia/amneziawg/awg0.conf /etc/wireguard/awg0.conf`）。
+
 ```bash
-# 在服务器上执行（VPN_API_SECRET 所有服务器共用同一个值）
-sudo VPN_API_SECRET=<密钥> bash /opt/mirrorspeed/07-vpnapi-setup.sh
+# 在服务器上执行（该值需与 DB vpn_servers.api_secret 一致）
+sudo VPN_API_SECRET=<该服务器密钥> bash /opt/mirrorspeed/07-vpnapi-setup.sh
 ```
 
 验证：
@@ -765,7 +773,9 @@ curl -H "X-API-Secret: <VPN_API_SECRET>" https://<DOMAIN>/vpn-api/stats
 
 ## 9. Portal 后端配置
 
-Portal（Next.js）通过 Supabase 存储服务器列表，通过 Vercel Cron 每分钟同步服务器状态。
+Portal（Next.js）通过 Supabase 存储服务器列表，通过 Vercel Cron 同步服务器状态。
+> Vercel **Hobby 套餐仅允许每日一次 cron**，`sync-servers` 已降级为每日（`portal/vercel.json`）。
+> 需更高频请升级套餐或用外部定时器带 `CRON_SECRET` 调用。
 
 ### 9.1 Supabase 数据库迁移
 
@@ -775,13 +785,19 @@ Portal（Next.js）通过 Supabase 存储服务器列表，通过 Vercel Cron �
 portal/supabase/migrations/001_schema.sql   # 基础表结构
 portal/supabase/migrations/002_rls.sql      # 行级安全策略
 portal/supabase/migrations/003_servers.sql  # 多服务器支持
+portal/supabase/migrations/012_vpn_servers_api_secret.sql   # 每服务器独立 api_secret 列
+portal/supabase/migrations/013_vpn_device_peers_unique.sql  # (device,server) 唯一索引防重复 peer
 ```
+
+> 012 后需为每台服务器写入密钥：
+> `UPDATE public.vpn_servers SET api_secret = '<该服务器密钥>' WHERE name = 'ES01';`
+> 013 执行前需先清理历史重复活跃 peer，否则建唯一索引会失败。
 
 ### 9.2 Vercel 环境变量
 
 | 变量名 | 说明 | 生成方式 |
 |--------|------|----------|
-| `VPN_API_SECRET` | VPN 服务器 API 鉴权密钥（所有节点共用） | `openssl rand -hex 32` |
+| `VPN_API_SECRET` | 旧版全局密钥（现已改为每服务器 `vpn_servers.api_secret`，见迁移 012） | `openssl rand -hex 32` |
 | `APP_ENCRYPTION_SECRET` | 加密存储在 DB 中的 WireGuard 私钥 | `openssl rand -hex 32` |
 | `CRON_SECRET` | Vercel Cron Job 鉴权 | `openssl rand -hex 16` |
 
@@ -803,15 +819,19 @@ vercel deploy --prod
 ```sql
 INSERT INTO public.vpn_servers (
   name, display_name, location, country_code, flag_emoji,
-  endpoint, port, public_key, api_url, sort_order
+  endpoint, port, public_key, api_url, api_secret, port_secret, sort_order
 ) VALUES (
   'ES01', '西班牙 01', 'Spain', 'ES', '🇪🇸',
-  'spain01.yourdomain.com', 39666,
-  '<WireGuard服务端公钥>',
+  'spain01.yourdomain.com', 51820,
+  '<服务端公钥>',
   'https://spain01.yourdomain.com/vpn-api',
+  '<该服务器 .env 的 VPN_API_SECRET>',
+  '<cat /etc/wireguard/.port-secret 的输出>',
   1
 );
 ```
+
+> `api_secret`（迁移 012）必须与该服务器一致；`port_secret` 供客户端计算 HMAC 动态端口。
 
 ---
 
@@ -831,7 +851,7 @@ ssh root@<NEW_SERVER_IP>
 
 DOMAIN="jp01.yourdomain.com" \
 EMAIL="admin@yourdomain.com" \
-VPN_API_SECRET="<与其他服务器相同的密钥>" \
+VPN_API_SECRET="<本服务器独立密钥，注册时写入 DB api_secret>" \
 bash /opt/mirrorspeed/install.sh
 ```
 

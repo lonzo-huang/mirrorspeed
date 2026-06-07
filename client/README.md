@@ -1,7 +1,12 @@
 # MirrorSpeed VPN — Flutter 客户端
 
 > **平台**：Android / Windows / iOS（短期）  
-> **技术栈**：Flutter 3.22+ · AmneziaWG · HMAC 端口跳变 · WebSocket 中继（wstunnel）· Supabase · Provider
+> **当前版本**：**v2.0.0**（正式支持 Windows UDP 直连）  
+> **技术栈**：Flutter 3.22+ · 自研混淆 UDP 隧道（AmneziaWG 内核）· HMAC 端口跳变 · WebSocket 中继（wstunnel）· Supabase · Provider
+
+> ⚠️ **对外命名约定**：面向用户的服务名、目录、日志、二进制统一使用 **MirrorSpeed**，
+> 不出现 `awg` / `amneziawg` 字样（隧道接口名为 `mirrorspeed`，Windows 服务为 `mirrorspeed_svc.exe`）。
+> 本文档内部技术描述中仍以 AWG 指代底层内核。
 
 ---
 
@@ -21,9 +26,10 @@
 
 | 功能 | 说明 |
 |------|------|
-| AmneziaWG VPN | AWG 混淆隧道，对抗 DPI 检测（Jc/Jmin/Jmax/S1/S2/H1-H4 参数） |
-| HMAC 端口跳变 | `port = 30000 + HMAC-SHA256(portSecret, UTC_hour) % 20000`，每小时变动，GFW 无法封锁固定端口 |
-| WebSocket 中继自动回退 | AWG 12 秒内未连接，自动切换至 wstunnel WSS 443 中继模式 |
+| 混淆 UDP 隧道 | 对抗 DPI 检测（Jc/Jmin/Jmax/S1/S2/H1-H4 参数）；v2.0.0 起 Windows 也支持 UDP 直连 |
+| HMAC 端口跳变 | `port = 30000 + HMAC-SHA256(portSecret, UTC_hour) % 20000`，每小时变动，GFW 无法封锁固定端口；服务器开放 ±3 共 7 个端口窗口 |
+| 会话端口锁定 | 仅在连接时计算端口，连上后不再随时间切换；前台恢复/网络变化由 `onAppResumed()` 自动重连 |
+| WebSocket 中继自动回退 | 直连 12 秒内未连接，自动切换至 wstunnel WSS 443 中继模式 |
 | 免费 / 付费双轨 | 免费用户每日 500 MB（服务端可配置）；付费用户无限制 |
 | 流量配额显示 | 主页进度条实时显示今日已用流量及剩余额度 |
 | 多服务器节点 | 支持按延迟切换多个 VPN 节点 |
@@ -76,9 +82,9 @@ client/
 ```
 connect(server)
   │
-  ├─ 计算 HMAC 端口（PortHoppingService.computePort）
+  ├─ 计算 HMAC 端口并锁定到 _sessionPort（连上后不再变）
   ├─ 改写 wgConf Endpoint 端口
-  ├─ 启动 AmneziaWG（直连模式）
+  ├─ 启动隧道（直连模式，接口名 mirrorspeed）
   ├─ 启动 12 秒回退计时器
   │
   ├─ [4 秒后] _postConnectCheck()
@@ -92,8 +98,14 @@ connect(server)
        ├─ 改写 wgConf：
        │    Endpoint   = 127.0.0.1:<relayLocalPort>
        │    AllowedIPs = 0.0.0.0/0 排除 serverIp/32（防回环）
-       └─ 重新启动 AWG（走本地中继）
+       └─ 重新启动隧道（走本地中继）
 ```
+
+> **直连模式的 AllowedIPs 防回环（v2.0.0 关键）**：直连配置由 Portal 生成，已把
+> **当前服务器自身公网 IP 的 /32** 从 AllowedIPs 中剔除（`allowedIpsExcluding()`）。
+> 否则在 Windows（WinTun 无 socket protect）上，发往端点的隧道包会被再次路由进隧道，
+> 形成 WG-in-WG 封装环路——握手成功但数据不通。多服务器/随时切换均适用：任意时刻只有
+> 当前连接的那台服务器 IP 需要排除。Portal 还在 `[Interface]` 写入 `MTU = 1280` 避免满包被丢。
 
 ### PortHoppingService（`lib/services/port_hopping.dart`）
 
@@ -140,13 +152,13 @@ wss://{endpoint}/secure-tunnel/udp/127.0.0.1/{wgPort}
 |------|------|------|
 | Android | `org.amnezia.awg.backend.GoBackend` | `com.github.amnezia-vpn:amneziawg-android:1.0.0`（JitPack） |
 | iOS | `NETunnelProviderManager` → `PacketTunnelProvider` | `AmneziaWireGuardKit`（CocoaPods） |
-| Windows | Win32 SCM 服务管理 → `amneziawg_svc.exe` | 需手动放置 AWG DLL（见下）|
+| Windows | Win32 SCM 服务管理 → `mirrorspeed_svc.exe`（用户态内核 + WinTun） | `mirrorspeed_svc.exe` + `wintun.dll`（见下）|
 
 ### 用法
 
 ```dart
-// 初始化（app 启动时一次）
-await AmneziaWG.instance.initialize(interfaceName: 'awg0');
+// 初始化（app 启动时一次）—— 接口名对外统一为 mirrorspeed
+await AmneziaWG.instance.initialize(interfaceName: 'mirrorspeed');
 
 // 监听状态
 AmneziaWG.instance.vpnStageSnapshot.listen((VpnStage stage) { ... });
@@ -167,14 +179,28 @@ await AmneziaWG.instance.stopVpn();
 `packages/amneziawg_flutter/windows/bin/` 下需要两个文件（已随仓库提交）：
 
 ```
-amneziawg_svc.exe   # 隧道服务宿主（从 amneziawg-windows 编译，见该目录 BUILD.md）
-wintun.dll          # WinTun 用户态 TUN 适配器（官方签名版）
+mirrorspeed_svc.exe   # 隧道服务宿主（从 amneziawg-windows 改名编译，见该目录 BUILD.md）
+wintun.dll            # WinTun 用户态 TUN 适配器（官方签名版）
 ```
 
-AmneziaWG 在 Windows 上走用户态（amneziawg-go）+ WinTun，**不需要** `tunnel.dll`
+在 Windows 上走用户态内核（amneziawg-go）+ WinTun，**不需要** `tunnel.dll`
 或 WireGuard-NT 驱动（`wireguard.dll`）。CMakeLists.txt 通过 Flutter 的
 `amneziawg_flutter_bundled_libraries` 约定，在打包时自动把它们装到 app .exe 旁边。
 构建复现方法见 `packages/amneziawg_flutter/windows/bin/BUILD.md`。
+
+**插件（`amneziawg_flutter_plugin.cpp`）的 Windows 关键实现：**
+
+- 通过 SCM 注册名为 **MirrorSpeed VPN** 的服务，二进制 `mirrorspeed_svc.exe`，回退服务名 `mirrorspeed`
+- 配置目录 `%TEMP%\mirrorspeed`，内核根目录 `C:\ProgramData\MirrorSpeed`（svc `main.go` 内 `PresetRootDirectory`）
+- `ChangeServiceConfig2` 设 `SERVICE_SID_TYPE_UNRESTRICTED` —— WFP 过滤需要 service SID，否则报「组不存在」
+- svc `main.go` 启动时 `redirectStdHandles` —— Go 服务无标准句柄会以 `ERROR_INVALID_HANDLE` 崩溃
+- amneziawg-go `bind_windows.go` 打补丁：UDP 收包遇 `WSAECONNRESET/NETRESET/CONNREFUSED → goto retry`（go.mod replace），否则 ICMP 不可达会中断收包
+- 内核诊断日志：ringlogger 写入 `C:\ProgramData\MirrorSpeed\log.bin`（二进制，svc 启动时可 dump）
+
+**必须以管理员权限运行**：安装服务需要管理员。`windows/runner/runner.exe.manifest`
+设 `requireAdministrator`，`windows/runner/CMakeLists.txt` 加 `/MANIFESTUAC:NO`
+避免与 mt.exe 的 UAC 清单冲突（LNK1327）。若双击未弹 UAC（系统设置原因），
+请右键「以管理员身份运行」。
 
 ---
 
@@ -196,13 +222,13 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 $env:PATH = "C:\tools\flutter\bin;C:\Program Files\GitHub CLI\;" + $env:PATH
 
 # Android APK + Windows ZIP（两个 flavor：global / cn）
-.\release.ps1 1.0.24
+.\release.ps1 2.0.0
 
 # 仅 Android
-.\release.ps1 1.0.24 -SkipWindows
+.\release.ps1 2.0.0 -SkipWindows
 
 # 仅 Windows
-.\release.ps1 1.0.24 -SkipAndroid
+.\release.ps1 2.0.0 -SkipAndroid
 ```
 
 脚本自动完成：
@@ -271,11 +297,17 @@ const String kProviderBundle = 'com.mirrorspeed.vpn.network';  // iOS Network Ex
 
 首次使用需在系统 VPN 授权对话框中点击"允许"，然后重新点击连接。
 
-### Windows 提示缺少 DLL 或隧道启动失败
+### Windows 提示缺少文件或隧道启动失败
 
-确保 `amneziawg_svc.exe` 与 `wintun.dll` 在 app .exe 所在目录（构建时由
-`windows/bin/` 自动打包）。若缺失，插件会返回 `Failed to start AWG tunnel service:
-系统找不到指定的文件`，客户端随后自动回退至 wstunnel 中继。
+确保 `mirrorspeed_svc.exe` 与 `wintun.dll` 在 app .exe 所在目录（构建时由
+`windows/bin/` 自动打包）。若缺失，插件会返回「系统找不到指定的文件」，
+客户端随后自动回退至 wstunnel 中继。其它常见情形：
+
+- **提示「拒绝访问」**：未以管理员运行 → 右键「以管理员身份运行」。
+- **服务约 10 秒后退出 / Event 7024**：通常是 svc 句柄或 service SID 问题，确认使用的是
+  v2.0.0 的 `mirrorspeed_svc.exe`（含 redirectStdHandles + UNRESTRICTED SID）。
+- **直连握手成功但打不开网页、随即切中继**：WG-in-WG 环路，需 Portal 已部署 AllowedIPs
+  carve-out + MTU=1280（v2.0.0+），并**重新登录客户端**以拉取新配置。
 
 ### iOS Network Extension 无响应
 
@@ -293,6 +325,7 @@ const String kProviderBundle = 'com.mirrorspeed.vpn.network';  // iOS Network Ex
 
 | 版本 | 变更 |
 |------|------|
+| **2.0.0** | **正式支持 Windows UDP 直连**：Windows 用户态内核（`mirrorspeed_svc.exe`）+ WinTun；修复 WG-in-WG 环路（AllowedIPs 剔除服务器自身 /32）+ MTU=1280 + WSAECONNRESET 补丁 + service SID/句柄修复；全面去除对外 awg/amneziawg 命名（接口名 `mirrorspeed`，目录/日志 MirrorSpeed）；会话端口锁定 + `onAppResumed` 自动重连；端口窗口 ±3；provisioning 统一确定性命名 + 每服务器独立 api_secret + 唯一索引防重复 |
 | 1.0.24 | **AWG + 端口跳变**：wireguard_flutter → amneziawg_flutter；HMAC 动态端口；iOS Network Extension 支持 |
 | 1.0.22 | 修复 Android 图标渲染（关闭 Impeller，回退 Skia） |
 | 1.0.18 | Windows DLL 混淆重命名；Supabase 注册触发器修复 |
