@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
 import '../services/api_service.dart';
+import '../brand.dart';
 import '../theme.dart';
 import '../version.dart';
 
@@ -42,7 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: kBg,
         appBar: AppBar(
           backgroundColor: Colors.transparent, elevation: 0,
-          title: const Text('个人中心',
+          title: Text(tr('个人中心','Profile'),
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
           centerTitle: true,
         ),
@@ -59,10 +60,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: const Icon(Icons.person_outline_rounded, size: 36, color: Colors.white),
               ),
               const SizedBox(height: 20),
-              const Text('登录后使用 VPN 加速',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              Text(tr('登录后开始加速', 'Sign in to get started'),
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              Text('邮箱验证码登录，免费用户每日有流量额度',
+              Text(tr('邮箱验证码登录，免费用户每日有时长额度',
+                      'Email code sign-in. Free users get daily time.'),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
               const SizedBox(height: 28),
@@ -76,8 +78,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   icon: const Icon(Icons.login_rounded, size: 20),
-                  label: const Text('登录 / 注册',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  label: Text(tr('登录 / 注册', 'Sign in / Sign up'),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -94,7 +96,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('个人中心',
+        title: Text(tr('个人中心','Profile'),
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
@@ -107,19 +109,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _InfoCard(children: [
                 _AvatarRow(email: email, isPaid: isPaid),
                 const Divider(height: 1, color: Colors.white10),
-                _InfoRow(icon: Icons.email_outlined, label: '邮箱', value: email),
+                _InfoRow(icon: Icons.email_outlined, label: tr('邮箱', 'Email'), value: email),
                 _InfoRow(
                   icon:       isPaid
                                 ? Icons.workspace_premium_rounded
                                 : Icons.person_outline_rounded,
-                  label:      '账号类型',
-                  value:      isPaid ? '付费会员' : '免费用户',
+                  label:      tr('账号类型', 'Account'),
+                  value:      isPaid ? tr('付费会员', 'Premium') : tr('免费用户', 'Free'),
                   valueColor: isPaid ? kBrand : Colors.white54,
-                ),
-                _InfoRow(
-                  icon:  Icons.devices_rounded,
-                  label: '当前设备',
-                  value: auth.deviceLabel ?? '—',
                 ),
               ]),
 
@@ -165,20 +162,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _InfoCard(children: [
                 _ActionRow(
                   icon:  Icons.refresh_rounded,
-                  label: '刷新配置',
+                  label: tr('刷新配置', 'Refresh config'),
                   onTap: () => auth.refreshConfigs(),
                 ),
                 _ActionRow(
                   icon:  Icons.open_in_new_rounded,
-                  label: '管理订阅',
+                  label: tr('管理订阅', 'Manage subscription'),
                   onTap: () => launchUrl(
                     Uri.parse('https://mirrorspeed.com/dashboard'),
                     mode: LaunchMode.externalApplication,
                   ),
                 ),
                 _ActionRow(
+                  icon:  Icons.privacy_tip_outlined,
+                  label: tr('隐私政策', 'Privacy Policy'),
+                  onTap: () => launchUrl(
+                    Uri.parse('https://mirrorspeed.com/privacy'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+                _ActionRow(
+                  icon:  Icons.description_outlined,
+                  label: tr('服务条款', 'Terms of Service'),
+                  onTap: () => launchUrl(
+                    Uri.parse('https://mirrorspeed.com/terms'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+                _ActionRow(
                   icon:  Icons.help_outline_rounded,
-                  label: '使用帮助',
+                  label: tr('使用帮助', 'Help'),
                   onTap: () => launchUrl(
                     Uri.parse('https://mirrorspeed.com/help'),
                     mode: LaunchMode.externalApplication,
@@ -206,8 +219,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding:        const EdgeInsets.symmetric(vertical: 14),
                   ),
                   icon:  const Icon(Icons.logout_rounded, size: 18),
-                  label: const Text('退出登录',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                  label: Text(tr('退出登录', 'Sign out'),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
                 ),
               ),
 
@@ -231,14 +244,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: kCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('输入邀请码'),
+        title: Text(tr('输入邀请码', 'Enter referral code')),
         content: TextField(
           controller:    ctrl,
           autofocus:     true,
           textCapitalization: TextCapitalization.characters,
-          decoration: const InputDecoration(
-            hintText:    '例如：MX7K9P',
-            hintStyle:   TextStyle(color: Colors.white38),
+          decoration: InputDecoration(
+            hintText:    tr('例如：MX7K9P', 'e.g. MX7K9P'),
+            hintStyle:   const TextStyle(color: Colors.white38),
           ),
           style: const TextStyle(
             fontSize: 20, fontWeight: FontWeight.bold,
@@ -248,7 +261,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消', style: TextStyle(color: Colors.white54)),
+            child: Text(tr('取消', 'Cancel'), style: const TextStyle(color: Colors.white54)),
           ),
           FilledButton(
             onPressed: () async {
@@ -260,7 +273,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _refreshReferral();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('邀请码绑定成功 🎉'),
+                    SnackBar(content: Text(tr('邀请码绑定成功 🎉', 'Referral code applied 🎉')),
                       backgroundColor: kSuccess),
                   );
                 }
@@ -274,7 +287,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               }
             },
             style: FilledButton.styleFrom(backgroundColor: kBrand),
-            child: const Text('确认'),
+            child: Text(tr('确认', 'Confirm')),
           ),
         ],
       ),
@@ -288,17 +301,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: kCard,
         shape:           RoundedRectangleBorder(
                            borderRadius: BorderRadius.circular(16)),
-        title:           const Text('退出登录'),
-        content:         const Text('确定要退出当前账号吗？',
-                           style: TextStyle(color: Colors.white70)),
+        title:           Text(tr('退出登录', 'Sign out')),
+        content:         Text(tr('确定要退出当前账号吗？', 'Sign out of this account?'),
+                           style: const TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: Colors.white54)),
+            child: Text(tr('取消', 'Cancel'), style: const TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('退出', style: TextStyle(color: kDanger)),
+            child: Text(tr('退出', 'Sign out'), style: const TextStyle(color: kDanger)),
           ),
         ],
       ),
@@ -367,7 +380,7 @@ class _AvatarRow extends StatelessWidget {
                                             .withOpacity(0.35)),
               ),
               child: Text(
-                isPaid ? '✦ 付费会员' : '免费用户',
+                isPaid ? tr('✦ 付费会员', '✦ Premium') : tr('免费用户', 'Free'),
                 style: TextStyle(
                   fontSize:   11,
                   fontWeight: FontWeight.w600,
@@ -466,13 +479,13 @@ class _QuotaSection extends StatelessWidget {
         Row(children: [
           Icon(Icons.timer_outlined, size: 15, color: color),
           const SizedBox(width: 6),
-          Text('今日免费时长',
+          Text(tr('今日免费时长', "Today's free time"),
             style: TextStyle(color: color, fontSize: 13,
               fontWeight: FontWeight.w600)),
           const Spacer(),
           Text(exceeded
-            ? '已用完'
-            : '剩余 ${_fmt(remainingSec)}',
+            ? tr('已用完', 'Used up')
+            : tr('剩余 ${_fmt(remainingSec)}', '${_fmt(remainingSec)} left'),
             style: TextStyle(color: color, fontSize: 12)),
         ]),
         const SizedBox(height: 10),
@@ -508,14 +521,14 @@ class _UpgradeCard extends StatelessWidget {
     child: Row(children: [
       const Icon(Icons.workspace_premium_rounded, color: kBrand, size: 28),
       const SizedBox(width: 12),
-      const Expanded(child: Column(
+      Expanded(child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('升级付费会员',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-          SizedBox(height: 3),
-          Text('无限流量 · 全节点 · 无广告',
-            style: TextStyle(color: Colors.white54, fontSize: 12)),
+          Text(tr('升级会员', 'Upgrade to Premium'),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const SizedBox(height: 3),
+          Text(tr('不限时长 · 全部节点 · 无广告', 'Unlimited time · All nodes · No ads'),
+            style: const TextStyle(color: Colors.white54, fontSize: 12)),
         ],
       )),
       FilledButton(
@@ -528,7 +541,7 @@ class _UpgradeCard extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         ),
-        child: const Text('升级', style: TextStyle(fontSize: 13)),
+        child: Text(tr('升级', 'Upgrade'), style: const TextStyle(fontSize: 13)),
       ),
     ]),
   );
@@ -558,7 +571,7 @@ class _InviteCard extends StatelessWidget {
     final now = DateTime.now();
     if (dt.isBefore(now)) return '';
     final days = dt.difference(now).inDays;
-    return '（还剩 $days 天）';
+    return tr('（还剩 $days 天）', '($days d left)');
   }
 
   @override
@@ -584,8 +597,8 @@ class _InviteCard extends StatelessWidget {
             const Icon(Icons.card_giftcard_rounded,
               color: Color(0xFFA78BFA), size: 18),
             const SizedBox(width: 8),
-            const Text('邀请好友',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold,
+            Text(tr('邀请好友', 'Invite friends'),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold,
                 color: Color(0xFFA78BFA))),
             const Spacer(),
             // 刷新按钮
@@ -601,12 +614,12 @@ class _InviteCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(children: [
-            _StatChip(label: '已邀请', value: '$_inviteCount 人'),
+            _StatChip(label: tr('已邀请', 'Invited'), value: tr('$_inviteCount 人', '$_inviteCount')),
             const SizedBox(width: 12),
-            _StatChip(label: '累计获得', value: '$_bonusDays 天'),
+            _StatChip(label: tr('累计获得', 'Earned'), value: tr('$_bonusDays 天', '$_bonusDays d')),
             if (_expiryLabel.isNotEmpty) ...[
               const SizedBox(width: 12),
-              _StatChip(label: '奖励', value: _expiryLabel, accent: true),
+              _StatChip(label: tr('奖励', 'Bonus'), value: _expiryLabel, accent: true),
             ],
           ]),
         ),
@@ -618,7 +631,7 @@ class _InviteCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('你的邀请码',
+              Text(tr('你的邀请码', 'Your invite code'),
                 style: TextStyle(color: Colors.white.withOpacity(0.5),
                   fontSize: 11)),
               const SizedBox(height: 4),
@@ -633,12 +646,12 @@ class _InviteCard extends StatelessWidget {
             // 复制按钮
             _IconBtn(
               icon:    Icons.copy_rounded,
-              tooltip: '复制邀请码',
+              tooltip: tr('复制邀请码', 'Copy code'),
               onTap: () {
                 Clipboard.setData(ClipboardData(text: _code));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('邀请码已复制'),
-                    duration: Duration(seconds: 1)),
+                  SnackBar(content: Text(tr('邀请码已复制', 'Code copied')),
+                    duration: const Duration(seconds: 1)),
                 );
               },
             ),
@@ -646,12 +659,12 @@ class _InviteCard extends StatelessWidget {
             // 分享链接按钮
             _IconBtn(
               icon:    Icons.share_rounded,
-              tooltip: '分享邀请链接',
+              tooltip: tr('分享邀请链接', 'Share link'),
               onTap: () {
                 Clipboard.setData(ClipboardData(text: _shareUrl));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('邀请链接已复制到剪贴板'),
-                    duration: Duration(seconds: 2)),
+                  SnackBar(content: Text(tr('邀请链接已复制到剪贴板', 'Invite link copied')),
+                    duration: const Duration(seconds: 2)),
                 );
               },
             ),
@@ -662,7 +675,8 @@ class _InviteCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
           child: Text(
-            '好友首次付款后，你将获得对应时长：1个月→3天 · 1季度→10天 · 1年→30天',
+            tr('好友首次付款后，你将获得对应时长：1个月→3天 · 1季度→10天 · 1年→30天',
+               'When a friend first pays, you get bonus time: 1 mo → 3 d · 1 qtr → 10 d · 1 yr → 30 d'),
             style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
           ),
         ),
@@ -675,7 +689,7 @@ class _InviteCard extends StatelessWidget {
                   Icon(Icons.check_circle_rounded,
                     size: 14, color: kSuccess.withOpacity(0.7)),
                   const SizedBox(width: 6),
-                  Text('已绑定邀请码：$_referredBy',
+                  Text(tr('已绑定邀请码：$_referredBy', 'Referred by: $_referredBy'),
                     style: TextStyle(color: Colors.white.withOpacity(0.4),
                       fontSize: 12)),
                 ])
@@ -685,7 +699,7 @@ class _InviteCard extends StatelessWidget {
                     Icon(Icons.link_rounded,
                       size: 14, color: Colors.white.withOpacity(0.4)),
                     const SizedBox(width: 6),
-                    Text('输入他人邀请码',
+                    Text(tr('输入他人邀请码', 'Enter a referral code'),
                       style: TextStyle(
                         color:          Colors.white.withOpacity(0.45),
                         fontSize:       12,

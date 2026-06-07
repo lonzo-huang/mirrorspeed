@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../providers/vpn_provider.dart';
+import '../brand.dart';
 import '../theme.dart';
 
 class ConnectButton extends StatelessWidget {
@@ -10,11 +11,11 @@ class ConnectButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, shadow, icon, label) = switch (status) {
-      VpnStatus.connected      => (kSuccess,  kSuccess,  Icons.shield_rounded,      '已连接'),
-      VpnStatus.connecting     => (kBrand,    kBrand,    Icons.refresh_rounded,     '连接中…'),
-      VpnStatus.disconnecting  => (Colors.orange, Colors.orange, Icons.refresh_rounded, '断开中…'),
-      VpnStatus.error          => (kDanger,   kDanger,   Icons.error_outline_rounded, '出错了'),
-      _                        => (Colors.white70, Colors.white24, Icons.power_settings_new_rounded, '点击连接'),
+      VpnStatus.connected      => (kSuccess,  kSuccess,  Icons.shield_rounded,      tr('已连接', 'Connected')),
+      VpnStatus.connecting     => (kBrand,    kBrand,    Icons.refresh_rounded,     tr('连接中…', 'Connecting…')),
+      VpnStatus.disconnecting  => (Colors.orange, Colors.orange, Icons.refresh_rounded, tr('断开中…', 'Disconnecting…')),
+      VpnStatus.error          => (kDanger,   kDanger,   Icons.error_outline_rounded, tr('出错了', 'Error')),
+      _                        => (Colors.white70, Colors.white24, Icons.power_settings_new_rounded, tr('点击连接', 'Tap to connect')),
     };
 
     final isSpinning = status == VpnStatus.connecting || status == VpnStatus.disconnecting;

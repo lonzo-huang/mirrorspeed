@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,6 +12,12 @@ import '../theme.dart';
 import '../widgets/connect_button.dart';
 import 'server_list_screen.dart';
 
+// 返回键 → 退到后台（不退出应用，VPN 保持运行）；退出由右上角退出键负责。
+const MethodChannel _lifecycleChannel = MethodChannel('com.mirrorspeed.app/lifecycle');
+Future<void> _moveAppToBackground() async {
+  try { await _lifecycleChannel.invokeMethod('moveToBackground'); } catch (_) {}
+}
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -21,7 +28,13 @@ class HomeScreen extends StatelessWidget {
 
     final server = vpn.activeServer ?? (auth.displayServers.isNotEmpty ? auth.displayServers.first : null);
 
-    return Scaffold(
+    return PopScope(
+      // 返回键不退出应用：拦截后退到后台（合规且保持连接）。
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _moveAppToBackground();
+      },
+      child: Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -41,9 +54,9 @@ class HomeScreen extends StatelessWidget {
         ]),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, size: 20),
-            tooltip: '刷新配置',
-            onPressed: () => auth.refreshConfigs(),
+            icon: const Icon(Icons.power_settings_new_rounded, size: 20),
+            tooltip: tr('退出', 'Exit'),
+            onPressed: () => _confirmExit(context),
           ),
         ],
       ),
@@ -135,7 +148,8 @@ class HomeScreen extends StatelessWidget {
                     foregroundColor: Colors.white70,
                   ),
                   icon:  const Icon(Icons.language_rounded, size: 18),
-                  label: Text('选择节点 (${auth.displayServers.length} 个可用)'),
+                  label: Text(tr('选择节点 (${auth.displayServers.length} 个可用)',
+                               'Select node (${auth.displayServers.length} available)')),
                 ),
               ),
 
@@ -167,7 +181,7 @@ class HomeScreen extends StatelessWidget {
                   child: Row(children: [
                     const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
                     const SizedBox(width: 8),
-                    Expanded(child: Text('配置获取失败: ${auth.error}',
+                    Expanded(child: Text(tr('配置获取失败: ${auth.error}', 'Failed to load config: ${auth.error}'),
                       style: const TextStyle(color: Colors.orange, fontSize: 12))),
                   ]),
                 ),
@@ -178,7 +192,32 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
+      ),   // Scaffold
+    );     // PopScope
+  }
+
+  Future<void> _confirmExit(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(tr('退出应用', 'Exit app')),
+        content: Text(tr('退出后将断开连接。返回键只会回到后台，连接保持。',
+                         'Exiting disconnects the VPN. The back button only sends the app to the background and keeps the connection.'),
+          style: const TextStyle(color: Colors.white70, fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: Text(tr('取消', 'Cancel'), style: const TextStyle(color: Colors.white54))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+            child: Text(tr('退出', 'Exit'), style: const TextStyle(color: kDanger))),
+        ],
+      ),
+    ) ?? false;
+    if (ok) {
+      try { await context.read<VpnProvider>().disconnect(); } catch (_) {}
+      await SystemNavigator.pop();
+    }
   }
 
   void _showServerList(BuildContext context) {
@@ -319,10 +358,10 @@ class _TrialBar extends StatelessWidget {
         Row(children: [
           Icon(Icons.timer_outlined, size: 13, color: color),
           const SizedBox(width: 6),
-          Text('今日免费时长', style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(tr('今日免费时长', "Today's free time"), style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
           const Spacer(),
           Text(
-            exceeded ? '已用完' : '剩余 ${_fmt(remainingSec)}',
+            exceeded ? tr('已用完', 'Used up') : tr('剩余 ${_fmt(remainingSec)}', '${_fmt(remainingSec)} left'),
             style: TextStyle(color: color, fontSize: 11, fontFamily: 'monospace'),
           ),
         ]),
@@ -362,7 +401,9 @@ class _AdExtendButtonState extends State<_AdExtendButton> {
         if (!mounted) return;
         setState(() => _busy = false);
         messenger.showSnackBar(SnackBar(
-          content: Text(rewarded ? '已增加 $kAdRewardMinutes 分钟免费时长 🎉' : '广告未加载好，请稍后再试'),
+          content: Text(rewarded
+            ? tr('已增加 $kAdRewardMinutes 分钟免费时长 🎉', 'Added $kAdRewardMinutes min of free time 🎉')
+            : tr('广告未加载好，请稍后再试', 'Ad not ready, please try again later')),
           backgroundColor: rewarded ? kSuccess : kDanger,
           duration: const Duration(seconds: 2),
         ));
@@ -375,7 +416,7 @@ class _AdExtendButtonState extends State<_AdExtendButton> {
 
   @override
   Widget build(BuildContext context) {
-    final label = '看广告 +$kAdRewardMinutes 分钟';
+    final label = tr('看广告 +$kAdRewardMinutes 分钟', 'Watch ad +$kAdRewardMinutes min');
     if (widget.compact) {
       return Align(
         alignment: Alignment.center,
@@ -420,12 +461,12 @@ class _UpgradeButton extends StatelessWidget {
         borderRadius:  BorderRadius.circular(12),
         border:        Border.all(color: kDanger.withOpacity(0.3)),
       ),
-      child: const Row(children: [
-        Icon(Icons.block_rounded, color: kDanger, size: 16),
-        SizedBox(width: 8),
+      child: Row(children: [
+        const Icon(Icons.block_rounded, color: kDanger, size: 16),
+        const SizedBox(width: 8),
         Expanded(
-          child: Text('今日免费流量已用完，明日自动恢复',
-            style: TextStyle(color: kDanger, fontSize: 12)),
+          child: Text(tr('今日免费时长已用完，明日自动恢复', "Today's free time is used up. Resets tomorrow."),
+            style: const TextStyle(color: kDanger, fontSize: 12)),
         ),
       ]),
     ),
@@ -442,8 +483,8 @@ class _UpgradeButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 16),
         ),
         icon:  const Icon(Icons.workspace_premium_rounded, size: 20),
-        label: const Text('升级专业版 · 无限流量',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+        label: Text(tr('升级会员 · 无限时长', 'Upgrade · Unlimited'),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
       ),
     ),
   ]);
@@ -473,9 +514,9 @@ class _UpdateBanner extends StatelessWidget {
         child: Row(children: [
           const Icon(Icons.system_update_rounded, color: kBrand, size: 16),
           const SizedBox(width: 8),
-          Expanded(child: Text('发现新版本 v$version，点击前往下载更新',
+          Expanded(child: Text(tr('发现新版本 v$version，点击前往下载更新', 'New version v$version available — tap to update'),
             style: const TextStyle(color: kBrand, fontSize: 12, fontWeight: FontWeight.w500))),
-          const Text('更新 →', style: TextStyle(color: kBrand, fontSize: 12, fontWeight: FontWeight.bold)),
+          Text(tr('更新 →', 'Update →'), style: const TextStyle(color: kBrand, fontSize: 12, fontWeight: FontWeight.bold)),
         ]),
       ),
     );
@@ -542,8 +583,8 @@ class _ExpiryBanner extends StatelessWidget {
         ? Icons.warning_rounded
         : Icons.access_time_rounded;
     final text     = days == 0
-        ? '您的订阅今天到期，请尽快续费'
-        : '您的订阅将在 $days 天后到期';
+        ? tr('您的订阅今天到期，请尽快续费', 'Your subscription expires today — please renew')
+        : tr('您的订阅将在 $days 天后到期', 'Your subscription expires in $days days');
 
     return GestureDetector(
       onTap: () => launchUrl(
@@ -566,7 +607,7 @@ class _ExpiryBanner extends StatelessWidget {
             child: Text(text,
               style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500)),
           ),
-          Text('续费 →',
+          Text(tr('续费 →', 'Renew →'),
             style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
         ]),
       ),

@@ -28,3 +28,7 @@ class Brand {
   /// 是否展示「智能/全局」路由切换（中文壳特性）。
   static bool get showSmartRouting => isZh;
 }
+
+/// 轻量本地化：中文设备返回中文，其它一律英文（合规：非中文环境纯英语）。
+/// 用法：`tr('已连接', 'Connected')`。
+String tr(String zh, String en) => Brand.isZh ? zh : en;

@@ -44,7 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _verifyOtp() async {
     final token = _otpCtrl.text.trim();
     if (token.length != 6) {
-      setState(() { _error = '请输入 6 位验证码'; });
+      setState(() { _error = tr('请输入 6 位验证码', 'Enter the 6-digit code'); });
       return;
     }
     setState(() { _loading = true; _error = null; });
@@ -56,7 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // 此时 session 已存在，忽略这个假错误，GoRouter 会自动跳转
       if (mounted && !context.read<AuthProvider>().isLoggedIn) {
         setState(() {
-          _error = '验证码错误或已过期，请重试';
+          _error = tr('验证码错误或已过期，请重试', 'Invalid or expired code, please try again');
           _otpCtrl.clear();
         });
       }
@@ -79,9 +79,10 @@ class _LoginScreenState extends State<LoginScreen> {
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('浏览器已打开，请在浏览器中完成 Google 登录后自动返回'),
-              duration: Duration(seconds: 8),
+            SnackBar(
+              content: Text(tr('浏览器已打开，请在浏览器中完成 Google 登录后自动返回',
+                              'Browser opened — finish Google sign-in there and you will return automatically')),
+              duration: const Duration(seconds: 8),
             ),
           );
         }
@@ -120,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 28),
               Center(child: Text(Brand.appName, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))),
               const SizedBox(height: 8),
-              Center(child: Text('高速安全，全球加速', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 15))),
+              Center(child: Text(tr('高速安全，全球加速', 'Fast, secure, worldwide'), style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 15))),
 
               const Spacer(),
 
@@ -131,9 +132,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                   autocorrect:  false,
                   enabled:      !_loading,
-                  decoration: const InputDecoration(
-                    hintText:    '输入邮箱地址',
-                    prefixIcon:  Icon(Icons.email_outlined, color: Colors.grey),
+                  decoration: InputDecoration(
+                    hintText:    tr('输入邮箱地址', 'Enter your email'),
+                    prefixIcon:  const Icon(Icons.email_outlined, color: Colors.grey),
                   ),
                   onSubmitted: (_) => _sendOtp(),
                 ),
@@ -142,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _loading ? null : _sendOtp,
                   child: _loading
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('发送验证码'),
+                      : Text(tr('发送验证码', 'Send code')),
                 ),
 
                 const SizedBox(height: 20),
@@ -150,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const Expanded(child: Divider(color: Colors.white12)),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('或', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+                    child: Text(tr('或', 'or'), style: TextStyle(color: Colors.white.withOpacity(0.4))),
                   ),
                   const Expanded(child: Divider(color: Colors.white12)),
                 ]),
@@ -159,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 _OAuthButton(
                   onTap:  _loading ? null : _googleLogin,
                   icon:   Icons.g_mobiledata_rounded,
-                  label:  '使用 Google 账号登录',
+                  label:  tr('使用 Google 账号登录', 'Sign in with Google'),
                 ),
               ],
 
@@ -176,10 +177,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(children: [
                     const Icon(Icons.mark_email_read_rounded, color: kSuccess, size: 32),
                     const SizedBox(height: 10),
-                    const Text('验证码已发送', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(tr('验证码已发送', 'Code sent'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 6),
                     Text(
-                      '请查收发往 ${_emailCtrl.text} 的邮件\n输入其中的 6 位数字验证码',
+                      tr('请查收发往 ${_emailCtrl.text} 的邮件\n输入其中的 6 位数字验证码',
+                         'Check the email sent to ${_emailCtrl.text}\nand enter the 6-digit code'),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 13, height: 1.5),
                     ),
@@ -220,7 +222,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _loading ? null : _verifyOtp,
                   child: _loading
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('验证登录'),
+                      : Text(tr('验证登录', 'Verify & sign in')),
                 ),
                 const SizedBox(height: 12),
 
@@ -228,7 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   TextButton(
                     onPressed: _loading ? null : _sendOtp,
-                    child: const Text('重新发送', style: TextStyle(fontSize: 13)),
+                    child: Text(tr('重新发送', 'Resend'), style: const TextStyle(fontSize: 13)),
                   ),
                   Text('·', style: TextStyle(color: Colors.white.withOpacity(0.3))),
                   TextButton(
@@ -237,7 +239,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       _otpCtrl.clear();
                       _error = null;
                     }),
-                    child: const Text('换个邮箱', style: TextStyle(fontSize: 13)),
+                    child: Text(tr('换个邮箱', 'Change email'), style: const TextStyle(fontSize: 13)),
                   ),
                 ]),
               ],

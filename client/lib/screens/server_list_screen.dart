@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/server_config.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
+import '../brand.dart';
 import '../theme.dart';
 
 class ServerListScreen extends StatefulWidget {
@@ -29,19 +30,19 @@ class _ServerListScreenState extends State<ServerListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('选择节点', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(tr('选择节点','Select node'), style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: kBg,
         surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            tooltip: '刷新延迟',
+            tooltip: tr('刷新延迟','Refresh latency'),
             onPressed: () => vpn.measureLatencies(servers),
           ),
         ],
       ),
       body: servers.isEmpty
-          ? const Center(child: Text('暂无可用节点', style: TextStyle(color: Colors.white54)))
+          ? Center(child: Text(tr('暂无可用节点','No nodes available'), style: const TextStyle(color: Colors.white54)))
           : ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               itemCount: servers.length,

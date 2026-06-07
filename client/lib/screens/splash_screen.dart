@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../brand.dart';
 import '../theme.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -59,10 +60,10 @@ class _SplashScreenState extends State<SplashScreen>
               ),
             ),
             const SizedBox(height: 24),
-            const Text('MirrorSpeed VPN',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text(Brand.appName,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
             const SizedBox(height: 8),
-            Text('正在启动…',
+            Text(tr('正在启动…', 'Starting…'),
               style: TextStyle(color: Colors.white.withOpacity(0.5))),
           ],
         ),

@@ -686,6 +686,22 @@ class VpnProvider extends ChangeNotifier {
   // 这里在恢复时主动探测，若隧道已死则整体重连——disconnect() 清空
   // _sessionPort，connect() 随即按当前时间重新派生一个有效端口。
   Future<void> onAppResumed() async {
+    // 先与原生隧道状态对齐：切后台再回来时 UI 可能漏掉了 stage 事件而误显示
+    // 未连接（状态栏 VPN 图标其实还在）。以原生为准纠正。
+    if (!_switchingToRelay) {
+      try {
+        final st = await AmneziaWG.instance.stage();
+        final up = st == VpnStage.connected;
+        if (up && _status != VpnStatus.connected) {
+          _status = VpnStatus.connected;
+          notifyListeners();
+        } else if (!up && _status == VpnStatus.connected) {
+          _status = VpnStatus.disconnected;
+          notifyListeners();
+        }
+      } catch (_) {}
+    }
+
     if (_status != VpnStatus.connected || _switchingToRelay) return;
     final server = _activeServer;
     if (server == null) return;
