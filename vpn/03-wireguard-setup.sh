@@ -9,7 +9,7 @@ set -euo pipefail
 WG_DIR="/etc/wireguard"
 WG_IFACE="wg0"
 WG_PORT=39666
-WG_SUBNET="10.200.0.0/24"
+WG_SUBNET="10.200.0.0/21"
 WG_SERVER_IP="10.200.0.1"
 
 echo "[1/4] 安装 WireGuard..."
@@ -40,7 +40,7 @@ echo "[3/4] 生成 wg0.conf..."
 # WAN_IF 在 PostUp/PostDown 中以实际值写入，避免 %i 仅代表 WG 接口
 cat > "${WG_DIR}/${WG_IFACE}.conf" << EOF
 [Interface]
-Address    = ${WG_SERVER_IP}/24
+Address    = ${WG_SERVER_IP}/21
 ListenPort = ${WG_PORT}
 PrivateKey = ${SERVER_PRIVATE}
 
@@ -66,7 +66,7 @@ wg show "${WG_IFACE}" || { echo "ERROR: WireGuard 启动失败，请检查日志
 
 echo ""
 echo "WireGuard 服务端部署完成："
-echo "  接口: ${WG_IFACE}  地址: ${WG_SERVER_IP}/24  端口: UDP ${WG_PORT}"
+echo "  接口: ${WG_IFACE}  地址: ${WG_SERVER_IP}/21  端口: UDP ${WG_PORT}"
 echo "  公钥: ${SERVER_PUBLIC}"
 echo "  请使用 06-peer-manager.sh 添加客户端"
 

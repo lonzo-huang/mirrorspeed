@@ -60,7 +60,7 @@
 ```
 Nginx (443)        — TLS 终结、静态站点伪装、路径路由
 wstunnel (2080)    — WebSocket ↔ UDP 转换（TLS 封装模式专用）
-WireGuard (39666)  — 内核级加密隧道，分配 10.200.0.0/24 子网
+WireGuard (39666)  — 内核级加密隧道，分配 10.200.0.0/21 子网
 nftables           — 防火墙、NAT、per-IP 连接限制（Shell 脚本模式）
 ```
 
@@ -209,7 +209,7 @@ bash /opt/mirrorspeed/install.sh
   域名:         vpn.example.com
   WAN 网卡:     ens3
   服务端公钥:   AbCdEfGh1234...
-  WireGuard 子网: 10.200.0.0/24
+  WireGuard 子网: 10.200.0.0/21
 
   开放端口:
     TCP 443   — Nginx HTTPS（伪装站 + WS隧道入口）

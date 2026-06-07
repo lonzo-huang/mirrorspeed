@@ -16,7 +16,7 @@ AWG_DIR="/etc/wireguard"                  # 密钥、参数存放目录
 AWG_CONF_DIR="/etc/amnezia/amneziawg"    # awg-quick 读取 conf 的目录（Amnezia PPA 约定）
 AWG_IFACE="awg0"
 AWG_PORT=51820          # 内部固定端口，不直接暴露给客户端（由 port-hopping 映射）
-AWG_SUBNET="10.200.0.0/24"
+AWG_SUBNET="10.200.0.0/21"
 AWG_SERVER_IP="10.200.0.1"
 
 # ── 安装 AmneziaWG ────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ chmod 700 "${AWG_CONF_DIR}"
 
 cat > "${AWG_CONF_DIR}/${AWG_IFACE}.conf" << EOF
 [Interface]
-Address    = ${AWG_SERVER_IP}/24
+Address    = ${AWG_SERVER_IP}/21
 ListenPort = ${AWG_PORT}
 PrivateKey = ${SERVER_PRIVATE}
 
@@ -262,7 +262,7 @@ systemctl enable awg-rotate-keys.timer
 
 echo ""
 echo "AmneziaWG 服务端部署完成："
-echo "  接口: ${AWG_IFACE}  地址: ${AWG_SERVER_IP}/24  内部端口: UDP ${AWG_PORT}"
+echo "  接口: ${AWG_IFACE}  地址: ${AWG_SERVER_IP}/21  内部端口: UDP ${AWG_PORT}"
 echo "  公钥: ${SERVER_PUBLIC}"
 echo "  混淆参数: ${AWG_DIR}/awg-params.env"
 echo ""

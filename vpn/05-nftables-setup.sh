@@ -88,10 +88,10 @@ table inet enterprise-fw {
         tcp flags syn / syn,rst tcp option maxseg size set 1360
 
         # 允许 WireGuard 子网出站（VPN 客户端访问公网）
-        ip saddr 10.200.0.0/24 oif ${WAN_IF} accept
+        ip saddr 10.200.0.0/21 oif ${WAN_IF} accept
 
         # 允许 WireGuard 子网内互访（可选：内网隔离时注释此行）
-        ip saddr 10.200.0.0/24 ip daddr 10.200.0.0/24 accept
+        ip saddr 10.200.0.0/21 ip daddr 10.200.0.0/21 accept
     }
 
     chain output {
@@ -104,7 +104,7 @@ table inet enterprise-fw {
     # 若 wg-quick 使用 iptables，此 nat 链留空即可，二者不冲突
     chain postrouting {
         type nat hook postrouting priority srcnat; policy accept;
-        ip saddr 10.200.0.0/24 oif ${WAN_IF} masquerade
+        ip saddr 10.200.0.0/21 oif ${WAN_IF} masquerade
     }
 }
 NFTEOF
@@ -122,7 +122,7 @@ systemctl restart nftables
 echo ""
 echo "nftables 防火墙策略已部署（持久化至 /etc/nftables.conf）："
 echo "  入站放行端口: TCP 22 (SSH 限速), TCP 80 (HTTP/certbot), TCP 443 (HTTPS), UDP 51820 (AmneziaWG 内部)"
-echo "  WireGuard 子网: 10.200.0.0/24 NAT 出站通过 ${WAN_IF}"
+echo "  WireGuard 子网: 10.200.0.0/21 NAT 出站通过 ${WAN_IF}"
 echo "  per-IP 并发: 443 ≤ 100连接，51820 ≤ 10连接"
 echo "  动态端口跳变: 由 iptables AWG_HOP 链 DNAT 至 51820，nftables 无需感知"
 echo "  其余入站: 全部丢弃"

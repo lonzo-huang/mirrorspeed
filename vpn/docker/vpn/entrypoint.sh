@@ -4,7 +4,7 @@ set -euo pipefail
 WG_DIR="/etc/wireguard"
 WG_IFACE="wg0"
 WG_PORT="${WG_PORT:-39666}"
-WG_SUBNET="10.200.0.0/24"
+WG_SUBNET="10.200.0.0/21"
 WG_SERVER_IP="10.200.0.1"
 WG_CONF="${WG_DIR}/${WG_IFACE}.conf"
 
@@ -34,7 +34,7 @@ if [ ! -f "${WG_CONF}" ]; then
     # Write wg0.conf
     cat > "${WG_CONF}" << EOF
 [Interface]
-Address    = ${WG_SERVER_IP}/24
+Address    = ${WG_SERVER_IP}/21
 ListenPort = ${WG_PORT}
 PrivateKey = ${SERVER_PRIVATE}
 
