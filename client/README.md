@@ -253,12 +253,18 @@ $env:PATH = "C:\tools\flutter\bin;C:\Program Files\GitHub CLI\;" + $env:PATH
 ### 手动构建
 
 ```powershell
-# Android（单包，无 flavor）
-flutter build apk --release
+# Android 直接下载包（仅 arm64-v8a，约 26MB，覆盖几乎所有现代手机）
+flutter build apk --release --target-platform android-arm64
+
+# Android Google Play 包（App Bundle，Play 按设备只下发对应架构）
+flutter build appbundle --release
 
 # Windows
 flutter build windows --release --obfuscate --split-debug-info=build/debug_symbols/windows
 ```
+
+> **包体积**：universal APK 会同时包含 arm64-v8a / armeabi-v7a / x86_64 三套原生库(~70MB)。
+> 直接下载只打 **arm64-v8a**(~26MB);上架 Play 用 **.aab**,Play 自动按设备下发。
 
 ---
 

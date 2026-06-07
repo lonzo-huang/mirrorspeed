@@ -37,8 +37,12 @@ $DEFINES = @(
 )
 
 # 单一 APK（已合并 flavor；壳按设备语言运行时切换）
+# 直接下载只打 arm64-v8a（覆盖几乎所有现代手机），体积约为 universal 的 1/3。
 $APK_SRC = "build\app\outputs\flutter-apk\app-release.apk"
 $APK_DST = "build\MirrorSpeed-$Version-android.apk"
+# Google Play 用 App Bundle（Play 按设备只下发对应架构）。
+$AAB_SRC = "build\app\outputs\bundle\release\app-release.aab"
+$AAB_DST = "build\MirrorSpeed-$Version-android.aab"
 $WIN_SRC = "build\windows\x64\runner\Release"
 $WIN_DST = "build\MirrorSpeed-$Version-windows.zip"
 
@@ -144,13 +148,13 @@ $ErrorActionPreference = 'Continue'; flutter pub get; $ec = $LASTEXITCODE; $Erro
 if ($ec -ne 0) { Fail "flutter pub get failed" }
 Ok "Clean done"
 
-# --- Build Android APK (single package; locale-driven shell) ----------------
+# --- Build Android APK (arm64-only) + App Bundle (Play) ---------------------
 if (-not $SkipAndroid) {
-    Step "Building Android APK (single package — locale-driven shell)"
+    Step "Building Android APK (arm64-v8a only — for direct download)"
     $t0 = Get-Date
 
     $ErrorActionPreference = 'Continue'
-    flutter build apk --release --no-tree-shake-icons @DEFINES
+    flutter build apk --release --target-platform android-arm64 --no-tree-shake-icons @DEFINES
     $ec = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($ec -ne 0) { Fail "flutter build apk failed" }
@@ -161,6 +165,20 @@ if (-not $SkipAndroid) {
     $mb  = [math]::Round((Get-Item $APK_DST).Length / 1MB, 1)
     $sec = [math]::Round(((Get-Date) - $t0).TotalSeconds)
     Ok "APK ready: $APK_DST  ($mb MB, ${sec}s)"
+
+    # App Bundle for Google Play (Play splits per-device; ~25MB delivered)
+    Step "Building Android App Bundle (.aab — for Google Play)"
+    $t0 = Get-Date
+    $ErrorActionPreference = 'Continue'
+    flutter build appbundle --release --no-tree-shake-icons @DEFINES
+    $ec = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($ec -ne 0) { Fail "flutter build appbundle failed" }
+    if (-not (Test-Path $AAB_SRC)) { Fail "AAB not found at: $AAB_SRC" }
+    Copy-Item $AAB_SRC $AAB_DST -Force
+    $mb  = [math]::Round((Get-Item $AAB_DST).Length / 1MB, 1)
+    $sec = [math]::Round(((Get-Date) - $t0).TotalSeconds)
+    Ok "AAB ready: $AAB_DST  ($mb MB, ${sec}s)"
 } else {
     Warn "Skipping Android build"
 }
@@ -332,6 +350,12 @@ if ((-not $SkipAndroid) -and (Test-Path $APK_DST)) {
     $ErrorActionPreference = 'Continue'; gh release upload $TAG $APK_DST --repo $GITHUB_REPO --clobber; $ec = $LASTEXITCODE; $ErrorActionPreference = 'Stop'
     if ($ec -ne 0) { Fail "APK upload failed" }
     Ok "APK uploaded"
+}
+
+if ((-not $SkipAndroid) -and (Test-Path $AAB_DST)) {
+    Write-Host "  Uploading AAB (Google Play)..."
+    $ErrorActionPreference = 'Continue'; gh release upload $TAG $AAB_DST --repo $GITHUB_REPO --clobber; $ec = $LASTEXITCODE; $ErrorActionPreference = 'Stop'
+    if ($ec -ne 0) { Warn "AAB upload failed (non-fatal)" } else { Ok "AAB uploaded" }
 }
 
 if ((-not $SkipWindows) -and (Test-Path $WIN_DST)) {
