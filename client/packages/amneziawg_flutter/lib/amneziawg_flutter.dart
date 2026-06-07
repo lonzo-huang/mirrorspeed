@@ -23,8 +23,9 @@ class AmneziaWG {
   Stream<VpnStage> get vpnStageSnapshot =>
       AmneziawgFlutterInterface.instance.vpnStageSnapshot;
 
-  Future<void> initialize({required String interfaceName}) =>
-      AmneziawgFlutterInterface.instance.initialize(interfaceName: interfaceName);
+  Future<void> initialize({required String interfaceName, String? description}) =>
+      AmneziawgFlutterInterface.instance
+          .initialize(interfaceName: interfaceName, description: description);
 
   Future<void> startVpn({
     required String serverAddress,

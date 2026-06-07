@@ -56,6 +56,7 @@ class AmneziawgFlutterPlugin final : public flutter::Plugin {
   std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> event_sink_;
 
   std::wstring service_name_;          // Windows service name (= tunnel name)
+  std::wstring tunnel_description_;     // WinTun adapter description (localized)
   std::wstring conf_path_;             // Path to the written .conf file
   std::atomic<bool> monitor_running_{false};
   std::thread monitor_thread_;
@@ -81,6 +82,11 @@ class AmneziawgFlutterPlugin final : public flutter::Plugin {
   bool InstallAndStartService(const std::wstring& conf_path,
                                const std::wstring& service_name);
   bool StopAndRemoveService(const std::wstring& service_name);
+  // Stop+remove any tunnel service this app may have left running (current
+  // session and well-known default names). Removing the service tears down the
+  // WinTun adapter and, with it, every route the tunnel installed — so traffic
+  // is never blackholed by a leaked route table after the app exits or crashed.
+  void CleanupStaleTunnels();
   std::string QueryServiceStage(const std::wstring& service_name) const;
 
   void StartMonitoring();

@@ -116,10 +116,31 @@ AmneziawgFlutterPlugin::AmneziawgFlutterPlugin(
         return nullptr;
       });
   event_channel_->SetStreamHandler(std::move(handler));
+
+  // Crash recovery: if a previous run was killed (crash / Task Manager / power
+  // loss) the tunnel service may still be running with its routes installed,
+  // blackholing all traffic. Remove any leftover tunnel on startup.
+  CleanupStaleTunnels();
 }
 
 AmneziawgFlutterPlugin::~AmneziawgFlutterPlugin() {
   StopMonitoring();
+  // Always tear the tunnel down on app exit so a normal close never leaves the
+  // WinTun adapter and its route table behind (which would break the user's
+  // internet until a manual reboot/route flush).
+  if (!service_name_.empty()) StopAndRemoveService(service_name_);
+  CleanupStaleTunnels();
+  if (!conf_path_.empty()) { DeleteFileW(conf_path_.c_str()); conf_path_.clear(); }
+}
+
+// Stop+remove the current and well-known tunnel services. Safe to call when
+// nothing is running (OpenService simply fails and we move on).
+void AmneziawgFlutterPlugin::CleanupStaleTunnels() {
+  if (!service_name_.empty()) StopAndRemoveService(service_name_);
+  // Well-known default interface name used by the Dart layer.
+  for (const wchar_t* known : { L"mirrorspeed" }) {
+    if (service_name_ != known) StopAndRemoveService(known);
+  }
 }
 
 // -- Method dispatch --------------------------------------------------------
@@ -143,6 +164,11 @@ void AmneziawgFlutterPlugin::HandleMethodCall(
     std::string name = get_str("win32ServiceName");
     if (name.empty()) name = get_str("localizedDescription");
     if (name.empty()) name = "mirrorspeed";
+    // Adapter description shown in ipconfig / network connections. Localized by
+    // the Dart layer; defaults to a neutral self-branded string (never expose
+    // "WireGuard Tunnel").
+    std::string desc = get_str("localizedDescription");
+    tunnel_description_ = Utf8ToWide(desc.empty() ? "MirrorSpeed VPN" : desc);
     Initialize(name, std::move(result));
 
   } else if (method == "start") {
@@ -208,6 +234,10 @@ void AmneziawgFlutterPlugin::StartTunnel(
 
   // 3. Start new service
   if (!InstallAndStartService(conf_path_, service_name_)) {
+    // A partial start may have created the adapter + routes; tear it down so a
+    // failed connection never leaves a dangling route table behind.
+    StopAndRemoveService(service_name_);
+    if (!conf_path_.empty()) { DeleteFileW(conf_path_.c_str()); conf_path_.clear(); }
     result->Error("START_FAILED",
                   "Failed to start AWG tunnel service: " + LastErrorString(),
                   nullptr);
@@ -296,8 +326,12 @@ bool AmneziawgFlutterPlugin::InstallAndStartService(
     return false;
   }
 
-  // Build binary path with quoted conf file argument
-  std::wstring bin_path = L"\"" + svc_exe + L"\" \"" + conf_path + L"\"";
+  // Build binary path: svc.exe <conf> <adapter-description>
+  // argv[2] lets the service set the WinTun adapter description (shown in
+  // ipconfig) to our localized, self-branded string instead of "WireGuard Tunnel".
+  std::wstring desc = tunnel_description_.empty() ? L"MirrorSpeed VPN" : tunnel_description_;
+  std::wstring bin_path =
+      L"\"" + svc_exe + L"\" \"" + conf_path + L"\" \"" + desc + L"\"";
 
   SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
   if (!scm) return false;

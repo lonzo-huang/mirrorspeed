@@ -19,7 +19,9 @@ abstract class AmneziawgFlutterInterface extends PlatformInterface {
   Stream<VpnStage> get vpnStageSnapshot;
 
   /// Initialize the tunnel (must be called once on startup).
-  Future<void> initialize({required String interfaceName});
+  /// [description] is the localized network-adapter description shown to the
+  /// OS (Windows ipconfig / network connections). Defaults to the interface name.
+  Future<void> initialize({required String interfaceName, String? description});
 
   /// Bring the tunnel up.
   Future<void> startVpn({

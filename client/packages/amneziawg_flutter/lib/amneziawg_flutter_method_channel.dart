@@ -17,9 +17,10 @@ class AmneziawgFlutterMethodChannel extends AmneziawgFlutterInterface {
       .map((e) => VpnStage.fromString(e as String?));
 
   @override
-  Future<void> initialize({required String interfaceName}) =>
+  Future<void> initialize({required String interfaceName, String? description}) =>
       _controlChannel.invokeMethod('initialize', {
-        'localizedDescription': interfaceName,
+        // 适配器描述（本地化）；win32ServiceName 仍用接口名作为服务名。
+        'localizedDescription': description ?? interfaceName,
         'win32ServiceName':     interfaceName,
       });
 

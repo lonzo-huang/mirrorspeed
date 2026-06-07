@@ -40,6 +40,28 @@ Two Windows-service gotchas are handled in `main`:
 // (see git history of this dir / the amneziawg-windows fork for the full file)
 ```
 
+### Adapter description (argv[2]) — hides "WireGuard Tunnel"
+
+The plugin now launches the service as `mirrorspeed_svc.exe <conf> <desc>`, where
+`<desc>` is the localized adapter description (`MirrorSpeed 加速隧道` for zh,
+`MirrorSpeed VPN` otherwise). `main.go` must apply it so `ipconfig` never shows
+the upstream default `WireGuard Tunnel`:
+
+```go
+import wgtun "<amneziawg-go module path>/tun"   // the tun pkg amneziawg-go uses
+
+// after redirectStdHandles(), before Run():
+if len(os.Args) >= 3 && os.Args[2] != "" {
+    wgtun.WintunTunnelType = os.Args[2]          // becomes the WinTun adapter description
+} else {
+    wgtun.WintunTunnelType = "MirrorSpeed VPN"
+}
+```
+
+`WintunTunnelType` is the package-level var that becomes the WinTun adapter's
+description (upstream wireguard-windows sets it to `"WireGuard Tunnel"`).
+**Rebuild `mirrorspeed_svc.exe` after this change** for the description to apply.
+
 > **amneziawg-go patch (Windows UDP robustness):** the upstream Windows RIO
 > receive path (`conn/bind_windows.go`, `afWinRingBind.Receive`) treats any
 > non-zero completion status as fatal, so a single ICMP-induced

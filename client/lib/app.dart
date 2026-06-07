@@ -79,6 +79,10 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
     // 过期而失效；若已死则自动重连（见 VpnProvider.onAppResumed）。
     if (state == AppLifecycleState.resumed) {
       _vpn.onAppResumed();
+    } else if (state == AppLifecycleState.detached) {
+      // 应用即将退出：拆除隧道并清理路由，避免退出后路由表残留导致断网。
+      // 注意只在 detached（终止）时拆除，paused（切后台）保持连接不动。
+      _vpn.disconnect();
     }
   }
 

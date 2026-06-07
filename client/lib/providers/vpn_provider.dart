@@ -53,8 +53,19 @@ class VpnProvider extends ChangeNotifier {
                           _status == VpnStatus.disconnecting;
 
   // ── 初始化（app 启动时调用一次）────────────────────────────
+  // 网络适配器对外显示的描述（Windows ipconfig / 网络连接里可见）。
+  // 中文环境显示「MirrorSpeed 加速隧道」，其它语言显示「MirrorSpeed VPN」，
+  // 绝不暴露 WireGuard 字样。
+  static String _adapterDescription() {
+    final locale = Platform.localeName.toLowerCase(); // e.g. zh_cn / en_us
+    return locale.startsWith('zh') ? 'MirrorSpeed 加速隧道' : 'MirrorSpeed VPN';
+  }
+
   Future<void> initialize() async {
-    await AmneziaWG.instance.initialize(interfaceName: 'mirrorspeed');
+    await AmneziaWG.instance.initialize(
+      interfaceName: 'mirrorspeed',
+      description:    _adapterDescription(),
+    );
     _stageSub = AmneziaWG.instance.vpnStageSnapshot.listen(_onStage);
 
     // 恢复上次选择的路由模式
@@ -163,14 +174,18 @@ class VpnProvider extends ChangeNotifier {
     } on PlatformException catch (e) {
       if (e.code == 'Permissions are not given' ||
           (e.message ?? '').contains('Permissions are not given')) {
+        // 用户未授权：隧道没真正建立，无需拆除。
         _error  = '请在刚才弹出的对话框中允许 VPN，然后重新点击连接';
         _status = VpnStatus.disconnected;
       } else {
+        // 启动失败：可能已部分建立适配器/路由，强制拆除避免残留路由黑洞。
+        try { await AmneziaWG.instance.stopVpn(); } catch (_) {}
         _error  = e.message ?? e.toString();
         _status = VpnStatus.error;
       }
       notifyListeners();
     } catch (e) {
+      try { await AmneziaWG.instance.stopVpn(); } catch (_) {}
       _error  = e.toString();
       _status = VpnStatus.error;
       notifyListeners();
@@ -662,7 +677,12 @@ class VpnProvider extends ChangeNotifier {
       if (cfUrl != null && cfUrl.isNotEmpty) {
         await _switchToRelay(server, relayBaseUrl: cfUrl, force: true);
       } else {
-        // Cloudflare 未配置，报告失败
+        // 中继也不通且无 Cloudflare 兜底：必须彻底拆除隧道，否则残留的路由表
+        // 会把用户全部流量导入死隧道（黑洞），普通用户完全无法理解。
+        // 错误态下也一定要清掉路由。
+        try { await AmneziaWG.instance.stopVpn(); } catch (_) {}
+        try { await _relay.stop(); } catch (_) {}
+        _protocol = VpnProtocol.direct;
         _error  = '已连接但流量不通，请稍后重试或更换节点';
         _status = VpnStatus.error;
         notifyListeners();
@@ -702,6 +722,9 @@ class VpnProvider extends ChangeNotifier {
     _fallbackTimer?.cancel();
     _stageSub?.cancel();
     _timer?.cancel();
+    // 应用销毁（退出）时务必拆除隧道，避免原生隧道/路由表残留导致退出后断网。
+    // dispose 不能 await，尽力而为地异步拆除。
+    AmneziaWG.instance.stopVpn().catchError((_) {});
     _relay.stop();
     super.dispose();
   }
