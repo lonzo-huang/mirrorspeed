@@ -105,6 +105,9 @@ bash "${SCRIPT_DIR}/04-wstunnel-setup.sh"
 section "第 5 步：nftables 防火墙策略"
 bash "${SCRIPT_DIR}/05-nftables-setup.sh"
 
+section "第 5.5 步：端口跳变（时间派生动态端口）"
+bash "${SCRIPT_DIR}/08-port-hopping-setup.sh"
+
 section "第 6 步：创建初始客户端 Peer"
 bash "${SCRIPT_DIR}/06-peer-manager.sh" add "${FIRST_CLIENT}"
 bash "${SCRIPT_DIR}/06-peer-manager.sh" config "${FIRST_CLIENT}"
