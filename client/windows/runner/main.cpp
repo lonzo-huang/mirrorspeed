@@ -108,7 +108,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1280, 720);
+  // 手机式竖向窗口宽度（VPN UI 为单列布局，宽窗体显得空旷）。
+  Win32Window::Size size(420, 860);
   if (!window.Create(L"mirrorspeed_vpn", origin, size)) {
     if (mutex) CloseHandle(mutex);
     return EXIT_FAILURE;

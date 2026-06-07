@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -34,6 +35,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user  = Supabase.instance.client.auth.currentUser;
     final email = user?.email ?? '—';
     final isPaid = auth.dailyQuotaBytes == null;
+
+    // 未登录：显示登录引导（#7，登录是可选的，从这里发起）
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        backgroundColor: kBg,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent, elevation: 0,
+          title: const Text('个人中心',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          centerTitle: true,
+        ),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Container(
+                width: 72, height: 72,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [kBrand, kBrandDark]),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(Icons.person_outline_rounded, size: 36, color: Colors.white),
+              ),
+              const SizedBox(height: 20),
+              const Text('登录后使用 VPN 加速',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text('邮箱验证码登录，免费用户每日有流量额度',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => context.go('/login'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: kBrand,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  icon: const Icon(Icons.login_rounded, size: 20),
+                  label: const Text('登录 / 注册',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text('MirrorSpeed VPN  v$kAppVersion',
+                style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 12)),
+            ]),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: kBg,

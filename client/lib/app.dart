@@ -55,22 +55,21 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
   }
 
   /// Central auth redirect — called by GoRouter on every notifyListeners().
+  ///
+  /// 不再设登录墙（#7）：无论是否登录，打开 App 都直接进入连接界面 /home。
+  /// 登录是可选的，由用户在「我的」页自行发起；登录成功后停留在当前页。
   String? _authRedirect(BuildContext context, GoRouterState state) {
     final loc = state.matchedLocation;
-    switch (_auth.status) {
-      case AuthStatus.loading:
-        // Stay on splash / login-callback while auth initialises or PKCE completes
-        return null;
-      case AuthStatus.authenticated:
-        if (loc == '/' || loc == '/login' || loc == '/login-callback') {
-          return '/home';
-        }
-        return null;
-      case AuthStatus.noSubscription:
-        return loc == '/no-subscription' ? null : '/no-subscription';
-      case AuthStatus.unauthenticated:
-        return loc == '/login' ? null : '/login';
+    // 初始化中：停在启动屏 / 回调页等待
+    if (_auth.status == AuthStatus.loading) {
+      return (loc == '/' || loc == '/login-callback') ? null : '/home';
     }
+    // 启动屏 / OAuth 回调完成 → 进入主页
+    if (loc == '/' || loc == '/login-callback') return '/home';
+    // 登录成功后自动离开登录页回到主页（登录是可选入口，不是墙）
+    if (loc == '/login' && _auth.status == AuthStatus.authenticated) return '/home';
+    // 其余页面（/home /profile /login /no-subscription）一律放行，不强制跳转
+    return null;
   }
 
   @override

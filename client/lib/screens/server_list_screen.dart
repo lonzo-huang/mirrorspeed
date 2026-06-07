@@ -68,10 +68,11 @@ class _ServerTile extends StatelessWidget {
   final VoidCallback  onTap;
   const _ServerTile({ required this.server, required this.isActive, required this.onTap });
 
+  // 颜色阈值：<500 绿 · 500–1500 黄 · >1500 红 · 测量中灰（#6，不显示数值）
   Color _latencyColor(int? ms) {
     if (ms == null)  return Colors.white38;
-    if (ms < 100)    return kSuccess;
-    if (ms < 250)    return Colors.amber;
+    if (ms < 500)    return kSuccess;
+    if (ms <= 1500)  return Colors.amber;
     return kDanger;
   }
 
@@ -96,11 +97,16 @@ class _ServerTile extends StatelessWidget {
                 Text(server.location, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
             ])),
             if (latency != null)
-              Text('${latency}ms',
-                style: TextStyle(color: _latencyColor(latency), fontWeight: FontWeight.w600, fontSize: 13))
+              Container(
+                width: 10, height: 10,
+                decoration: BoxDecoration(
+                  color: _latencyColor(latency), shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: _latencyColor(latency).withOpacity(0.5), blurRadius: 6)],
+                ),
+              )
             else
               SizedBox(
-                width: 14, height: 14,
+                width: 12, height: 12,
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white.withOpacity(0.3)),
               ),
             const SizedBox(width: 12),

@@ -13,7 +13,11 @@ import '../env.dart';
 export 'package:amneziawg_flutter/amneziawg_flutter.dart' show VpnStage;
 
 enum VpnStatus    { disconnected, connecting, connected, disconnecting, error }
-enum VpnProtocol  { direct, relay }
+/// 连接通道：
+/// - [direct]     UDP 直连      → 对外显示「快速模式」
+/// - [relay]      wstunnel 443  → 对外显示「强力模式」
+/// - [cloudflare] Cloudflare    → 对外显示「暴力模式」
+enum VpnProtocol  { direct, relay, cloudflare }
 /// 路由模式
 /// - [global]：全局模式，所有流量走 VPN（0.0.0.0/0）
 /// - [smart] ：智能模式，中国大陆 IP 直连，境外流量走 VPN
@@ -30,6 +34,9 @@ class VpnProvider extends ChangeNotifier {
 
   VpnProtocol        _protocol         = VpnProtocol.direct;
   bool               _switchingToRelay = false;
+  // 用户主动断开标志：置位后，任何挂起的连通性探测/回退计时器都不得再发起
+  // 新的连接尝试（修复「手动断开后又自动切到下一模式」）。connect() 清零。
+  bool               _userInitiatedDisconnect = false;
   final WsRelayService _relay          = WsRelayService();
 
   RoutingMode        _routingMode      = RoutingMode.global;
@@ -45,12 +52,48 @@ class VpnProvider extends ChangeNotifier {
   int?          get elapsedSecs  => _elapsedSecs;
   String?       get error        => _error;
   VpnProtocol   get protocol     => _protocol;
-  bool          get isRelayMode  => _protocol == VpnProtocol.relay;
+  bool          get isRelayMode  => _protocol != VpnProtocol.direct;
   RoutingMode   get routingMode  => _routingMode;
 
   bool get isConnected => _status == VpnStatus.connected;
   bool get isBusy      => _status == VpnStatus.connecting ||
                           _status == VpnStatus.disconnecting;
+
+  // 任何挂起的异步流程（探测/回退）遇到以下情况都应中止
+  bool get _aborted =>
+      _userInitiatedDisconnect ||
+      _status == VpnStatus.disconnecting ||
+      _status == VpnStatus.disconnected;
+
+  static bool _isZh() => Platform.localeName.toLowerCase().startsWith('zh');
+
+  /// 当前模式的对外名称（按系统语言本地化）。
+  String get modeLabel {
+    final zh = _isZh();
+    switch (_protocol) {
+      case VpnProtocol.direct:     return zh ? '快速模式' : 'Fast Mode';
+      case VpnProtocol.relay:      return zh ? '强力模式' : 'Strong Mode';
+      case VpnProtocol.cloudflare: return zh ? '暴力模式' : 'Ultra Mode';
+    }
+  }
+
+  /// 主界面状态文案（连接中 / 已连接 + 模式 / 断开中 / 出错 / 未连接）。
+  /// 只有在真正验证流量畅通后状态才会变为 connected，连接过程一律显示「连接中」。
+  String get statusLine {
+    final zh = _isZh();
+    switch (_status) {
+      case VpnStatus.connected:
+        return zh ? '$modeLabel · 已连接' : '$modeLabel · Connected';
+      case VpnStatus.connecting:
+        return zh ? '$modeLabel 连接中…' : 'Connecting ($modeLabel)…';
+      case VpnStatus.disconnecting:
+        return zh ? '正在断开…' : 'Disconnecting…';
+      case VpnStatus.error:
+        return zh ? '连接出错' : 'Connection error';
+      case VpnStatus.disconnected:
+        return zh ? '未连接' : 'Not connected';
+    }
+  }
 
   // ── 初始化（app 启动时调用一次）────────────────────────────
   // 网络适配器对外显示的描述（Windows ipconfig / 网络连接里可见）。
@@ -90,19 +133,18 @@ class VpnProvider extends ChangeNotifier {
   void _onStage(VpnStage stage) {
     switch (stage) {
       case VpnStage.connected:
+        // 隧道接口已 UP，但流量未必通。一律先保持「连接中」，等连通性验证
+        // 通过后再由 _postConnectCheck / _postRelayCheck 置为 connected（#5）。
+        if (_userInitiatedDisconnect) break;  // 用户已断开，忽略迟到的 connected
         if (_switchingToRelay) {
-          // 中继模式握手成功：取消超时计时器，重置切换标志
           _fallbackTimer?.cancel();
           _switchingToRelay = false;
-          // 验证中继流量是否真正畅通（5 秒后）
-          _postRelayCheck(_activeServer);
+          _status = VpnStatus.connecting;
+          _postRelayCheck(_activeServer);   // 5 秒后验证中继流量
         } else {
-          // 直连模式：Android VPN 接口已 UP，但 AWG 握手可能还没完成。
-          // 不在此处取消计时器，等连通性验证通过后再取消。
-          _postConnectCheck(_activeServer);
+          _status = VpnStatus.connecting;
+          _postConnectCheck(_activeServer); // 4 秒后验证直连流量
         }
-        _status = VpnStatus.connected;
-        _startTimer();
       case VpnStage.connecting:
         _status = VpnStatus.connecting;
       case VpnStage.disconnected:
@@ -135,6 +177,7 @@ class VpnProvider extends ChangeNotifier {
     _activeServer     = server;
     _protocol         = VpnProtocol.direct;
     _switchingToRelay = false;
+    _userInitiatedDisconnect = false;  // 新的连接尝试，解除断开锁
     _fallbackTimer?.cancel();
     _sessionPort      = null;   // 用户主动连接 = 一次重连，按当前时间重新算端口
     notifyListeners();
@@ -228,6 +271,8 @@ class VpnProvider extends ChangeNotifier {
     _fallbackTimer?.cancel();
     _fallbackTimer = null;
 
+    // 用户已主动断开：绝不再自动尝试下一模式（#4）。
+    if (_userInitiatedDisconnect || _aborted) return;
     if (!force && _status == VpnStatus.connected) return; // 直连已成功，无需切换
 
     final primaryBase = 'wss://${server.relayHost}';
@@ -235,7 +280,8 @@ class VpnProvider extends ChangeNotifier {
     debugPrint('[VPN] 切换到${isCf ? ' Cloudflare' : ' wstunnel-443'} 中继: $relayBaseUrl');
 
     _switchingToRelay = true;
-    _protocol         = VpnProtocol.relay;
+    // 强力模式 = wstunnel 443；暴力模式 = Cloudflare（#3）
+    _protocol         = isCf ? VpnProtocol.cloudflare : VpnProtocol.relay;
     _status           = VpnStatus.connecting;
     _error            = null;
     notifyListeners();
@@ -530,6 +576,7 @@ class VpnProvider extends ChangeNotifier {
 
   // ── 断开 ────────────────────────────────────────────────────
   Future<void> disconnect() async {
+    _userInitiatedDisconnect = true;  // 手动断开即断开，禁止任何自动回退（#4）
     _fallbackTimer?.cancel();
     _sessionPort      = null;    // 主动断开后，下次连接重新基于时间计算端口
     _switchingToRelay = false;   // 确保 disconnected 事件不误判为中继切换中
@@ -617,10 +664,8 @@ class VpnProvider extends ChangeNotifier {
   // 但实际流量无法通过。通过请求外网地址判断隧道是否真正打通。
   Future<void> _postConnectCheck(ServerConfig? server) async {
     await Future.delayed(const Duration(seconds: 4));
-    // 如果已切换中继或已断开，跳过
-    if (_status != VpnStatus.connected || _protocol == VpnProtocol.relay || server == null) return;
-    // 如果定时器已经抢先触发了 _switchToRelay，跳过避免并发
-    if (_switchingToRelay) return;
+    // 用户已断开 / 已切换中继，跳过
+    if (server == null || _aborted || _protocol != VpnProtocol.direct || _switchingToRelay) return;
 
     // 直连握手成功后，数据面（路由/防火墙）可能需要一两秒才稳定，首个探测
     // 偶尔会误判为不通。多探测几次再决定，避免把其实可用的直连错误回退到中继。
@@ -628,18 +673,16 @@ class VpnProvider extends ChangeNotifier {
     for (var attempt = 1; attempt <= 2; attempt++) {
       ok = await _probeConnectivity();
       if (ok) break;
-      // 探测期间若已被定时器切走/断开，停止
-      if (_status != VpnStatus.connected ||
-          _protocol == VpnProtocol.relay ||
-          _switchingToRelay) {
-        return;
-      }
+      if (_aborted || _protocol != VpnProtocol.direct || _switchingToRelay) return;
       if (attempt < 2) await Future.delayed(const Duration(seconds: 1));
     }
+    if (_aborted) return;
 
     if (ok) {
       _fallbackTimer?.cancel(); // 流量畅通，取消中继切换计时器
-      debugPrint('[VPN] 连通性验证成功，保持直连');
+      _status = VpnStatus.connected;   // 验证通过才显示已连接（#5）
+      notifyListeners();
+      debugPrint('[VPN] 连通性验证成功，保持直连（快速模式）');
     } else {
       // UDP 握手失败或流量被墙，切换 wstunnel 443 中继（层 2）
       debugPrint('[VPN] 连通性多次验证失败，切换 wstunnel 443 中继');
@@ -658,7 +701,8 @@ class VpnProvider extends ChangeNotifier {
   // 失败则尝试层 3（Cloudflare Tunnel），或报错。
   Future<void> _postRelayCheck(ServerConfig? server) async {
     await Future.delayed(const Duration(seconds: 5));
-    if (_status != VpnStatus.connected || _protocol != VpnProtocol.relay || server == null) return;
+    // 中继尝试中（relay=强力 / cloudflare=暴力），用户未断开
+    if (server == null || _aborted || _protocol == VpnProtocol.direct) return;
 
     bool ok = false;
     try {
@@ -667,14 +711,18 @@ class VpnProvider extends ChangeNotifier {
       ).timeout(const Duration(seconds: 8));
       ok = res.statusCode == 204 || res.statusCode < 400;
     } catch (_) {}
+    if (_aborted) return;
 
     if (ok) {
-      debugPrint('[VPN] 中继连通性验证成功');
+      _status = VpnStatus.connected;   // 验证通过才显示已连接（#5）
+      notifyListeners();
+      debugPrint('[VPN] 中继连通性验证成功（$modeLabel）');
     } else {
-      debugPrint('[VPN] 中继连通性验证失败，尝试 Cloudflare Tunnel（层 3）');
+      debugPrint('[VPN] 中继连通性验证失败，尝试 Cloudflare Tunnel（暴力模式）');
       await _relay.stop();
       final cfUrl = server.cfRelayUrl;
-      if (cfUrl != null && cfUrl.isNotEmpty) {
+      // 仅当尚未处于 Cloudflare（暴力）模式时才升级，避免无限循环
+      if (cfUrl != null && cfUrl.isNotEmpty && _protocol != VpnProtocol.cloudflare) {
         await _switchToRelay(server, relayBaseUrl: cfUrl, force: true);
       } else {
         // 中继也不通且无 Cloudflare 兜底：必须彻底拆除隧道，否则残留的路由表
@@ -683,7 +731,9 @@ class VpnProvider extends ChangeNotifier {
         try { await AmneziaWG.instance.stopVpn(); } catch (_) {}
         try { await _relay.stop(); } catch (_) {}
         _protocol = VpnProtocol.direct;
-        _error  = '已连接但流量不通，请稍后重试或更换节点';
+        _error  = _isZh()
+            ? '已连接但流量不通，请稍后重试或更换节点'
+            : 'Connected but no traffic. Please retry or switch node.';
         _status = VpnStatus.error;
         notifyListeners();
       }

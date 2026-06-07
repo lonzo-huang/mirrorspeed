@@ -42,8 +42,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _verifyOtp() async {
     final token = _otpCtrl.text.trim();
-    if (token.length != 8) {
-      setState(() { _error = '请输入 8 位验证码'; });
+    if (token.length != 3) {
+      setState(() { _error = '请输入 3 位验证码'; });
       return;
     }
     setState(() { _loading = true; _error = null; });
@@ -178,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Text('验证码已发送', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 6),
                     Text(
-                      '请查收发往 ${_emailCtrl.text} 的邮件\n输入其中的 8 位数字验证码',
+                      '请查收发往 ${_emailCtrl.text} 的邮件\n输入其中的 3 位数字验证码',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 13, height: 1.5),
                     ),
@@ -191,25 +191,26 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller:     _otpCtrl,
                   keyboardType:   TextInputType.number,
                   textAlign:      TextAlign.center,
-                  maxLength:      8,
+                  maxLength:      3,
+                  autofocus:      true,
                   enabled:        !_loading,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   style: const TextStyle(
-                    fontSize:      32,
+                    fontSize:      36,
                     fontWeight:    FontWeight.bold,
-                    letterSpacing: 14,
+                    letterSpacing: 18,
                     fontFamily:    'monospace',
                   ),
                   decoration: InputDecoration(
-                    hintText:       '──────',
-                    hintStyle:      TextStyle(color: Colors.white.withOpacity(0.15), letterSpacing: 10),
+                    hintText:       '───',
+                    hintStyle:      TextStyle(color: Colors.white.withOpacity(0.15), letterSpacing: 14),
                     counterText:    '',   // 隐藏字数计数
                     contentPadding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   onSubmitted: (_) => _verifyOtp(),
                   onChanged: (v) {
-                    // 自动提交：输满 8 位立刻验证
-                    if (v.length == 8) _verifyOtp();
+                    // 自动提交：输满 3 位立刻验证（#9，无需再点按钮）
+                    if (v.length == 3) _verifyOtp();
                   },
                 ),
                 const SizedBox(height: 16),

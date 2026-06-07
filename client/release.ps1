@@ -306,8 +306,18 @@ if (-not $WindowsOnly) {
 Step "Creating GitHub Release: $TAG"
 
 $notes = "## MirrorSpeed VPN v$Version`n`n" +
-         "**Android**: Download APK and install (allow unknown sources)`n" +
-         "**Windows**: Download ZIP, extract and run mirrorspeed_vpn.exe (run as admin on first launch for WireGuard driver)"
+         "### What's new`n" +
+         "- Connection now shows the active mode: Fast (UDP) / Strong (TCP relay) / Ultra (Cloudflare)`n" +
+         "- Status stays ""Connecting"" until traffic is verified — ""Connected"" only when it really works`n" +
+         "- Manual disconnect is final (no more auto-switching to the next mode)`n" +
+         "- Routes are always cleaned up on exit/failure (no more dead tunnels blackholing traffic)`n" +
+         "- Node list shows a colored latency dot (green/amber/red) instead of raw numbers`n" +
+         "- App opens straight to the connect screen; sign in from ""Me"" when you want`n" +
+         "- 3-digit verification code with auto-submit`n" +
+         "- Narrower, phone-style window on Windows`n`n" +
+         "### Install`n" +
+         "**Android**: download the APK and install (allow unknown sources)`n" +
+         "**Windows**: download the ZIP, extract, and run mirrorspeed_vpn.exe (right-click → Run as administrator on first launch)"
 
 $ErrorActionPreference = 'Continue'
 git tag $TAG

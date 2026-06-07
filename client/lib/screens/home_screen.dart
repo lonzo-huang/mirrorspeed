@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
@@ -67,23 +68,25 @@ class HomeScreen extends StatelessWidget {
                       await vpn.disconnect();
                     } else if (server != null) {
                       await vpn.connect(server);
+                    } else if (!auth.isLoggedIn) {
+                      // 未登录且无可用节点：引导去登录（#7，不强制登录墙）
+                      context.go('/login');
                     }
                   },
                 ),
 
               const SizedBox(height: 32),
 
-              // ── 计时器 / 状态文字 ─────────────────────────────
+              // ── 状态文字（连接中 / 模式·已连接；不再显示连接时长）──────
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
-                child: vpn.isConnected
-                    ? Text(vpn.elapsedFormatted,
-                        key: const ValueKey('timer'),
-                        style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w200,
-                          fontFeatures: [FontFeature.tabularFigures()]))
-                    : Text(_statusText(vpn),
-                        key: ValueKey(vpn.status.name + vpn.isRelayMode.toString()),
-                        style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 15)),
+                child: Text(vpn.statusLine,
+                    key: ValueKey(vpn.status.name + vpn.protocol.name),
+                    style: TextStyle(
+                      color: vpn.isConnected ? kSuccess : Colors.white.withOpacity(0.6),
+                      fontSize: vpn.isConnected ? 20 : 15,
+                      fontWeight: vpn.isConnected ? FontWeight.w600 : FontWeight.normal,
+                    )),
               ),
 
               const Spacer(),
@@ -175,15 +178,30 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  String _statusText(VpnProvider vpn) {
-    if (vpn.status == VpnStatus.connecting) {
-      return vpn.isRelayMode ? '切换为强力模式连接中…' : '快速模式连接中…';
-    }
-    return switch (vpn.status) {
-      VpnStatus.disconnecting => '正在断开…',
-      VpnStatus.error         => '连接出错',
-      _                       => '未连接',
-    };
+}
+
+// 延迟用颜色点表示，不显示具体数值（#6）：
+//   <500ms 绿色 · 500–1500ms 黄色 · >1500ms 红色 · 测量中灰色
+Color latencyColor(int? ms) {
+  if (ms == null)   return Colors.white38;
+  if (ms < 500)     return kSuccess;
+  if (ms <= 1500)   return Colors.amber;
+  return kDanger;
+}
+
+class LatencyDot extends StatelessWidget {
+  final int? ms;
+  const LatencyDot({super.key, required this.ms});
+  @override
+  Widget build(BuildContext context) {
+    final c = latencyColor(ms);
+    return Container(
+      width: 10, height: 10,
+      decoration: BoxDecoration(
+        color: c, shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: c.withOpacity(0.5), blurRadius: 6)],
+      ),
+    );
   }
 }
 
@@ -219,9 +237,8 @@ class _ServerCard extends StatelessWidget {
             if (server.location.isNotEmpty)
               Text(server.location, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
           ])),
-          if (server.latencyMs != null)
-            _LatencyBadge(ms: server.latencyMs as int),
-          const SizedBox(width: 8),
+          LatencyDot(ms: server.latencyMs as int?),
+          const SizedBox(width: 10),
           Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withOpacity(0.4)),
         ]),
       ),
@@ -255,30 +272,6 @@ class _VpnErrorBanner extends StatelessWidget {
         Expanded(child: Text(message,
           style: TextStyle(color: color, fontSize: 13))),
       ]),
-    );
-  }
-}
-
-class _LatencyBadge extends StatelessWidget {
-  final int ms;
-  const _LatencyBadge({ required this.ms });
-
-  Color get color {
-    if (ms < 100) return kSuccess;
-    if (ms < 250) return Colors.amber;
-    return kDanger;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Text('${(ms / 10).round()}ms', style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
     );
   }
 }

@@ -321,10 +321,28 @@ const String kProviderBundle = 'com.mirrorspeed.vpn.network';  // iOS Network Ex
 
 ---
 
+## 连接模式与状态（v2.0.1）
+
+客户端按优先级自动尝试，三种模式对外名称（中文 / 其它语言）：
+
+| 内部通道 | 对外名称（中文） | 对外名称（其它） | 触发 |
+|---|---|---|---|
+| 直连 UDP | 快速模式 | Fast Mode | 默认优先 |
+| wstunnel 443 | 强力模式 | Strong Mode | 直连验证失败回退 |
+| Cloudflare | 暴力模式 | Ultra Mode | 强力仍不通且配置了 cf_relay_url |
+
+- **「连接中」直到验证流量畅通**：握手成功不等于能上网，必须 HTTP 204 探测通过后才显示「已连接」+模式。
+- **手动断开即断开**：`disconnect()` 置 `_userInitiatedDisconnect`，挂起的探测/回退一律中止，绝不自动切下一模式。
+- **路由零泄漏**：失败/退出/崩溃都会拆隧道清路由（见 2.0.0 修复 + 插件析构/构造清理）。
+
+> **3 位验证码依赖 Supabase 设置**：客户端已按 3 位实现（输满自动登录）。需在 Supabase
+> Dashboard → Authentication → Email 模板/OTP 设置里把验证码长度设为 3 位，两边一致才生效。
+
 ## 版本历史
 
 | 版本 | 变更 |
 |------|------|
+| **2.0.1** | **连接体验大改**：① Windows 窗口改为手机式窄宽度；② 去掉连接时长显示；③ 状态显示当前模式——快速模式(UDP)/强力模式(TCP 中继)/暴力模式(Cloudflare)，其它语言本地化；④ 手动断开即断开，不再自动切下一模式；⑤ 未确认流量畅通前一律显示「连接中」，验证通过才显示「已连接」+模式；⑥ 节点列表用延迟色点(绿<500/黄500-1500/红>1500)替代数值；⑦ 打开 App 直接进连接界面，登录改为「我的」里可选；⑨ 验证码改 3 位、输满自动登录。**待办 ⑧** 用量本地计算（上限已从服务器拉取，本地字节累计需各端原生 transfer 统计，单列后续）。适配器描述本地化需重编 `mirrorspeed_svc.exe`（见 BUILD.md）。 |
 | **2.0.0** | **正式支持 Windows UDP 直连**：Windows 用户态内核（`mirrorspeed_svc.exe`）+ WinTun；修复 WG-in-WG 环路（AllowedIPs 剔除服务器自身 /32）+ MTU=1280 + WSAECONNRESET 补丁 + service SID/句柄修复；全面去除对外 awg/amneziawg 命名（接口名 `mirrorspeed`，目录/日志 MirrorSpeed）；会话端口锁定 + `onAppResumed` 自动重连；端口窗口 ±3；provisioning 统一确定性命名 + 每服务器独立 api_secret + 唯一索引防重复 |
 | 1.0.24 | **AWG + 端口跳变**：wireguard_flutter → amneziawg_flutter；HMAC 动态端口；iOS Network Extension 支持 |
 | 1.0.22 | 修复 Android 图标渲染（关闭 Impeller，回退 Skia） |
