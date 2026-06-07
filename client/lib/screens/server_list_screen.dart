@@ -98,9 +98,9 @@ class _ServerTile extends StatelessWidget {
             Text(server.flagEmoji, style: const TextStyle(fontSize: 28)),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(server.displayName,
+              Text(server.displayLabel(Brand.isZh),
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-              if (server.location.isNotEmpty)
+              if (Brand.isZh && server.location.isNotEmpty)
                 Text(server.location, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
             ])),
             if (latency != null)

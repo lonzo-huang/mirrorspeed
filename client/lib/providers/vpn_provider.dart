@@ -650,21 +650,24 @@ class VpnProvider extends ChangeNotifier {
   // ── 断开 ────────────────────────────────────────────────────
   Future<void> disconnect() async {
     _userInitiatedDisconnect = true;  // 手动断开即断开，禁止任何自动回退（#4）
-    await _stopUsagePolling();        // 断开前结算最后一次用量
+    // 先把会卡住的计时器停掉（不要 await 任何原生调用，否则若平台调用挂起会卡死断开）。
     _fallbackTimer?.cancel();
+    _usageTimer?.cancel();
     _sessionPort      = null;    // 主动断开后，下次连接重新基于时间计算端口
     _switchingToRelay = false;   // 确保 disconnected 事件不误判为中继切换中
     _status = VpnStatus.disconnecting;
     notifyListeners();
+    // 关键：第一步就拆隧道（带超时，避免平台通道挂起导致永远断不开）。
     try {
-      await AmneziaWG.instance.stopVpn();
-      await _relay.stop();
-      _protocol = VpnProtocol.direct;
+      await AmneziaWG.instance.stopVpn()
+          .timeout(const Duration(seconds: 6), onTimeout: () {});
     } catch (e) {
-      _error  = e.toString();
-      _status = VpnStatus.error;
-      notifyListeners();
+      debugPrint('[VPN] stopVpn error: $e');
     }
+    try { await _relay.stop(); } catch (_) {}
+    _protocol = VpnProtocol.direct;
+    _status   = VpnStatus.disconnected;   // 明确置为已断开（不依赖 stage 事件）
+    notifyListeners();
   }
 
   // ── 切换服务器 ───────────────────────────────────────────────
@@ -906,7 +909,8 @@ class VpnProvider extends ChangeNotifier {
   }
 
   Future<void> _pollUsage() async {
-    final total = await AmneziaWG.instance.transfer();
+    final total = await AmneziaWG.instance.transfer()
+        .timeout(const Duration(seconds: 3), onTimeout: () => -1);
     _rollDayIfNeeded();
     if (total < 0) return;                 // 隧道未起 / 平台不支持
     if (_statsBaseline == null) { _statsBaseline = total; return; }

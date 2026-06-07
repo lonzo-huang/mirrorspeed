@@ -289,9 +289,10 @@ class _ServerCard extends StatelessWidget {
           Text(server.flagEmoji, style: const TextStyle(fontSize: 28)),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(server.displayName,
+            Text(Brand.isZh ? server.displayName
+                            : (server.location.isNotEmpty ? server.location : server.displayName),
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-            if (server.location.isNotEmpty)
+            if (Brand.isZh && server.location.isNotEmpty)
               Text(server.location, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
           ])),
           LatencyDot(ms: server.latencyMs as int?),

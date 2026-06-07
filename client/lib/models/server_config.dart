@@ -65,6 +65,13 @@ class ServerConfig {
   String get label => '$flagEmoji $displayName';
 }
 
+// display_name 在 DB 里通常是中文（如「德国 法兰克福 01」）。非中文设备改用
+// 英文的 location（如 Frankfurt）；location 为空时回退 display_name。
+extension ServerConfigName on ServerConfig {
+  String displayLabel(bool isZh) =>
+      isZh ? displayName : (location.isNotEmpty ? location : displayName);
+}
+
 class DeviceInfo {
   final String             id;
   final String             label;

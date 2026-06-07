@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../brand.dart';
 import '../theme.dart';
 
 /// 主界面 Shell —— 包裹 HomeScreen / ProfileScreen，提供底部导航栏。
@@ -29,13 +30,13 @@ class MainShell extends StatelessWidget {
               children: [
                 _NavItem(
                   icon:     Icons.shield_rounded,
-                  label:    '主页',
+                  label:    tr('主页', 'Home'),
                   selected: selectedIndex == 0,
                   onTap:    () => context.go('/home'),
                 ),
                 _NavItem(
                   icon:     Icons.person_rounded,
-                  label:    '我的',
+                  label:    tr('我的', 'Me'),
                   selected: selectedIndex == 1,
                   onTap:    () => context.go('/profile'),
                 ),
