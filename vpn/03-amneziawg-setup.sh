@@ -146,7 +146,7 @@ echo "  Jc=${AWG_JC}  Jmin=${AWG_JMIN}  Jmax=${AWG_JMAX}"
 echo "  H1=${AWG_H1}  H2=${AWG_H2}  H3=${AWG_H3}  H4=${AWG_H4}"
 
 # ── 自动检测 WAN 网卡 ──────────────────────────────────────────────────────
-WAN_IF=$(ip -4 route ls | awk '/^default/{print $5; exit}')
+WAN_IF=$(ip -4 route show default | awk '{print $5; exit}')
 [[ -z "${WAN_IF}" ]] && { echo "ERROR: 无法检测 WAN 网卡"; exit 1; }
 echo "  WAN 网卡: ${WAN_IF}"
 echo "${WAN_IF}" > "${AWG_DIR}/.wan-interface"

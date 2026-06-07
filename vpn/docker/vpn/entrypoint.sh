@@ -16,7 +16,7 @@ if [ ! -f "${WG_CONF}" ]; then
     chmod 700 "${WG_DIR}"
 
     # Detect WAN interface
-    WAN_IF=$(ip -4 route ls | awk '/^default/{print $5; exit}')
+    WAN_IF=$(ip -4 route show default | awk '{print $5; exit}')
     if [ -z "${WAN_IF}" ]; then
         echo "[entrypoint] ERROR: Cannot detect WAN interface"
         exit 1

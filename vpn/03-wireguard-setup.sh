@@ -17,7 +17,7 @@ apt-get update -qq
 apt-get install -y wireguard-tools iptables
 
 # 自动检测 WAN 出口网卡（修复硬编码 eth0 bug）
-WAN_IF=$(ip -4 route ls | awk '/^default/{print $5; exit}')
+WAN_IF=$(ip -4 route show default | awk '{print $5; exit}')
 [[ -z "${WAN_IF}" ]] && { echo "ERROR: 无法检测 WAN 网卡"; exit 1; }
 echo "  检测到 WAN 网卡: ${WAN_IF}"
 

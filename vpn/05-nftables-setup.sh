@@ -13,7 +13,7 @@ WAN_IF_FILE="/etc/wireguard/.wan-interface"
 if [[ -f "${WAN_IF_FILE}" ]]; then
     WAN_IF=$(cat "${WAN_IF_FILE}")
 else
-    WAN_IF=$(ip -4 route ls | awk '/^default/{print $5; exit}')
+    WAN_IF=$(ip -4 route show default | awk '{print $5; exit}')
 fi
 [[ -z "${WAN_IF}" ]] && { echo "ERROR: 无法确定 WAN 网卡"; exit 1; }
 echo "  WAN 网卡: ${WAN_IF}"
