@@ -18,7 +18,10 @@
 #     --pubkey  "<服务端公钥>" \
 #     --api-secret  "<该服务器 VPN_API_SECRET>" \
 #     --port-secret "<该服务器 /etc/wireguard/.port-secret>" \
+#     --awg-params  "jc,jmin,jmax,s1,s2,h1,h2,h3,h4" \
 #     [--sort   2]
+#
+#   --awg-params 必须与服务端 /etc/wireguard/awg-params.env 完全一致。
 #
 #   提示：install.sh 部署完成后会在控制台直接打印好这条命令（值已填好），复制即可。
 #
@@ -39,7 +42,7 @@ step()  { echo -e "\n${CYAN}▶ $*${NC}"; }
 
 # ── 解析参数 ─────────────────────────────────────────────────────────────────
 NAME="" DISPLAY_NAME="" LOCATION="" COUNTRY="" EMOJI="" ENDPOINT="" PUBKEY="" SORT=99
-API_SECRET="" PORT_SECRET=""
+API_SECRET="" PORT_SECRET="" AWG_PARAMS=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -52,6 +55,8 @@ while [[ $# -gt 0 ]]; do
         --pubkey)      PUBKEY="$2";       shift 2 ;;
         --api-secret)  API_SECRET="$2";   shift 2 ;;
         --port-secret) PORT_SECRET="$2";  shift 2 ;;
+        # 混淆参数，逗号分隔：jc,jmin,jmax,s1,s2,h1,h2,h3,h4
+        --awg-params)  AWG_PARAMS="$2";   shift 2 ;;
         --sort)        SORT="$2";         shift 2 ;;
         *) err "未知参数: $1" ;;
     esac
@@ -93,6 +98,18 @@ EXTRA_JSON=""
 [[ -n "${API_SECRET}"  ]] && EXTRA_JSON="${EXTRA_JSON}\"api_secret\": \"${API_SECRET}\","
 [[ -n "${PORT_SECRET}" ]] && EXTRA_JSON="${EXTRA_JSON}\"port_secret\": \"${PORT_SECRET}\","
 
+# 混淆参数：jc,jmin,jmax,s1,s2,h1,h2,h3,h4 —— 必须与服务端 awg0 完全一致，
+# 否则客户端配置缺少混淆字段，握手会被服务端丢弃（连上但流量不通）。
+if [[ -n "${AWG_PARAMS}" ]]; then
+    IFS=',' read -r A_JC A_JMIN A_JMAX A_S1 A_S2 A_H1 A_H2 A_H3 A_H4 <<< "${AWG_PARAMS}"
+    if [[ -z "${A_H4}" ]]; then
+        err "--awg-params 需要 9 个逗号分隔的值: jc,jmin,jmax,s1,s2,h1,h2,h3,h4"
+    fi
+    EXTRA_JSON="${EXTRA_JSON}\"awg_jc\": ${A_JC}, \"awg_jmin\": ${A_JMIN}, \"awg_jmax\": ${A_JMAX}, \"awg_s1\": ${A_S1}, \"awg_s2\": ${A_S2}, \"awg_h1\": ${A_H1}, \"awg_h2\": ${A_H2}, \"awg_h3\": ${A_H3}, \"awg_h4\": ${A_H4},"
+else
+    warn "未提供 --awg-params：客户端配置将缺少混淆参数，可能连上但流量不通（强烈建议提供）"
+fi
+
 echo ""
 echo "════════════════════════════════════════════════════════"
 echo "  新服务器注册信息："
@@ -103,6 +120,7 @@ echo "    公钥:        ${PUBKEY:0:20}..."
 echo "    API:         ${API_URL}"
 echo "    api_secret:  ${API_SECRET:+已提供}${API_SECRET:-（缺失）}"
 echo "    port_secret: ${PORT_SECRET:+已提供}${PORT_SECRET:-（缺失）}"
+echo "    awg_params:  ${AWG_PARAMS:-（缺失）}"
 echo "    排序:        ${SORT}"
 echo "════════════════════════════════════════════════════════"
 echo ""

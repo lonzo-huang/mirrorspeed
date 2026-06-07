@@ -249,6 +249,12 @@ PORT_SECRET_FULL=""
 [[ -f /etc/wireguard/.port-secret ]] && PORT_SECRET_FULL=$(cat /etc/wireguard/.port-secret)
 API_URL="https://${DOMAIN}/vpn-api"
 
+# 读取本机的混淆参数（必须随注册写入 DB，否则 Portal 下发给客户端的配置缺少
+# Jc/H1-H4，与服务端 awg0 的混淆设置不匹配 → 握手被丢弃、连上但流量不通）
+AWG_JC=0 AWG_JMIN=0 AWG_JMAX=0 AWG_S1=0 AWG_S2=0 AWG_H1=0 AWG_H2=0 AWG_H3=0 AWG_H4=0
+# shellcheck source=/dev/null
+[[ -f /etc/wireguard/awg-params.env ]] && source /etc/wireguard/awg-params.env
+
 cat << REGINFO
 
 ╔═══════════════════════════════════════════════════════════════╗
@@ -259,7 +265,8 @@ cat << REGINFO
 ─────────────────────────────────────────────────────────────────
 INSERT INTO public.vpn_servers (
   name, display_name, location, country_code, flag_emoji,
-  endpoint, port, public_key, api_url, api_secret, port_secret, sort_order, is_active
+  endpoint, port, public_key, api_url, api_secret, port_secret, sort_order, is_active,
+  awg_jc, awg_jmin, awg_jmax, awg_s1, awg_s2, awg_h1, awg_h2, awg_h3, awg_h4
 ) VALUES (
   '${SRV_NAME}', '${SRV_DISPLAY}', '${SRV_LOCATION}', '${SRV_COUNTRY}', '${SRV_EMOJI}',
   '${DOMAIN}', 51820,
@@ -267,7 +274,8 @@ INSERT INTO public.vpn_servers (
   '${API_URL}',
   '${VPN_API_SECRET}',
   '${PORT_SECRET_FULL}',
-  ${SRV_SORT}, true
+  ${SRV_SORT}, true,
+  ${AWG_JC}, ${AWG_JMIN}, ${AWG_JMAX}, ${AWG_S1}, ${AWG_S2}, ${AWG_H1}, ${AWG_H2}, ${AWG_H3}, ${AWG_H4}
 );
 ─────────────────────────────────────────────────────────────────
 
@@ -283,6 +291,7 @@ bash scripts/register-server.sh \\
   --pubkey      '${AWG_PUBLIC}' \\
   --api-secret  '${VPN_API_SECRET}' \\
   --port-secret '${PORT_SECRET_FULL}' \\
+  --awg-params  '${AWG_JC},${AWG_JMIN},${AWG_JMAX},${AWG_S1},${AWG_S2},${AWG_H1},${AWG_H2},${AWG_H3},${AWG_H4}' \\
   --sort        ${SRV_SORT}
 ─────────────────────────────────────────────────────────────────
 
