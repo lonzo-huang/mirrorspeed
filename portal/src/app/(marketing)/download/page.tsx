@@ -64,22 +64,18 @@ export default function DownloadPage() {
   // For Chinese: show CN-flavor arm64 APK + Windows; for others: show global arm64 APK + Windows
   const displayedAssets: ReleaseAsset[] = (() => {
     if (!release?.assets) return []
-    if (isChinese) {
-      // Prefer CN-flavor arm64 APK; fall back to any android arm64 asset
-      const cnApk   = release.assets.find(a => isCnApk(a.name) && isArm64Apk(a.name))
-                   ?? release.assets.find(a => isCnApk(a.name))
-                   ?? release.assets.find(a => a.platform === 'android' && isArm64Apk(a.name))
-      const winAsset = release.assets.find(a => a.platform === 'windows')
-      return [cnApk, winAsset].filter(Boolean) as ReleaseAsset[]
-    } else {
-      // Show global arm64 APK + Windows
-      const globalApk = release.assets.find(a => isGlobalApk(a.name) && isArm64Apk(a.name))
-                     ?? release.assets.find(a => isGlobalApk(a.name))
-                     ?? release.assets.find(a => a.platform === 'android' && isArm64Apk(a.name) && !isCnApk(a.name))
-                     ?? release.assets.find(a => a.platform === 'android' && !isCnApk(a.name))
-      const winAsset  = release.assets.find(a => a.platform === 'windows')
-      return [globalApk, winAsset].filter(Boolean) as ReleaseAsset[]
-    }
+    // v2.0.4+ 起为单一安装包（壳按设备语言运行时切换），不再区分 cn/global APK。
+    // 优先按旧命名匹配以兼容历史 Release，最终一律兜底到「任意 android 资源」。
+    const apk =
+        (isChinese
+          ? release.assets.find(a => isCnApk(a.name) && isArm64Apk(a.name))
+            ?? release.assets.find(a => isCnApk(a.name))
+          : release.assets.find(a => isGlobalApk(a.name) && isArm64Apk(a.name))
+            ?? release.assets.find(a => isGlobalApk(a.name)))
+        ?? release.assets.find(a => a.platform === 'android' && isArm64Apk(a.name))
+        ?? release.assets.find(a => a.platform === 'android')
+    const winAsset = release.assets.find(a => a.platform === 'windows')
+    return [apk, winAsset].filter(Boolean) as ReleaseAsset[]
   })()
 
   // Placeholders when no release is available yet

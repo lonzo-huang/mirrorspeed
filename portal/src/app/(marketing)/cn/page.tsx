@@ -150,10 +150,11 @@ function DownloadSection() {
       .catch(() => {})
   }, [])
 
-  // 找 CN APK：优先找文件名含 JinSu 的 asset
+  // 找安卓 APK：兼容旧的 JinSu 命名，最终兜底到任意 android 资源（v2.0.4+ 单包）
   const cnAsset = release?.assets.find(a => a.name.toLowerCase().includes('jinsu'))
-  // CN 镜像下载地址
-  const cnMirrorUrl = release?.cn_apk_cn_url
+                ?? release?.assets.find(a => a.platform === 'android')
+  // CN 镜像下载地址（单包后用 cn_apk_url）
+  const cnMirrorUrl = release?.cn_apk_cn_url ?? release?.cn_apk_url
 
   return (
     <div id="download" className="py-24 px-6 bg-white/[0.01]">
