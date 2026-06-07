@@ -19,7 +19,7 @@ class HomeScreen extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     final vpn  = context.watch<VpnProvider>();
 
-    final server = vpn.activeServer ?? (auth.servers.isNotEmpty ? auth.servers.first : null);
+    final server = vpn.activeServer ?? (auth.displayServers.isNotEmpty ? auth.displayServers.first : null);
 
     return Scaffold(
       backgroundColor: kBg,
@@ -53,6 +53,14 @@ class HomeScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             children: [
+              // ── 全局通告（运营下发）#2 ────────────────────────
+              if (auth.announcement != null)
+                _AnnouncementBanner(data: auth.announcement!),
+
+              // ── 新版本提示 #2 ─────────────────────────────────
+              if (auth.updateAvailable)
+                _UpdateBanner(version: auth.latestVersion!),
+
               // ── 订阅到期提醒 banner ───────────────────────────
               if (auth.daysUntilExpiry != null && auth.daysUntilExpiry! <= 7)
                 _ExpiryBanner(days: auth.daysUntilExpiry!),
@@ -71,11 +79,11 @@ class HomeScreen extends StatelessWidget {
                   onPressed: vpn.isBusy ? null : () async {
                     if (vpn.isConnected) {
                       await vpn.disconnect();
-                    } else if (server != null) {
-                      await vpn.connect(server);
-                    } else if (!auth.isLoggedIn) {
-                      // 未登录且无可用节点：引导去登录（#7，不强制登录墙）
+                    } else if (!auth.isLoggedIn || server == null || server.isDisplayOnly) {
+                      // 未登录（或只有公开展示节点）：连接前先登录（#1/#7）
                       context.go('/login');
+                    } else {
+                      await vpn.connect(server);
                     }
                   },
                 ),
@@ -127,7 +135,7 @@ class HomeScreen extends StatelessWidget {
                     foregroundColor: Colors.white70,
                   ),
                   icon:  const Icon(Icons.language_rounded, size: 18),
-                  label: Text('选择节点 (${auth.servers.length} 个可用)'),
+                  label: Text('选择节点 (${auth.displayServers.length} 个可用)'),
                 ),
               ),
 
@@ -439,6 +447,86 @@ class _UpgradeButton extends StatelessWidget {
       ),
     ),
   ]);
+}
+
+// ── 新版本提示 banner（#2）────────────────────────────────────────────────────
+class _UpdateBanner extends StatelessWidget {
+  final String version;
+  const _UpdateBanner({required this.version});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => launchUrl(
+        Uri.parse('https://www.mirrorspeed.com/download'),
+        mode: LaunchMode.externalApplication,
+      ),
+      child: Container(
+        width: double.infinity,
+        margin:  const EdgeInsets.only(top: 12, bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color:        kBrand.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(12),
+          border:       Border.all(color: kBrand.withOpacity(0.35)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.system_update_rounded, color: kBrand, size: 16),
+          const SizedBox(width: 8),
+          Expanded(child: Text('发现新版本 v$version，点击前往下载更新',
+            style: const TextStyle(color: kBrand, fontSize: 12, fontWeight: FontWeight.w500))),
+          const Text('更新 →', style: TextStyle(color: kBrand, fontSize: 12, fontWeight: FontWeight.bold)),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── 全局通告 banner（#2，运营在 Supabase 下发）────────────────────────────────
+class _AnnouncementBanner extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _AnnouncementBanner({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = (data['title'] ?? '') as String;
+    final body  = (data['body']  ?? '') as String;
+    final level = (data['level'] ?? 'info') as String;
+    final color = level == 'warning' ? Colors.amber
+                : level == 'critical' ? kDanger
+                : kBrand;
+    final url   = data['url'] as String?;
+    final w = Container(
+      width: double.infinity,
+      margin:  const EdgeInsets.only(top: 12, bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color:        color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border:       Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.campaign_rounded, color: color, size: 16),
+        const SizedBox(width: 8),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (title.isNotEmpty)
+            Text(title, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold)),
+          if (body.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(body, style: TextStyle(color: color.withOpacity(0.9), fontSize: 12)),
+            ),
+        ])),
+      ]),
+    );
+    if (url != null && url.isNotEmpty) {
+      return GestureDetector(
+        onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+        child: w,
+      );
+    }
+    return w;
+  }
 }
 
 // ── 订阅到期提醒 banner ───────────────────────────────────────────────────────

@@ -80,6 +80,46 @@ class ApiService {
     final devices = body['devices'] as List;
     return devices.map((d) => DeviceInfo.fromJson(d as Map<String, dynamic>)).toList();
   }
+
+  // ── 公开节点列表（无需登录，仅展示用，不含密钥/配置）#1 ────────────
+  Future<List<ServerConfig>> fetchPublicServers() async {
+    final res = await http.get(Uri.parse('$kApiBase/api/servers'));
+    if (res.statusCode != 200) return [];
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final list = (body['servers'] as List?) ?? [];
+    return list
+        .map((s) => ServerConfig.fromPublicJson(s as Map<String, dynamic>))
+        .toList();
+  }
+
+  // ── 最新版本（用于更新提示）#2 ────────────────────────────────────
+  // 返回 {version, url}；失败返回 null。
+  Future<Map<String, String?>?> fetchLatestVersion() async {
+    try {
+      final res = await http.get(Uri.parse('$kApiBase/api/releases/latest'));
+      if (res.statusCode != 200) return null;
+      final b = jsonDecode(res.body) as Map<String, dynamic>;
+      final v = b['version'] as String?;
+      if (v == null) return null;
+      return {'version': v, 'url': 'https://www.mirrorspeed.com/download'};
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── 全局通告（运营下发，公开）#2 ──────────────────────────────────
+  // 返回 {id,title,body,level}；无通告返回 null。
+  Future<Map<String, dynamic>?> fetchAnnouncement() async {
+    try {
+      final res = await http.get(Uri.parse('$kApiBase/api/announcement'));
+      if (res.statusCode != 200) return null;
+      final b = jsonDecode(res.body) as Map<String, dynamic>;
+      if (b['announcement'] == null) return null;
+      return b['announcement'] as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 class ApiException implements Exception {

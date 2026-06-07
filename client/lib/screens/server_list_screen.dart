@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../models/server_config.dart';
 import '../providers/auth_provider.dart';
@@ -15,7 +16,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final servers = context.read<AuthProvider>().servers;
+      final servers = context.read<AuthProvider>().displayServers;
       context.read<VpnProvider>().measureLatencies(servers);
     });
   }
@@ -24,7 +25,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
   Widget build(BuildContext context) {
     final auth    = context.watch<AuthProvider>();
     final vpn     = context.watch<VpnProvider>();
-    final servers = auth.servers;
+    final servers = auth.displayServers;
 
     return Scaffold(
       appBar: AppBar(
@@ -50,6 +51,11 @@ class _ServerListScreenState extends State<ServerListScreen> {
                 isActive: vpn.activeServer?.id == servers[i].id,
                 onTap: () async {
                   Navigator.pop(context);
+                  // 未登录或仅展示节点：连接前先登录（#1）
+                  if (!auth.isLoggedIn || servers[i].isDisplayOnly) {
+                    context.go('/login');
+                    return;
+                  }
                   if (vpn.isConnected) {
                     await vpn.switchServer(servers[i]);
                   } else {

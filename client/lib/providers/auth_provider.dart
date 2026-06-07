@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
 import '../models/server_config.dart';
 import '../env.dart';
+import '../version.dart';
 
 enum AuthStatus { loading, unauthenticated, authenticated, noSubscription }
 
@@ -20,13 +21,43 @@ class AuthProvider extends ChangeNotifier {
   String?             _error;
   DateTime?           _subExpiresAt;
 
+  // 公开节点（未登录展示）+ 版本/通告（#1 #2）
+  List<ServerConfig>     _publicServers = [];
+  String?                _latestVersion;
+  Map<String, dynamic>?  _announcement;
+
   AuthStatus       get status      => _status;
   String?          get deviceId    => _deviceId;
   String?          get deviceLabel => _deviceLabel;
   List<DeviceInfo> get configs          => _configs;
   List<ServerConfig> get servers        => _configs.isNotEmpty ? _configs.first.servers : [];
+  /// 列表展示用：已登录用真实节点；未登录用公开节点（仅展示，连接前需登录）。
+  List<ServerConfig> get displayServers => servers.isNotEmpty ? servers : _publicServers;
   String?          get error            => _error;
   DateTime?        get subExpiresAt     => _subExpiresAt;
+
+  // ── 版本/通告（#2）────────────────────────────────────────────
+  String?               get latestVersion => _latestVersion;
+  Map<String, dynamic>? get announcement  => _announcement;
+  /// 线上版本是否比当前 App 新（简单 semver 比较）。
+  bool get updateAvailable =>
+      _latestVersion != null && _isNewer(_latestVersion!, kAppVersion);
+
+  static bool _isNewer(String remote, String local) {
+    List<int> parse(String v) => v
+        .replaceAll(RegExp(r'^v'), '')
+        .split('+').first
+        .split('.')
+        .map((p) => int.tryParse(RegExp(r'\d+').stringMatch(p) ?? '0') ?? 0)
+        .toList();
+    final r = parse(remote), l = parse(local);
+    for (var i = 0; i < 3; i++) {
+      final rv = i < r.length ? r[i] : 0;
+      final lv = i < l.length ? l[i] : 0;
+      if (rv != lv) return rv > lv;
+    }
+    return false;
+  }
 
   /// Days until subscription expires. null = no subscription or already expired.
   int? get daysUntilExpiry {
@@ -57,12 +88,27 @@ class AuthProvider extends ChangeNotifier {
 
   // ── 初始化（app 启动时调用）──────────────────────────────────
   Future<void> initialize() async {
+    _loadAppMeta();   // 公开节点 + 版本 + 通告（无需登录，后台拉取）
     if (_supabase.auth.currentSession != null) {
       await _onLoggedIn();
     } else {
       _status = AuthStatus.unauthenticated;
       notifyListeners();
     }
+  }
+
+  // 拉取公开节点列表 + 最新版本 + 全局通告（#1 #2）。失败均静默。
+  Future<void> _loadAppMeta() async {
+    final results = await Future.wait([
+      ApiService.instance.fetchPublicServers(),
+      ApiService.instance.fetchLatestVersion(),
+      ApiService.instance.fetchAnnouncement(),
+    ]);
+    _publicServers = results[0] as List<ServerConfig>;
+    final ver      = results[1] as Map<String, String?>?;
+    _latestVersion = ver?['version'];
+    _announcement  = results[2] as Map<String, dynamic>?;
+    notifyListeners();
   }
 
   // ── 登录后流程 ───────────────────────────────────────────────

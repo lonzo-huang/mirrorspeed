@@ -46,6 +46,22 @@ class ServerConfig {
     cfRelayUrl:  j['cf_relay_url'] as String?,
   );
 
+  /// 公开节点（/api/servers）——仅用于未登录时展示列表，无 wg_conf/密钥。
+  /// 连接前必须登录拉取真实配置。
+  factory ServerConfig.fromPublicJson(Map<String, dynamic> j) => ServerConfig(
+    id:          (j['id'] ?? '').toString(),
+    displayName: (j['display_name'] ?? j['name'] ?? '') as String,
+    flagEmoji:   j['flag_emoji'] as String? ?? '',
+    location:    j['location']   as String? ?? '',
+    endpoint:    (j['endpoint'] ?? '') as String,
+    port:        (j['port'] as num?)?.toInt() ?? 51820,
+    wgConf:      '',          // 占位：未登录无配置
+    latencyMs:   (j['latency_ms'] as num?)?.toInt(),
+  );
+
+  /// 是否为「仅展示」的公开节点（无可用配置，连接前需登录）。
+  bool get isDisplayOnly => wgConf.isEmpty;
+
   String get label => '$flagEmoji $displayName';
 }
 
