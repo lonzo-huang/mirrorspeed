@@ -1,3 +1,10 @@
+// winsock2.h MUST come before any windows.h (pulled in by flutter headers below),
+// otherwise windows.h includes the legacy winsock.h and iphlpapi/netioapi's
+// ws2def.h conflicts ("Do not include winsock.h and ws2def.h in the same module").
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>   // GetIfTable2 — tunnel adapter byte counters
+
 #include "amneziawg_flutter_plugin.h"
 
 #include <flutter/method_channel.h>
@@ -11,7 +18,6 @@
 #include <winsvc.h>
 #include <shlobj.h>
 #include <strsafe.h>
-#include <netioapi.h>   // GetIfTable2 — tunnel adapter byte counters
 
 #include <algorithm>
 #include <chrono>
