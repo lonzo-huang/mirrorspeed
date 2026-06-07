@@ -28,28 +28,15 @@ android {
     }
 
     defaultConfig {
+        // 单一安装包（已合并原 global/cn 两个 flavor）。Google Play 用此 id 上架。
+        applicationId = "com.mirrorspeed.vpn"
         // AdMob (google_mobile_ads) 要求 minSdk >= 23；取两者较大值。
         minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-    }
-
-    flavorDimensions += "env"
-
-    productFlavors {
-        create("global") {
-            dimension    = "env"
-            applicationId = "com.mirrorspeed.mirrorspeed_vpn"
-            resValue("string", "app_name", "MirrorSpeed VPN")
-            manifestPlaceholders["deepLinkScheme"] = "mirrorspeed"
-        }
-        create("cn") {
-            dimension    = "env"
-            applicationId = "com.mirrorspeed.jinsu"
-            resValue("string", "app_name", "镜速加速器")
-            manifestPlaceholders["deepLinkScheme"] = "jinsuapp"
-        }
+        // OAuth 深链 scheme（单一）。app_name 由 res/values(-zh) 按语言自动切换。
+        manifestPlaceholders["deepLinkScheme"] = "mirrorspeed"
     }
 
     signingConfigs {

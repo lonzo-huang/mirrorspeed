@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../brand.dart';
 import '../theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -117,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 28),
-              const Center(child: Text('MirrorSpeed VPN', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold))),
+              Center(child: Text(Brand.appName, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))),
               const SizedBox(height: 8),
               Center(child: Text('高速安全，全球加速', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 15))),
 

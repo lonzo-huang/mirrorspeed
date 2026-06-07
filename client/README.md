@@ -221,19 +221,19 @@ cd D:\projects\MirrorSpeed\client
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 $env:PATH = "C:\tools\flutter\bin;C:\Program Files\GitHub CLI\;" + $env:PATH
 
-# Android APK + Windows ZIP（两个 flavor：global / cn）
-.\release.ps1 2.0.0
+# 单一 APK + Windows ZIP（已合并 flavor；壳按设备语言运行时切换）
+.\release.ps1 2.0.4
 
 # 仅 Android
-.\release.ps1 2.0.0 -SkipWindows
+.\release.ps1 2.0.4 -SkipWindows
 
 # 仅 Windows
-.\release.ps1 2.0.0 -SkipAndroid
+.\release.ps1 2.0.4 -SkipAndroid
 ```
 
 脚本自动完成：
 1. `flutter clean && flutter pub get`
-2. 构建 Android APK（`global` flavor = MirrorSpeed VPN，`cn` flavor = 镜速加速器）
+2. 构建**单个** Android APK（壳按语言运行时切换，详见「双壳架构」）
 3. 构建 Windows ZIP（含 DLL 混淆重命名）
 4. 打 Git Tag `v{version}` 并推送
 5. 在 GitHub 创建 Release，上传 APK / ZIP
@@ -253,11 +253,8 @@ $env:PATH = "C:\tools\flutter\bin;C:\Program Files\GitHub CLI\;" + $env:PATH
 ### 手动构建
 
 ```powershell
-# Android（global flavor）
-flutter build apk --release --flavor global --dart-define=APP_FLAVOR=global
-
-# Android（cn flavor）
-flutter build apk --release --flavor cn --dart-define=APP_FLAVOR=cn
+# Android（单包，无 flavor）
+flutter build apk --release
 
 # Windows
 flutter build windows --release --obfuscate --split-debug-info=build/debug_symbols/windows
@@ -321,6 +318,26 @@ const String kProviderBundle = 'com.mirrorspeed.vpn.network';  // iOS Network Ex
 
 ---
 
+## 双壳（Brand）架构 —— 单包按语言切壳（v2.0.4，重要）
+
+> **给后续开发者 / AI 的背景**：本 App 是**单一安装包**，上架 Google Play 只用一个 listing，
+> 以减少维护成本。原先的 `global` / `cn` 两个 flavor 已**合并**。
+
+- **包名**：`com.mirrorspeed.vpn`（单一 applicationId；与旧的
+  `com.mirrorspeed.mirrorspeed_vpn` / `com.mirrorspeed.jinsu` 都不同 → 旧包用户不会自动升级）。
+- **壳由「运行时设备语言」决定**，不再用编译期 `--dart-define=APP_FLAVOR`：
+  - 中文环境 → **镜速加速器**（合规：面向中文用户**不出现 "VPN" 字样**）
+  - 其它语言 → **MirrorSpeed VPN**
+- **启动器图标名称**：由 Android 资源限定符自动切换——
+  `android/app/src/main/res/values/strings.xml`(=MirrorSpeed VPN) 与
+  `res/values-zh/strings.xml`(=镜速加速器) 的 `app_name`；系统语言决定显示哪个，与代码无关。
+- **App 内文案 / 功能开关**：统一走 `lib/brand.dart` 的 `Brand`（读 `PlatformDispatcher.locale`）：
+  - `Brand.appName` — 产品名；`Brand.hideVpnWording` — 中文壳隐藏 VPN 字样；
+    `Brand.showSmartRouting` — 中文壳特性（智能/全局路由切换）。
+- **OAuth scheme**：单一 `mirrorspeed://login-callback`（Supabase 回调允许列表需包含它）。
+- **未来两壳若分化**（不同特性/不同合规策略）：一切差异都集中到 `Brand` 用新增 getter 扩展，
+  **不要**把 `Brand.isZh` 判断散落到各处，以便后续维护。
+
 ## 连接模式与状态（v2.0.1）
 
 客户端按优先级自动尝试，三种模式对外名称（中文 / 其它语言）：
@@ -352,6 +369,8 @@ const String kProviderBundle = 'com.mirrorspeed.vpn.network';  // iOS Network Ex
 
 | 版本 | 变更 |
 |------|------|
+| **2.0.4** | **合并双 flavor 为单包**(`com.mirrorspeed.vpn`)上架 Google Play；壳按设备语言运行时切换(中文=镜速加速器/不显示 VPN；其它=MirrorSpeed VPN)；启动器名走 res/values(-zh)；`Brand` 抽象(`lib/brand.dart`)；单一 OAuth scheme `mirrorspeed`；release.ps1 改为单 APK。 |
+| **2.0.3** | **接入 AdMob**：开屏广告(可跳过) + 激励视频(看完 +30 分钟试用)；**免费试用改为按时间**(首次连接起墙钟倒计时、断开不停、次日重置；上限 `app_config.free_daily_seconds` 从服务器拉取);minSdk≥23。 |
 | **2.0.1** | **连接体验大改**：① Windows 窗口改为手机式窄宽度；② 去掉连接时长显示；③ 状态显示当前模式——快速模式(UDP)/强力模式(TCP 中继)/暴力模式(Cloudflare)，其它语言本地化；④ 手动断开即断开，不再自动切下一模式；⑤ 未确认流量畅通前一律显示「连接中」，验证通过才显示「已连接」+模式；⑥ 节点列表用延迟色点(绿<500/黄500-1500/红>1500)替代数值；⑦ 打开 App 直接进连接界面，登录改为「我的」里可选；⑧ **用量本地计量**——隧道适配器 rx+tx 本地累计、按 UTC 日重置、超额本地断开，上限从服务器拉取(Android=GoBackend 统计 / Windows=GetIfTable2 读 WinTun 适配器字节；iOS 暂返回 -1)；⑨ 验证码 6 位(Supabase 最低 6 位)、输满自动登录。适配器描述本地化需重编 `mirrorspeed_svc.exe`（见 BUILD.md，本版未做）。 |
 | **2.0.0** | **正式支持 Windows UDP 直连**：Windows 用户态内核（`mirrorspeed_svc.exe`）+ WinTun；修复 WG-in-WG 环路（AllowedIPs 剔除服务器自身 /32）+ MTU=1280 + WSAECONNRESET 补丁 + service SID/句柄修复；全面去除对外 awg/amneziawg 命名（接口名 `mirrorspeed`，目录/日志 MirrorSpeed）；会话端口锁定 + `onAppResumed` 自动重连；端口窗口 ±3；provisioning 统一确定性命名 + 每服务器独立 api_secret + 唯一索引防重复 |
 | 1.0.24 | **AWG + 端口跳变**：wireguard_flutter → amneziawg_flutter；HMAC 动态端口；iOS Network Extension 支持 |

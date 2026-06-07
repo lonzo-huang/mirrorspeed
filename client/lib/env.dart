@@ -16,15 +16,13 @@ const String kApiBase      = String.fromEnvironment('API_BASE',
 // iOS Network Extension Bundle ID（须与 Xcode 配置一致）
 const String kProviderBundle = 'com.mirrorspeed.vpn.network';
 
-// ── 应用版本（Flavor）────────────────────────────────────────
-// 构建时通过 --dart-define=APP_FLAVOR=cn|global 注入
-// cn    = 镜速加速器（国内版，含智能路由）
-// global = MirrorSpeed VPN（国际版）
-const String kAppFlavor  = String.fromEnvironment('APP_FLAVOR', defaultValue: 'global');
-const bool   kIsCnFlavor = kAppFlavor == 'cn';
+// ── 双壳（Brand）────────────────────────────────────────────────
+// 已合并为单一安装包(com.mirrorspeed.vpn)，不再用编译期 flavor。
+// App 内文案 / 功能差异统一走运行时 `Brand`（见 lib/brand.dart）：
+// 中文壳=镜速加速器（合规，不显示 VPN 字样），其它=MirrorSpeed VPN。
 
-// OAuth 回调 URL Scheme（与 AndroidManifest deepLinkScheme 一致）
-const String kAuthCallbackScheme = kIsCnFlavor ? 'jinsuapp' : 'mirrorspeed';
+// OAuth 回调 URL Scheme（单一；与 AndroidManifest deepLinkScheme 一致）
+const String kAuthCallbackScheme = 'mirrorspeed';
 const String kAuthCallbackUrl    = '$kAuthCallbackScheme://login-callback';
 
 // ── AdMob 广告（仅 Android/iOS）──────────────────────────────────

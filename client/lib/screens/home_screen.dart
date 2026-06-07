@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
 import '../services/ad_service.dart';
+import '../brand.dart';
 import '../env.dart';
 import '../theme.dart';
 import '../widgets/connect_button.dart';
@@ -35,7 +36,7 @@ class HomeScreen extends StatelessWidget {
             child: const Icon(Icons.shield_rounded, size: 18, color: Colors.white),
           ),
           const SizedBox(width: 10),
-          Text(kIsCnFlavor ? '镜速加速器' : 'MirrorSpeed VPN',
+          Text(Brand.appName,
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
         ]),
         actions: [
@@ -96,7 +97,7 @@ class HomeScreen extends StatelessWidget {
               const Spacer(),
 
               // ── 智能 / 全局 模式切换（仅中文版）─────────────────
-              if (kIsCnFlavor) ...[
+              if (Brand.showSmartRouting) ...[
                 _RoutingModeToggle(
                   mode:      vpn.routingMode,
                   onChanged: (m) => vpn.setRoutingMode(m),

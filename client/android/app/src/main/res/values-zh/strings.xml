@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 中文壳：合规要求，不出现 "VPN" 字样。 -->
+    <string name="app_name">镜速加速器</string>
+</resources>
