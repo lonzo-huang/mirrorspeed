@@ -58,7 +58,7 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 32),
 
               // ── 连接按钮（超额时改为升级按钮）──────────────────
-              if (auth.isSuspended && !vpn.isConnected)
+              if (vpn.quotaExceeded && !vpn.isConnected)
                 _UpgradeButton()
               else
                 ConnectButton(
@@ -128,12 +128,12 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 12),
 
-              // ── 流量进度条（免费用户）────────────────────────────
+              // ── 流量进度条（免费用户，用量本地计量 #8）──────────────
               if (auth.dailyQuotaBytes != null)
                 _QuotaBar(
-                  used:      auth.dailyBytesUsed,
+                  used:      vpn.dailyUsed,
                   quota:     auth.dailyQuotaBytes!,
-                  suspended: auth.isSuspended,
+                  suspended: vpn.quotaExceeded,
                 ),
 
               const SizedBox(height: 8),

@@ -47,4 +47,15 @@ class AmneziawgFlutterMethodChannel extends AmneziawgFlutterInterface {
     final s = await _controlChannel.invokeMethod<String>('stage');
     return VpnStage.fromString(s);
   }
+
+  @override
+  Future<int> transfer() async {
+    try {
+      final v = await _controlChannel.invokeMethod<int>('transfer');
+      return v ?? -1;
+    } catch (_) {
+      // MissingPluginException on platforms without an impl (e.g. iOS) → -1
+      return -1;
+    }
+  }
 }

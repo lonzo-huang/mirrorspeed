@@ -38,4 +38,8 @@ abstract class AmneziawgFlutterInterface extends PlatformInterface {
 
   /// Query current stage.
   Future<VpnStage> stage();
+
+  /// Total bytes transferred through the tunnel since it came up (rx + tx).
+  /// Returns -1 when unavailable (tunnel down, or platform not supported).
+  Future<int> transfer();
 }

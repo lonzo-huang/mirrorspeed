@@ -335,14 +335,24 @@ const String kProviderBundle = 'com.mirrorspeed.vpn.network';  // iOS Network Ex
 - **手动断开即断开**：`disconnect()` 置 `_userInitiatedDisconnect`，挂起的探测/回退一律中止，绝不自动切下一模式。
 - **路由零泄漏**：失败/退出/崩溃都会拆隧道清路由（见 2.0.0 修复 + 插件析构/构造清理）。
 
-> **3 位验证码依赖 Supabase 设置**：客户端已按 3 位实现（输满自动登录）。需在 Supabase
-> Dashboard → Authentication → Email 模板/OTP 设置里把验证码长度设为 3 位，两边一致才生效。
+### 本地用量计量（#8，v2.0.1）
+
+- **上限来自服务器**：`/api/mobile/configs` 下发 `daily_quota_bytes` → `AuthProvider.dailyQuotaBytes`
+  → 通过 `VpnProvider.setDailyQuota()` 注入。付费用户为 null（无限，不计量）。
+- **用量本地累计**：连接后每 5 秒调插件 `transfer()` 读隧道累计字节，求增量累加到
+  `_dailyUsed`，持久化到 SharedPreferences，按 **UTC 日期**重置（与服务端每日额度对齐）。
+- **平台实现**：Android 用 `GoBackend.getStatistics()`(totalRx+totalTx)；Windows 用
+  `GetIfTable2` 读 `mirrorspeed` WinTun 适配器的 InOctets+OutOctets（直连/中继都走 WinTun，
+  统计一致，且是解密后的内层字节=真实用量）；iOS 暂返回 -1（不计量）。
+- **超额本地断开**：`_dailyUsed >= 上限` 即断开并标记 `quotaExceeded`，主页显示「已用完/升级」。
+
+> **验证码长度**：客户端按 **6 位**实现（输满自动登录）。Supabase OTP 最短即 6 位，默认即可，无需特殊设置。
 
 ## 版本历史
 
 | 版本 | 变更 |
 |------|------|
-| **2.0.1** | **连接体验大改**：① Windows 窗口改为手机式窄宽度；② 去掉连接时长显示；③ 状态显示当前模式——快速模式(UDP)/强力模式(TCP 中继)/暴力模式(Cloudflare)，其它语言本地化；④ 手动断开即断开，不再自动切下一模式；⑤ 未确认流量畅通前一律显示「连接中」，验证通过才显示「已连接」+模式；⑥ 节点列表用延迟色点(绿<500/黄500-1500/红>1500)替代数值；⑦ 打开 App 直接进连接界面，登录改为「我的」里可选；⑨ 验证码改 3 位、输满自动登录。**待办 ⑧** 用量本地计算（上限已从服务器拉取，本地字节累计需各端原生 transfer 统计，单列后续）。适配器描述本地化需重编 `mirrorspeed_svc.exe`（见 BUILD.md）。 |
+| **2.0.1** | **连接体验大改**：① Windows 窗口改为手机式窄宽度；② 去掉连接时长显示；③ 状态显示当前模式——快速模式(UDP)/强力模式(TCP 中继)/暴力模式(Cloudflare)，其它语言本地化；④ 手动断开即断开，不再自动切下一模式；⑤ 未确认流量畅通前一律显示「连接中」，验证通过才显示「已连接」+模式；⑥ 节点列表用延迟色点(绿<500/黄500-1500/红>1500)替代数值；⑦ 打开 App 直接进连接界面，登录改为「我的」里可选；⑧ **用量本地计量**——隧道适配器 rx+tx 本地累计、按 UTC 日重置、超额本地断开，上限从服务器拉取(Android=GoBackend 统计 / Windows=GetIfTable2 读 WinTun 适配器字节；iOS 暂返回 -1)；⑨ 验证码 6 位(Supabase 最低 6 位)、输满自动登录。适配器描述本地化需重编 `mirrorspeed_svc.exe`（见 BUILD.md，本版未做）。 |
 | **2.0.0** | **正式支持 Windows UDP 直连**：Windows 用户态内核（`mirrorspeed_svc.exe`）+ WinTun；修复 WG-in-WG 环路（AllowedIPs 剔除服务器自身 /32）+ MTU=1280 + WSAECONNRESET 补丁 + service SID/句柄修复；全面去除对外 awg/amneziawg 命名（接口名 `mirrorspeed`，目录/日志 MirrorSpeed）；会话端口锁定 + `onAppResumed` 自动重连；端口窗口 ±3；provisioning 统一确定性命名 + 每服务器独立 api_secret + 唯一索引防重复 |
 | 1.0.24 | **AWG + 端口跳变**：wireguard_flutter → amneziawg_flutter；HMAC 动态端口；iOS Network Extension 支持 |
 | 1.0.22 | 修复 Android 图标渲染（关闭 Impeller，回退 Skia） |

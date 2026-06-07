@@ -11,6 +11,7 @@
 #include <winsvc.h>
 #include <shlobj.h>
 #include <strsafe.h>
+#include <netioapi.h>   // GetIfTable2 — tunnel adapter byte counters
 
 #include <algorithm>
 #include <chrono>
@@ -26,6 +27,7 @@
 #include <vector>
 
 #pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "iphlpapi.lib")
 
 namespace amneziawg_flutter {
 
@@ -190,6 +192,9 @@ void AmneziawgFlutterPlugin::HandleMethodCall(
   } else if (method == "stage") {
     GetStage(std::move(result));
 
+  } else if (method == "transfer") {
+    GetTransfer(std::move(result));
+
   } else if (method == "checkPermission") {
     // No special permission needed on Windows
     result->Success(flutter::EncodableValue());
@@ -271,6 +276,29 @@ void AmneziawgFlutterPlugin::GetStage(
                           ? "no_connection"
                           : QueryServiceStage(service_name_);
   result->Success(flutter::EncodableValue(stage));
+}
+
+// Total bytes (in+out) on the tunnel's WinTun adapter. These are the inner
+// (decrypted) bytes the user actually moves — correct for usage metering, and
+// they cover both direct and relay modes (the tunnel is always over WinTun).
+// Returns -1 when the adapter isn't present (tunnel down).
+void AmneziawgFlutterPlugin::GetTransfer(
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+  int64_t total = -1;
+  PMIB_IF_TABLE2 table = nullptr;
+  if (GetIfTable2(&table) == NO_ERROR && table) {
+    const std::wstring want =
+        service_name_.empty() ? L"mirrorspeed" : service_name_;
+    for (ULONG i = 0; i < table->NumEntries; ++i) {
+      const MIB_IF_ROW2& r = table->Table[i];
+      if (want == r.Alias) {
+        total = static_cast<int64_t>(r.InOctets + r.OutOctets);
+        break;
+      }
+    }
+    FreeMibTable(table);
+  }
+  result->Success(flutter::EncodableValue(total));
 }
 
 // -- Helpers ----------------------------------------------------------------

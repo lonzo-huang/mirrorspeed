@@ -74,6 +74,7 @@ class AmneziawgFlutterPlugin final : public flutter::Plugin {
                    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
   void StopTunnel(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
   void GetStage(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+  void GetTransfer(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
   // -- Helpers ----------------------------------------------------------------
   std::wstring GetConfDir() const;

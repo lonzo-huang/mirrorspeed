@@ -44,4 +44,7 @@ class AmneziaWG {
       AmneziawgFlutterInterface.instance.refreshStage();
 
   Future<VpnStage> stage() => AmneziawgFlutterInterface.instance.stage();
+
+  /// 隧道累计流量(rx+tx 字节)；不可用时返回 -1。
+  Future<int> transfer() => AmneziawgFlutterInterface.instance.transfer();
 }

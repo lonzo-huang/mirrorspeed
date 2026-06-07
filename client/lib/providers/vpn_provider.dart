@@ -47,6 +47,16 @@ class VpnProvider extends ChangeNotifier {
   // 自动重连，也必须沿用此值，避免跨小时窗口时端口漂移。disconnect() 清空。
   int?               _sessionPort;
 
+  // ── 本地用量计量（#8）──────────────────────────────────────────
+  // 用量在【本地】累计（隧道适配器 rx+tx），上限从服务器拉取（setDailyQuota）。
+  // 按 UTC 日期重置，与服务端每日额度对齐。
+  int                _dailyUsed   = 0;       // 今日已用字节（本地累计）
+  String             _usageDay    = '';      // 当前计量所属 UTC 日期 yyyy-mm-dd
+  int?               _statsBaseline;         // 上次轮询的隧道累计值，用于求增量
+  int?               _quotaBytes;            // 服务器下发的今日上限（null=无限/付费）
+  bool               _quotaExceeded = false; // 今日额度是否已用尽
+  Timer?             _usageTimer;
+
   VpnStatus     get status       => _status;
   ServerConfig? get activeServer => _activeServer;
   int?          get elapsedSecs  => _elapsedSecs;
@@ -58,6 +68,13 @@ class VpnProvider extends ChangeNotifier {
   bool get isConnected => _status == VpnStatus.connected;
   bool get isBusy      => _status == VpnStatus.connecting ||
                           _status == VpnStatus.disconnecting;
+
+  // ── 本地用量对外接口 ──────────────────────────────────────────
+  int   get dailyUsed     => _dailyUsed;
+  int?  get quotaBytes    => _quotaBytes;
+  bool  get quotaExceeded => _quotaExceeded;
+
+  static String _utcDay() => DateTime.now().toUtc().toIso8601String().substring(0, 10);
 
   // 任何挂起的异步流程（探测/回退）遇到以下情况都应中止
   bool get _aborted =>
@@ -110,6 +127,7 @@ class VpnProvider extends ChangeNotifier {
       description:    _adapterDescription(),
     );
     _stageSub = AmneziaWG.instance.vpnStageSnapshot.listen(_onStage);
+    await _loadUsage();
 
     // 恢复上次选择的路由模式
     final prefs = await SharedPreferences.getInstance();
@@ -150,6 +168,7 @@ class VpnProvider extends ChangeNotifier {
       case VpnStage.disconnected:
         _status = VpnStatus.disconnected;
         _stopTimer();
+        _usageTimer?.cancel();   // 隧道已断，停止用量轮询（不再有适配器可读）
         // 中继切换过程中不清除 activeServer；
         // _switchingToRelay 在此处故意不重置——需等到
         // relay 的 startVpn 触发 connected 后才置 false，
@@ -180,6 +199,7 @@ class VpnProvider extends ChangeNotifier {
     _userInitiatedDisconnect = false;  // 新的连接尝试，解除断开锁
     _fallbackTimer?.cancel();
     _sessionPort      = null;   // 用户主动连接 = 一次重连，按当前时间重新算端口
+    _statsBaseline    = null;   // 新隧道，用量基线重置（首个轮询重新建立基线）
     notifyListeners();
 
     try {
@@ -577,6 +597,7 @@ class VpnProvider extends ChangeNotifier {
   // ── 断开 ────────────────────────────────────────────────────
   Future<void> disconnect() async {
     _userInitiatedDisconnect = true;  // 手动断开即断开，禁止任何自动回退（#4）
+    await _stopUsagePolling();        // 断开前结算最后一次用量
     _fallbackTimer?.cancel();
     _sessionPort      = null;    // 主动断开后，下次连接重新基于时间计算端口
     _switchingToRelay = false;   // 确保 disconnected 事件不误判为中继切换中
@@ -681,6 +702,7 @@ class VpnProvider extends ChangeNotifier {
     if (ok) {
       _fallbackTimer?.cancel(); // 流量畅通，取消中继切换计时器
       _status = VpnStatus.connected;   // 验证通过才显示已连接（#5）
+      _startUsagePolling();
       notifyListeners();
       debugPrint('[VPN] 连通性验证成功，保持直连（快速模式）');
     } else {
@@ -715,6 +737,7 @@ class VpnProvider extends ChangeNotifier {
 
     if (ok) {
       _status = VpnStatus.connected;   // 验证通过才显示已连接（#5）
+      _startUsagePolling();
       notifyListeners();
       debugPrint('[VPN] 中继连通性验证成功（$modeLabel）');
     } else {
@@ -767,9 +790,83 @@ class VpnProvider extends ChangeNotifier {
     return '${m.toString().padLeft(2,'0')}:${sec.toString().padLeft(2,'0')}';
   }
 
+  // ── 本地用量计量实现（#8）────────────────────────────────────
+  // 用量在本地累计（隧道适配器 rx+tx 增量），上限由服务器下发；按 UTC 日重置。
+  Future<void> _loadUsage() async {
+    final prefs = await SharedPreferences.getInstance();
+    _usageDay  = prefs.getString('usage_day') ?? _utcDay();
+    _dailyUsed = prefs.getInt('usage_bytes') ?? 0;
+    _rollDayIfNeeded();
+  }
+
+  Future<void> _persistUsage() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('usage_day', _usageDay);
+    await prefs.setInt('usage_bytes', _dailyUsed);
+  }
+
+  void _rollDayIfNeeded() {
+    final today = _utcDay();
+    if (_usageDay != today) {
+      _usageDay      = today;
+      _dailyUsed     = 0;
+      _quotaExceeded = false;
+      _persistUsage();
+    }
+  }
+
+  /// 服务器下发的今日上限（null = 无限/付费用户）。由 AuthProvider 配置变化时调用。
+  void setDailyQuota(int? bytes) {
+    _quotaBytes = bytes;
+    _rollDayIfNeeded();
+    _enforceQuota();
+    notifyListeners();
+  }
+
+  void _startUsagePolling() {
+    _usageTimer?.cancel();
+    _rollDayIfNeeded();
+    _pollUsage();   // 立即建立基线
+    _usageTimer = Timer.periodic(const Duration(seconds: 5), (_) => _pollUsage());
+  }
+
+  Future<void> _stopUsagePolling() async {
+    _usageTimer?.cancel();
+    _usageTimer = null;
+    await _pollUsage();   // 结算最后一段
+  }
+
+  Future<void> _pollUsage() async {
+    final total = await AmneziaWG.instance.transfer();
+    _rollDayIfNeeded();
+    if (total < 0) return;                 // 隧道未起 / 平台不支持
+    if (_statsBaseline == null) { _statsBaseline = total; return; }
+    var delta = total - _statsBaseline!;
+    if (delta < 0) delta = total;          // 计数归零（隧道重启）
+    _statsBaseline = total;
+    if (delta <= 0) return;
+    _dailyUsed += delta;
+    _persistUsage();
+    notifyListeners();
+    _enforceQuota();
+  }
+
+  // 超过本地额度即断开并标记，UI 显示「已用完」。付费用户(quota=null)不限。
+  void _enforceQuota() {
+    if (_quotaBytes == null) { _quotaExceeded = false; return; }
+    if (_dailyUsed >= _quotaBytes!) {
+      _quotaExceeded = true;
+      if (isConnected || _status == VpnStatus.connecting) {
+        debugPrint('[VPN] 今日本地额度已用尽，断开连接');
+        disconnect();
+      }
+    }
+  }
+
   @override
   void dispose() {
     _fallbackTimer?.cancel();
+    _usageTimer?.cancel();
     _stageSub?.cancel();
     _timer?.cancel();
     // 应用销毁（退出）时务必拆除隧道，避免原生隧道/路由表残留导致退出后断网。

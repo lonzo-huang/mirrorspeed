@@ -121,6 +121,7 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
             "start"           -> startTunnel(call.argument<String>("wgQuickConfig").orEmpty(), result)
             "stop"            -> stopTunnel(result)
             "stage"           -> result.success(getStatus())
+            "transfer"        -> getTransfer(result)
             "checkPermission" -> { checkPermission(); result.success(null) }
             else              -> result.notImplemented()
         }
@@ -186,6 +187,24 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                 Log.e(TAG, "stopTunnel error: ${e.message}", e)
                 mainResult(result) { it.error("STOP_FAILED", e.message, null) }
             }
+        }
+    }
+
+    // 返回隧道累计流量(rx+tx 字节)，供客户端本地计量。隧道未起或异常返回 -1。
+    private fun getTransfer(result: Result) {
+        scope.launch(Dispatchers.IO) {
+            val total: Long = try {
+                val t = tunnel
+                val b = backend
+                if (t == null || b == null) -1L
+                else {
+                    val stats = b.getStatistics(t)
+                    stats.totalRx() + stats.totalTx()
+                }
+            } catch (e: Exception) {
+                -1L
+            }
+            mainResult(result) { it.success(total) }
         }
     }
 

@@ -125,9 +125,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 16),
 
-              // ── 免费流量进度条 ──────────────────────────────
+              // ── 免费流量进度条（用量本地计量 #8）──────────────
               if (!isPaid && auth.dailyQuotaBytes != null) ...[
-                _QuotaSection(auth: auth),
+                _QuotaSection(
+                  used:      vpn.dailyUsed,
+                  quota:     auth.dailyQuotaBytes!,
+                  suspended: vpn.quotaExceeded,
+                ),
                 const SizedBox(height: 16),
               ],
 
@@ -436,8 +440,10 @@ class _ActionRow extends StatelessWidget {
 
 // ── 流量进度条（免费用户）─────────────────────────────────────
 class _QuotaSection extends StatelessWidget {
-  final AuthProvider auth;
-  const _QuotaSection({required this.auth});
+  final int  used;
+  final int  quota;
+  final bool suspended;
+  const _QuotaSection({required this.used, required this.quota, required this.suspended});
 
   String _fmt(int bytes) {
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
@@ -446,10 +452,8 @@ class _QuotaSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final used     = auth.dailyBytesUsed;
-    final quota    = auth.dailyQuotaBytes!;
     final ratio    = (used / quota).clamp(0.0, 1.0);
-    final color    = auth.isSuspended
+    final color    = suspended
         ? kDanger : ratio > 0.8 ? Colors.amber : kSuccess;
 
     return Container(
@@ -467,7 +471,7 @@ class _QuotaSection extends StatelessWidget {
             style: TextStyle(color: color, fontSize: 13,
               fontWeight: FontWeight.w600)),
           const Spacer(),
-          Text(auth.isSuspended
+          Text(suspended
             ? '已用完'
             : '${_fmt(used)} / ${_fmt(quota)}',
             style: TextStyle(color: color, fontSize: 12)),
