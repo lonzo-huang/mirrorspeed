@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../models/server_config.dart';
 import '../env.dart';
@@ -196,13 +197,26 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       _error = e.toString();
     }
+    // 缓存会员标记：付费用户(无每日额度)下次冷启动可跳过开屏广告（#2）。
+    await _persistMemberFlag();
     notifyListeners();
+  }
+
+  // 付费会员 = 没有每日时长/流量额度。缓存供启动时（auth 未就绪前）判断。
+  Future<void> _persistMemberFlag() async {
+    final paid = _configs.isNotEmpty &&
+        _configs.first.dailyQuotaSeconds == null &&
+        _configs.first.dailyQuotaBytes == null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_member', paid);
   }
 
   // ── 登出 ─────────────────────────────────────────────────────
   Future<void> signOut() async {
     await _supabase.auth.signOut();
     await _storage.delete(key: 'device_id');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_member', false);
     _deviceId = null; _configs = [];
     _status   = AuthStatus.unauthenticated;
     notifyListeners();

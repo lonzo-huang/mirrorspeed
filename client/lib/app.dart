@@ -34,6 +34,8 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
     _auth.addListener(() {
       _vpn.setDailyQuota(_auth.dailyQuotaBytes);
       _vpn.setTimeQuota(_auth.dailyQuotaSeconds);
+      // 冷启动采纳已运行隧道后，把 activeServer 绑回上次节点。
+      _vpn.bindActiveServer(_auth.displayServers);
     });
 
     _router = GoRouter(

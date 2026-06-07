@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -5,15 +6,19 @@ import '../env.dart';
 
 /// AdMob 封装：开屏(App Open，可跳过) + 激励视频(Rewarded，看完延长试用)。
 /// 仅 Android / iOS 生效；Windows / Web 上全部为安全空操作。
+/// 付费会员通过 initialize(enabled:false) 关闭所有广告（#2）。
 class AdService {
   AdService._();
   static final AdService instance = AdService._();
 
-  bool get _supported => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  bool get _platformOk => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  bool _enabled = true;                 // 付费会员为 false
+  bool get _supported => _platformOk && _enabled;
 
   bool _initialized = false;
-  Future<void> initialize() async {
-    if (!_supported || _initialized) return;
+  Future<void> initialize({bool enabled = true}) async {
+    _enabled = enabled;
+    if (!_platformOk || !enabled || _initialized) return;
     try {
       await MobileAds.instance.initialize();
       _initialized = true;
@@ -27,6 +32,7 @@ class AdService {
   // ── 开屏广告（可跳过：全屏自带关闭，用户点 X 即跳过）────────────
   AppOpenAd? _appOpenAd;
   bool _showingFullScreen = false;
+  int _appOpenRetry = 0;
 
   void loadAppOpen() {
     if (!_supported || _appOpenAd != null) return;
@@ -34,10 +40,11 @@ class AdService {
       adUnitId: kAdAppOpenUnitId,
       request: const AdRequest(),
       adLoadCallback: AppOpenAdLoadCallback(
-        onAdLoaded: (ad) => _appOpenAd = ad,
+        onAdLoaded: (ad) { _appOpenAd = ad; _appOpenRetry = 0; },
         onAdFailedToLoad: (e) {
           _appOpenAd = null;
           debugPrint('[Ad] appOpen load failed: $e');
+          _retry(() => loadAppOpen(), _appOpenRetry++);
         },
       ),
     );
@@ -47,22 +54,15 @@ class AdService {
   void showAppOpenIfAvailable() {
     if (!_supported || _showingFullScreen) return;
     final ad = _appOpenAd;
-    if (ad == null) {
-      loadAppOpen();
-      return;
-    }
+    if (ad == null) { loadAppOpen(); return; }
     _appOpenAd = null;
     _showingFullScreen = true;
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (a) {
-        a.dispose();
-        _showingFullScreen = false;
-        loadAppOpen();
+        a.dispose(); _showingFullScreen = false; loadAppOpen();
       },
       onAdFailedToShowFullScreenContent: (a, e) {
-        a.dispose();
-        _showingFullScreen = false;
-        loadAppOpen();
+        a.dispose(); _showingFullScreen = false; loadAppOpen();
       },
     );
     ad.show();
@@ -71,6 +71,7 @@ class AdService {
   // ── 激励视频（看完 → onReward）──────────────────────────────────
   RewardedAd? _rewarded;
   bool _loadingRewarded = false;
+  int _rewardedRetry = 0;
 
   void loadRewarded() {
     if (!_supported || _rewarded != null || _loadingRewarded) return;
@@ -82,11 +83,13 @@ class AdService {
         onAdLoaded: (ad) {
           _rewarded = ad;
           _loadingRewarded = false;
+          _rewardedRetry = 0;
         },
         onAdFailedToLoad: (e) {
           _rewarded = null;
           _loadingRewarded = false;
           debugPrint('[Ad] rewarded load failed: $e');
+          _retry(() => loadRewarded(), _rewardedRetry++);
         },
       ),
     );
@@ -94,42 +97,40 @@ class AdService {
 
   bool get rewardedReady => _supported && _rewarded != null;
 
+  /// 提前预热：进入会展示激励广告的界面时调用，确保点击时已就绪（#4）。
+  void warmUp() {
+    if (!_supported) return;
+    loadRewarded();
+    loadAppOpen();
+  }
+
   /// 展示激励视频。看完触发 [onReward]；展示结束触发 [onClosed]。
   /// 未就绪则触发预加载并立即 onClosed(false)。
   void showRewarded({
     required void Function() onReward,
     void Function(bool rewarded)? onClosed,
   }) {
-    if (!_supported) {
-      onClosed?.call(false);
-      return;
-    }
+    if (!_supported) { onClosed?.call(false); return; }
     final ad = _rewarded;
-    if (ad == null) {
-      loadRewarded();
-      onClosed?.call(false);
-      return;
-    }
+    if (ad == null) { loadRewarded(); onClosed?.call(false); return; }
     _rewarded = null;
     _showingFullScreen = true;
     var rewarded = false;
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (a) {
-        a.dispose();
-        _showingFullScreen = false;
-        loadRewarded();
-        onClosed?.call(rewarded);
+        a.dispose(); _showingFullScreen = false; loadRewarded(); onClosed?.call(rewarded);
       },
       onAdFailedToShowFullScreenContent: (a, e) {
-        a.dispose();
-        _showingFullScreen = false;
-        loadRewarded();
-        onClosed?.call(false);
+        a.dispose(); _showingFullScreen = false; loadRewarded(); onClosed?.call(false);
       },
     );
-    ad.show(onUserEarnedReward: (a, reward) {
-      rewarded = true;
-      onReward();
-    });
+    ad.show(onUserEarnedReward: (a, reward) { rewarded = true; onReward(); });
+  }
+
+  // 加载失败按指数退避重试（最多 ~5 次：5s,10s,20s,40s,80s），缓解新账号填充慢。
+  void _retry(void Function() fn, int attempt) {
+    if (!_supported || attempt >= 5) return;
+    final secs = 5 * (1 << attempt);
+    Timer(Duration(seconds: secs), fn);
   }
 }

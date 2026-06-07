@@ -161,6 +161,34 @@ class VpnProvider extends ChangeNotifier {
       _routingMode = RoutingMode.smart;
       notifyListeners();
     }
+
+    // 冷启动采纳已在运行的隧道（返回键退后台后进程被系统回收又重开的情况）：
+    // 直接显示「已连接」，避免用户再点连接而叠加第二条隧道；试用沿用已持久化
+    // 的开始时间继续倒计时（不会重置回 30 分钟）。
+    await _adoptRunningTunnel();
+  }
+
+  Future<void> _adoptRunningTunnel() async {
+    try {
+      final st = await AmneziaWG.instance.stage();
+      if (st == VpnStage.connected && _status != VpnStatus.connected) {
+        _status        = VpnStatus.connected;
+        _statsBaseline = null;
+        _startUsagePolling();
+        _startTrialTracking();   // 复用已持久化 _trialStartMs，墙钟继续
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  /// 配置加载后把 activeServer 绑回上次连接的节点（冷启动采纳隧道时用）。
+  Future<void> bindActiveServer(List<ServerConfig> servers) async {
+    if (_activeServer != null || servers.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final id = prefs.getString('last_server_id');
+    if (id == null) return;
+    final match = servers.where((s) => s.id == id);
+    if (match.isNotEmpty) { _activeServer = match.first; notifyListeners(); }
   }
 
   // ── 切换路由模式 ─────────────────────────────────────────

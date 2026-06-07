@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'env.dart';
 import 'app.dart';
 import 'services/ad_service.dart';
@@ -43,10 +44,15 @@ Future<void> main() async {
 
   // ── 广告初始化（仅 Android/iOS）+ 开屏广告（可跳过，不阻塞启动）──────
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-    await AdService.instance.initialize();
-    // 给开屏广告 ~2.5s 加载时间；加载到就展示，没加载到就静默跳过。
-    Future.delayed(const Duration(milliseconds: 2500),
-        AdService.instance.showAppOpenIfAvailable);
+    // 付费会员不展示任何广告（#2）。用上次缓存的会员标记，启动即判断。
+    final prefs = await SharedPreferences.getInstance();
+    final isMember = prefs.getBool('is_member') ?? false;
+    await AdService.instance.initialize(enabled: !isMember);
+    if (!isMember) {
+      // 给开屏广告 ~2.5s 加载时间；加载到就展示，没加载到就静默跳过。
+      Future.delayed(const Duration(milliseconds: 2500),
+          AdService.instance.showAppOpenIfAvailable);
+    }
   }
 
   runApp(const MirrorSpeedApp());

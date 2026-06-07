@@ -215,7 +215,9 @@ class HomeScreen extends StatelessWidget {
       ),
     ) ?? false;
     if (ok) {
+      // 强制断开并清理隧道/路由后再退出（#3）。
       try { await context.read<VpnProvider>().disconnect(); } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 500)); // 等原生隧道完全拆除
       await SystemNavigator.pop();
     }
   }
@@ -389,6 +391,13 @@ class _AdExtendButton extends StatefulWidget {
 
 class _AdExtendButtonState extends State<_AdExtendButton> {
   bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 预热激励广告，确保用户点击时已缓存好、能立刻播放（#4）。
+    AdService.instance.warmUp();
+  }
 
   Future<void> _watch() async {
     if (_busy) return;
