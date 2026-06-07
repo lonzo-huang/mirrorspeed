@@ -368,6 +368,16 @@ if ((-not $SkipWindows) -and (Test-Path $WIN_DST)) {
 # --- Upload to CN mirror (Vercel Blob CDN) -----------------------------------
 Step "Uploading to CN mirror (Vercel Blob)"
 
+# Prune old blobs first so we stay under the 1GB Hobby quota (keep only this version).
+try {
+    $pruneBody = @{ keep = $Version } | ConvertTo-Json
+    $pruneResp = Invoke-RestMethod -Uri "$API_BASE/api/admin/mirror-cleanup" -Method POST `
+        -Headers @{ 'x-upload-secret' = $CRON_SECRET } -ContentType 'application/json' -Body $pruneBody
+    Ok "Blob prune: deleted $($pruneResp.deleted) old file(s)"
+} catch {
+    Warn "Blob prune failed (continuing): $_"
+}
+
 function Upload-ToCnMirror {
     param([string]$FilePath, [string]$Platform)
 
