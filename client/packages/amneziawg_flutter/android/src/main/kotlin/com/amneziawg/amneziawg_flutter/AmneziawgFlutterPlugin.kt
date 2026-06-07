@@ -117,7 +117,15 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
-            "initialize"      -> initTunnel(call.argument<String>("localizedDescription").orEmpty(), result)
+            // 隧道名必须是合法标识符(mirrorspeed)。优先 win32ServiceName；
+            // localizedDescription 现在承载的是本地化适配器描述(可能含中文/空格)，
+            // 不能当隧道名用，否则 isNameInvalid 提前返回导致 tunnelName 未初始化。
+            "initialize"      -> {
+                val name = call.argument<String>("win32ServiceName")
+                    ?: call.argument<String>("localizedDescription")
+                    ?: "mirrorspeed"
+                initTunnel(name, result)
+            }
             "start"           -> startTunnel(call.argument<String>("wgQuickConfig").orEmpty(), result)
             "stop"            -> stopTunnel(result)
             "stage"           -> result.success(getStatus())
