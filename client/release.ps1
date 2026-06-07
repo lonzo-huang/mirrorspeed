@@ -36,11 +36,11 @@ $DEFINES = @(
     "--dart-define=API_BASE=$API_BASE"
 )
 
-# 单一 APK（已合并 flavor；壳按设备语言运行时切换）
-# 直接下载只打 arm64-v8a（覆盖几乎所有现代手机），体积约为 universal 的 1/3。
+# Single APK (flavors merged; shell switches by device locale at runtime).
+# Direct download is arm64-v8a only (~1/3 the size of a universal APK).
 $APK_SRC = "build\app\outputs\flutter-apk\app-release.apk"
 $APK_DST = "build\MirrorSpeed-$Version-android.apk"
-# Google Play 用 App Bundle（Play 按设备只下发对应架构）。
+# App Bundle for Google Play (Play delivers per-device ABI).
 $AAB_SRC = "build\app\outputs\bundle\release\app-release.aab"
 $AAB_DST = "build\MirrorSpeed-$Version-android.aab"
 $WIN_SRC = "build\windows\x64\runner\Release"
@@ -150,7 +150,7 @@ Ok "Clean done"
 
 # --- Build Android APK (arm64-only) + App Bundle (Play) ---------------------
 if (-not $SkipAndroid) {
-    Step "Building Android APK (arm64-v8a only — for direct download)"
+    Step "Building Android APK (arm64-v8a only - direct download)"
     $t0 = Get-Date
 
     $ErrorActionPreference = 'Continue'
@@ -167,7 +167,7 @@ if (-not $SkipAndroid) {
     Ok "APK ready: $APK_DST  ($mb MB, ${sec}s)"
 
     # App Bundle for Google Play (Play splits per-device; ~25MB delivered)
-    Step "Building Android App Bundle (.aab — for Google Play)"
+    Step "Building Android App Bundle (.aab - Google Play)"
     $t0 = Get-Date
     $ErrorActionPreference = 'Continue'
     flutter build appbundle --release --no-tree-shake-icons @DEFINES
