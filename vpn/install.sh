@@ -7,18 +7,48 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# ── 配置变量（部署前必须修改）────────────────────────────────────────────
-DOMAIN="${DOMAIN:-remote.yourcompany.com}"     # 已解析到本服务器的域名
-EMAIL="${EMAIL:-it-admin@yourcompany.com}"     # Let's Encrypt 通知邮箱
-FIRST_CLIENT="${FIRST_CLIENT:-employee1}"      # 初始客户端名称
-VPN_API_SECRET="${VPN_API_SECRET:-}"           # vpn-api 鉴权密钥（所有服务器共用）
-
 # ── 颜色输出 ─────────────────────────────────────────────────────────────
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 info()    { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()     { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 section() { echo ""; echo -e "${GREEN}═══ $* ═══${NC}"; echo ""; }
+
+# ── 配置变量（环境变量预设；留空且在终端中运行时交互式询问）──────────────
+# 用法 1（交互）：  bash install.sh
+# 用法 2（预设）：  DOMAIN=... EMAIL=... [VPN_API_SECRET=...] bash install.sh
+prompt_var() {
+    # $1=变量名  $2=提示语  $3=默认值
+    local cur="${!1:-}"
+    [[ -n "${cur}" ]] && return
+    if [[ ! -t 0 ]]; then printf -v "$1" '%s' "$3"; return; fi   # 非交互：用默认
+    local input
+    read -r -p "$(echo -e "${CYAN}?${NC} $2${3:+ [$3]}: ")" input
+    printf -v "$1" '%s' "${input:-$3}"
+}
+
+echo ""
+echo -e "${GREEN}═══ MirrorSpeed VPN 安装配置 ═══${NC}"
+echo ""
+prompt_var DOMAIN       "VPN 域名（已解析到本机的 A 记录）" ""
+prompt_var EMAIL        "Let's Encrypt 证书通知邮箱" ""
+prompt_var SRV_NAME     "节点代号（注册用，如 FRA01）" "NODE01"
+prompt_var SRV_DISPLAY  "节点显示名（如 德国 法兰克福 01）" "${SRV_NAME}"
+prompt_var SRV_LOCATION "节点位置（英文，如 Frankfurt）" "Unknown"
+prompt_var SRV_COUNTRY  "国家代码（两位，如 DE）" "XX"
+prompt_var SRV_EMOJI    "国旗 emoji（如 🇩🇪）" "🏳️"
+prompt_var SRV_SORT     "列表排序（数字，越小越靠前）" "99"
+FIRST_CLIENT="${FIRST_CLIENT:-employee1}"      # 初始客户端名称
+
+[[ -z "${DOMAIN}" ]] && { err "DOMAIN 不能为空"; exit 1; }
+[[ -z "${EMAIL}"  ]] && { err "EMAIL 不能为空";  exit 1; }
+
+# vpn-api 鉴权密钥：未提供则自动生成（每台服务器独立，注册时写入 DB api_secret）
+if [[ -z "${VPN_API_SECRET:-}" ]]; then
+    command -v openssl &>/dev/null || { err "缺少 openssl，无法自动生成密钥"; exit 1; }
+    VPN_API_SECRET="$(openssl rand -hex 32)"
+    info "已自动生成 VPN_API_SECRET（注册信息会在结尾完整输出）"
+fi
 
 # ── 前置检查 ──────────────────────────────────────────────────────────────
 section "前置环境检查"
@@ -213,5 +243,49 @@ cat << SUMMARY
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SUMMARY
+
+# ── 生成可直接使用的注册信息 ─────────────────────────────────────────────
+PORT_SECRET_FULL=""
+[[ -f /etc/wireguard/.port-secret ]] && PORT_SECRET_FULL=$(cat /etc/wireguard/.port-secret)
+API_URL="https://${DOMAIN}/vpn-api"
+
+cat << REGINFO
+
+╔═══════════════════════════════════════════════════════════════╗
+║  注册到 Portal —— 二选一                                        ║
+╚═══════════════════════════════════════════════════════════════╝
+
+【方式 ①】复制下面整段，到 Supabase → SQL Editor 执行：
+─────────────────────────────────────────────────────────────────
+INSERT INTO public.vpn_servers (
+  name, display_name, location, country_code, flag_emoji,
+  endpoint, port, public_key, api_url, api_secret, port_secret, sort_order, is_active
+) VALUES (
+  '${SRV_NAME}', '${SRV_DISPLAY}', '${SRV_LOCATION}', '${SRV_COUNTRY}', '${SRV_EMOJI}',
+  '${DOMAIN}', 51820,
+  '${AWG_PUBLIC}',
+  '${API_URL}',
+  '${VPN_API_SECRET}',
+  '${PORT_SECRET_FULL}',
+  ${SRV_SORT}, true
+);
+─────────────────────────────────────────────────────────────────
+
+【方式 ②】在【开发机】（装有 Vercel CLI / 有 portal/.env.local）执行一条命令：
+─────────────────────────────────────────────────────────────────
+bash scripts/register-server.sh \\
+  --name        '${SRV_NAME}' \\
+  --display     '${SRV_DISPLAY}' \\
+  --location    '${SRV_LOCATION}' \\
+  --country     '${SRV_COUNTRY}' \\
+  --emoji       '${SRV_EMOJI}' \\
+  --endpoint    '${DOMAIN}' \\
+  --pubkey      '${AWG_PUBLIC}' \\
+  --api-secret  '${VPN_API_SECRET}' \\
+  --port-secret '${PORT_SECRET_FULL}' \\
+  --sort        ${SRV_SORT}
+─────────────────────────────────────────────────────────────────
+
+REGINFO
 
 [[ ${FAIL} -gt 0 ]] && { err "${FAIL} 项检查失败，请查阅上方日志"; exit 1; }

@@ -15,8 +15,12 @@
 #     --country JP \
 #     --emoji   "🇯🇵" \
 #     --endpoint jp01.yourdomain.com \
-#     --pubkey  "<WireGuard服务端公钥>" \
+#     --pubkey  "<服务端公钥>" \
+#     --api-secret  "<该服务器 VPN_API_SECRET>" \
+#     --port-secret "<该服务器 /etc/wireguard/.port-secret>" \
 #     [--sort   2]
+#
+#   提示：install.sh 部署完成后会在控制台直接打印好这条命令（值已填好），复制即可。
 #
 # API 地址自动推导为 https://<endpoint>/vpn-api
 # ─────────────────────────────────────────────────────────────────────────────
@@ -35,17 +39,20 @@ step()  { echo -e "\n${CYAN}▶ $*${NC}"; }
 
 # ── 解析参数 ─────────────────────────────────────────────────────────────────
 NAME="" DISPLAY_NAME="" LOCATION="" COUNTRY="" EMOJI="" ENDPOINT="" PUBKEY="" SORT=99
+API_SECRET="" PORT_SECRET=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --name)     NAME="$2";         shift 2 ;;
-        --display)  DISPLAY_NAME="$2"; shift 2 ;;
-        --location) LOCATION="$2";     shift 2 ;;
-        --country)  COUNTRY="$2";      shift 2 ;;
-        --emoji)    EMOJI="$2";        shift 2 ;;
-        --endpoint) ENDPOINT="$2";     shift 2 ;;
-        --pubkey)   PUBKEY="$2";       shift 2 ;;
-        --sort)     SORT="$2";         shift 2 ;;
+        --name)        NAME="$2";         shift 2 ;;
+        --display)     DISPLAY_NAME="$2"; shift 2 ;;
+        --location)    LOCATION="$2";     shift 2 ;;
+        --country)     COUNTRY="$2";      shift 2 ;;
+        --emoji)       EMOJI="$2";        shift 2 ;;
+        --endpoint)    ENDPOINT="$2";     shift 2 ;;
+        --pubkey)      PUBKEY="$2";       shift 2 ;;
+        --api-secret)  API_SECRET="$2";   shift 2 ;;
+        --port-secret) PORT_SECRET="$2";  shift 2 ;;
+        --sort)        SORT="$2";         shift 2 ;;
         *) err "未知参数: $1" ;;
     esac
 done
@@ -77,15 +84,26 @@ fi
 
 API_URL="https://${ENDPOINT}/vpn-api"
 
+# api_secret / port_secret 缺失会导致 provisioning 403 / 客户端无法算端口
+[[ -z "${API_SECRET}"  ]] && warn "未提供 --api-secret：节点将缺少鉴权密钥，provisioning 会 403（强烈建议提供）"
+[[ -z "${PORT_SECRET}" ]] && warn "未提供 --port-secret：客户端无法计算动态端口（强烈建议提供）"
+
+# 组装可选字段（仅在提供时写入，避免 PATCH 时把已有值清空）
+EXTRA_JSON=""
+[[ -n "${API_SECRET}"  ]] && EXTRA_JSON="${EXTRA_JSON}\"api_secret\": \"${API_SECRET}\","
+[[ -n "${PORT_SECRET}" ]] && EXTRA_JSON="${EXTRA_JSON}\"port_secret\": \"${PORT_SECRET}\","
+
 echo ""
 echo "════════════════════════════════════════════════════════"
 echo "  新服务器注册信息："
-echo "    名称:    ${NAME} (${DISPLAY_NAME})"
-echo "    地区:    ${LOCATION} [${COUNTRY}] ${EMOJI}"
-echo "    域名:    ${ENDPOINT}"
-echo "    公钥:    ${PUBKEY:0:20}..."
-echo "    API:     ${API_URL}"
-echo "    排序:    ${SORT}"
+echo "    名称:        ${NAME} (${DISPLAY_NAME})"
+echo "    地区:        ${LOCATION} [${COUNTRY}] ${EMOJI}"
+echo "    域名:        ${ENDPOINT}"
+echo "    公钥:        ${PUBKEY:0:20}..."
+echo "    API:         ${API_URL}"
+echo "    api_secret:  ${API_SECRET:+已提供}${API_SECRET:-（缺失）}"
+echo "    port_secret: ${PORT_SECRET:+已提供}${PORT_SECRET:-（缺失）}"
+echo "    排序:        ${SORT}"
 echo "════════════════════════════════════════════════════════"
 echo ""
 read -r -p "确认注册？[y/N] " CONFIRM
@@ -147,6 +165,7 @@ if [[ "${EXISTING}" != "[]" && "${EXISTING}" != "" ]]; then
             -H "Content-Type: application/json" \
             -H "Prefer: return=minimal" \
             -d "{
+              ${EXTRA_JSON}
               \"display_name\": \"${DISPLAY_NAME}\",
               \"location\":     \"${LOCATION}\",
               \"country_code\": \"${COUNTRY}\",
@@ -173,6 +192,7 @@ else
         -H "Content-Type: application/json" \
         -H "Prefer: return=minimal" \
         -d "{
+          ${EXTRA_JSON}
           \"name\":         \"${NAME}\",
           \"display_name\": \"${DISPLAY_NAME}\",
           \"location\":     \"${LOCATION}\",
