@@ -1011,10 +1011,8 @@ class VpnProvider extends ChangeNotifier {
     _trialTimer?.cancel();
     _stageSub?.cancel();
     _timer?.cancel();
-    // 应用销毁（退出）时务必拆除隧道，避免原生隧道/路由表残留导致退出后断网。
-    // dispose 不能 await，尽力而为地异步拆除。
-    AmneziaWG.instance.stopVpn().catchError((_) {});
-    _relay.stop();
+    // 注意：销毁时【不】拆隧道。返回键/切后台/被系统回收都应保持 VPN 运行，
+    // 下次打开自动采纳；仅右上角「退出」键通过 disconnect() 主动断开。
     super.dispose();
   }
 }

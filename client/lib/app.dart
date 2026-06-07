@@ -89,11 +89,9 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
       _vpn.onAppResumed();
       // 免费用户每次从后台切回都展示开屏广告（会员被 AdService 内部 _enabled 屏蔽）。
       AdService.instance.showAppOpenIfAvailable();
-    } else if (state == AppLifecycleState.detached) {
-      // 应用即将退出：拆除隧道并清理路由，避免退出后路由表残留导致断网。
-      // 注意只在 detached（终止）时拆除，paused（切后台）保持连接不动。
-      _vpn.disconnect();
     }
+    // 注意：detached（被系统回收/结束）时【不】断开 VPN——返回键/切后台/被杀都
+    // 应保持隧道运行（前台服务），下次打开自动采纳。只有右上角「退出」键才主动断开。
   }
 
   @override
