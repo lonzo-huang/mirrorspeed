@@ -1,6 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { stripe } from '@/lib/stripe'
-import { deleteVpnPeer } from '@/lib/vpn-api'
 import { NextRequest, NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 
@@ -87,21 +86,41 @@ export async function POST(req: NextRequest) {
         await admin.from('subscriptions').update({ status: 'expired', updated_at: new Date().toISOString() })
           .eq('stripe_subscription_id', sub.id)
 
-        // 拉取该用户所有活跃设备并逐一从 VPN 服务器删除
+        // 拉取该用户所有活跃设备
         const { data: devices } = await admin.from('vpn_devices')
-          .select('id, peer_name').eq('user_id', userId).eq('is_active', true)
+          .select('id').eq('user_id', userId).eq('is_active', true)
+        const deviceIds = (devices ?? []).map(d => d.id)
 
-        for (const device of devices ?? []) {
-          await deleteVpnPeer(device.peer_name).catch(e =>
-            console.error(`[webhook] Failed to delete peer ${device.peer_name}:`, e)
-          )
-          await admin.from('vpn_devices').update({ is_active: false }).eq('id', device.id)
+        // 拉取这些设备在各服务器上的 peer（含该服务器自己的 api_secret）
+        const { data: peers } = deviceIds.length
+          ? await admin.from('vpn_device_peers')
+              .select('id, peer_name, server:vpn_servers(api_url, api_secret)')
+              .in('device_id', deviceIds)
+              .eq('is_active', true)
+          : { data: [] as any[] }
+
+        // 逐一从各自服务器删除 peer
+        for (const peer of peers ?? []) {
+          const apiUrl = (peer.server as any)?.api_url
+          const secret = (peer.server as any)?.api_secret
+          if (apiUrl && secret) {
+            await fetch(`${apiUrl}/peers/${encodeURIComponent(peer.peer_name)}`, {
+              method:  'DELETE',
+              headers: { 'X-API-Secret': secret },
+            }).catch(e => console.error(`[webhook] delete peer ${peer.peer_name} failed:`, e))
+          }
+          await admin.from('vpn_device_peers').update({ is_active: false }).eq('id', peer.id)
+        }
+
+        // 停用设备
+        for (const id of deviceIds) {
+          await admin.from('vpn_devices').update({ is_active: false }).eq('id', id)
         }
 
         await admin.from('audit_log').insert({
           user_id: userId,
           action:  'subscription_expired',
-          detail:  { stripe_sub_id: sub.id, devices_removed: devices?.length ?? 0 },
+          detail:  { stripe_sub_id: sub.id, devices_removed: deviceIds.length },
         })
         break
       }

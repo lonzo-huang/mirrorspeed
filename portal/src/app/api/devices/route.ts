@@ -1,16 +1,17 @@
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server'
 import { encryptKey } from '@/lib/clash'
+import { buildPeerName } from '@/lib/wireguard'
 import { NextRequest, NextResponse } from 'next/server'
-const VPN_API_SECRET = process.env.VPN_API_SECRET!
 
-// 调用指定服务器的 FastAPI 创建 Peer
+// 调用指定服务器的 FastAPI 创建 Peer（使用该服务器自己的 api_secret）
 async function createPeerOnServer(
   apiUrl: string,
+  secret: string,
   peerName: string
 ): Promise<{ public_key: string; private_key: string; preshared_key: string; vpn_ip: string }> {
   const res = await fetch(`${apiUrl}/peers`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-API-Secret': VPN_API_SECRET },
+    headers: { 'Content-Type': 'application/json', 'X-API-Secret': secret },
     body: JSON.stringify({ peer_name: peerName }),
   })
   if (!res.ok) {
@@ -21,10 +22,10 @@ async function createPeerOnServer(
 }
 
 // 调用指定服务器的 FastAPI 删除 Peer
-async function deletePeerOnServer(apiUrl: string, peerName: string): Promise<void> {
+async function deletePeerOnServer(apiUrl: string, secret: string, peerName: string): Promise<void> {
   await fetch(`${apiUrl}/peers/${encodeURIComponent(peerName)}`, {
     method: 'DELETE',
-    headers: { 'X-API-Secret': VPN_API_SECRET },
+    headers: { 'X-API-Secret': secret },
   })
 }
 
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
   // 拉取所有活跃服务器
   const { data: servers } = await admin
     .from('vpn_servers')
-    .select('id, name, api_url')
+    .select('id, name, api_url, api_secret')
     .eq('is_active', true)
 
   if (!servers || servers.length === 0) {
@@ -76,18 +77,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '设备记录创建失败' }, { status: 500 })
   }
 
-  // 2. 在所有服务器上并发创建 Peer
-  const uid8       = user.id.replace(/-/g, '').slice(0, 8)
-  const deviceShort = crypto.randomUUID().replace(/-/g, '').slice(0, 4)
-
+  // 2. 在所有服务器上并发创建 Peer（确定性命名 + per-server secret，与移动端一致）
   const peerResults = await Promise.allSettled(
     servers.map(async (server) => {
-      // peer 名称格式: u{uid8}_{deviceShort}_{serverName}
-      const peerName = `u${uid8}_${deviceShort}_${server.name.toLowerCase()}`
+      if (!server.api_secret) throw new Error(`VPN server ${server.name} 未配置 api_secret`)
+      const peerName = buildPeerName(device.id, server.id)
 
-      const peerInfo = await createPeerOnServer(server.api_url, peerName)
+      const peerInfo = await createPeerOnServer(server.api_url, server.api_secret, peerName)
 
-      await admin.from('vpn_device_peers').insert({
+      const { error } = await admin.from('vpn_device_peers').insert({
         device_id:         device.id,
         server_id:         server.id,
         user_id:           user.id,
@@ -97,6 +95,10 @@ export async function POST(req: NextRequest) {
         preshared_key_enc: encryptKey(peerInfo.preshared_key),
         vpn_ip:            peerInfo.vpn_ip,
       })
+      // 23505 = 唯一索引冲突：并发已建好同一 (device, server) peer，视为成功
+      if (error && (error as { code?: string }).code !== '23505') {
+        throw new Error(`DB insert failed for ${server.name}: ${error.message}`)
+      }
 
       return { serverId: server.id, serverName: server.name, peerName }
     })
@@ -150,7 +152,7 @@ export async function DELETE(req: NextRequest) {
   // 拉取该设备的所有 server peers
   const { data: peers } = await admin
     .from('vpn_device_peers')
-    .select('peer_name, server:vpn_servers(api_url)')
+    .select('peer_name, server:vpn_servers(api_url, api_secret)')
     .eq('device_id', deviceId)
     .eq('is_active', true)
 
@@ -158,8 +160,9 @@ export async function DELETE(req: NextRequest) {
   await Promise.allSettled(
     (peers ?? []).map(async (peer) => {
       const apiUrl = (peer.server as any)?.api_url
-      if (apiUrl) {
-        await deletePeerOnServer(apiUrl, peer.peer_name).catch(e =>
+      const secret = (peer.server as any)?.api_secret
+      if (apiUrl && secret) {
+        await deletePeerOnServer(apiUrl, secret, peer.peer_name).catch(e =>
           console.error(`[devices DELETE] Failed to delete peer ${peer.peer_name}:`, e)
         )
       }

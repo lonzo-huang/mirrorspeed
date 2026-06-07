@@ -1,9 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { encryptKey } from '@/lib/clash'
+import { buildPeerName } from '@/lib/wireguard'
 import { NextRequest, NextResponse } from 'next/server'
-
-const VPN_API_SECRET = process.env.VPN_API_SECRET!
 
 // POST /api/devices/sync
 // 将所有活跃设备同步到所有活跃服务器（新增节点后调用）
@@ -26,7 +25,7 @@ export async function POST(req: NextRequest) {
   const targetServerId: string | null = body.server_id ?? null
 
   // 拉取所有活跃服务器
-  const serversQuery = admin.from('vpn_servers').select('id, name, api_url').eq('is_active', true)
+  const serversQuery = admin.from('vpn_servers').select('id, name, api_url, api_secret').eq('is_active', true)
   if (targetServerId) serversQuery.eq('id', targetServerId)
   const { data: servers } = await serversQuery
 
@@ -61,21 +60,20 @@ export async function POST(req: NextRequest) {
       const key = `${device.id}:${server.id}`
       if (existingSet.has(key)) continue  // 已存在，跳过
 
-      const uid8       = device.user_id.replace(/-/g, '').slice(0, 8)
-      const deviceShort = crypto.randomUUID().replace(/-/g, '').slice(0, 4)
-      const peerName   = `u${uid8}_${deviceShort}_${server.name.toLowerCase()}`
+      const peerName = buildPeerName(device.id, server.id)
 
       try {
+        if (!server.api_secret) throw new Error('missing api_secret')
         const res = await fetch(`${server.api_url}/peers`, {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json', 'X-API-Secret': VPN_API_SECRET },
+          headers: { 'Content-Type': 'application/json', 'X-API-Secret': server.api_secret },
           body:    JSON.stringify({ peer_name: peerName }),
         })
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const peerInfo = await res.json()
 
-        await admin.from('vpn_device_peers').insert({
+        const { error } = await admin.from('vpn_device_peers').insert({
           device_id:         device.id,
           server_id:         server.id,
           user_id:           device.user_id,
@@ -85,6 +83,7 @@ export async function POST(req: NextRequest) {
           preshared_key_enc: encryptKey(peerInfo.preshared_key),
           vpn_ip:            peerInfo.vpn_ip,
         })
+        if (error && (error as { code?: string }).code !== '23505') throw new Error(error.message)
 
         existingSet.add(key)
         created++

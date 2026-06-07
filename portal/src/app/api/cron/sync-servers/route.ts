@@ -20,14 +20,13 @@ export async function GET(req: NextRequest) {
 
   const { data: servers } = await admin
     .from('vpn_servers')
-    .select('id, name, api_url')
+    .select('id, name, api_url, api_secret')
     .eq('is_active', true)
 
   if (!servers || servers.length === 0) {
     return NextResponse.json({ synced: 0 })
   }
 
-  const VPN_API_SECRET = process.env.VPN_API_SECRET!
   const results: { server: string; success: boolean; error?: string }[] = []
 
   // ── 阶段 1：并发同步所有服务器状态 + peer 流量 ────────────────────────
@@ -35,17 +34,20 @@ export async function GET(req: NextRequest) {
     servers.map(async (server) => {
       const t0 = Date.now()
       try {
+        // 每台服务器用自己的 api_secret（与 provisioning 路径一致）
+        if (!server.api_secret) throw new Error('missing api_secret')
+        const secret = server.api_secret
         const controller = new AbortController()
         const timer = setTimeout(() => controller.abort(), 8000)
 
         const [statsRes, healthRes, peersRes] = await Promise.all([
           fetch(`${server.api_url}/stats`, {
-            headers: { 'X-API-Secret': VPN_API_SECRET },
+            headers: { 'X-API-Secret': secret },
             signal: controller.signal,
           }),
           fetch(`${server.api_url}/health`, { signal: controller.signal }),
           fetch(`${server.api_url}/peers`, {
-            headers: { 'X-API-Secret': VPN_API_SECRET },
+            headers: { 'X-API-Secret': secret },
             signal: controller.signal,
           }),
         ])
@@ -99,7 +101,7 @@ export async function GET(req: NextRequest) {
   )
 
   // ── 阶段 2：评估所有设备的流量额度，执行暂停 / 恢复 ─────────────────────
-  await enforceQuotas(admin, servers, VPN_API_SECRET)
+  await enforceQuotas(admin, servers)
 
   return NextResponse.json({
     synced:    results.filter(r => r.success).length,
@@ -169,8 +171,7 @@ async function syncPeerUsage(
 // ── 评估所有设备的额度，执行暂停 / 恢复 ──────────────────────────────────────
 async function enforceQuotas(
   admin:         ReturnType<typeof createAdminClient>,
-  activeServers: Array<{ id: string; name: string; api_url: string }>,
-  apiSecret:     string,
+  activeServers: Array<{ id: string; name: string; api_url: string; api_secret: string | null }>,
 ) {
   const today = new Date().toISOString().slice(0, 10)
 
@@ -230,32 +231,32 @@ async function enforceQuotas(
     .eq('status', 'active')
   const paidUserIds = new Set((paidSubs ?? []).map(s => s.user_id))
 
-  // 服务器 id → api_url 索引
-  const serverApiMap = new Map(activeServers.map(s => [s.id, s.api_url]))
+  // 服务器 id → { api_url, secret } 索引
+  const serverApiMap = new Map(activeServers.map(s => [s.id, { url: s.api_url, secret: s.api_secret }]))
 
   for (const [, entry] of deviceMap) {
     const isPaid      = paidUserIds.has(entry.userId)
     const isOverQuota = !isPaid && entry.totalBytes > quotaBytes
 
     for (const peer of entry.peers) {
-      const serverUrl = serverApiMap.get(peer.server_id)
-      if (!serverUrl) continue
+      const srv = serverApiMap.get(peer.server_id)
+      if (!srv || !srv.secret) continue
 
       const isNewDay = (peer.daily_reset_at as string) < today
 
       if (isPaid && peer.is_suspended) {
         // 付费用户：如果被误暂停，立即恢复
-        await setPeerActive(serverUrl, peer.peer_name, true, apiSecret)
+        await setPeerActive(srv.url, peer.peer_name, true, srv.secret)
         await admin.from('vpn_device_peers').update({ is_suspended: false }).eq('id', peer.id)
 
       } else if (isNewDay && peer.is_suspended) {
         // 免费用户新的一天：恢复访问
-        await setPeerActive(serverUrl, peer.peer_name, true, apiSecret)
+        await setPeerActive(srv.url, peer.peer_name, true, srv.secret)
         await admin.from('vpn_device_peers').update({ is_suspended: false }).eq('id', peer.id)
 
       } else if (isOverQuota && !peer.is_suspended) {
         // 超额免费用户：暂停
-        await setPeerActive(serverUrl, peer.peer_name, false, apiSecret)
+        await setPeerActive(srv.url, peer.peer_name, false, srv.secret)
         await admin.from('vpn_device_peers').update({ is_suspended: true }).eq('id', peer.id)
       }
     }
