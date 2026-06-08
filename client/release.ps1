@@ -37,8 +37,8 @@ $DEFINES = @(
 )
 
 # Single APK (flavors merged; shell switches by device locale at runtime).
-# Direct download is arm64-v8a only (~1/3 the size of a universal APK).
-$APK_SRC = "build\app\outputs\flutter-apk\app-release.apk"
+# --split-per-abi 产出每个架构一个【干净】的单架构包；直接下载取 arm64-v8a。
+$APK_SRC = "build\app\outputs\flutter-apk\app-arm64-v8a-release.apk"
 $APK_DST = "build\MirrorSpeed-$Version-android.apk"
 # App Bundle for Google Play (Play delivers per-device ABI).
 $AAB_SRC = "build\app\outputs\bundle\release\app-release.aab"
@@ -153,15 +153,13 @@ if (-not $SkipAndroid) {
     # Clean single-ABI APK: abiFilters strips EVERY non-arm64 native lib (incl.
     # third-party jniLibs), avoiding the malformed "arm64 complete + other ABIs
     # partial" package that some installers reject with "parse failed".
-    Step "Building Android APK (clean arm64-v8a - direct download)"
+    Step "Building Android APK (clean arm64-v8a via --split-per-abi)"
     $t0 = Get-Date
 
-    $env:MS_TARGET_ABI = "arm64-v8a"   # read by android/app/build.gradle.kts
     $ErrorActionPreference = 'Continue'
-    flutter build apk --release --no-tree-shake-icons @DEFINES
+    flutter build apk --release --split-per-abi --no-tree-shake-icons @DEFINES
     $ec = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
-    Remove-Item Env:\MS_TARGET_ABI -ErrorAction SilentlyContinue
     if ($ec -ne 0) { Fail "flutter build apk failed" }
 
     if (-not (Test-Path $APK_SRC)) { Fail "APK not found at: $APK_SRC" }
