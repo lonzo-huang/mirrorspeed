@@ -148,13 +148,16 @@ $ErrorActionPreference = 'Continue'; flutter pub get; $ec = $LASTEXITCODE; $Erro
 if ($ec -ne 0) { Fail "flutter pub get failed" }
 Ok "Clean done"
 
-# --- Build Android APK (arm64-only) + App Bundle (Play) ---------------------
+# --- Build Android APK (arm64 + armeabi-v7a) + App Bundle (Play) -------------
 if (-not $SkipAndroid) {
-    Step "Building Android APK (arm64-v8a only - direct download)"
+    # Include both 64-bit (arm64-v8a) and 32-bit (armeabi-v7a) ARM so the APK
+    # installs on virtually every real phone (drop x86_64 = emulators only).
+    # arm64-only caused "package parse failed" on 32-bit devices.
+    Step "Building Android APK (arm64-v8a + armeabi-v7a - direct download)"
     $t0 = Get-Date
 
     $ErrorActionPreference = 'Continue'
-    flutter build apk --release --target-platform android-arm64 --no-tree-shake-icons @DEFINES
+    flutter build apk --release --target-platform android-arm64,android-arm --no-tree-shake-icons @DEFINES
     $ec = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($ec -ne 0) { Fail "flutter build apk failed" }
