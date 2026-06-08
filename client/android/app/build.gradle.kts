@@ -37,6 +37,14 @@ android {
         versionName = flutter.versionName
         // OAuth 深链 scheme（单一）。app_name 由 res/values(-zh) 按语言自动切换。
         manifestPlaceholders["deepLinkScheme"] = "mirrorspeed"
+
+        // 直接下载的 APK 用 abiFilters 真正只保留指定架构（连第三方 jniLibs 也裁掉），
+        // 避免「某架构完整、其它架构残缺」的畸形包导致部分手机「解析失败」。
+        // 由 release.ps1 通过环境变量 MS_TARGET_ABI 注入；Play 的 .aab 不设此变量，
+        // 保留全部架构由 Play 按设备分发。
+        System.getenv("MS_TARGET_ABI")?.takeIf { it.isNotBlank() }?.let { abi ->
+            ndk { abiFilters.addAll(abi.split(",").map { it.trim() }) }
+        }
     }
 
     signingConfigs {

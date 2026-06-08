@@ -148,18 +148,20 @@ $ErrorActionPreference = 'Continue'; flutter pub get; $ec = $LASTEXITCODE; $Erro
 if ($ec -ne 0) { Fail "flutter pub get failed" }
 Ok "Clean done"
 
-# --- Build Android APK (arm64 + armeabi-v7a) + App Bundle (Play) -------------
+# --- Build Android APK (clean arm64-v8a via abiFilters) + App Bundle (Play) --
 if (-not $SkipAndroid) {
-    # Include both 64-bit (arm64-v8a) and 32-bit (armeabi-v7a) ARM so the APK
-    # installs on virtually every real phone (drop x86_64 = emulators only).
-    # arm64-only caused "package parse failed" on 32-bit devices.
-    Step "Building Android APK (arm64-v8a + armeabi-v7a - direct download)"
+    # Clean single-ABI APK: abiFilters strips EVERY non-arm64 native lib (incl.
+    # third-party jniLibs), avoiding the malformed "arm64 complete + other ABIs
+    # partial" package that some installers reject with "parse failed".
+    Step "Building Android APK (clean arm64-v8a - direct download)"
     $t0 = Get-Date
 
+    $env:MS_TARGET_ABI = "arm64-v8a"   # read by android/app/build.gradle.kts
     $ErrorActionPreference = 'Continue'
-    flutter build apk --release --target-platform android-arm64,android-arm --no-tree-shake-icons @DEFINES
+    flutter build apk --release --no-tree-shake-icons @DEFINES
     $ec = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
+    Remove-Item Env:\MS_TARGET_ABI -ErrorAction SilentlyContinue
     if ($ec -ne 0) { Fail "flutter build apk failed" }
 
     if (-not (Test-Path $APK_SRC)) { Fail "APK not found at: $APK_SRC" }
@@ -169,7 +171,8 @@ if (-not $SkipAndroid) {
     $sec = [math]::Round(((Get-Date) - $t0).TotalSeconds)
     Ok "APK ready: $APK_DST  ($mb MB, ${sec}s)"
 
-    # App Bundle for Google Play (Play splits per-device; ~25MB delivered)
+    # App Bundle for Google Play (all ABIs; Play splits per-device). MS_TARGET_ABI
+    # is intentionally NOT set here so the bundle keeps every architecture.
     Step "Building Android App Bundle (.aab - Google Play)"
     $t0 = Get-Date
     $ErrorActionPreference = 'Continue'
