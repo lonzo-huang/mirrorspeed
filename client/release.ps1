@@ -37,7 +37,7 @@ $DEFINES = @(
 )
 
 # Single APK (flavors merged; shell switches by device locale at runtime).
-# --split-per-abi 产出每个架构一个【干净】的单架构包；直接下载取 arm64-v8a。
+# --split-per-abi yields one clean single-ABI APK each; we ship arm64-v8a.
 $APK_SRC = "build\app\outputs\flutter-apk\app-arm64-v8a-release.apk"
 $APK_DST = "build\MirrorSpeed-$Version-android.apk"
 # App Bundle for Google Play (Play delivers per-device ABI).
