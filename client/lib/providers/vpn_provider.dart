@@ -181,14 +181,18 @@ class VpnProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// 配置加载后把 activeServer 绑回上次连接的节点（冷启动采纳隧道时用）。
+  /// 仅在「冷启动采纳了正在运行的隧道」时，把 activeServer 绑回上次的【真实】节点。
+  /// 关键：绝不绑定 display-only 的公开节点（否则主页连接按钮会一直把它当展示节点
+  /// 而跳登录、点不动）；未连接时不绑（让主页用 displayServers.first 即可）。
   Future<void> bindActiveServer(List<ServerConfig> servers) async {
-    if (_activeServer != null || servers.isEmpty) return;
+    if (!isConnected) return;
+    if (_activeServer != null && !_activeServer!.isDisplayOnly) return;
+    final real = servers.where((s) => !s.isDisplayOnly).toList();
+    if (real.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final id = prefs.getString('last_server_id');
-    if (id == null) return;
-    final match = servers.where((s) => s.id == id);
-    if (match.isNotEmpty) { _activeServer = match.first; notifyListeners(); }
+    _activeServer = real.firstWhere((s) => s.id == id, orElse: () => real.first);
+    notifyListeners();
   }
 
   // ── 切换路由模式 ─────────────────────────────────────────
@@ -963,12 +967,15 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 免费用户首次连接成功：启动倒计时（一旦开始按墙钟连续走，断开也不停）。
+  // 连接成功即记录倒计时起点并【立即持久化】——不依赖额度(_timeLimitSec)是否已就绪，
+  // 否则首连时若配置还没拉回来就会漏记起点，导致下次启动倒计时从头开始(#2)。
+  // 付费用户(_timeLimitSec=null)只是记录起点不展示/不限制，无副作用。
   void _startTrialTracking() {
-    if (_timeLimitSec == null) return;          // 付费用户不计
     _rollTrialDayIfNeeded();
-    _trialStartMs ??= DateTime.now().millisecondsSinceEpoch;
-    _persistTrial();
+    if (_trialStartMs == null) {
+      _trialStartMs = DateTime.now().millisecondsSinceEpoch;
+      _persistTrial();   // 起点一确定就落盘
+    }
     _trialTimer?.cancel();
     _trialTimer = Timer.periodic(const Duration(seconds: 1), (_) => _recomputeTrial());
     _recomputeTrial();

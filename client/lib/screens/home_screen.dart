@@ -26,7 +26,12 @@ class HomeScreen extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     final vpn  = context.watch<VpnProvider>();
 
-    final server = vpn.activeServer ?? (auth.displayServers.isNotEmpty ? auth.displayServers.first : null);
+    // 优先用真实节点（已登录配置已加载）；否则退回展示节点（公开列表）。
+    final realServers = auth.displayServers.where((s) => !s.isDisplayOnly).toList();
+    final server = vpn.activeServer ??
+        (realServers.isNotEmpty
+            ? realServers.first
+            : (auth.displayServers.isNotEmpty ? auth.displayServers.first : null));
 
     return PopScope(
       // 返回键不退出应用：拦截后退到后台（合规且保持连接）。
@@ -92,9 +97,11 @@ class HomeScreen extends StatelessWidget {
                   onPressed: vpn.isBusy ? null : () async {
                     if (vpn.isConnected) {
                       await vpn.disconnect();
-                    } else if (!auth.isLoggedIn || server == null || server.isDisplayOnly) {
-                      // 未登录（或只有公开展示节点）：连接前先登录（#1/#7）
-                      context.go('/login');
+                    } else if (!auth.isLoggedIn) {
+                      context.go('/login');            // 未登录 → 去登录
+                    } else if (server == null || server.isDisplayOnly) {
+                      // 已登录但真实配置还没就绪 → 拉取配置（不要跳登录，否则按钮像点不动）
+                      await auth.refreshConfigs();
                     } else {
                       await vpn.connect(server);
                     }
