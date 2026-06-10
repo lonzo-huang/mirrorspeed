@@ -89,6 +89,12 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
       _vpn.onAppResumed();
       // 免费用户每次从后台切回都展示开屏广告（会员被 AdService 内部 _enabled 屏蔽）。
       AdService.instance.showAppOpenIfAvailable();
+    } else if (state == AppLifecycleState.paused ||
+               state == AppLifecycleState.inactive ||
+               state == AppLifecycleState.hidden) {
+      // 切后台/即将被冻结或强杀前的最后机会：强制把试用状态落盘（flush），
+      // 避免任务管理器强杀后免费额度/看广告奖励丢失被重置到 30 分钟。
+      _vpn.saveTrialState();
     }
     // 注意：detached（被系统回收/结束）时【不】断开 VPN——返回键/切后台/被杀都
     // 应保持隧道运行（前台服务），下次打开自动采纳。只有右上角「退出」键才主动断开。

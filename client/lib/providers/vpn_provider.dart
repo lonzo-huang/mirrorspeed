@@ -964,6 +964,17 @@ class VpnProvider extends ChangeNotifier {
   }
 
   Future<void> _persistTrial() async {
+    // 双写：SharedPreferences + 文件(flush 落盘)，任一存活即可。
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('trial_day', _trialDay);
+      if (_trialStartMs == null) {
+        await prefs.remove('trial_start_ms');
+      } else {
+        await prefs.setInt('trial_start_ms', _trialStartMs!);
+      }
+      await prefs.setInt('trial_bonus_sec', _adBonusSec);
+    } catch (_) {}
     try {
       final f = await _getTrialFile();
       await f.writeAsString(
@@ -972,6 +983,9 @@ class VpnProvider extends ChangeNotifier {
       );
     } catch (_) {}
   }
+
+  /// App 切后台/即将退出时调用：把试用状态最后强制保存一次（冻结/强杀前最后机会）。
+  Future<void> saveTrialState() => _persistTrial();
 
   void _rollTrialDayIfNeeded() {
     final today = _utcDay();
