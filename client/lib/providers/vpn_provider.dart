@@ -67,6 +67,7 @@ class VpnProvider extends ChangeNotifier {
   int                _adBonusSec = 0;        // 今日通过看广告累加的额外秒数
   String             _trialDay   = '';       // 计量所属 UTC 日期
   bool               _trialExceeded = false; // 今日试用是否已用尽
+  bool               _trialLoaded   = false; // 试用状态是否已从磁盘加载（防竞态清零）
   Timer?             _trialTimer;
 
   VpnStatus     get status       => _status;
@@ -148,13 +149,15 @@ class VpnProvider extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
+    // 先加载试用状态（必须在任何 setTimeQuota/_rollTrialDayIfNeeded 之前完成，
+    // 否则启动竞态会把奖励时长清零）。AmneziaWG.initialize() 是慢的原生调用，放后面。
+    await _loadTrial();
+    await _loadUsage();
     await AmneziaWG.instance.initialize(
       interfaceName: 'mirrorspeed',
       description:    _adapterDescription(),
     );
     _stageSub = AmneziaWG.instance.vpnStageSnapshot.listen(_onStage);
-    await _loadUsage();
-    await _loadTrial();
 
     // 恢复上次选择的路由模式
     final prefs = await SharedPreferences.getInstance();
@@ -959,6 +962,7 @@ class VpnProvider extends ChangeNotifier {
     } catch (_) {
       _trialDay = _utcDay();
     }
+    _trialLoaded = true;        // 加载完成后才允许跨日滚动
     _rollTrialDayIfNeeded();
     _recomputeTrial();
   }
@@ -988,6 +992,9 @@ class VpnProvider extends ChangeNotifier {
   Future<void> saveTrialState() => _persistTrial();
 
   void _rollTrialDayIfNeeded() {
+    // 加载完成前绝不滚动/清零（否则启动竞态会把默认空日期当成「新的一天」，
+    // 把看广告奖励和起点清零并写回磁盘，覆盖已保存的好数据 → 永远 30 分钟）。
+    if (!_trialLoaded) return;
     final today = _utcDay();
     if (_trialDay != today) {
       _trialDay      = today;
