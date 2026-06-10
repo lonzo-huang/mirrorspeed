@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart'; // PlatformException + rootBundle
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -928,24 +930,47 @@ class VpnProvider extends ChangeNotifier {
   }
 
   // ── 时间试用实现（#3）+ 看广告延长（#4）─────────────────────────
+  // 用文件 + 强制 flush 落盘，避免任务管理器强杀（后台进程被冻结）时
+  // SharedPreferences 的 apply() 异步写入还没落盘就丢失，导致额度/奖励重置。
+  File? _trialFile;
+  Future<File> _getTrialFile() async {
+    if (_trialFile != null) return _trialFile!;
+    final dir = await getApplicationSupportDirectory();
+    _trialFile = File('${dir.path}/trial.json');
+    return _trialFile!;
+  }
+
   Future<void> _loadTrial() async {
-    final prefs = await SharedPreferences.getInstance();
-    _trialDay     = prefs.getString('trial_day') ?? _utcDay();
-    _trialStartMs = prefs.getInt('trial_start_ms');
-    _adBonusSec   = prefs.getInt('trial_bonus_sec') ?? 0;
+    try {
+      final f = await _getTrialFile();
+      if (await f.exists()) {
+        final m = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+        _trialDay     = (m['day'] as String?) ?? _utcDay();
+        _trialStartMs = (m['startMs'] as num?)?.toInt();
+        _adBonusSec   = (m['bonusSec'] as num?)?.toInt() ?? 0;
+      } else {
+        // 迁移：旧版本存在 SharedPreferences 里
+        final prefs = await SharedPreferences.getInstance();
+        _trialDay     = prefs.getString('trial_day') ?? _utcDay();
+        _trialStartMs = prefs.getInt('trial_start_ms');
+        _adBonusSec   = prefs.getInt('trial_bonus_sec') ?? 0;
+        await _persistTrial();   // 落到文件
+      }
+    } catch (_) {
+      _trialDay = _utcDay();
+    }
     _rollTrialDayIfNeeded();
     _recomputeTrial();
   }
 
   Future<void> _persistTrial() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('trial_day', _trialDay);
-    if (_trialStartMs == null) {
-      await prefs.remove('trial_start_ms');
-    } else {
-      await prefs.setInt('trial_start_ms', _trialStartMs!);
-    }
-    await prefs.setInt('trial_bonus_sec', _adBonusSec);
+    try {
+      final f = await _getTrialFile();
+      await f.writeAsString(
+        jsonEncode({'day': _trialDay, 'startMs': _trialStartMs, 'bonusSec': _adBonusSec}),
+        flush: true,   // 强制落盘 → 强杀也不丢
+      );
+    } catch (_) {}
   }
 
   void _rollTrialDayIfNeeded() {
