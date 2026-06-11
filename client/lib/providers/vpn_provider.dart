@@ -28,6 +28,9 @@ enum RoutingMode  { global, smart }
 class VpnProvider extends ChangeNotifier {
   VpnStatus     _status        = VpnStatus.disconnected;
   ServerConfig? _activeServer;
+  /// 用户上次选择的是「智能分配」(true) 还是某台具体节点(false)。持久化。
+  bool          _autoSelect    = true;
+  bool   get autoSelect => _autoSelect;
   int?          _elapsedSecs;
   String?       _error;
   Timer?        _timer;
@@ -166,6 +169,8 @@ class VpnProvider extends ChangeNotifier {
       _routingMode = RoutingMode.smart;
       notifyListeners();
     }
+    // 恢复「智能分配 / 手动选择」偏好（默认智能）
+    _autoSelect = prefs.getBool('auto_select') ?? true;
 
     // 冷启动采纳已在运行的隧道（返回键退后台后进程被系统回收又重开的情况）：
     // 直接显示「已连接」，避免用户再点连接而叠加第二条隧道；试用沿用已持久化
@@ -848,20 +853,71 @@ class VpnProvider extends ChangeNotifier {
 
   // ── 延迟测量（请求各自服务器的 health 端点）──────────────────
   // 每台 VPN 服务器单独测量，反映从用户当前网络到该服务器的真实延迟。
-  Future<void> measureLatencies(List<ServerConfig> servers) async {
-    await Future.wait(servers.map((s) async {
-      try {
-        final sw = Stopwatch()..start();
-        await http.get(
-          Uri.parse('https://${s.endpoint}/vpn-api/health'),
-        ).timeout(const Duration(seconds: 5));
-        sw.stop();
-        s.latencyMs = sw.elapsedMilliseconds;
-      } catch (_) {
-        s.latencyMs = null;
-      }
+  // 采用 10 秒滚动平均（见 ServerConfig.addLatencySample）：连测 [rounds] 轮，
+  // 每轮间隔 [gap]，样本累入各 server 的滑动窗口，读取时取均值，>300ms 由 UI 截断显示。
+  Future<void> measureLatencies(
+    List<ServerConfig> servers, {
+    int rounds = 3,
+    Duration gap = const Duration(seconds: 2),
+  }) async {
+    for (int r = 0; r < rounds; r++) {
+      await Future.wait(servers.map((s) async {
+        try {
+          final sw = Stopwatch()..start();
+          await http
+              .get(Uri.parse('https://${s.endpoint}/vpn-api/health'))
+              .timeout(const Duration(seconds: 3));
+          sw.stop();
+          s.addLatencySample(sw.elapsedMilliseconds);
+        } catch (_) {
+          s.addLatencySample(null);
+        }
+        notifyListeners();
+      }));
+      if (r < rounds - 1) await Future.delayed(gap);
+    }
+  }
+
+  // ── 智能分配：综合「延迟 70% + 负载 30%」打分，选最优节点 ──────────
+  // 仅在候选含真实(可连)节点时有意义；offline / display-only 不参与。
+  ServerConfig? pickAutoServer(List<ServerConfig> servers) {
+    final cands = servers
+        .where((s) => !s.isDisplayOnly && s.status != 'offline')
+        .toList();
+    if (cands.isEmpty) {
+      final real = servers.where((s) => !s.isDisplayOnly).toList();
+      return real.isEmpty ? null : real.first;
+    }
+    double scoreOf(ServerConfig s) {
+      // 延迟归一化到 0–1（以 300ms 为满刻度；无样本按最差 300 计）。
+      final lat = (s.latencyMs ?? 300).clamp(0, 300) / 300.0;
+      final load = s.loadPercent.clamp(0, 100) / 100.0;
+      return 0.7 * lat + 0.3 * load;   // 越小越好
+    }
+    cands.sort((a, b) => scoreOf(a).compareTo(scoreOf(b)));
+    return cands.first;
+  }
+
+  /// 智能分配并连接（先快速测一轮延迟以便评分）。
+  Future<void> connectAuto(List<ServerConfig> servers) async {
+    await setAutoSelect(true);
+    // 快速单轮测一遍延迟，让评分有数据（不阻塞太久）
+    await measureLatencies(servers, rounds: 1);
+    final best = pickAutoServer(servers);
+    if (best == null) {
+      _error = _isZh() ? '暂无可用节点' : 'No nodes available';
       notifyListeners();
-    }));
+      return;
+    }
+    await connect(best);
+  }
+
+  /// 记录用户的「智能 / 手动」偏好。手动选具体节点时传 false。
+  Future<void> setAutoSelect(bool v) async {
+    _autoSelect = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('auto_select', v);
   }
 
   String get elapsedFormatted {

@@ -102,6 +102,9 @@ class HomeScreen extends StatelessWidget {
                     } else if (server == null || server.isDisplayOnly) {
                       // 已登录但真实配置还没就绪 → 拉取配置（不要跳登录，否则按钮像点不动）
                       await auth.refreshConfigs();
+                    } else if (vpn.autoSelect) {
+                      // 智能分配：综合延迟+负载自动挑节点
+                      await vpn.connectAuto(realServers);
                     } else {
                       await vpn.connect(server);
                     }

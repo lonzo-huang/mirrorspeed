@@ -17,7 +17,36 @@ class ServerConfig {
   /// Used as tertiary relay if wstunnel on 443 fails.
   /// Null means Cloudflare relay is not configured for this server.
   final String? cfRelayUrl;
-  int?          latencyMs; // measured at runtime
+
+  // ── 负载信息（来自 portal，每分钟刷新）────────────────────────
+  /// 当前活跃隧道数。
+  int           activePeers;
+  /// 容量上限（peer 数）。
+  int           maxPeers;
+  /// 负载百分比 0–100。
+  int           loadPercent;
+  /// online / degraded / offline。
+  String        status;
+
+  // ── 延迟：10 秒滚动平均 ───────────────────────────────────────
+  // 每次 ping 把样本(毫秒,时间戳)压入；读取时丢弃 10 秒前的样本再求平均。
+  final List<int> _latMs = [];
+  final List<int> _latAt = [];
+
+  /// 当前的 10 秒滚动平均延迟（毫秒）；无有效样本时为 null。
+  int? latencyMs;
+
+  /// 记录一次 ping 结果。[ms] 为 null 表示本次失败（仅清理过期样本，不计入）。
+  void addLatencySample(int? ms) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    while (_latAt.isNotEmpty && now - _latAt.first > 10000) {
+      _latAt.removeAt(0);
+      _latMs.removeAt(0);
+    }
+    if (ms != null) { _latMs.add(ms); _latAt.add(now); }
+    if (_latMs.isEmpty) { latencyMs = null; return; }
+    latencyMs = (_latMs.reduce((a, b) => a + b) / _latMs.length).round();
+  }
 
   ServerConfig({
     required this.id,
@@ -30,8 +59,13 @@ class ServerConfig {
     required this.wgConf,
     this.portSecret,
     this.cfRelayUrl,
-    this.latencyMs,
-  }) : relayHost = relayHost ?? endpoint;
+    int? latencyMs,
+    this.activePeers = 0,
+    this.maxPeers    = 0,
+    this.loadPercent = 0,
+    this.status      = 'online',
+  }) : relayHost = relayHost ?? endpoint,
+       latencyMs = latencyMs;
 
   factory ServerConfig.fromJson(Map<String, dynamic> j) => ServerConfig(
     id:          j['id']           as String,
@@ -44,7 +78,20 @@ class ServerConfig {
     wgConf:      j['wg_conf']      as String,
     portSecret:  j['port_secret']  as String?,
     cfRelayUrl:  j['cf_relay_url'] as String?,
+    activePeers: (j['active_peers'] as num?)?.toInt() ?? 0,
+    maxPeers:    (j['max_peers']    as num?)?.toInt() ?? 0,
+    loadPercent: (j['load_percent'] as num?)?.toInt() ?? 0,
+    status:      j['status'] as String? ?? 'online',
   );
+
+  // ── 负载分档（三档色块）────────────────────────────────────────
+  /// 0=空闲(<50%) · 1=适中(50–85%) · 2=繁忙(>85%)；offline 视为繁忙。
+  int get loadTier {
+    if (status == 'offline') return 2;
+    if (loadPercent > 85) return 2;
+    if (loadPercent >= 50) return 1;
+    return 0;
+  }
 
   /// 公开节点（/api/servers）——仅用于未登录时展示列表，无 wg_conf/密钥。
   /// 连接前必须登录拉取真实配置。

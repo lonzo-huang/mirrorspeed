@@ -45,26 +45,85 @@ class _ServerListScreenState extends State<ServerListScreen> {
           ? Center(child: Text(tr('暂无可用节点','No nodes available'), style: const TextStyle(color: Colors.white54)))
           : ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              itemCount: servers.length,
+              // +1：列表首项为「智能选择」
+              itemCount: servers.length + 1,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (ctx, i) => _ServerTile(
-                server:   servers[i],
-                isActive: vpn.activeServer?.id == servers[i].id,
-                onTap: () async {
-                  Navigator.pop(context);
-                  // 未登录或仅展示节点：连接前先登录（#1）
-                  if (!auth.isLoggedIn || servers[i].isDisplayOnly) {
-                    context.go('/login');
-                    return;
-                  }
-                  if (vpn.isConnected) {
-                    await vpn.switchServer(servers[i]);
-                  } else {
-                    await vpn.connect(servers[i]);
-                  }
-                },
-              ),
+              itemBuilder: (ctx, i) {
+                if (i == 0) {
+                  return _AutoTile(
+                    isActive: vpn.autoSelect && vpn.activeServer != null,
+                    onTap: () async {
+                      Navigator.pop(context);
+                      if (!auth.isLoggedIn) { context.go('/login'); return; }
+                      await vpn.connectAuto(servers);
+                    },
+                  );
+                }
+                final server = servers[i - 1];
+                return _ServerTile(
+                  server:   server,
+                  isActive: !vpn.autoSelect && vpn.activeServer?.id == server.id,
+                  onTap: () async {
+                    Navigator.pop(context);
+                    // 未登录或仅展示节点：连接前先登录（#1）
+                    if (!auth.isLoggedIn || server.isDisplayOnly) {
+                      context.go('/login');
+                      return;
+                    }
+                    await vpn.setAutoSelect(false);   // 手动选择
+                    if (vpn.isConnected) {
+                      await vpn.switchServer(server);
+                    } else {
+                      await vpn.connect(server);
+                    }
+                  },
+                );
+              },
             ),
+    );
+  }
+}
+
+// ── 三档负载色块通用工具 ─────────────────────────────────────────────
+// tier: 0 空闲(绿) · 1 适中(黄) · 2 繁忙(红)
+Color _loadColor(int tier) =>
+    tier == 0 ? kSuccess : (tier == 1 ? Colors.amber : kDanger);
+String _loadLabel(int tier) => tier == 0
+    ? tr('空闲','Idle')
+    : (tier == 1 ? tr('适中','Busy') : tr('繁忙','Full'));
+
+// ── 智能选择项 ──────────────────────────────────────────────────────
+class _AutoTile extends StatelessWidget {
+  final bool         isActive;
+  final VoidCallback onTap;
+  const _AutoTile({ required this.isActive, required this.onTap });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isActive ? kBrand.withOpacity(0.18) : kCard,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(children: [
+            const Icon(Icons.auto_awesome_rounded, color: kBrand, size: 26),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(tr('智能选择','Auto select'),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              Text(tr('自动接入延迟最低、最空闲的节点','Picks the fastest, least busy node'),
+                style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+            ])),
+            if (isActive)
+              const Icon(Icons.check_circle_rounded, color: kBrand, size: 20)
+            else
+              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.3)),
+          ]),
+        ),
+      ),
     );
   }
 }
@@ -75,17 +134,24 @@ class _ServerTile extends StatelessWidget {
   final VoidCallback  onTap;
   const _ServerTile({ required this.server, required this.isActive, required this.onTap });
 
-  // 颜色阈值：<500 绿 · 500–1500 黄 · >1500 红 · 测量中灰（#6，不显示数值）
+  // 延迟颜色：<=100 绿 · 101–300 黄 · >300 红（截断显示 >300ms）· 无样本灰
   Color _latencyColor(int? ms) {
-    if (ms == null)  return Colors.white38;
-    if (ms < 500)    return kSuccess;
-    if (ms <= 1500)  return Colors.amber;
+    if (ms == null) return Colors.white38;
+    if (ms <= 100)  return kSuccess;
+    if (ms <= 300)  return Colors.amber;
     return kDanger;
+  }
+
+  String _latencyText(int? ms) {
+    if (ms == null) return '—';
+    if (ms > 300)   return '>300ms';
+    return '${ms}ms';
   }
 
   @override
   Widget build(BuildContext context) {
     final latency = server.latencyMs;
+    final tier    = server.loadTier;
     return Material(
       color: isActive ? kBrand.withOpacity(0.18) : kCard,
       borderRadius: BorderRadius.circular(14),
@@ -100,22 +166,24 @@ class _ServerTile extends StatelessWidget {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(server.displayLabel(Brand.isZh),
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-              if (Brand.isZh && server.location.isNotEmpty)
-                Text(server.location, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+              const SizedBox(height: 3),
+              Row(children: [
+                // 三档负载色块
+                Container(width: 8, height: 8, decoration: BoxDecoration(
+                  color: _loadColor(tier), borderRadius: BorderRadius.circular(2))),
+                const SizedBox(width: 5),
+                Text(_loadLabel(tier),
+                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+              ]),
             ])),
-            if (latency != null)
-              Container(
-                width: 10, height: 10,
-                decoration: BoxDecoration(
-                  color: _latencyColor(latency), shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: _latencyColor(latency).withOpacity(0.5), blurRadius: 6)],
-                ),
-              )
+            // 延迟数值（10 秒滚动平均；测量中显示进度圈）
+            if (server.latencyMs != null || server.status == 'offline')
+              Text(_latencyText(latency),
+                style: TextStyle(color: _latencyColor(latency), fontSize: 13,
+                  fontWeight: FontWeight.w600))
             else
-              SizedBox(
-                width: 12, height: 12,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white.withOpacity(0.3)),
-              ),
+              SizedBox(width: 12, height: 12,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white.withOpacity(0.3))),
             const SizedBox(width: 12),
             if (isActive)
               const Icon(Icons.check_circle_rounded, color: kBrand, size: 20)

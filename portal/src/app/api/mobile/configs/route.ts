@@ -43,6 +43,10 @@ interface ServerRow {
   awg_h3:       number
   awg_h4:       number
   cf_relay_url: string | null
+  active_peers: number | null
+  max_peers:    number | null
+  load_percent: number | null
+  status:       string | null
 }
 
 // ── 已合并 server 信息的 Peer 数据 ────────────────────────────────────────────
@@ -225,7 +229,7 @@ export async function GET(req: NextRequest) {
       .select(`id, display_name, flag_emoji, location, endpoint, port, public_key, port_secret,
                api_url, api_secret,
                awg_jc, awg_jmin, awg_jmax, awg_s1, awg_s2, awg_h1, awg_h2, awg_h3, awg_h4,
-               cf_relay_url`)
+               cf_relay_url, active_peers, max_peers, load_percent, status`)
       .eq('is_active', true)
       .order('sort_order') as Promise<{ data: ServerRow[] | null; error: any }>,
 
@@ -236,7 +240,8 @@ export async function GET(req: NextRequest) {
         daily_bytes, is_suspended,
         server:vpn_servers(id, display_name, flag_emoji, location, endpoint, port, public_key, port_secret,
           api_url, api_secret,
-          awg_jc, awg_jmin, awg_jmax, awg_s1, awg_s2, awg_h1, awg_h2, awg_h3, awg_h4, cf_relay_url)
+          awg_jc, awg_jmin, awg_jmax, awg_s1, awg_s2, awg_h1, awg_h2, awg_h3, awg_h4, cf_relay_url,
+          active_peers, max_peers, load_percent, status)
       `)
       .in('device_id', deviceIds)
       .eq('is_active', true) as Promise<{ data: PeerData[] | null; error: any }>,
@@ -338,6 +343,11 @@ export async function GET(req: NextRequest) {
         wg_conf:      wgConf,
         port_secret:  srv.port_secret  ?? null,
         cf_relay_url: srv.cf_relay_url ?? null,
+        // 负载信息（每分钟由 cron 写入 vpn_servers）：客户端用于显示三档负载色块 + 智能分配
+        active_peers: srv.active_peers ?? 0,
+        max_peers:    srv.max_peers    ?? 0,
+        load_percent: srv.load_percent ?? 0,
+        status:       srv.status       ?? 'online',
         // api_secret は意図的に省略 — クライアントに送信しない
       }
     }).filter(Boolean)
