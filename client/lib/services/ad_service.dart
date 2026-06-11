@@ -52,7 +52,8 @@ class AdService {
 
   /// 启动时调用：已加载则展示开屏；未加载则静默跳过并预加载（绝不阻塞启动）。
   void showAppOpenIfAvailable() {
-    if (!_supported || _showingFullScreen) return;
+    // 连播激励广告期间，绝不插入开屏广告（避免在两条激励广告之间弹出打断）。
+    if (!_supported || _showingFullScreen || _chaining) return;
     final ad = _appOpenAd;
     if (ad == null) { loadAppOpen(); return; }
     _appOpenAd = null;
@@ -68,36 +69,42 @@ class AdService {
     ad.show();
   }
 
-  // ── 激励视频（看完 → onReward）──────────────────────────────────
-  RewardedAd? _rewarded;
-  bool _loadingRewarded = false;
-  int _rewardedRetry = 0;
+  // ── 激励视频：预加载广告池，支持无缝连播 ───────────────────────
+  // 维持一个 3 条的预加载池，连播时取一条立即补一条，避免「放完一条要等下一条」
+  // 的卡顿/断链（断链会让用户被迫再点一次）。
+  static const int _kRewardedPoolTarget = 3;
+  final List<RewardedAd> _rewardedPool = [];
+  int  _rewardedInFlight = 0;     // 正在加载中的数量
+  int  _rewardedRetry    = 0;
+  bool _chaining         = false; // 连播进行中（用于抑制开屏广告插入）
 
+  /// 把池子补满到目标数量（幂等，可随时调用）。
   void loadRewarded() {
-    if (!_supported || _rewarded != null || _loadingRewarded) return;
-    _loadingRewarded = true;
-    RewardedAd.load(
-      adUnitId: kAdRewardedUnitId,
-      request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) {
-          _rewarded = ad;
-          _loadingRewarded = false;
-          _rewardedRetry = 0;
-        },
-        onAdFailedToLoad: (e) {
-          _rewarded = null;
-          _loadingRewarded = false;
-          debugPrint('[Ad] rewarded load failed: $e');
-          _retry(() => loadRewarded(), _rewardedRetry++);
-        },
-      ),
-    );
+    if (!_supported) return;
+    while (_rewardedPool.length + _rewardedInFlight < _kRewardedPoolTarget) {
+      _rewardedInFlight++;
+      RewardedAd.load(
+        adUnitId: kAdRewardedUnitId,
+        request: const AdRequest(),
+        rewardedAdLoadCallback: RewardedAdLoadCallback(
+          onAdLoaded: (ad) {
+            _rewardedInFlight--;
+            _rewardedPool.add(ad);
+            _rewardedRetry = 0;
+          },
+          onAdFailedToLoad: (e) {
+            _rewardedInFlight--;
+            debugPrint('[Ad] rewarded load failed: $e');
+            _retry(() => loadRewarded(), _rewardedRetry++);
+          },
+        ),
+      );
+    }
   }
 
-  bool get rewardedReady => _supported && _rewarded != null;
+  bool get rewardedReady => _supported && _rewardedPool.isNotEmpty;
 
-  /// 提前预热：进入会展示激励广告的界面时调用，确保点击时已就绪（#4）。
+  /// 提前预热：进入会展示激励广告的界面时调用，把池子提前填满（#4）。
   void warmUp() {
     if (!_supported) return;
     loadRewarded();
@@ -105,16 +112,15 @@ class AdService {
   }
 
   /// 展示单条激励视频，返回 (earned 是否获奖, watchedSec 本条观看秒数)。
-  /// 取走当前广告后立刻预加载下一条，缩短链式播放的等待。
+  /// 从池中取一条并立即补池。
   Future<({bool earned, int watchedSec})> _showOne() {
-    final ad = _rewarded;
-    if (!_supported || ad == null) {
+    if (!_supported || _rewardedPool.isEmpty) {
       loadRewarded();
       return Future.value((earned: false, watchedSec: 0));
     }
+    final ad = _rewardedPool.removeAt(0);
+    loadRewarded();                 // 立即补池
     final completer = Completer<({bool earned, int watchedSec})>();
-    _rewarded = null;
-    loadRewarded();                 // 立刻预加载下一条
     _showingFullScreen = true;
     var earned = false;
     final start = DateTime.now();
@@ -131,19 +137,19 @@ class AdService {
     return completer.future;
   }
 
-  /// 等待下一条激励广告就绪（边等边触发加载），最多 [timeout]。
+  /// 等待池中出现可播广告（边等边补池），最多 [timeout]。
   Future<bool> _waitRewardedReady(Duration timeout) async {
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
-      if (_rewarded != null) return true;
+      if (_rewardedPool.isNotEmpty) return true;
       loadRewarded();
       await Future.delayed(const Duration(milliseconds: 400));
     }
-    return _rewarded != null;
+    return _rewardedPool.isNotEmpty;
   }
 
-  /// 连续播放激励广告，累计满 [targetSec] 秒（一条不够自动播放下一条，
-  /// 用户无需反复点按钮）。每条结束回调 [onProgress]（本条秒数, 累计秒数）；
+  /// 连续播放激励广告，累计满 [targetSec] 秒（一条不够自动接着播下一条，
+  /// 全程无需用户再次点击）。每条结束回调 [onProgress]（本条秒数, 累计秒数）；
   /// 用户中途跳过(未获奖)即停止。结束时回调 [onDone]（累计秒数, 是否达标）。
   Future<void> showRewardedChain({
     required int targetSec,
@@ -151,16 +157,24 @@ class AdService {
     required void Function(int totalSec, bool reached) onDone,
   }) async {
     if (!_supported) { onDone(0, false); return; }
+    _chaining = true;
     int total = 0;
-    while (total < targetSec) {
-      if (_rewarded == null) {
-        final ok = await _waitRewardedReady(const Duration(seconds: 8));
-        if (!ok) break;             // 一直没广告可播 → 结束
+    int shows = 0;
+    try {
+      // 最多连播 8 条，防止极端情况下无限循环。
+      while (total < targetSec && shows < 8) {
+        if (_rewardedPool.isEmpty) {
+          final ok = await _waitRewardedReady(const Duration(seconds: 12));
+          if (!ok) break;           // 始终拉不到广告 → 结束
+        }
+        final res = await _showOne();
+        shows++;
+        total += res.watchedSec;
+        onProgress?.call(res.watchedSec, total);
+        if (!res.earned) break;     // 用户跳过/未看完 → 停止连播
       }
-      final res = await _showOne();
-      total += res.watchedSec;
-      onProgress?.call(res.watchedSec, total);
-      if (!res.earned) break;       // 用户跳过/未看完 → 停止链式播放
+    } finally {
+      _chaining = false;
     }
     onDone(total, total >= targetSec);
   }

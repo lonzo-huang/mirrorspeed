@@ -1135,13 +1135,14 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── 看广告解锁：需累计满 kAdRequiredSec 秒（一条不够就多看几条）──────────
-  static const int kAdRequiredSec = 60;
+  // ── 看广告解锁：需累计满 kAdRequiredSec 秒（连播多条，无需用户反复点）──────
+  // 目标约 60s，但放满 50s 即视为达标发放（广告时长不可控，避免为凑满而多放一条）。
+  static const int kAdRequiredSec = 50;
   int _adProgressSec = 0;
   int get adProgressSec => _adProgressSec;
   int get adRequiredSec => kAdRequiredSec;
 
-  /// 累计本次广告观看秒数；满 60s 才发放 +kAdRewardMinutes 并清零。返回 true=已发放。
+  /// 累计本次广告观看秒数；满 kAdRequiredSec 秒才发放 +kAdRewardMinutes 并清零。返回 true=已发放。
   Future<bool> addAdWatch(int watchedSec) async {
     if (watchedSec <= 0) { notifyListeners(); return false; }
     _adProgressSec += watchedSec;
