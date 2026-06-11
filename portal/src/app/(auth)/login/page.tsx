@@ -8,7 +8,8 @@ import { Mail, KeyRound } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 
 function LoginForm() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+  const isZh = lang === 'zh'
   const searchParams = useSearchParams()
   const router = useRouter()
   const next  = searchParams.get('next') ?? '/dashboard'
@@ -16,6 +17,8 @@ function LoginForm() {
 
   const [email, setEmail]     = useState('')
   const [otp, setOtp]         = useState('')
+  const [password, setPassword] = useState('')
+  const [pwMode, setPwMode]   = useState(false)   // false = 验证码登录, true = 密码登录
   const [step, setStep]       = useState<'email' | 'otp'>('email')
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError]     = useState<string | null>(errorParam ?? null)
@@ -45,6 +48,25 @@ function LoginForm() {
     setLoading(null)
     if (error) { setError(error.message); return }
     setStep('otp')
+  }
+
+  async function signInWithPassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email.trim() || !password) return
+    setLoading('password')
+    setError(null)
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    })
+    setLoading(null)
+    if (error) {
+      setError(isZh ? '邮箱或密码错误' : 'Invalid email or password')
+      return
+    }
+    setLoading('redirecting')
+    router.push(next)
+    router.refresh()
   }
 
   async function verifyOtp(e: React.FormEvent) {
@@ -157,7 +179,7 @@ function LoginForm() {
                 <div className="h-px flex-grow bg-white/10" />
               </div>
 
-              <form onSubmit={sendOtp} className="space-y-3">
+              <form onSubmit={pwMode ? signInWithPassword : sendOtp} className="space-y-3">
                 <input
                   type="email"
                   value={email}
@@ -166,15 +188,37 @@ function LoginForm() {
                   required
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-mirror transition-colors"
                 />
+                {pwMode && (
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder={isZh ? '密码' : 'Password'}
+                    required
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-mirror transition-colors"
+                  />
+                )}
                 <button
                   type="submit"
                   disabled={loading !== null}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-mirror transition-all disabled:opacity-50"
                 >
-                  <Mail className="w-4 h-4" />
-                  {loading === 'email' ? t.auth.sending : t.auth.submit}
+                  {pwMode ? <KeyRound className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                  {pwMode
+                    ? (loading === 'password' || loading === 'redirecting' ? (isZh ? '登录中…' : 'Signing in…') : (isZh ? '密码登录' : 'Sign in'))
+                    : (loading === 'email' ? t.auth.sending : t.auth.submit)}
                 </button>
               </form>
+
+              <button
+                type="button"
+                className="mt-4 w-full text-sm text-muted-foreground hover:text-mirror transition-colors"
+                onClick={() => { setPwMode(!pwMode); setError(null); setPassword('') }}
+              >
+                {pwMode
+                  ? (isZh ? '改用邮箱验证码登录' : 'Use email code instead')
+                  : (isZh ? '改用密码登录' : 'Sign in with password instead')}
+              </button>
             </>
           )}
         </div>
