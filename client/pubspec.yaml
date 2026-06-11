@@ -1,6 +1,6 @@
 name: mirrorspeed_vpn
 description: MirrorSpeed VPN — 高速全球加速
-version: 2.1.8+61
+version: 2.1.9+62
 publish_to: none
 
 environment:
