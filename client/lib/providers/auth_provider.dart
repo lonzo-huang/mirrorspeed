@@ -255,6 +255,44 @@ class AuthProvider extends ChangeNotifier {
     // 验证成功后 onAuthStateChange 会自动触发 _onLoggedIn()
   }
 
+  // ── 邮箱 + 密码 登录 ──────────────────────────────────────────
+  Future<void> signInWithPassword(String email, String password) async {
+    try {
+      await _supabase.auth.signInWithPassword(email: email, password: password);
+      // 成功后 onAuthStateChange 自动触发 _onLoggedIn()
+    } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('invalid login') || msg.contains('credentials')) {
+        throw Exception('邮箱或密码错误');
+      } else if (msg.contains('not confirmed') || msg.contains('confirm')) {
+        throw Exception('邮箱尚未确认，请先到邮箱点击确认链接');
+      } else {
+        throw Exception('登录失败：${e.message}');
+      }
+    }
+  }
+
+  // ── 邮箱 + 密码 注册 ──────────────────────────────────────────
+  // 注册后通常需到邮箱点确认链接才能登录（取决于后台是否开启邮箱确认）。
+  Future<void> signUpWithPassword(String email, String password) async {
+    try {
+      await _supabase.auth.signUp(
+        email:           email,
+        password:        password,
+        emailRedirectTo: kAuthCallbackUrl,
+      );
+    } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('already') || msg.contains('registered')) {
+        throw Exception('该邮箱已注册，请直接登录');
+      } else if (msg.contains('weak') || msg.contains('password')) {
+        throw Exception('密码太弱，至少 6 位');
+      } else {
+        throw Exception('注册失败：${e.message}');
+      }
+    }
+  }
+
   // ── OAuth 登录 ───────────────────────────────────────────────
   Future<void> signInWithGoogle() async {
     try {
