@@ -1027,19 +1027,50 @@ class VpnProvider extends ChangeNotifier {
     _recomputeTrial();
   }
 
-  // 计算剩余、刷新 UI、用尽则断开。
+  // 计算剩余、刷新 UI、用尽则强制断开。
   void _recomputeTrial() {
     if (_timeLimitSec == null) { _trialExceeded = false; return; }
     _rollTrialDayIfNeeded();
     final exhausted = _trialStartMs != null && trialRemainingSec <= 0;
     if (exhausted && !_trialExceeded) {
       _trialExceeded = true;
-      if (isConnected || _status == VpnStatus.connecting) {
-        debugPrint('[VPN] 今日免费试用时长已用尽，断开连接');
-        disconnect();
-      }
+      debugPrint('[VPN] 今日免费试用时长已用尽，强制断开系统 VPN');
+      _forceStopOnQuota();   // 无条件停原生隧道（部分机型 app 状态可能不是 connected）
     }
     notifyListeners();
+  }
+
+  // 额度用尽时强制拆隧道：不依赖 app 当前状态，直接停原生 VPN + 中继，确保系统
+  // 状态栏的 VPN 真正断开（修复三星上「app 显示已断、系统 VPN 仍连着」）。
+  Future<void> _forceStopOnQuota() async {
+    _userInitiatedDisconnect = true;   // 用尽后禁止任何自动回退
+    _trialTimer?.cancel();             // 已用尽，停止 1s 轮询
+    try {
+      await AmneziaWG.instance.stopVpn().timeout(const Duration(seconds: 6), onTimeout: () {});
+    } catch (_) {}
+    try { await _relay.stop(); } catch (_) {}
+    _protocol = VpnProtocol.direct;
+    _status   = VpnStatus.disconnected;
+    notifyListeners();
+  }
+
+  // ── 看广告解锁：需累计满 kAdRequiredSec 秒（一条不够就多看几条）──────────
+  static const int kAdRequiredSec = 60;
+  int _adProgressSec = 0;
+  int get adProgressSec => _adProgressSec;
+  int get adRequiredSec => kAdRequiredSec;
+
+  /// 累计本次广告观看秒数；满 60s 才发放 +kAdRewardMinutes 并清零。返回 true=已发放。
+  Future<bool> addAdWatch(int watchedSec) async {
+    if (watchedSec <= 0) { notifyListeners(); return false; }
+    _adProgressSec += watchedSec;
+    if (_adProgressSec >= kAdRequiredSec) {
+      _adProgressSec = 0;
+      await addAdBonusMinutes(kAdRewardMinutes);
+      return true;
+    }
+    notifyListeners();
+    return false;
   }
 
   /// 看完一条激励视频 → 增加奖励时长（#4）。立即生效，可解除「已用尽」。

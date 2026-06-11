@@ -413,27 +413,37 @@ class _AdExtendButtonState extends State<_AdExtendButton> {
     final vpn = context.read<VpnProvider>();
     final messenger = ScaffoldMessenger.of(context);
     AdService.instance.showRewarded(
-      onReward: () => vpn.addAdBonusMinutes(kAdRewardMinutes),
-      onClosed: (rewarded) {
+      onClosed: (earned, watchedSec) async {
         if (!mounted) return;
         setState(() => _busy = false);
+        if (!earned) {
+          messenger.showSnackBar(SnackBar(
+            content: Text(tr('广告未加载好或未看完，请重试', 'Ad not ready or not completed, please retry')),
+            backgroundColor: kDanger, duration: const Duration(seconds: 2)));
+          return;
+        }
+        final granted = await vpn.addAdWatch(watchedSec);
         messenger.showSnackBar(SnackBar(
-          content: Text(rewarded
-            ? tr('已增加 $kAdRewardMinutes 分钟免费时长 🎉', 'Added $kAdRewardMinutes min of free time 🎉')
-            : tr('广告未加载好，请稍后再试', 'Ad not ready, please try again later')),
-          backgroundColor: rewarded ? kSuccess : kDanger,
+          content: Text(granted
+            ? tr('已解锁 +$kAdRewardMinutes 分钟免费时长 🎉', 'Unlocked +$kAdRewardMinutes min of free time 🎉')
+            : tr('已观看 ${vpn.adProgressSec}/${vpn.adRequiredSec} 秒，再看一条解锁',
+                 'Watched ${vpn.adProgressSec}/${vpn.adRequiredSec}s — watch one more to unlock')),
+          backgroundColor: granted ? kSuccess : kBrand,
           duration: const Duration(seconds: 2),
         ));
       },
     );
-    // 兜底：showRewarded 未就绪会立刻 onClosed(false)，这里防止卡在 busy
+    // 兜底：showRewarded 未就绪会立刻 onClosed(false,0)，防止卡在 busy
     await Future.delayed(const Duration(seconds: 1));
     if (mounted && _busy) setState(() => _busy = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final label = tr('看广告 +$kAdRewardMinutes 分钟', 'Watch ad +$kAdRewardMinutes min');
+    final vpn = context.watch<VpnProvider>();
+    // 满 60s 才发放，按钮上显示进度（已看 X/60s）。
+    final progress = vpn.adProgressSec > 0 ? ' (${vpn.adProgressSec}/${vpn.adRequiredSec}s)' : '';
+    final label = tr('看广告解锁 +$kAdRewardMinutes 分钟$progress', 'Watch ads +$kAdRewardMinutes min$progress');
     if (widget.compact) {
       return Align(
         alignment: Alignment.center,

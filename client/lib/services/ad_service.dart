@@ -104,27 +104,32 @@ class AdService {
     loadAppOpen();
   }
 
-  /// 展示激励视频。看完触发 [onReward]；展示结束触发 [onClosed]。
-  /// 未就绪则触发预加载并立即 onClosed(false)。
+  /// 展示激励视频。[onClosed] 回报 (earned 是否看到奖励点, watchedSec 本条观看秒数)。
+  /// 未就绪则触发预加载并立即 onClosed(false, 0)。
   void showRewarded({
-    required void Function() onReward,
-    void Function(bool rewarded)? onClosed,
+    void Function()? onReward,
+    void Function(bool earned, int watchedSec)? onClosed,
   }) {
-    if (!_supported) { onClosed?.call(false); return; }
+    if (!_supported) { onClosed?.call(false, 0); return; }
     final ad = _rewarded;
-    if (ad == null) { loadRewarded(); onClosed?.call(false); return; }
+    if (ad == null) { loadRewarded(); onClosed?.call(false, 0); return; }
     _rewarded = null;
     _showingFullScreen = true;
-    var rewarded = false;
+    var earned = false;
+    final start = DateTime.now();
+    void finish(bool ok) {
+      final secs = ok ? DateTime.now().difference(start).inSeconds : 0;
+      onClosed?.call(ok, secs);
+    }
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (a) {
-        a.dispose(); _showingFullScreen = false; loadRewarded(); onClosed?.call(rewarded);
+        a.dispose(); _showingFullScreen = false; loadRewarded(); finish(earned);
       },
       onAdFailedToShowFullScreenContent: (a, e) {
-        a.dispose(); _showingFullScreen = false; loadRewarded(); onClosed?.call(false);
+        a.dispose(); _showingFullScreen = false; loadRewarded(); finish(false);
       },
     );
-    ad.show(onUserEarnedReward: (a, reward) { rewarded = true; onReward(); });
+    ad.show(onUserEarnedReward: (a, reward) { earned = true; onReward?.call(); });
   }
 
   // 加载失败按指数退避重试（最多 ~5 次：5s,10s,20s,40s,80s），缓解新账号填充慢。
