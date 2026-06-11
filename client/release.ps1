@@ -450,21 +450,53 @@ function Upload-ToCnMirror {
     }
 }
 
+# GitHub direct-download URLs used as a fallback when the Vercel Blob mirror is
+# unavailable (blocked / over the Hobby quota). Guarantees the CN download links
+# in app_config never point at a dead blob.
+$GH_APK = "https://github.com/$GITHUB_REPO/releases/download/$TAG/MirrorSpeed-$Version-android.apk"
+$GH_WIN = "https://github.com/$GITHUB_REPO/releases/download/$TAG/MirrorSpeed-$Version-windows.zip"
+
+function Register-CnUrl {
+    param([string]$Platform, [string]$Url)
+    $body = @{ token = $CRON_SECRET; platform = $Platform; url = $Url; version = $Version } | ConvertTo-Json
+    Invoke-RestMethod -Uri "$API_BASE/api/admin/mirror-register" -Method POST `
+        -ContentType 'application/json' -Body $body -ErrorAction Stop | Out-Null
+}
+
 if ((-not $SkipAndroid) -and (Test-Path $APK_DST)) {
+    $cnApkUrl = $null
     try {
         $cnApkUrl = Upload-ToCnMirror -FilePath $APK_DST -Platform "android"
-        Ok "APK → CN mirror: $cnApkUrl"
+        Ok "APK -> CN mirror: $cnApkUrl"
     } catch {
         Warn "CN mirror upload failed: $_"
+    }
+    if (-not $cnApkUrl) {
+        # Blob blocked / over quota -> register GitHub direct link so CN download still works
+        try {
+            Register-CnUrl -Platform "android"    -Url $GH_APK
+            Register-CnUrl -Platform "android_cn" -Url $GH_APK
+            Ok "APK CN link -> GitHub fallback: $GH_APK"
+        } catch { Warn "GitHub fallback register failed: $_" }
+    } else {
+        # Mirror OK -> point the CN-flavor key at the same blob too
+        try { Register-CnUrl -Platform "android_cn" -Url $cnApkUrl } catch {}
     }
 }
 
 if ((-not $SkipWindows) -and (Test-Path $WIN_DST)) {
+    $cnWinUrl = $null
     try {
         $cnWinUrl = Upload-ToCnMirror -FilePath $WIN_DST -Platform "windows"
-        Ok "Windows → CN mirror: $cnWinUrl"
+        Ok "Windows -> CN mirror: $cnWinUrl"
     } catch {
         Warn "CN mirror upload failed: $_"
+    }
+    if (-not $cnWinUrl) {
+        try {
+            Register-CnUrl -Platform "windows" -Url $GH_WIN
+            Ok "Windows CN link -> GitHub fallback: $GH_WIN"
+        } catch { Warn "GitHub fallback register failed: $_" }
     }
 }
 
