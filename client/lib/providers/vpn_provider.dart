@@ -258,6 +258,15 @@ class VpnProvider extends ChangeNotifier {
   //  层 3：Cloudflare Tunnel（服务器 IP 完全隐藏，GFW 无从封锁）
   //
   Future<void> connect(ServerConfig server) async {
+    // 免费时长已用尽：禁止任何新连接（不管从主页还是节点列表点的）。#1
+    if (_trialExceeded) {
+      _error  = _isZh()
+          ? '免费时长已用完，看广告或升级后再连接'
+          : 'Free time used up. Watch an ad or upgrade to connect.';
+      _status = VpnStatus.disconnected;
+      notifyListeners();
+      return;
+    }
     _error            = null;
     _status           = VpnStatus.connecting;
     _activeServer     = server;
@@ -858,23 +867,39 @@ class VpnProvider extends ChangeNotifier {
   Future<void> measureLatencies(
     List<ServerConfig> servers, {
     int rounds = 3,
-    Duration gap = const Duration(seconds: 2),
+    Duration gap = const Duration(milliseconds: 600),
   }) async {
-    for (int r = 0; r < rounds; r++) {
+    // 用 relayHost（= api_url 域名，证书有效）而非 endpoint：部分节点的 endpoint
+    // 是另一个域名/裸 IP，HTTPS 健康检查会一直失败导致 UI 永久转圈（如西班牙节点）。
+    Uri urlOf(ServerConfig s) =>
+        Uri.parse('https://${s.relayHost}/vpn-api/health');
+
+    // 持久 Client：复用 TCP+TLS 连接（keep-alive）。先「预热」一轮建立连接（丢弃，
+    // 不计样本），之后的样本只含 1 个 RTT，避免每次新建连接的 TLS 握手把真实延迟
+    // 放大数倍（30ms ping 曾被测成 ~250ms）。
+    final client = http.Client();
+    try {
       await Future.wait(servers.map((s) async {
         try {
-          final sw = Stopwatch()..start();
-          await http
-              .get(Uri.parse('https://${s.endpoint}/vpn-api/health'))
-              .timeout(const Duration(seconds: 3));
-          sw.stop();
-          s.addLatencySample(sw.elapsedMilliseconds);
-        } catch (_) {
-          s.addLatencySample(null);
-        }
-        notifyListeners();
+          await client.get(urlOf(s)).timeout(const Duration(seconds: 4));
+        } catch (_) {}
       }));
-      if (r < rounds - 1) await Future.delayed(gap);
+      for (int r = 0; r < rounds; r++) {
+        await Future.wait(servers.map((s) async {
+          try {
+            final sw = Stopwatch()..start();
+            await client.get(urlOf(s)).timeout(const Duration(seconds: 3));
+            sw.stop();
+            s.addLatencySample(sw.elapsedMilliseconds);
+          } catch (_) {
+            s.addLatencySample(null);
+          }
+          notifyListeners();
+        }));
+        if (r < rounds - 1) await Future.delayed(gap);
+      }
+    } finally {
+      client.close();
     }
   }
 

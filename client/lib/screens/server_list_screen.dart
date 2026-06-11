@@ -49,12 +49,27 @@ class _ServerListScreenState extends State<ServerListScreen> {
               itemCount: servers.length + 1,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (ctx, i) {
+                // 免费时长已用尽且当前未连接：禁止连接任何节点，给出提示。
+                bool blockedByQuota() {
+                  if (vpn.quotaExceeded && !vpn.isConnected) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(tr('免费时长已用完，看广告或升级后再连接',
+                          'Free time used up — watch an ad or upgrade to connect')),
+                      backgroundColor: kDanger,
+                      duration: const Duration(seconds: 2),
+                    ));
+                    return true;
+                  }
+                  return false;
+                }
+
                 if (i == 0) {
                   return _AutoTile(
                     isActive: vpn.autoSelect && vpn.activeServer != null,
                     onTap: () async {
-                      Navigator.pop(context);
                       if (!auth.isLoggedIn) { context.go('/login'); return; }
+                      if (blockedByQuota()) return;
+                      Navigator.pop(context);
                       await vpn.connectAuto(servers);
                     },
                   );
@@ -64,12 +79,13 @@ class _ServerListScreenState extends State<ServerListScreen> {
                   server:   server,
                   isActive: !vpn.autoSelect && vpn.activeServer?.id == server.id,
                   onTap: () async {
-                    Navigator.pop(context);
                     // 未登录或仅展示节点：连接前先登录（#1）
                     if (!auth.isLoggedIn || server.isDisplayOnly) {
                       context.go('/login');
                       return;
                     }
+                    if (blockedByQuota()) return;
+                    Navigator.pop(context);
                     await vpn.setAutoSelect(false);   // 手动选择
                     if (vpn.isConnected) {
                       await vpn.switchServer(server);
@@ -176,11 +192,13 @@ class _ServerTile extends StatelessWidget {
                   style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
               ]),
             ])),
-            // 延迟数值（10 秒滚动平均；测量中显示进度圈）
-            if (server.latencyMs != null || server.status == 'offline')
-              Text(_latencyText(latency),
-                style: TextStyle(color: _latencyColor(latency), fontSize: 13,
-                  fontWeight: FontWeight.w600))
+            // 延迟数值（10 秒滚动平均）。测量中→转圈；测量完成但失败→超时（不再永久转圈）。
+            if (server.latencyMeasured || server.status == 'offline')
+              Text(
+                server.latencyMs == null ? tr('超时','timeout') : _latencyText(latency),
+                style: TextStyle(
+                  color: server.latencyMs == null ? kDanger : _latencyColor(latency),
+                  fontSize: 13, fontWeight: FontWeight.w600))
             else
               SizedBox(width: 12, height: 12,
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white.withOpacity(0.3))),

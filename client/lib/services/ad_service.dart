@@ -104,32 +104,65 @@ class AdService {
     loadAppOpen();
   }
 
-  /// 展示激励视频。[onClosed] 回报 (earned 是否看到奖励点, watchedSec 本条观看秒数)。
-  /// 未就绪则触发预加载并立即 onClosed(false, 0)。
-  void showRewarded({
-    void Function()? onReward,
-    void Function(bool earned, int watchedSec)? onClosed,
-  }) {
-    if (!_supported) { onClosed?.call(false, 0); return; }
+  /// 展示单条激励视频，返回 (earned 是否获奖, watchedSec 本条观看秒数)。
+  /// 取走当前广告后立刻预加载下一条，缩短链式播放的等待。
+  Future<({bool earned, int watchedSec})> _showOne() {
     final ad = _rewarded;
-    if (ad == null) { loadRewarded(); onClosed?.call(false, 0); return; }
+    if (!_supported || ad == null) {
+      loadRewarded();
+      return Future.value((earned: false, watchedSec: 0));
+    }
+    final completer = Completer<({bool earned, int watchedSec})>();
     _rewarded = null;
+    loadRewarded();                 // 立刻预加载下一条
     _showingFullScreen = true;
     var earned = false;
     final start = DateTime.now();
     void finish(bool ok) {
+      if (completer.isCompleted) return;
       final secs = ok ? DateTime.now().difference(start).inSeconds : 0;
-      onClosed?.call(ok, secs);
+      completer.complete((earned: ok, watchedSec: secs));
     }
     ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (a) {
-        a.dispose(); _showingFullScreen = false; loadRewarded(); finish(earned);
-      },
-      onAdFailedToShowFullScreenContent: (a, e) {
-        a.dispose(); _showingFullScreen = false; loadRewarded(); finish(false);
-      },
+      onAdDismissedFullScreenContent: (a) { a.dispose(); _showingFullScreen = false; finish(earned); },
+      onAdFailedToShowFullScreenContent: (a, e) { a.dispose(); _showingFullScreen = false; finish(false); },
     );
-    ad.show(onUserEarnedReward: (a, reward) { earned = true; onReward?.call(); });
+    ad.show(onUserEarnedReward: (a, reward) { earned = true; });
+    return completer.future;
+  }
+
+  /// 等待下一条激励广告就绪（边等边触发加载），最多 [timeout]。
+  Future<bool> _waitRewardedReady(Duration timeout) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      if (_rewarded != null) return true;
+      loadRewarded();
+      await Future.delayed(const Duration(milliseconds: 400));
+    }
+    return _rewarded != null;
+  }
+
+  /// 连续播放激励广告，累计满 [targetSec] 秒（一条不够自动播放下一条，
+  /// 用户无需反复点按钮）。每条结束回调 [onProgress]（本条秒数, 累计秒数）；
+  /// 用户中途跳过(未获奖)即停止。结束时回调 [onDone]（累计秒数, 是否达标）。
+  Future<void> showRewardedChain({
+    required int targetSec,
+    void Function(int watchedSec, int totalSec)? onProgress,
+    required void Function(int totalSec, bool reached) onDone,
+  }) async {
+    if (!_supported) { onDone(0, false); return; }
+    int total = 0;
+    while (total < targetSec) {
+      if (_rewarded == null) {
+        final ok = await _waitRewardedReady(const Duration(seconds: 8));
+        if (!ok) break;             // 一直没广告可播 → 结束
+      }
+      final res = await _showOne();
+      total += res.watchedSec;
+      onProgress?.call(res.watchedSec, total);
+      if (!res.earned) break;       // 用户跳过/未看完 → 停止链式播放
+    }
+    onDone(total, total >= targetSec);
   }
 
   // 加载失败按指数退避重试（最多 ~5 次：5s,10s,20s,40s,80s），缓解新账号填充慢。

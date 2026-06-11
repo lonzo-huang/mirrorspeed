@@ -415,30 +415,36 @@ class _AdExtendButtonState extends State<_AdExtendButton> {
     setState(() => _busy = true);
     final vpn = context.read<VpnProvider>();
     final messenger = ScaffoldMessenger.of(context);
-    AdService.instance.showRewarded(
-      onClosed: (earned, watchedSec) async {
+    // 一次点击连续看满剩余所需秒数（自动接着播下一条），用户无需反复点。#4
+    final remaining = (vpn.adRequiredSec - vpn.adProgressSec).clamp(1, vpn.adRequiredSec);
+    bool granted = false;
+    await AdService.instance.showRewardedChain(
+      targetSec: remaining,
+      onProgress: (watchedSec, totalSec) async {
+        if (watchedSec > 0) {
+          final g = await vpn.addAdWatch(watchedSec);
+          if (g) granted = true;
+        }
+      },
+      onDone: (totalSec, reached) {
         if (!mounted) return;
         setState(() => _busy = false);
-        if (!earned) {
+        if (totalSec <= 0) {
           messenger.showSnackBar(SnackBar(
-            content: Text(tr('广告未加载好或未看完，请重试', 'Ad not ready or not completed, please retry')),
+            content: Text(tr('广告未加载好，请稍后重试', 'Ad not ready, please retry later')),
             backgroundColor: kDanger, duration: const Duration(seconds: 2)));
           return;
         }
-        final granted = await vpn.addAdWatch(watchedSec);
         messenger.showSnackBar(SnackBar(
           content: Text(granted
             ? tr('已解锁 +$kAdRewardMinutes 分钟免费时长 🎉', 'Unlocked +$kAdRewardMinutes min of free time 🎉')
-            : tr('已观看 ${vpn.adProgressSec}/${vpn.adRequiredSec} 秒，再看一条解锁',
-                 'Watched ${vpn.adProgressSec}/${vpn.adRequiredSec}s — watch one more to unlock')),
+            : tr('已观看 ${vpn.adProgressSec}/${vpn.adRequiredSec} 秒，继续观看以解锁',
+                 'Watched ${vpn.adProgressSec}/${vpn.adRequiredSec}s — keep watching to unlock')),
           backgroundColor: granted ? kSuccess : kBrand,
           duration: const Duration(seconds: 2),
         ));
       },
     );
-    // 兜底：showRewarded 未就绪会立刻 onClosed(false,0)，防止卡在 busy
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted && _busy) setState(() => _busy = false);
   }
 
   @override

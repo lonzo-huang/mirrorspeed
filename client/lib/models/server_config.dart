@@ -36,8 +36,13 @@ class ServerConfig {
   /// 当前的 10 秒滚动平均延迟（毫秒）；无有效样本时为 null。
   int? latencyMs;
 
+  /// 是否已经测量过（无论成功失败）。用于区分「测量中(转圈)」与「测量失败(超时)」，
+  /// 避免失败节点永久转圈。
+  bool latencyMeasured = false;
+
   /// 记录一次 ping 结果。[ms] 为 null 表示本次失败（仅清理过期样本，不计入）。
   void addLatencySample(int? ms) {
+    latencyMeasured = true;
     final now = DateTime.now().millisecondsSinceEpoch;
     while (_latAt.isNotEmpty && now - _latAt.first > 10000) {
       _latAt.removeAt(0);
