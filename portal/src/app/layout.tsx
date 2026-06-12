@@ -11,9 +11,23 @@ export const metadata: Metadata = {
   },
   description: 'MirrorSpeed VPN — 低延迟 WireGuard 加速，智能分流，支持 Android & Windows。Mirror Group 出品。',
   keywords:    ['VPN', 'WireGuard', '科学上网', '加速器', 'MirrorSpeed', '镜速', '翻墙'],
+  metadataBase: new URL('https://www.mirrorspeed.com'),
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon-32.png',  type: 'image/png', sizes: '32x32' },
+      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
   openGraph: {
     siteName: 'MirrorSpeed',
     type:     'website',
+    images:   [{ url: '/og-image.png', width: 1200, height: 630, alt: 'MirrorSpeed VPN' }],
+  },
+  twitter: {
+    card:   'summary_large_image',
+    images: ['/og-image.png'],
   },
 }
 
