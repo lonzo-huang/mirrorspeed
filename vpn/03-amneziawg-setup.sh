@@ -24,10 +24,36 @@ echo "[1/5] 安装 AmneziaWG 内核模块和工具..."
 OS_ID=$(grep '^ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
 KERNEL_VER=$(uname -r)
 
+# ── 内核一致性检查 ────────────────────────────────────────────────────────
+# DKMS 必须为「正在运行的内核」编译模块。若系统装了更新的内核但尚未重启
+# （新 VPS 常见：apt 升级带来新内核，但仍运行旧内核），给旧内核编译常失败，
+# 例如旧内核 5.15.0-58 报 "linux-headers-... is not supported"。此时必须先重启。
+# 如确需跳过此检查：SKIP_KERNEL_CHECK=1 bash install.sh
+if [[ "${SKIP_KERNEL_CHECK:-0}" != "1" ]]; then
+    NEWEST_KERNEL=$(dpkg-query -W -f='${Package}\n' 'linux-image-[0-9]*-generic' 2>/dev/null \
+        | sed 's/^linux-image-//' | sort -V | tail -1)
+    if [[ -n "${NEWEST_KERNEL}" && "${NEWEST_KERNEL}" != "${KERNEL_VER}" ]]; then
+        echo ""
+        echo "  ⚠ 内核未运行在最新版本，AmneziaWG 内核模块会编译失败："
+        echo "      正在运行：  ${KERNEL_VER}"
+        echo "      已安装最新：${NEWEST_KERNEL}"
+        echo ""
+        echo "  请先重启加载新内核，再重新运行安装（脚本会从已完成处继续）："
+        echo "      reboot"
+        echo "      # 重启后重新 SSH 上来执行："
+        echo "      cd /opt/mirrorspeed/vpn && bash install.sh"
+        echo ""
+        echo "  （确需在旧内核上强行编译，可用 SKIP_KERNEL_CHECK=1 bash install.sh）"
+        exit 1
+    fi
+fi
+
 apt-get update -qq
 apt-get install -y --no-install-recommends \
-    build-essential "linux-headers-${KERNEL_VER}" dkms \
-    iptables iproute2 curl ca-certificates
+    build-essential dkms iptables iproute2 curl ca-certificates
+# 内核头文件：优先装精确匹配版本，不可用则回退 generic 元包（避免整脚本 set -e 中断）
+apt-get install -y "linux-headers-${KERNEL_VER}" 2>/dev/null \
+    || apt-get install -y linux-headers-generic
 
 if [[ "${OS_ID}" == "ubuntu" ]]; then
     echo "  检测到 Ubuntu，使用 Amnezia PPA..."
