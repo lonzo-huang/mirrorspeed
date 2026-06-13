@@ -165,7 +165,7 @@ docker run --rm -v wg-data:/data -v $(pwd):/backup alpine tar xzf /backup/wg-dat
    dig +short vpn.example.com A   # 应返回服务器公网 IP
    ```
 
-2. 开放端口：TCP 80、443，UDP 39666
+2. 开放端口：TCP 80、443，**UDP 30000–49999**（端口跳变范围；旧固定端口 39666 已弃用）
 
 ### 3.3 上传脚本
 
@@ -178,22 +178,28 @@ git clone <仓库地址> /opt/mirrorspeed
 
 ### 3.4 执行一键安装
 
-**在执行安装前，必须修改以下两个变量：**
+`install.sh` 是**交互式**脚本，**无需修改任何文件**——直接运行，缺哪项就会逐项询问：
 
 ```bash
 cd /opt/mirrorspeed
 
-# 打开 install.sh，修改顶部配置变量
-nano install.sh
+# 方式 A：交互式（推荐）—— 逐项询问域名/邮箱/节点代号等
+sudo bash install.sh
 ```
 
+也可以用环境变量预设、非交互运行（适合批量/脚本化）：
+
 ```bash
-# 通过环境变量传入（推荐，无需修改文件）
-DOMAIN="vpn.example.com" \
-EMAIL="admin@example.com" \
-VPN_API_SECRET="<openssl rand -hex 32>" \
-bash /opt/mirrorspeed/install.sh
+# 方式 B：环境变量预设（任何已提供的项不再询问）
+sudo DOMAIN="vpn.example.com" \
+     EMAIL="admin@example.com" \
+     SRV_NAME="JP01" SRV_DISPLAY="日本 01" SRV_LOCATION="Tokyo" \
+     SRV_COUNTRY="JP" SRV_EMOJI="🇯🇵" \
+     bash install.sh
 ```
+
+> - **`VPN_API_SECRET` 不用手动设**：不提供时脚本会用 `openssl` **自动生成**（每台服务器独立），并在结尾的注册信息里完整打印。
+> - 安装结束会直接打印**现成的注册 SQL / `register-server.sh` 命令**（含公钥、port_secret、AWG 参数），见 [§8 / 根 README 步骤 3](#8-portal-后端配置)。
 
 安装过程约需 **3 ~ 8 分钟**，依网速而定（主要耗时：apt 安装包、下载 wstunnel 二进制、certbot 签发证书）。
 
