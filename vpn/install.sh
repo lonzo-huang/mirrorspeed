@@ -27,6 +27,28 @@ prompt_var() {
     printf -v "$1" '%s' "${input:-$3}"
 }
 
+# 由两位 ISO 国家代码生成国旗 emoji（区域指示符号：A=U+1F1E6）。
+# 例：SG → 🇸🇬，DE → 🇩🇪。非法/未知（如 XX）回退白旗 🏳️。
+emoji_from_cc() {
+    local cc="${1^^}"
+    if [[ ! "${cc}" =~ ^[A-Z][A-Z]$ || "${cc}" == "XX" ]]; then printf '🏳️'; return; fi
+    # 优先 python3（Ubuntu 自带，最可靠）
+    if command -v python3 &>/dev/null; then
+        python3 - "${cc}" <<'PY'
+import sys
+cc = sys.argv[1]
+s = ''.join(chr(0x1F1E6 + ord(c) - ord('A')) for c in cc)
+sys.stdout.buffer.write(s.encode('utf-8'))   # 直接写 UTF-8 字节，绕过 locale
+PY
+        return
+    fi
+    # 兜底：bash printf \U（bash ≥ 4.2）
+    local a b
+    a=$(printf '%d' "'${cc:0:1}")
+    b=$(printf '%d' "'${cc:1:1}")
+    printf "$(printf '\\U%08x\\U%08x' $((127397 + a)) $((127397 + b)))"
+}
+
 echo ""
 echo -e "${GREEN}═══ MirrorSpeed VPN 安装配置 ═══${NC}"
 echo ""
@@ -35,8 +57,11 @@ prompt_var EMAIL        "Let's Encrypt 证书通知邮箱" ""
 prompt_var SRV_NAME     "节点代号（注册用，如 FRA01）" "NODE01"
 prompt_var SRV_DISPLAY  "节点显示名（如 德国 法兰克福 01）" "${SRV_NAME}"
 prompt_var SRV_LOCATION "节点位置（英文，如 Frankfurt）" "Unknown"
-prompt_var SRV_COUNTRY  "国家代码（两位，如 DE）" "XX"
-prompt_var SRV_EMOJI    "国旗 emoji（如 🇩🇪）" "🏳️"
+prompt_var SRV_COUNTRY  "国家代码（两位 ISO，如 DE / SG / JP）" "XX"
+SRV_COUNTRY="${SRV_COUNTRY^^}"                       # 统一大写
+# 国旗 emoji 由国家代码自动生成（无需手填）；如需特殊旗帜可用 SRV_EMOJI 环境变量覆盖
+SRV_EMOJI="${SRV_EMOJI:-$(emoji_from_cc "${SRV_COUNTRY}")}"
+echo -e "${CYAN}?${NC} 国旗：${SRV_EMOJI}（由国家代码 ${SRV_COUNTRY} 自动生成）"
 prompt_var SRV_SORT     "列表排序（数字，越小越靠前）" "99"
 FIRST_CLIENT="${FIRST_CLIENT:-employee1}"      # 初始客户端名称
 
