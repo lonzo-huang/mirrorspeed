@@ -1,8 +1,8 @@
 # MirrorSpeed VPN — Flutter 客户端
 
 > **平台**：Android / Windows / iOS（短期）  
-> **当前版本**：**v2.0.0**（正式支持 Windows UDP 直连）  
-> **技术栈**：Flutter 3.22+ · 自研混淆 UDP 隧道（AmneziaWG 内核）· HMAC 端口跳变 · WebSocket 中继（wstunnel）· Supabase · Provider
+> **当前版本**：**v2.3.0**（UI 全新设计 + 双模式节点选择 + 邮箱密码登录）  
+> **技术栈**：Flutter 3.22+ · 自研混淆 UDP 隧道（AmneziaWG 内核）· HMAC 端口跳变 · WebSocket 中继（wstunnel）· Supabase · Provider · AdMob · in_app_purchase（规划中）
 
 > ⚠️ **对外命名约定**：面向用户的服务名、目录、日志、二进制统一使用 **MirrorSpeed**，
 > 不出现 `awg` / `amneziawg` 字样（隧道接口名为 `mirrorspeed`，Windows 服务为 `mirrorspeed_svc.exe`）。
@@ -30,9 +30,13 @@
 | HMAC 端口跳变 | `port = 30000 + HMAC-SHA256(portSecret, UTC_hour) % 20000`，每小时变动，GFW 无法封锁固定端口；服务器开放 ±3 共 7 个端口窗口 |
 | 会话端口锁定 | 仅在连接时计算端口，连上后不再随时间切换；前台恢复/网络变化由 `onAppResumed()` 自动重连 |
 | WebSocket 中继自动回退 | 直连 12 秒内未连接，自动切换至 wstunnel WSS 443 中继模式 |
-| 免费 / 付费双轨 | 免费用户每日 500 MB（服务端可配置）；付费用户无限制 |
-| 流量配额显示 | 主页进度条实时显示今日已用流量及剩余额度 |
-| 多服务器节点 | 支持按延迟切换多个 VPN 节点 |
+| 免费 / 付费双轨 | 免费用户每日免费**时长**（默认 30 分钟，服务端 `free_daily_seconds` 可配）；付费无限制无广告 |
+| 按时间试用（v2.1+） | 首次连接起墙钟倒计时，断开继续走、次日重置，归零强制断开系统 VPN |
+| AdMob 广告（v2.0.3+） | 开屏（可跳过）+ 激励视频；一次点击连播满 50 秒解锁 +30 分钟；会员屏蔽 |
+| 双模式节点选择（v2.2） | 智能分配（延迟70%+负载30%评分）/ 手动列表（10 秒平均延迟、>300ms 截断、三档负载色块） |
+| 三种登录（v2.2） | 邮箱验证码 / 邮箱密码 / Google SSO，登录页标签切换 |
+| 全新 UI（v2.3） | 主页大圆环连接按钮 + 三栏数据 + 快捷宫格；开屏光环；毛玻璃底部导航；会员/设置/帮助页 |
+| 多服务器节点 | 支持按延迟/负载切换多个 VPN 节点 |
 | 智能路由 | 中国大陆 IP 直连，境外流量走 VPN（可切换） |
 
 ---
@@ -52,9 +56,19 @@ client/
 │   │   ├── port_hopping.dart          # HMAC 端口跳变计算
 │   │   └── ws_relay_service.dart      # 纯 Dart UDP↔WebSocket 中继
 │   ├── screens/
-│   │   ├── home_screen.dart           # 主页（连接按钮、节点卡、流量进度条、中继徽章）
-│   │   ├── login_screen.dart          # 邮箱登录 / 注册
+│   │   ├── splash_screen.dart         # 开屏（旋转光环 + 进度条）
+│   │   ├── home_screen.dart           # 主页（大圆环连接按钮、三栏数据、节点卡、快捷宫格）
+│   │   ├── server_list_screen.dart    # 节点列表（智能选择 + 延迟/三档负载）
+│   │   ├── login_screen.dart          # 登录（验证码 / 密码 / Google 三标签）
+│   │   ├── profile_screen.dart        # 「我的」（旧设计，按要求保留）
+│   │   ├── vip_screen.dart            # 会员（方案 + 权益；购买为「敬请期待」占位，IAP 待接）
+│   │   ├── settings_screen.dart       # 设置（协议/安全/通用分组）
+│   │   ├── help_screen.dart           # 使用帮助（App 内 FAQ）
+│   │   ├── sub_page.dart              # 二级页通用骨架（返回 + 标题）
+│   │   ├── main_shell.dart            # 底部导航壳（毛玻璃，主页/我的）
 │   │   └── ...
+│   ├── theme.dart                     # 配色令牌（kBrand/kPanel/kAccentOn/kGold...）
+│   ├── brand.dart                     # 双壳：Brand.appName / isZh / tr(zh,en)
 │   └── env.dart                       # 常量（Supabase URL、iOS Bundle ID 等）
 ├── packages/
 │   └── amneziawg_flutter/             # 自研 AWG Flutter 插件（见下节）
@@ -375,6 +389,9 @@ const String kProviderBundle = 'com.mirrorspeed.vpn.network';  // iOS Network Ex
 
 | 版本 | 变更 |
 |------|------|
+| **2.3.0** | **UI 全新设计（参考设计师稿）**：开屏旋转光环；主页大圆环连接按钮（同心旋转光环）+ 延迟/时长/负载三栏 + 智能/全局切换 + 节点卡（智能/手动徽标）+ 快捷宫格；毛玻璃悬浮底部导航；新增**会员 / 设置 / 使用帮助**页面（`vip_screen` / `settings_screen` / `help_screen` / `sub_page`）；**「我的」页保留旧设计**。新增主题令牌 `kPanel/kAccentOn/kGold`。设计稿在 `D:\tmp\mirrorspeed ui`（React 代码，需 Flutter 重写）。**节点页/登录页完整还原待做**。 |
+| **2.2.x** | **双模式节点选择**：智能分配（`pickAutoServer` 延迟70%+负载30%）+ 手动列表（`ServerConfig.addLatencySample` 10 秒滚动平均、>300ms 截断、`loadTier` 三档色块）；`/api/mobile/configs` 下发 `active_peers/load_percent`。**额度用尽禁止连接**（`connect()` 守卫 `_trialExceeded`）。**延迟测量修复**：改 ping `relayHost`（非 endpoint，修西班牙节点永久转圈）+ 持久 `http.Client` keep-alive + 预热丢首样本（修 30ms→250ms 虚高）。**广告连播**：`AdService` 预加载 3 条广告池 + `showRewardedChain` 一次点击连播满 50 秒。**三种登录**：加 `signInWithPassword/signUpWithPassword` + 三标签登录页。**品牌图标**：`flutter_launcher_icons` 替换 Flutter 默认图标为青绿盾牌（`assets/icon/`）。 |
+| **2.1.x** | **三星修复**：额度归零时 `_forceStopOnQuota()` 无条件停原生隧道 + 中继（修「app 已断、系统 VPN 仍连」）；看广告需累计满秒数（`addAdWatch` 累加）才发放。**试用强杀不丢**：`_trialLoaded` 守卫修复启动竞态（`_rollTrialDayIfNeeded` 在 `_loadTrial` 前清零的 bug）+ 双写持久化（SharedPreferences + `path_provider` 文件 flush）。APK 改 `--split-per-abi` 单架构（修「软件包解析失败」）。 |
 | **2.0.4** | **合并双 flavor 为单包**(`com.mirrorspeed.vpn`)上架 Google Play；壳按设备语言运行时切换(中文=镜速加速器/不显示 VPN；其它=MirrorSpeed VPN)；启动器名走 res/values(-zh)；`Brand` 抽象(`lib/brand.dart`)；单一 OAuth scheme `mirrorspeed`；release.ps1 改为单 APK。 |
 | **2.0.3** | **接入 AdMob**：开屏广告(可跳过) + 激励视频(看完 +30 分钟试用)；**免费试用改为按时间**(首次连接起墙钟倒计时、断开不停、次日重置；上限 `app_config.free_daily_seconds` 从服务器拉取);minSdk≥23。 |
 | **2.0.1** | **连接体验大改**：① Windows 窗口改为手机式窄宽度；② 去掉连接时长显示；③ 状态显示当前模式——快速模式(UDP)/强力模式(TCP 中继)/暴力模式(Cloudflare)，其它语言本地化；④ 手动断开即断开，不再自动切下一模式；⑤ 未确认流量畅通前一律显示「连接中」，验证通过才显示「已连接」+模式；⑥ 节点列表用延迟色点(绿<500/黄500-1500/红>1500)替代数值；⑦ 打开 App 直接进连接界面，登录改为「我的」里可选；⑧ **用量本地计量**——隧道适配器 rx+tx 本地累计、按 UTC 日重置、超额本地断开，上限从服务器拉取(Android=GoBackend 统计 / Windows=GetIfTable2 读 WinTun 适配器字节；iOS 暂返回 -1)；⑨ 验证码 6 位(Supabase 最低 6 位)、输满自动登录。适配器描述本地化需重编 `mirrorspeed_svc.exe`（见 BUILD.md，本版未做）。 |

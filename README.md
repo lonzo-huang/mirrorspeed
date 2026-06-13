@@ -1,12 +1,47 @@
 # MirrorSpeed VPN — 项目总览
 
-> **技术栈**：自研混淆隧道内核（AmneziaWG 内核，对外以 MirrorSpeed 命名）· wstunnel · Nginx TLS 1.3 · FastAPI · Next.js 14 · Supabase · Stripe · Vercel · Flutter  
+> **技术栈**：自研混淆隧道内核（AmneziaWG 内核，对外以 MirrorSpeed 命名）· wstunnel · Nginx TLS 1.3 · FastAPI · Next.js 14 · Supabase · Stripe · AdMob · Vercel · Flutter  
 > **VPN 服务器系统**：Ubuntu 22.04 / 24.04 LTS  
 > **客户端**：Android / Windows / iOS（Flutter 原生，自动 UDP 直连 → WebSocket 中继回退）  
-> **当前版本**：客户端 **v2.0.0**（正式支持 Windows UDP 直连）
+> **当前版本**：客户端 **v2.3.0**（UI 全新设计 + 双模式节点选择 + 邮箱密码登录）
 
 > ⚠️ **对外命名约定**：面向用户的一切（服务名、目录、日志、二进制）统一使用 **MirrorSpeed**，
 > 不出现 `awg` / `amneziawg` 字样。AWG 仅作为内部内核技术在本文档中提及。
+> 中文壳额外**不出现 "VPN" 字样**（合规），产品名为「镜速加速器」。
+
+---
+
+## 0. 用户安装（通过 GitHub Release）
+
+每次发布 `client/release.ps1` 会自动在 GitHub 创建 Release 并上传安装包。普通用户有两个入口：
+
+**入口 A — 官网下载页（推荐给用户）**
+- 打开 <https://www.mirrorspeed.com/download>（或中文页 `/cn`）。
+- 页面通过 `/api/releases/latest` 读取 GitHub 最新 Release，列出 Android APK / Windows ZIP。
+- 「国内高速下载」链接由 Supabase `app_config` 的 `cn_apk_url` / `cn_win_url` 决定。
+
+**入口 B — 直接从 GitHub 下载**
+- Releases 页：<https://github.com/lonzo-huang/mirrorspeed/releases/latest>
+- Android 直链（始终指向最新 tag 的 arm64 APK）：
+  ```
+  https://github.com/lonzo-huang/mirrorspeed/releases/download/v<版本>/MirrorSpeed-<版本>-android.apk
+  ```
+- Windows：同目录的 `MirrorSpeed-<版本>-windows.zip`，解压后以管理员运行 `mirrorspeed_vpn.exe`。
+
+**Android 安装步骤（给用户的说明）**
+1. 手机浏览器打开上面的 APK 直链或下载页，下载 `.apk`。
+2. 首次安装会提示「未知来源」/「外部来源」——按提示允许该浏览器安装应用。
+3. 打开后点中间大按钮连接；首次会弹系统「VPN 连接请求」对话框，点**允许**。
+4. 安装包为 **arm64-v8a 单架构**（约 30 MB），覆盖几乎所有现代手机；
+   若极少数老旧 32 位机型装不上，需另出 `armeabi-v7a` 包（当前未发）。
+
+> **APK「软件包解析失败」**：务必用 `--split-per-abi` 产出的**单架构** APK；
+> 用 `--target-platform` 只裁剪 Flutter 库、不裁插件 jniLibs，会得到残缺包导致解析失败。
+> 发布脚本已固定使用 `--split-per-abi` 取 `app-arm64-v8a-release.apk`。
+
+> **国内镜像现状**：原 CN 镜像走 Vercel Blob，现已被 Vercel **suspended**（超额/封禁）。
+> `release.ps1` 已加**自动回退**：Blob 上传失败时把 `cn_apk_url` 等注册为 GitHub 直链，
+> 保证国内下载不断。长期方案是把镜像迁到自有服务器 / 对象存储（见「待办」）。
 
 ---
 
@@ -74,19 +109,40 @@ Vercel（Next.js Portal）
 
 ## 2. 核心功能说明
 
-### 2.1 免费 / 付费双轨制
+### 2.1 免费 / 付费双轨制（v2.1+ 改为按**时间**计费）
 
-| 用户类型 | 流量限制 | 连接节点数 |
-|----------|---------|-----------|
-| 免费用户 | 每日 500 MB（可调整） | 全部节点 |
-| 付费订阅 | 无限制 | 全部节点 |
+| 用户类型 | 强制额度 | 广告 | 连接节点 |
+|----------|---------|------|---------|
+| 免费用户 | 每日免费**时长**（默认 1800 秒 = 30 分钟） | 开屏 + 激励视频 | 全部节点 |
+| 付费订阅 | 无限制 | 无广告 | 全部节点 |
 
-**调整免费额度**（无需重新部署）：
+- **按时间计费（现行）**：首次连接起**墙钟倒计时**，断开也继续走（防止断连刷量），归零即强制断开系统 VPN，次日 UTC 0 点重置。上限来自 `app_config.free_daily_seconds`，客户端拉取。
+- **按流量计费（旧，仍保留下发但不作强制额度）**：`free_daily_bytes`，仅展示用。
+
+**调整免费时长**（无需重新部署，立即生效）：
 ```sql
--- 在 Supabase SQL Editor 执行，立即生效
-UPDATE public.app_config SET value = '1073741824' WHERE key = 'free_daily_bytes'; -- 1 GB
-UPDATE public.app_config SET value = '524288000'  WHERE key = 'free_daily_bytes'; -- 500 MB（默认）
+UPDATE public.app_config SET value = '1800' WHERE key = 'free_daily_seconds'; -- 30 分钟
+UPDATE public.app_config SET value = '3600' WHERE key = 'free_daily_seconds'; -- 60 分钟
 ```
+
+### 2.1.1 广告（AdMob，仅免费用户）
+
+- **开屏广告**：启动 / 从后台恢复时展示（可跳过）；连播激励广告期间不插入。
+- **激励视频解锁时长**：时长用完后点「看广告解锁」→ **一次点击连续连播**（预加载 3 条广告池，放完自动接下一条），累计满 **50 秒**发放 +30 分钟。会员被 `AdService` 内部 `_enabled=false` 完全屏蔽。
+
+### 2.1.2 节点选择（v2.2，双模式）
+
+- **智能分配（默认）**：客户端按 `延迟 70% + 负载 30%` 评分自动选最优节点（两台同区域机器天然均衡打散）。
+- **手动选择**：节点列表显示**延迟（10 秒滚动平均，>300ms 截断显示）+ 三档负载色块**（空闲/适中/繁忙）。
+- 负载数据来源：cron 每分钟从各 vpn-api `/stats` 写回 `vpn_servers.active_peers / load_percent`，`/api/mobile/configs` 随配置下发。
+
+### 2.1.3 登录方式（v2.2）
+
+三种，登录页顶部标签切换：① **邮箱验证码（OTP）**；② **邮箱 + 密码**（`signInWithPassword` / `signUpWithPassword`）；③ **Google SSO**。
+官网 `/login` 也已加密码登录，与 App 一致。
+
+> **Play 审核测试账号**：`review@mirrorspeed.com` / 密码 `review424242`（已确认邮箱 + 设为 VIP）。
+> Email provider 无 Test OTP 框，故用密码登录给审核员。
 
 ### 2.2 连接协议（默认 + 回退）
 
@@ -227,18 +283,38 @@ INSERT INTO public.vpn_servers (
 ## 4. Flutter 客户端发布
 
 ```powershell
-# 在 client/ 目录下，更新 pubspec.yaml 版本号后执行：
+# 在 client/ 目录下，版本号由脚本自动写入 pubspec.yaml + version.dart
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 $env:PATH = "C:\tools\flutter\bin;C:\Program Files\GitHub CLI\;" + $env:PATH
 
-# 仅 Android
-.\release.ps1 2.0.0 -SkipWindows
+# 仅 Android（最常用）
+.\release.ps1 2.3.0 -SkipWindows
 
 # Android + Windows
-.\release.ps1 2.0.0
+.\release.ps1 2.3.0
 ```
 
-脚本自动完成：构建 APK / ZIP → 打 Git Tag → 创建 GitHub Release → 上传产物 → CN 镜像。
+脚本自动完成：构建单架构 APK（`--split-per-abi` 取 arm64）+ AAB（Play 用）+ Windows ZIP → 打 Git Tag → 创建 GitHub Release → 上传产物 → CN 镜像（失败自动回退 GitHub 直链）→ 刷新下载页缓存。
+
+> 发布后惯例：`gh release delete v<上一版> --cleanup-tag --yes` 只保留最新一版；
+> 提交脚本自动写入的 `pubspec.yaml` + `version.dart`。
+>
+> **versionCode**：Play 不允许重复 versionCode。脚本用 `+N`（build number）映射 versionCode，
+> 每次发布自增。若手动出 AAB 撞号，把 `pubspec.yaml` 的 `+N` 调大重打即可。
+
+### 4.1 上架 Google Play 所需素材（已就绪）
+
+| 素材 | 文件 / 值 |
+|------|----------|
+| 应用图标 512×512 | `client/assets/icon/play_store_512.png` |
+| 特征图 1024×500 | `icon/feature_graphic_1.png` 或 `_2.png`（已去 AI 水印） |
+| AAB | `release.ps1` 产出的 `MirrorSpeed-<版本>-android.aab` |
+| 启动图标母版 / 自适应前景背景 | `client/assets/icon/app_icon{,_fg,_bg}.png`（`dart run flutter_launcher_icons` 生成全套 mipmap） |
+| 账号删除页（Play 必填 URL） | <https://www.mirrorspeed.com/delete-account> |
+| 隐私 / 条款 | `/privacy`、`/terms`（均 200） |
+| 前台服务声明 | `FOREGROUND_SERVICE_SPECIAL_USE` + `PROPERTY_SPECIAL_USE_FGS_SUBTYPE="VPN"`（插件清单已正确声明；需提交录屏，用状态栏 VPN 钥匙图标演示后台保活） |
+
+> 包名 `com.mirrorspeed.vpn`；upload key SHA-1 `E1:99:58:6A:16:76:51:AC:E6:88:07:72:AF:0A:09:92:70:5B:42:9D`。
 
 ---
 
@@ -373,3 +449,37 @@ Windows 上「能握手但下载不动、随即回退中继」的根因与修复
 | WFP「组不存在」 | 服务缺少 service SID | `ChangeServiceConfig2` 设 `SERVICE_SID_TYPE_UNRESTRICTED` |
 | UDP 收包被 WSAECONNRESET 打断 | Windows UDP 收到 ICMP port-unreachable 抛错中断收包 | 给 amneziawg-go `bind_windows.go` 打补丁：`WSAECONNRESET/NETRESET/CONNREFUSED → goto retry`（go.mod replace） |
 | 直接双击不提权 | 需管理员才能装服务 | `runner.exe.manifest` 设 `requireAdministrator`，链接器 `/MANIFESTUAC:NO` 避免 mt.exe LNK1327 冲突 |
+
+---
+
+## 9. 项目现状与待办（交接备忘 · 2026-06）
+
+> 给后续开发者 / AI：本节是项目当前进度的快照，便于无缝接手。
+
+### 9.1 已完成（近期）
+- **客户端 v2.3.0**：UI 全新设计（参考设计师稿）—— 开屏旋转光环、主页大圆环连接按钮 + 三栏数据 + 快捷宫格、毛玻璃底部导航；新增**会员 / 设置 / 使用帮助**页面；**「我的」页保留旧设计**。
+- **按时间免费试用** + **AdMob 广告**（开屏 + 激励视频连播满 50 秒解锁 +30 分钟）。
+- **双模式节点选择**（智能评分 + 手动列表含 10 秒平均延迟/三档负载）。
+- **三种登录**（OTP / 邮箱密码 / Google），官网登录同步加密码方式。
+- **品牌图标**：替换 Flutter 默认图标为青绿盾牌；网站 favicon / OG / PWA 图标齐全。
+- **Play 上架素材**：512 图标、1024×500 特征图、AAB、`/delete-account` 页、审核测试账号。
+- **官网新增页**：`/help`（App 帮助按钮指向）、`/delete-account`。
+- **release.ps1**：CN 镜像失败自动回退 GitHub 直链。
+
+### 9.2 进行中 / 下一步
+- **UI 还原剩余**：节点页（设计师版含搜索 + 按国家分组 + ping 条）、登录页配色统一。设计稿在 `D:\tmp\mirrorspeed ui`（**React/Vite 代码**，需用 Flutter 重写，非直接复用）。
+- **Google Play 内购（IAP / Route B）**：用户已选做 IAP（而非外部支付，避免拒审）。
+  - DB 迁移 `portal/supabase/migrations/015_iap_google.sql`（plans 加 `google_product_id`/`billing_period_days`；subscriptions 加 `platform`/`store_purchase_token` 等）—— **待在 Supabase SQL Editor 执行**。
+  - 待建：`/api/iap/google/verify`（Play Developer API 验购买令牌）、`/api/iap/google/rtdn`（Pub/Sub 续费/退款 webhook）、Flutter `in_app_purchase` + VIP 页真实购买。
+  - 需用户提供：Play 订阅商品（`vip_monthly/quarterly/yearly`）、Service Account JSON、Pub/Sub 主题。
+  - VIP 页购买按钮当前为「敬请期待」占位（IAP 未接前不接外部支付）。
+
+### 9.3 合规红线（务必遵守）
+- 对外命名不出现 `awg/amneziawg`；**中文壳不出现 "VPN" 字样**（用「加速器」）。
+- 上 Play 前：**隐藏 Android 端所有外部支付/升级跳转**（数字商品必须走 Google Play 结算，否则拒审）。VIP 页已不接外部支付。
+- 暴露过的密钥（`VPN_API_SECRET` / `CRON_SECRET` / `PORT_SECRET`）建议轮换。
+
+### 9.4 其它待办
+- Vercel Blob 被 suspended → 国内镜像迁自有服务器 / OSS（nginx 静态托管，无流量配额）。
+- 服务器侧：同步 `06-peer-manager.sh`；ES01/FRA01 迁 /21 子网；重编 `mirrorspeed_svc.exe` 做适配器描述本地化。
+- 准备开 2 个新加坡站点（共 4 站）——智能分配已支持同区域均衡。
