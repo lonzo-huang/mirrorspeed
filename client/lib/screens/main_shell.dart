@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../brand.dart';
@@ -17,30 +18,39 @@ class MainShell extends StatelessWidget {
     return Scaffold(
       backgroundColor: kBg,
       body: child,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: kSurface,
-          border: Border(top: BorderSide(color: Colors.white.withOpacity(0.07))),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 60,
-            child: Row(
-              children: [
-                _NavItem(
-                  icon:     Icons.shield_rounded,
-                  label:    tr('主页', 'Home'),
-                  selected: selectedIndex == 0,
-                  onTap:    () => context.go('/home'),
+      extendBody: true,
+      bottomNavigationBar: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            decoration: BoxDecoration(
+              color: kBg.withOpacity(0.82),
+              border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08))),
+            ),
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                height: 58,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Row(
+                    children: [
+                      _NavItem(
+                        icon:     Icons.bolt_rounded,
+                        label:    tr('主页', 'Home'),
+                        selected: selectedIndex == 0,
+                        onTap:    () => context.go('/home'),
+                      ),
+                      _NavItem(
+                        icon:     Icons.person_rounded,
+                        label:    tr('我的', 'Me'),
+                        selected: selectedIndex == 1,
+                        onTap:    () => context.go('/profile'),
+                      ),
+                    ],
+                  ),
                 ),
-                _NavItem(
-                  icon:     Icons.person_rounded,
-                  label:    tr('我的', 'Me'),
-                  selected: selectedIndex == 1,
-                  onTap:    () => context.go('/profile'),
-                ),
-              ],
+              ),
             ),
           ),
         ),

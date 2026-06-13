@@ -9,6 +9,9 @@ import 'screens/home_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/no_subscription_screen.dart';
+import 'screens/vip_screen.dart';
+import 'screens/settings_screen.dart';
+import 'screens/help_screen.dart';
 import 'theme.dart';
 import 'brand.dart';
 import 'services/ad_service.dart';
@@ -50,6 +53,11 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
         GoRoute(path: '/no-subscription', builder: (_, __) => const NoSubscriptionScreen()),
         // OAuth / magic-link callback deep link (mirrorspeed://login-callback)
         GoRoute(path: '/login-callback',  builder: (_, __) => const SplashScreen()),
+
+        // ── 二级页（全屏，自带返回）──────────────────────────
+        GoRoute(path: '/vip',      builder: (_, __) => const VipScreen()),
+        GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+        GoRoute(path: '/help',     builder: (_, __) => const HelpScreen()),
 
         // ── 主界面（带底部导航栏）────────────────────────────
         ShellRoute(

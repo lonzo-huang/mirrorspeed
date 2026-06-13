@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -6,10 +7,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
 import '../services/ad_service.dart';
+import '../models/server_config.dart';
 import '../brand.dart';
 import '../env.dart';
 import '../theme.dart';
-import '../widgets/connect_button.dart';
 import 'server_list_screen.dart';
 
 // 返回键 → 退到后台（不退出应用，VPN 保持运行）；退出由右上角退出键负责。
@@ -33,6 +34,22 @@ class HomeScreen extends StatelessWidget {
             ? realServers.first
             : (auth.displayServers.isNotEmpty ? auth.displayServers.first : null));
 
+    final connecting = vpn.isBusy && !vpn.isConnected;
+
+    Future<void> onConnect() async {
+      if (vpn.isConnected) {
+        await vpn.disconnect();
+      } else if (!auth.isLoggedIn) {
+        context.go('/login');
+      } else if (server == null || server.isDisplayOnly) {
+        await auth.refreshConfigs();
+      } else if (vpn.autoSelect) {
+        await vpn.connectAuto(realServers);
+      } else {
+        await vpn.connect(server);
+      }
+    }
+
     return PopScope(
       // 返回键不退出应用：拦截后退到后台（合规且保持连接）。
       canPop: false,
@@ -40,170 +57,149 @@ class HomeScreen extends StatelessWidget {
         if (!didPop) _moveAppToBackground();
       },
       child: Scaffold(
-      backgroundColor: kBg,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Row(children: [
-          Container(
-            width: 32, height: 32,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [kBrand, kBrandDark]),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.shield_rounded, size: 18, color: Colors.white),
-          ),
-          const SizedBox(width: 10),
-          Text(Brand.appName,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-        ]),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.power_settings_new_rounded, size: 20),
-            tooltip: tr('退出', 'Exit'),
-            onPressed: () => _confirmExit(context),
-          ),
-        ],
-      ),
-
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              // ── 全局通告（运营下发）#2 ────────────────────────
-              if (auth.announcement != null)
-                _AnnouncementBanner(data: auth.announcement!),
-
-              // ── 新版本提示 #2 ─────────────────────────────────
-              if (auth.updateAvailable)
-                _UpdateBanner(version: auth.latestVersion!),
-
-              // ── 订阅到期提醒 banner ───────────────────────────
-              if (auth.daysUntilExpiry != null && auth.daysUntilExpiry! <= 7)
-                _ExpiryBanner(days: auth.daysUntilExpiry!),
-
-              const SizedBox(height: 32),
-
-              // ── 连接按钮（超额时改为升级按钮）──────────────────
-              if (vpn.quotaExceeded && !vpn.isConnected) ...[
-                _UpgradeButton(),
-                const SizedBox(height: 10),
-                const _AdExtendButton(),
-              ]
-              else
-                ConnectButton(
-                  status: vpn.status,
-                  onPressed: vpn.isBusy ? null : () async {
-                    if (vpn.isConnected) {
-                      await vpn.disconnect();
-                    } else if (!auth.isLoggedIn) {
-                      context.go('/login');            // 未登录 → 去登录
-                    } else if (server == null || server.isDisplayOnly) {
-                      // 已登录但真实配置还没就绪 → 拉取配置（不要跳登录，否则按钮像点不动）
-                      await auth.refreshConfigs();
-                    } else if (vpn.autoSelect) {
-                      // 智能分配：综合延迟+负载自动挑节点
-                      await vpn.connectAuto(realServers);
-                    } else {
-                      await vpn.connect(server);
-                    }
-                  },
+        backgroundColor: kBg,
+        body: SafeArea(
+          bottom: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── 头部 ──────────────────────────────────────
+                _Header(
+                  onRefresh: () => auth.refreshConfigs(),
+                  onExit:    () => _confirmExit(context),
                 ),
 
-              const SizedBox(height: 32),
-
-              // ── 状态文字（连接中 / 模式·已连接；不再显示连接时长）──────
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Text(vpn.statusLine,
-                    key: ValueKey(vpn.status.name + vpn.protocol.name),
-                    style: TextStyle(
-                      color: vpn.isConnected ? kSuccess : Colors.white.withOpacity(0.6),
-                      fontSize: vpn.isConnected ? 20 : 15,
-                      fontWeight: vpn.isConnected ? FontWeight.w600 : FontWeight.normal,
-                    )),
-              ),
-
-              const Spacer(),
-
-              // ── 智能 / 全局 模式切换（仅中文版）─────────────────
-              if (Brand.showSmartRouting) ...[
-                _RoutingModeToggle(
-                  mode:      vpn.routingMode,
-                  onChanged: (m) => vpn.setRoutingMode(m),
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // ── 当前节点卡片 ──────────────────────────────────
-              if (server != null) _ServerCard(
-                server:   server,
-                isActive: vpn.isConnected,
-                onTap:    () => _showServerList(context),
-              ),
-
-              const SizedBox(height: 12),
-
-              // ── 切换节点按钮 ──────────────────────────────────
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _showServerList(context),
-                  style: OutlinedButton.styleFrom(
-                    side:           BorderSide(color: Colors.white.withOpacity(0.15)),
-                    shape:          RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12)),
-                    padding:        const EdgeInsets.symmetric(vertical: 13),
-                    foregroundColor: Colors.white70,
-                  ),
-                  icon:  const Icon(Icons.language_rounded, size: 18),
-                  label: Text(tr('选择节点 (${auth.displayServers.length} 个可用)',
-                               'Select node (${auth.displayServers.length} available)')),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // ── 免费试用倒计时（按时间 #3）+ 看广告延长（#4）──────────
-              if (vpn.isFreeTrial) ...[
-                _TrialBar(
-                  remainingSec: vpn.trialRemainingSec,
-                  totalSec:     vpn.trialTotalSec,
-                  exceeded:     vpn.quotaExceeded,
-                ),
-                const SizedBox(height: 8),
-                const _AdExtendButton(compact: true),
-              ],
-
-              const SizedBox(height: 8),
-
-              // ── Auth 错误提示（配置获取失败）──────────────────
-              if (auth.error != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                  ),
-                  child: Row(children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(tr('配置获取失败: ${auth.error}', 'Failed to load config: ${auth.error}'),
-                      style: const TextStyle(color: Colors.orange, fontSize: 12))),
+                // ── 通告 / 更新 / 到期 banner ──────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(children: [
+                    if (auth.announcement != null) _AnnouncementBanner(data: auth.announcement!),
+                    if (auth.updateAvailable) _UpdateBanner(version: auth.latestVersion!),
+                    if (auth.daysUntilExpiry != null && auth.daysUntilExpiry! <= 7)
+                      _ExpiryBanner(days: auth.daysUntilExpiry!),
                   ]),
                 ),
 
-              // ── VPN 提示（权限提醒用橙色，真实错误用红色）────────
-              if (vpn.error != null) _VpnErrorBanner(message: vpn.error!),
-            ],
+                const SizedBox(height: 8),
+
+                // ── 中心连接按钮（光环）────────────────────────
+                _HeroConnect(
+                  connected:  vpn.isConnected,
+                  connecting: connecting,
+                  elapsed:    vpn.elapsedFormatted,
+                  onTap:      vpn.isBusy ? null : onConnect,
+                ),
+
+                const SizedBox(height: 18),
+
+                // ── 状态副标题 ─────────────────────────────────
+                Center(
+                  child: Text(
+                    vpn.isConnected
+                        ? '${vpn.statusLine}${server != null ? ' · ${server.displayLabel(Brand.isZh)}' : ''}'
+                        : (connecting ? vpn.statusLine : tr('未连接', 'Disconnected')).toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11, letterSpacing: 3, fontWeight: FontWeight.w600,
+                      color: vpn.isConnected ? kAccentOn : Colors.white.withOpacity(0.35),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 22),
+
+                // ── 三栏数据：延迟 / 时长 / 负载 ───────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _StatsRow(
+                    connected: vpn.isConnected,
+                    pingMs:    server?.latencyMs as int?,
+                    elapsed:   vpn.isConnected ? vpn.elapsedFormatted : '--',
+                    loadPct:   server?.loadPercent as int?,
+                  ),
+                ),
+
+                // ── 智能 / 全局 切换（仅中文版）────────────────
+                if (Brand.showSmartRouting) ...[
+                  const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _RoutingModeToggle(
+                      mode:      vpn.routingMode,
+                      onChanged: (m) => vpn.setRoutingMode(m),
+                    ),
+                  ),
+                ],
+
+                // ── 当前节点卡片 ───────────────────────────────
+                if (server != null) ...[
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _NodeCard(
+                      server:   server,
+                      auto:     vpn.autoSelect,
+                      onTap:    () => _showServerList(context),
+                    ),
+                  ),
+                ],
+
+                // ── 超额升级 / 免费试用 + 看广告 ───────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(children: [
+                    if (vpn.quotaExceeded && !vpn.isConnected) ...[
+                      const SizedBox(height: 14),
+                      _UpgradeButton(),
+                      const SizedBox(height: 10),
+                      const _AdExtendButton(),
+                    ] else if (vpn.isFreeTrial) ...[
+                      const SizedBox(height: 14),
+                      _TrialBar(
+                        remainingSec: vpn.trialRemainingSec,
+                        totalSec:     vpn.trialTotalSec,
+                        exceeded:     vpn.quotaExceeded,
+                      ),
+                      const SizedBox(height: 6),
+                      const _AdExtendButton(compact: true),
+                    ],
+                  ]),
+                ),
+
+                // ── 快捷入口 ───────────────────────────────────
+                const SizedBox(height: 20),
+                _QuickMenu(onNodes: () => _showServerList(context)),
+
+                // ── 错误提示 ───────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: Column(children: [
+                    if (auth.error != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        ),
+                        child: Row(children: [
+                          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(tr('配置获取失败: ${auth.error}', 'Failed to load config: ${auth.error}'),
+                            style: const TextStyle(color: Colors.orange, fontSize: 12))),
+                        ]),
+                      ),
+                    if (vpn.error != null) _VpnErrorBanner(message: vpn.error!),
+                  ]),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-      ),   // Scaffold
-    );     // PopScope
+    );
   }
 
   Future<void> _confirmExit(BuildContext context) async {
@@ -272,45 +268,226 @@ class LatencyDot extends StatelessWidget {
   }
 }
 
-class _ServerCard extends StatelessWidget {
-  final dynamic server;
-  final bool     isActive;
-  final VoidCallback onTap;
-  const _ServerCard({ required this.server, required this.isActive, required this.onTap });
+// ── 头部：Logo + 名称 + 刷新 + 退出 ──────────────────────────────
+class _Header extends StatelessWidget {
+  final VoidCallback onRefresh;
+  final VoidCallback onExit;
+  const _Header({required this.onRefresh, required this.onExit});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 8, 4),
+      child: Row(children: [
+        Container(
+          width: 38, height: 38,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [kAccentOn, Color(0xFF38E0D0)]),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.shield_rounded, size: 20, color: Color(0xFF06121A)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(Brand.appName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          Text('MIRROR SPEED', style: TextStyle(fontSize: 9, letterSpacing: 2, color: Colors.white.withOpacity(0.35))),
+        ])),
+        IconButton(
+          onPressed: onRefresh, tooltip: tr('刷新', 'Refresh'),
+          icon: Icon(Icons.refresh_rounded, size: 20, color: Colors.white.withOpacity(0.55))),
+        IconButton(
+          onPressed: onExit, tooltip: tr('退出', 'Exit'),
+          icon: Icon(Icons.power_settings_new_rounded, size: 20, color: Colors.white.withOpacity(0.55))),
+      ]),
+    );
+  }
+}
+
+// ── 中心连接按钮（同心旋转光环 + 辉光）──────────────────────────────
+class _HeroConnect extends StatefulWidget {
+  final bool connected;
+  final bool connecting;
+  final String elapsed;
+  final VoidCallback? onTap;
+  const _HeroConnect({required this.connected, required this.connecting, required this.elapsed, this.onTap});
+  @override State<_HeroConnect> createState() => _HeroConnectState();
+}
+
+class _HeroConnectState extends State<_HeroConnect> with SingleTickerProviderStateMixin {
+  late final AnimationController _ring =
+      AnimationController(vsync: this, duration: const Duration(seconds: 16))..repeat();
+  @override void dispose() { _ring.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
+    final active = widget.connected;
+    final c = active ? kAccentOn : kBrand;
+    final spin = widget.connected || widget.connecting;
+    Widget ringW(double size, double op, double mul) => AnimatedBuilder(
+      animation: _ring,
+      builder: (_, __) => Transform.rotate(
+        angle: spin ? _ring.value * 2 * math.pi * mul : 0,
+        child: Container(width: size, height: size, decoration: BoxDecoration(
+          shape: BoxShape.circle, border: Border.all(color: c.withOpacity(op), width: 1.2))),
+      ),
+    );
+    return SizedBox(
+      height: 248,
+      child: Center(child: Stack(alignment: Alignment.center, children: [
+        Container(width: 200, height: 200, decoration: BoxDecoration(shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: c.withOpacity(0.16), blurRadius: 70, spreadRadius: 8)])),
+        ringW(212, 0.20, 1.0),
+        ringW(178, 0.30, -1.4),
+        GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            width: 150, height: 150,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle, color: const Color(0xFF181A28),
+              border: Border.all(color: c.withOpacity(0.5), width: 4),
+              boxShadow: [BoxShadow(color: c.withOpacity(active ? 0.45 : 0.30), blurRadius: active ? 50 : 34, spreadRadius: -8)],
+            ),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              widget.connecting
+                  ? SizedBox(width: 34, height: 34, child: CircularProgressIndicator(strokeWidth: 3, color: c))
+                  : Icon(Icons.power_settings_new_rounded, size: 38, color: active ? kAccentOn : Colors.white),
+              const SizedBox(height: 6),
+              Text(
+                active ? tr('已连接', 'Connected')
+                       : widget.connecting ? tr('连接中', 'Connecting') : tr('点击连接', 'Tap to connect'),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: active ? kAccentOn : Colors.white)),
+              if (active)
+                Padding(padding: const EdgeInsets.only(top: 2),
+                  child: Text(widget.elapsed, style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: kAccentOn.withOpacity(0.7)))),
+            ]),
+          ),
+        ),
+      ])),
+    );
+  }
+}
+
+// ── 三栏数据 ─────────────────────────────────────────────────────
+class _StatsRow extends StatelessWidget {
+  final bool connected;
+  final int? pingMs;
+  final String elapsed;
+  final int? loadPct;
+  const _StatsRow({required this.connected, this.pingMs, required this.elapsed, this.loadPct});
+  @override
+  Widget build(BuildContext context) {
+    Widget item(String label, String value, {bool accent = false}) => Expanded(child: Column(children: [
+      Text(label.toUpperCase(), style: TextStyle(fontSize: 9, letterSpacing: 1.5, color: Colors.white.withOpacity(0.4))),
+      const SizedBox(height: 4),
+      Text(value, style: TextStyle(fontSize: 14, fontFamily: 'monospace', fontWeight: FontWeight.w600,
+        color: accent ? kAccentOn : Colors.white)),
+    ]));
+    final div = Container(width: 1, height: 30, color: Colors.white.withOpacity(0.07));
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(color: kPanel.withOpacity(0.6), borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05))),
+      child: Row(children: [
+        item(tr('延迟', 'Ping'), pingMs != null ? '${pingMs}ms' : '-- ms', accent: connected),
+        div,
+        item(tr('时长', 'Time'), elapsed),
+        div,
+        item(tr('负载', 'Load'), loadPct != null ? '$loadPct%' : '--%'),
+      ]),
+    );
+  }
+}
+
+// ── 当前节点卡片 ─────────────────────────────────────────────────
+class _NodeCard extends StatelessWidget {
+  final ServerConfig server;
+  final bool auto;
+  final VoidCallback onTap;
+  const _NodeCard({required this.server, required this.auto, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    final ms = server.latencyMs;
+    final c  = auto ? kAccentOn : Colors.amber;
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 400),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          color: kCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isActive ? kSuccess.withOpacity(0.4) : Colors.white.withOpacity(0.06),
-          ),
-          boxShadow: isActive
-              ? [BoxShadow(color: kSuccess.withOpacity(0.1), blurRadius: 20)]
-              : [],
-        ),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.05))),
         child: Row(children: [
-          Text(server.flagEmoji, style: const TextStyle(fontSize: 28)),
-          const SizedBox(width: 14),
+          Container(width: 42, height: 42, alignment: Alignment.center,
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+            child: Text(server.flagEmoji, style: const TextStyle(fontSize: 22))),
+          const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(Brand.isZh ? server.displayName
-                            : (server.location.isNotEmpty ? server.location : server.displayName),
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-            if (Brand.isZh && server.location.isNotEmpty)
-              Text(server.location, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+            Row(children: [
+              Flexible(child: Text(server.displayLabel(Brand.isZh), maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
+              const SizedBox(width: 6),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: c.withOpacity(0.15), borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: c.withOpacity(0.3))),
+                child: Text(auto ? tr('智能', 'Auto') : tr('手动', 'Manual'),
+                  style: TextStyle(fontSize: 9, color: c, fontWeight: FontWeight.w600))),
+            ]),
+            const SizedBox(height: 4),
+            Row(children: [
+              Container(width: 6, height: 6, decoration: const BoxDecoration(color: kBrand, shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+              Text('${ms != null ? '$ms' : '--'}ms · ${tr('负载', 'load')} ${server.loadPercent}%',
+                style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.white.withOpacity(0.45))),
+            ]),
           ])),
-          LatencyDot(ms: server.latencyMs as int?),
-          const SizedBox(width: 10),
-          Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withOpacity(0.4)),
+          Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.35)),
         ]),
       ),
     );
+  }
+}
+
+// ── 快捷入口宫格 ─────────────────────────────────────────────────
+class _QuickMenu extends StatelessWidget {
+  final VoidCallback onNodes;
+  const _QuickMenu({required this.onNodes});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(tr('快捷', 'Quick').toUpperCase(),
+          style: TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.4))),
+        const SizedBox(height: 12),
+        Row(children: [
+          _QuickItem(icon: Icons.dns_rounded, label: tr('节点', 'Nodes'), onTap: onNodes),
+          _QuickItem(icon: Icons.workspace_premium_rounded, label: tr('会员', 'VIP'), highlight: true, onTap: () => context.push('/vip')),
+          _QuickItem(icon: Icons.settings_rounded, label: tr('设置', 'Settings'), onTap: () => context.push('/settings')),
+          _QuickItem(icon: Icons.help_outline_rounded, label: tr('帮助', 'Help'), onTap: () => context.push('/help')),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _QuickItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool highlight;
+  final VoidCallback onTap;
+  const _QuickItem({required this.icon, required this.label, this.highlight = false, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(child: GestureDetector(
+      onTap: onTap,
+      child: Column(children: [
+        Container(width: 50, height: 50, alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: highlight ? kBrand.withOpacity(0.15) : Colors.white.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: highlight ? kBrand.withOpacity(0.3) : Colors.white.withOpacity(0.05))),
+          child: Icon(icon, size: 21, color: highlight ? kBrand : Colors.white.withOpacity(0.85))),
+        const SizedBox(height: 7),
+        Text(label, style: TextStyle(fontSize: 11, color: highlight ? kBrand : Colors.white.withOpacity(0.6))),
+      ]),
+    ));
   }
 }
 
