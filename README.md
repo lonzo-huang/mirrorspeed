@@ -174,45 +174,86 @@ Vercel Cron 调用 `/api/cron/sync-servers`，自动完成：
 
 ## 3. 快速部署
 
-### 3.1 VPN 服务器
+### 3.1 VPN 服务器（从 GitHub 克隆安装 · 完整步骤）
 
-**方式一：Docker Compose（推荐，适合快速复制部署）**
+> 全程在一台干净的 **Ubuntu 22.04/24.04 或 Debian 12** VPS 上以 **root** 执行。
+> 更深入的说明（架构、运维、故障排查）见 [`vpn/README.md`](vpn/README.md)。
+
+#### 步骤 0 · 准备域名与端口
+1. **DNS**：给该 VPS 配一条 A 记录，如 `jp01.yourdomain.com` → 服务器公网 IP（注册时这个域名就是 `endpoint`）。
+2. **放行端口**（云厂商安全组 + 服务器防火墙）：
+   - `TCP 80`（Let's Encrypt 签证）、`TCP 443`（WSS 中继 + 站点伪装）
+   - `UDP 30000–49999`（混淆 UDP 直连的**端口跳变范围**）
+
+#### 步骤 1 · 克隆仓库
+```bash
+# 仓库为私有，需用 GitHub Personal Access Token（PAT，勾选 repo 读权限）
+git clone https://<你的GitHub用户名>:<PAT>@github.com/lonzo-huang/mirrorspeed.git
+cd mirrorspeed
+
+# 或：已装并登录 gh CLI
+gh repo clone lonzo-huang/mirrorspeed && cd mirrorspeed
+```
+> 只需要服务器相关目录，也可只拷 `vpn/` 与 `scripts/` 两个目录到服务器。
+
+#### 步骤 2 · 一键安装（裸机脚本，推荐）
+`vpn/install.sh` 会按序完成：系统调优 → Nginx+TLS → AmneziaWG 内核 → wstunnel → nftables → **端口跳变** → 首个 Peer → vpn-api，并在结尾打印**注册信息**。
 
 ```bash
-# 1. 上传 docker 目录到服务器
-scp -r vpn/docker/ root@<SERVER_IP>:/opt/mirrorspeed-docker/
+# 交互式（逐项询问域名/邮箱/节点代号等）
+sudo bash vpn/install.sh
 
-# 2. SSH 到服务器
-ssh root@<SERVER_IP>
-cd /opt/mirrorspeed-docker
-
-# 3. 配置并启动
-cp .env.example .env && nano .env   # 填写 DOMAIN / EMAIL / VPN_API_SECRET
-docker compose up -d
-
-# 4. 获取服务端公钥
-docker compose logs vpn | grep -A2 "server public key"
+# 或：环境变量预设，非交互
+sudo DOMAIN="jp01.yourdomain.com" \
+     EMAIL="admin@yourdomain.com" \
+     SRV_NAME="JP01" SRV_DISPLAY="日本 01" SRV_LOCATION="Tokyo" \
+     SRV_COUNTRY="JP" SRV_EMOJI="🇯🇵" SRV_SORT="2" \
+     bash vpn/install.sh
 ```
+- `VPN_API_SECRET` 不传会**自动生成**（每台服务器独立，结尾会打印，注册时写入 DB）。
+- 安装结束会输出一段 **`INSERT INTO public.vpn_servers ...` SQL** 和一条 `register-server.sh` 命令——含**公钥、port_secret、AWG 混淆参数**，下一步直接用。
 
-**方式二：Shell 脚本（裸机，适合深度定制）**
+> **方式二：Docker Compose**（适合快速复制，少定制）：
+> ```bash
+> cd vpn/docker
+> cp .env.example .env && nano .env   # 填 DOMAIN / EMAIL / VPN_API_SECRET
+> docker compose up -d
+> docker compose logs vpn | grep -A2 "server public key"   # 取公钥
+> ```
 
+#### 步骤 3 · 注册节点到 Portal（二选一）
+安装脚本结尾已生成现成内容，**复制即可**：
+
+- **方式 ①（最简单）**：把打印出来的整段 `INSERT INTO public.vpn_servers (...)` 贴到
+  **Supabase → SQL Editor** 执行。
+- **方式 ②**：在**开发机**（有 `portal/.env.local`）运行脚本打印的
+  `bash scripts/register-server.sh --name JP01 --endpoint ... --pubkey ... --api-secret ... --port-secret ... --awg-params ...`。
+
+> ⚠️ **必须随注册写入的字段**（缺一客户端就连不上）：
+> `public_key`、`api_url`(`https://<域名>/vpn-api`)、`api_secret`(每台独立)、
+> `port_secret`(`cat /etc/wireguard/.port-secret`)、**9 个 AWG 混淆参数**
+> (`awg_jc/jmin/jmax/s1/s2/h1/h2/h3/h4`，须与 `/etc/wireguard/awg-params.env` 完全一致)。
+
+#### 步骤 4 · 验证
 ```bash
-# 1. 上传脚本到服务器
-scp -r vpn/ root@<SERVER_IP>:/opt/mirrorspeed/
+# 服务器上：各服务在跑
+systemctl status nginx awg-quick@awg0 wstunnel nftables vpn-api
 
-# 2. SSH 到服务器，一键安装
-DOMAIN="vpn.yourdomain.com" \
-EMAIL="admin@yourdomain.com" \
-VPN_API_SECRET="<同所有服务器的密钥>" \
-bash /opt/mirrorspeed/install.sh
+# 查看当前动态端口 / 跳变状态
+bash vpn/08-port-hopping-setup.sh status
+
+# 从外部：vpn-api 健康检查（需带该服务器 api_secret）
+curl -H "X-API-Secret: <该服务器 VPN_API_SECRET>" https://<域名>/vpn-api/health
 ```
+注册成功后，打开 App 下拉刷新节点列表即应看到新节点（cron 每分钟回填其负载/状态）。
 
-安装完成后记录输出的 **AmneziaWG 服务端公钥**，注册服务器时需要。
-
-**裸机安装后查看端口跳变 secret：**
-```bash
-cat /etc/wireguard/.port-secret
-```
+#### 关键文件位置（裸机）速查
+| 内容 | 路径 / 命令 |
+|------|------------|
+| 端口跳变 secret | `cat /etc/wireguard/.port-secret` |
+| AWG 混淆参数 | `cat /etc/wireguard/awg-params.env` |
+| AWG 配置 | `/etc/amnezia/amneziawg/awg0.conf` |
+| 增删客户端 Peer | `bash vpn/06-peer-manager.sh {add|remove|list|qrcode} <名字>` |
 
 ### 3.2 Supabase 数据库
 
