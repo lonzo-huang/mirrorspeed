@@ -10,6 +10,7 @@ import 'package:amneziawg_flutter/amneziawg_flutter.dart';
 import '../models/server_config.dart';
 import '../services/ws_relay_service.dart';
 import '../services/port_hopping.dart';
+import '../services/api_service.dart';
 import '../env.dart';
 
 export 'package:amneziawg_flutter/amneziawg_flutter.dart' show VpnStage;
@@ -279,6 +280,12 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 0. 按需建 peer：确保该节点服务器上已添加本设备（on-demand provisioning）。
+      //    尽力而为，不阻断连接（多数情况已由列表预热提前建好）。
+      if (!server.isDisplayOnly) {
+        await ApiService.instance.ensurePeer(serverIds: [server.id]);
+      }
+
       // 1. 计算实际连接端口（端口跳变 or 固定端口），并钉死到本次会话。
       //    端口只在此处基于时间计算一次；连上后整个会话不再改变。
       final effectivePort = _computePort(server);

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/server_config.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
+import '../services/api_service.dart';
 import '../brand.dart';
 import '../theme.dart';
 
@@ -17,8 +18,13 @@ class _ServerListScreenState extends State<ServerListScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final servers = context.read<AuthProvider>().displayServers;
+      final auth    = context.read<AuthProvider>();
+      final servers = auth.displayServers;
       context.read<VpnProvider>().measureLatencies(servers);
+      // 列表打开即后台批量预热：在所有节点上提前建好 peer，点哪个都即时连。
+      if (auth.isLoggedIn) {
+        ApiService.instance.ensurePeer();   // serverIds 省略 = 全部活跃节点
+      }
     });
   }
 

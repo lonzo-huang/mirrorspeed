@@ -155,6 +155,7 @@ vpn-api（服务器）新增/确认：
 
 - [x] P1 DB 迁移 `016_ondemand_provisioning.sql`（已执行；ip_pool 65533 行，allocate 函数验证幂等）
 - [x] P2 服务器代码：vpn-api `/peers/ensure`+`/peers/remove`；脚本子网 /21→/16（**未部署到现有 3 台**，随 P3/P4 切换时一起）
-- [ ] P3 Portal：device 生成密钥+分配 IP；`ensure-peer` 接口；configs 返回设备 privkey/IP（加字段，非破坏）
-- [ ] P4 客户端：自建配置 + connect 前 ensure + 列表/启动预热
-- [ ] P5 GC cron
+- [x] P3 Portal：`ensureDeviceCrypto`（设备一次性密钥+全局 IP）；configs 用设备密钥生成各节点 wg_conf（去笛卡尔积）；`POST /api/mobile/ensure-peer`
+- [x] P4 客户端：connect 前 `ensurePeer([server])`；节点列表打开批量预热 `ensurePeer()`
+- [ ] **切换部署**：3 台服务器更新 vpn-api（含 /peers/ensure）+ 可选 widen /16；发新客户端
+- [ ] P5 GC cron（按 `peer_gc_days` 回收闲置 peer）

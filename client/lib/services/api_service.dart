@@ -81,6 +81,28 @@ class ApiService {
     return devices.map((d) => DeviceInfo.fromJson(d as Map<String, dynamic>)).toList();
   }
 
+  // ── 按需建 peer（连接前 / 节点列表预热）──────────────────────
+  // serverIds 为空 = 全部活跃节点（列表预热）；给定 = 仅这些（连接前单台）。
+  // 失败不抛异常（尽力而为），返回是否至少成功一个。
+  Future<bool> ensurePeer({ String? deviceId, List<String>? serverIds }) async {
+    if (_token == null) return false;
+    try {
+      final res = await http.post(
+        Uri.parse('$kApiBase/api/mobile/ensure-peer'),
+        headers: _headers,
+        body: jsonEncode({
+          if (deviceId != null)        'device_id':  deviceId,
+          if (serverIds != null)       'server_ids': serverIds,
+        }),
+      ).timeout(const Duration(seconds: 12));
+      if (res.statusCode != 200) return false;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return (body['ensured'] as int? ?? 0) > 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── 公开节点列表（无需登录，仅展示用，不含密钥/配置）#1 ────────────
   Future<List<ServerConfig>> fetchPublicServers() async {
     final res = await http.get(Uri.parse('$kApiBase/api/servers'));
