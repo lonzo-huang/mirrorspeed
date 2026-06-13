@@ -153,8 +153,8 @@ vpn-api（服务器）新增/确认：
 
 ## 10. 实施进度
 
-- [ ] P1 DB 迁移 `016_ondemand_provisioning.sql`
-- [ ] P2 服务器子网 /16 + vpn-api ensure/remove
-- [ ] P3 Portal：configs 不预建 + ensure-peer 接口 + 注册分配 IP
-- [ ] P4 客户端：connect 前 ensure + 列表/启动预热
+- [x] P1 DB 迁移 `016_ondemand_provisioning.sql`（已执行；ip_pool 65533 行，allocate 函数验证幂等）
+- [x] P2 服务器代码：vpn-api `/peers/ensure`+`/peers/remove`；脚本子网 /21→/16（**未部署到现有 3 台**，随 P3/P4 切换时一起）
+- [ ] P3 Portal：device 生成密钥+分配 IP；`ensure-peer` 接口；configs 返回设备 privkey/IP（加字段，非破坏）
+- [ ] P4 客户端：自建配置 + connect 前 ensure + 列表/启动预热
 - [ ] P5 GC cron
