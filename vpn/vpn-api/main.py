@@ -326,6 +326,19 @@ class ServerStats(BaseModel):
     timestamp: str
 
 
+# ── On-demand provisioning（按需建 peer）──────────────────────────────────────
+# 设备自带密钥对 + 全局唯一 IP（由 Portal 集中分配），服务器只需"接受"该公钥。
+class EnsurePeerRequest(BaseModel):
+    public_key:    str = Field(..., min_length=40, max_length=64)
+    vpn_ip:        str = Field(..., min_length=7,  max_length=18)  # 10.200.x.y[/32]
+    peer_name:     str = Field("",  max_length=64)
+    preshared_key: str = Field("",  max_length=64)
+
+
+class RemovePeerRequest(BaseModel):
+    public_key: str = Field(..., min_length=40, max_length=64)
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -458,6 +471,44 @@ def create_peer(req: CreatePeerRequest, _key: str = Security(verify_api_key)):
         preshared_key=preshared_key,
         vpn_ip=f"{vpn_ip}/32",
     )
+
+
+@app.post("/peers/ensure", status_code=200)
+def ensure_peer(req: EnsurePeerRequest, _key: str = Security(verify_api_key)):
+    """
+    幂等地确保某设备在本机有 peer（On-demand provisioning 快路径）。
+    设备自带密钥对/IP，本接口**不生成密钥**，只把公钥+IP 加进 awg0.conf。
+    已存在则直接返回。客户端连接前 / 节点列表预热时调用。
+    """
+    ip = req.vpn_ip.split("/")[0]
+    if not re.fullmatch(r"10\.200\.\d{1,3}\.\d{1,3}", ip):
+        raise HTTPException(status_code=400, detail=f"Invalid vpn_ip: {req.vpn_ip!r}")
+
+    with _conf_lock:
+        for p in parse_peers_from_conf():
+            if p["public_key"] == req.public_key:
+                return {"status": "exists", "vpn_ip": f"{ip}/32"}
+
+        name = req.peer_name or f"ms-{req.public_key[:12]}"
+        block = f"\n# Name = {name}\n[Peer]\nPublicKey    = {req.public_key}\n"
+        if req.preshared_key:
+            block += f"PresharedKey = {req.preshared_key}\n"
+        block += f"AllowedIPs   = {ip}/32\n"
+        with open(WG_CONF, "a") as f:
+            f.write(block)
+        syncconf()
+
+    return {"status": "created", "vpn_ip": f"{ip}/32"}
+
+
+@app.post("/peers/remove", status_code=200)
+def remove_peer_by_key(req: RemovePeerRequest, _key: str = Security(verify_api_key)):
+    """按公钥移除 peer（闲置回收 GC 用）。幂等：不存在也返回 200。"""
+    with _conf_lock:
+        removed = remove_peer_from_conf(req.public_key)
+        if removed:
+            syncconf()
+    return {"status": "removed" if removed else "absent"}
 
 
 @app.delete("/peers/{peer_name}", status_code=204)

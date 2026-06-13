@@ -286,7 +286,7 @@ cat << SUMMARY
   域名:           ${DOMAIN}
   WAN 网卡:       ${WAN_IF}
   服务端公钥:     ${AWG_PUBLIC}
-  VPN 子网:       10.200.0.0/21
+  VPN 子网:       10.200.0.0/16
 
   传输层配置:
     TCP 443     — Nginx HTTPS（wstunnel WebSocket 回落）
