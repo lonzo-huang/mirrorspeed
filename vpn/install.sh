@@ -203,6 +203,15 @@ else
     warn "07-vpnapi-setup.sh 不存在，跳过 vpn-api 部署"
 fi
 
+section "第 8 步：用户分级限速（tc + ipset + fwmark）"
+# 依赖 vpn-api 的 api_secret（/opt/mirrorspeed/vpn-api/.env）+ 已起的 awg0。
+if [[ -f "${SCRIPT_DIR}/09-ratelimit-setup.sh" && -n "${VPN_API_SECRET}" ]]; then
+    chmod +x "${SCRIPT_DIR}/09-ratelimit-setup.sh"
+    VPN_API_SECRET="${VPN_API_SECRET}" bash "${SCRIPT_DIR}/09-ratelimit-setup.sh" || warn "限速部署失败（不影响 VPN 连接），可稍后手动重跑 09-ratelimit-setup.sh"
+else
+    warn "跳过限速部署（缺 09-ratelimit-setup.sh 或 VPN_API_SECRET）"
+fi
+
 # ── 部署验证 ──────────────────────────────────────────────────────────────
 section "部署验证"
 

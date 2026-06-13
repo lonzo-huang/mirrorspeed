@@ -144,6 +144,22 @@ UPDATE public.app_config SET value = '3600' WHERE key = 'free_daily_seconds'; --
 > **Play 审核测试账号**：`review@mirrorspeed.com` / 密码 `review424242`（已确认邮箱 + 设为 VIP）。
 > Email provider 无 Test OTP 框，故用密码登录给审核员。
 
+### 2.1.4 用户分级限速（tc + ipset + fwmark）
+
+按用户分三级**限下行**（客户端下载速度）；限速值在 Supabase `app_config`，各服务器每 60s 拉取：
+
+| key | 默认 | 说明 |
+|---|---|---|
+| `ratelimit_free_mbit` | `4` | 免费用户下行 Mbit |
+| `ratelimit_paid_mbit` | `10` | 付费用户下行 Mbit |
+| `ratelimit_super_mbit` | `0` | 超级用户（0 = 不限速） |
+| `super_user_ids` | `[]` | 超级用户 user_id JSON 列表（预留） |
+
+- **机制**：`awg0` 上 tc(HTB) 三档静态类 + `ipset`(ms_free/ms_paid) 动态成员 + mangle `fwmark` 打标。超级/未知 → 默认满速类。
+- **数据流**：服务器 `ms-ratelimit-sync.py`（systemd timer，60s）凭 `api_secret` 调 Portal `GET /api/vpn/ratelimit-sync` → 反查本机 → 返回限速值 + free/paid IP → 刷 ipset/tc。
+- **丝滑升级**：用户看广告/付费升级后 ≤60s 自动提速，**不掉线、不换 IP**。
+- **部署**：`vpn/09-ratelimit-setup.sh`（自动探测网卡；install.sh 第 8 步自动跑）。改限速值只需改 `app_config`，全机群自动生效。
+
 ### 2.2 连接协议（默认 + 回退）
 
 App 连接时自动选择最优方式：
