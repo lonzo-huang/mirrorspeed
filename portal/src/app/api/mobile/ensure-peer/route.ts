@@ -1,0 +1,110 @@
+import { createAdminClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+import { ensureDeviceCrypto } from '@/lib/device-crypto'
+import { NextRequest, NextResponse } from 'next/server'
+import type { Database } from '@/types/database.types'
+
+// POST /api/mobile/ensure-peer
+// Body: { device_id?: string, server_ids?: string[] }
+//
+// 按需在目标服务器上添加该设备的 peer（不预建、不生成密钥）。
+// 客户端连接某节点前调用（单台）；打开节点列表时批量预热（全部）。幂等。
+
+async function getUserFromBearer(req: NextRequest) {
+  const auth  = req.headers.get('authorization') ?? ''
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null
+  if (!token) return null
+  const supabase = createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { autoRefreshToken: false, persistSession: false } },
+  )
+  const { data: { user } } = await supabase.auth.getUser(token)
+  return user
+}
+
+export async function POST(req: NextRequest) {
+  const user = await getUserFromBearer(req)
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  let body: { device_id?: string; server_ids?: string[] } = {}
+  try { body = await req.json() } catch { /* empty body ok */ }
+
+  const admin = createAdminClient()
+
+  // ── 设备（指定或该用户全部活跃设备）─────────────────────────
+  const devQuery = admin.from('vpn_devices').select('id').eq('user_id', user.id).eq('is_active', true)
+  if (body.device_id) devQuery.eq('id', body.device_id)
+  const { data: devicesRaw } = await devQuery
+  const devices = (devicesRaw ?? []) as Array<{ id: string }>
+  if (!devices.length) return NextResponse.json({ error: 'No device' }, { status: 404 })
+
+  // ── 目标服务器（指定或全部活跃）─────────────────────────────
+  let srvQuery = (admin.from('vpn_servers') as any)
+    .select('id, api_url, api_secret').eq('is_active', true)
+  if (body.server_ids?.length) srvQuery = srvQuery.in('id', body.server_ids)
+  const { data: serversRaw } = await srvQuery
+  const servers = (serversRaw ?? []) as Array<{ id: string; api_url: string; api_secret: string | null }>
+
+  const results: Array<{ device_id: string; server_id: string; ok: boolean; detail?: string }> = []
+
+  for (const dev of devices) {
+    const crypto = await ensureDeviceCrypto(admin, dev.id)
+    if (!crypto) { results.push({ device_id: dev.id, server_id: '*', ok: false, detail: 'crypto failed' }); continue }
+    const ipNoMask = crypto.vpnIp.split('/')[0]
+
+    await Promise.all(servers.map(async srv => {
+      if (!srv.api_url || !srv.api_secret) {
+        results.push({ device_id: dev.id, server_id: srv.id, ok: false, detail: 'no api' }); return
+      }
+      // 1) 远程 ensure（awg set 该公钥）
+      try {
+        const resp = await fetch(`${srv.api_url}/peers/ensure`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-API-Secret': srv.api_secret },
+          body: JSON.stringify({
+            public_key: crypto.publicKey,
+            vpn_ip:     ipNoMask,
+            peer_name:  `ms-${dev.id}`,
+          }),
+          signal: AbortSignal.timeout(8000),
+        })
+        if (!resp.ok) {
+          const t = await resp.text()
+          results.push({ device_id: dev.id, server_id: srv.id, ok: false, detail: `vpn-api ${resp.status}: ${t.slice(0,120)}` })
+          return
+        }
+      } catch (e: any) {
+        results.push({ device_id: dev.id, server_id: srv.id, ok: false, detail: String(e?.message ?? e) })
+        return
+      }
+
+      // 2) 台账（ratelimit / GC 用）：存在则更新，否则插入
+      const { data: existing } = await (admin.from('vpn_device_peers') as any)
+        .select('id').eq('device_id', dev.id).eq('server_id', srv.id).maybeSingle()
+      if (existing) {
+        await (admin.from('vpn_device_peers') as any)
+          .update({ provisioned: true, is_active: true, public_key: crypto.publicKey, vpn_ip: crypto.vpnIp, last_seen_at: new Date().toISOString() })
+          .eq('id', existing.id)
+      } else {
+        await (admin.from('vpn_device_peers') as any).insert({
+          device_id:         dev.id,
+          server_id:         srv.id,
+          user_id:           user.id,
+          peer_name:         `ms-${dev.id}`,
+          public_key:        crypto.publicKey,
+          private_key_enc:   crypto.privateKeyEnc,
+          preshared_key_enc: '',
+          vpn_ip:            crypto.vpnIp,
+          is_active:         true,
+          provisioned:       true,
+        })
+      }
+      results.push({ device_id: dev.id, server_id: srv.id, ok: true })
+    }))
+  }
+
+  const okCount = results.filter(r => r.ok).length
+  return NextResponse.json({ ensured: okCount, total: results.length, results })
+}

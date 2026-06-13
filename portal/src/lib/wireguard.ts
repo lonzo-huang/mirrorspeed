@@ -1,5 +1,7 @@
 // WireGuard / AmneziaWG client configuration generation
 // AllowedIPs = full public internet, LAN (RFC1918) bypassed, VPN subnet included
+import { generateKeyPairSync } from 'crypto'
+
 export const WG_ALLOWED_IPS =
   '0.0.0.0/5, 8.0.0.0/7, 11.0.0.0/8, 12.0.0.0/6, 16.0.0.0/4, ' +
   '32.0.0.0/3, 64.0.0.0/2, 128.0.0.0/3, 160.0.0.0/5, 168.0.0.0/6, ' +
@@ -131,9 +133,23 @@ export function generateWgConf({
     `\n` +
     `[Peer]\n` +
     `PublicKey    = ${serverPublicKey}\n` +
-    `PresharedKey = ${presharedKey}\n` +
+    // PresharedKey 可选：为空则省略该行（按需建 peer 的设备级密钥不强制 PSK）
+    (presharedKey ? `PresharedKey = ${presharedKey}\n` : '') +
     `Endpoint     = ${serverEndpoint}:${serverPort}\n` +
     `AllowedIPs   = ${allowedIps}\n` +
     `PersistentKeepalive = 25\n`
   )
+}
+
+// ── 设备级 WireGuard 密钥对生成（按需建 peer：一次性、跨服务器复用）──────────
+// 用 Node 的 x25519（= Curve25519）。openssl 生成的私钥标量已符合 WG 钳位要求，
+// 取 DER 末 32 字节即为 WG 的原始 32 字节密钥，base64 后即 WG 格式。
+export function generateWgKeypair(): { privateKey: string; publicKey: string } {
+  const { privateKey, publicKey } = generateKeyPairSync('x25519', {
+    publicKeyEncoding:  { type: 'spki',  format: 'der' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'der' },
+  })
+  const priv = (privateKey as Buffer).subarray(-32)
+  const pub  = (publicKey  as Buffer).subarray(-32)
+  return { privateKey: priv.toString('base64'), publicKey: pub.toString('base64') }
 }
