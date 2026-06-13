@@ -147,3 +147,14 @@ vpn-api（服务器）新增/确认：
 - ✅ 砍掉"UDP/Realtime 手势预判"，改用"列表打开批量预热 + 启动预热 + 闲置 GC"（等效、简单、鲁棒）。
 - ✅ 限速先行（已上线），本架构改造紧随其后。
 - ✅ IP 全局一致（per-device），密钥一次性生成、跨服务器复用。
+- ✅ **IP 分配用方案 B**（`ip_pool` 表，可回收）。
+- ✅ **GC 天数可配**（`app_config.peer_gc_days`），当前 **30 天**。
+- ✅ **子网 `10.200.0.0/16`**。
+
+## 10. 实施进度
+
+- [ ] P1 DB 迁移 `016_ondemand_provisioning.sql`
+- [ ] P2 服务器子网 /16 + vpn-api ensure/remove
+- [ ] P3 Portal：configs 不预建 + ensure-peer 接口 + 注册分配 IP
+- [ ] P4 客户端：connect 前 ensure + 列表/启动预热
+- [ ] P5 GC cron

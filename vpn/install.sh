@@ -56,7 +56,7 @@ prompt_var DOMAIN       "VPN 域名（已解析到本机的 A 记录）" ""
 prompt_var EMAIL        "Let's Encrypt 证书通知邮箱" ""
 prompt_var SRV_NAME     "节点代号（注册用，如 FRA01）" "NODE01"
 prompt_var SRV_DISPLAY  "节点显示名（如 德国 法兰克福 01）" "${SRV_NAME}"
-prompt_var SRV_LOCATION "节点位置（英文，如 Frankfurt）" "Unknown"
+prompt_var SRV_LOCATION "城市名（英文，如 Frankfurt；用于主机名 + 客户端显示）" "Unknown"
 prompt_var SRV_COUNTRY  "国家代码（两位 ISO，如 DE / SG / JP）" "XX"
 SRV_COUNTRY="${SRV_COUNTRY^^}"                       # 统一大写
 # 国旗 emoji 由国家代码自动生成（无需手填）；如需特殊旗帜可用 SRV_EMOJI 环境变量覆盖
@@ -163,6 +163,28 @@ done
 chmod +x "${SCRIPT_DIR}/06-peer-manager.sh"
 [[ -f "${SCRIPT_DIR}/07-vpnapi-setup.sh" ]] && chmod +x "${SCRIPT_DIR}/07-vpnapi-setup.sh"
 [[ -f "${SCRIPT_DIR}/08-port-hopping-setup.sh" ]] && chmod +x "${SCRIPT_DIR}/08-port-hopping-setup.sh"
+
+section "设置主机名"
+# 主机名 = 域名前缀（去掉基础域名后两段，大写、点转横线）+ 城市名
+# 例：de01.tx.mirrorspeed.com + Frankfurt → DE01-TX-Frankfurt
+BASE_DOMAIN=$(echo "${DOMAIN}" | awk -F. '{ if (NF>=2) print $(NF-1)"."$NF; else print $0 }')
+DOM_PREFIX=$(echo "${DOMAIN}" | sed "s/\.${BASE_DOMAIN}\$//; s/^${BASE_DOMAIN}\$//")
+PREFIX_UP=$(echo "${DOM_PREFIX}" | tr 'a-z.' 'A-Z-')
+CITY_CLEAN=$(echo "${SRV_LOCATION}" | tr ' ' '-' | tr -cd 'A-Za-z0-9-')
+if [[ -n "${PREFIX_UP}" && -n "${CITY_CLEAN}" ]]; then
+    NEW_HOSTNAME="${PREFIX_UP}-${CITY_CLEAN}"
+else
+    NEW_HOSTNAME="${PREFIX_UP}${CITY_CLEAN:-mirrorspeed}"
+fi
+NEW_HOSTNAME=$(echo "${NEW_HOSTNAME}" | tr -cd 'A-Za-z0-9-')
+info "主机名 → ${NEW_HOSTNAME}"
+hostnamectl set-hostname "${NEW_HOSTNAME}" 2>/dev/null || hostname "${NEW_HOSTNAME}" || warn "设置主机名失败（不影响部署）"
+# 更新 /etc/hosts 的 127.0.1.1 行（幂等），避免 sudo 反查主机名告警
+if grep -qE '^127\.0\.1\.1' /etc/hosts; then
+    sed -i "s/^127\.0\.1\.1.*/127.0.1.1\t${NEW_HOSTNAME}/" /etc/hosts
+else
+    printf '127.0.1.1\t%s\n' "${NEW_HOSTNAME}" >> /etc/hosts
+fi
 
 # ── 开始逐步部署 ──────────────────────────────────────────────────────────
 
