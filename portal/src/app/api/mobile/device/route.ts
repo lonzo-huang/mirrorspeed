@@ -53,11 +53,22 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Case 1: app 已缓存 device_id 且属于本用户 → 复用 ──
+  // 但若该设备已有指纹且与本次上送的指纹不一致，说明是“被旧 bug 合并/缓存串号”的另一台
+  // 终端，不能复用，转入指纹匹配/新建，避免两台终端永远共用一行。
   if (cachedDeviceId) {
-    const { data: existing } = await admin.from('vpn_devices')
-      .select('id, device_label, sub_token')
+    const { data: existing } = await (admin.from('vpn_devices') as any)
+      .select('id, device_label, sub_token, fingerprint')
       .eq('id', cachedDeviceId).eq('user_id', user.id).eq('is_active', true).maybeSingle()
-    if (existing) return reuse(existing)
+    if (existing) {
+      const fpMismatch = fingerprint && existing.fingerprint && existing.fingerprint !== fingerprint
+      if (!fpMismatch) {
+        // 首次带指纹的旧设备：顺手补写指纹，便于后续按指纹稳定匹配。
+        if (fingerprint && !existing.fingerprint) {
+          await (admin.from('vpn_devices') as any).update({ fingerprint }).eq('id', existing.id)
+        }
+        return reuse(existing)
+      }
+    }
   }
 
   // ── Case 2: 按硬件指纹匹配同一台设备（同设备重装/丢缓存时复用；不同设备不会被合并）──
