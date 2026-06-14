@@ -47,8 +47,8 @@ export async function POST(req: NextRequest) {
   const { count } = await supabase
     .from('vpn_devices').select('id', { count: 'exact', head: true })
     .eq('user_id', user.id).eq('is_active', true)
-  if ((count ?? 0) >= 2) {
-    return NextResponse.json({ error: '已达设备上限（最多 2 台）' }, { status: 400 })
+  if ((count ?? 0) >= 5) {
+    return NextResponse.json({ error: '已达设备上限（会员最多 5 台）' }, { status: 400 })
   }
 
   const { label, os } = await req.json()

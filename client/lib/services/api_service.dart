@@ -38,8 +38,12 @@ class ApiService {
     if (res.statusCode == 200 || res.statusCode == 201) {
       return jsonDecode(res.body) as Map<String, dynamic>;
     }
-    final err = jsonDecode(res.body);
-    throw ApiException(err['error'] ?? '注册设备失败 (${res.statusCode})');
+    final err = jsonDecode(res.body) as Map<String, dynamic>;
+    throw ApiException(
+      err['error'] ?? '注册设备失败 (${res.statusCode})',
+      code: err['code'] as String?,
+      data: err,
+    );
   }
 
   // ── 邀请信息 ─────────────────────────────────────────────────
@@ -148,6 +152,8 @@ class ApiService {
 
 class ApiException implements Exception {
   final String message;
-  ApiException(this.message);
+  final String? code;                 // 结构化错误码，如 'DEVICE_LIMIT'
+  final Map<String, dynamic>? data;   // 附带字段，如 {max, is_paid}
+  ApiException(this.message, {this.code, this.data});
   @override String toString() => message;
 }

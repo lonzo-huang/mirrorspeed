@@ -114,7 +114,7 @@ function LoginForm() {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  maxLength={8}
+                  maxLength={6}
                   value={otp}
                   onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
                   placeholder={t.auth.otpPlaceholder}
@@ -124,7 +124,7 @@ function LoginForm() {
                 />
                 <button
                   type="submit"
-                  disabled={loading !== null || otp.length < 8}
+                  disabled={loading !== null || otp.length < 6}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-mirror transition-all disabled:opacity-50"
                 >
                   <KeyRound className="w-4 h-4" />

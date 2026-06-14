@@ -9,6 +9,7 @@ import '../services/ad_service.dart';
 import '../models/server_config.dart';
 import '../env.dart';
 import '../version.dart';
+import '../brand.dart';
 
 enum AuthStatus { loading, unauthenticated, authenticated, noSubscription }
 
@@ -146,7 +147,12 @@ class AuthProvider extends ChangeNotifier {
 
       _status = AuthStatus.authenticated;
     } on ApiException catch (e) {
-      if (e.message.contains('订阅')) {
+      if (e.code == 'DEVICE_LIMIT') {
+        final max    = (e.data?['max'] as num?)?.toInt() ?? 2;
+        final isPaid = e.data?['is_paid'] == true;
+        _error  = _deviceLimitMessage(max: max, isPaid: isPaid);
+        _status = AuthStatus.authenticated;
+      } else if (e.message.contains('订阅')) {
         _status = AuthStatus.noSubscription;
       } else {
         _error  = e.message;
@@ -311,6 +317,20 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // ── 工具方法 ─────────────────────────────────────────────────
+  // 设备数量超限提示：跟随系统语言；免费用户额外引导升级到收费版（更多终端）。
+  String _deviceLimitMessage({required int max, required bool isPaid}) {
+    if (isPaid) {
+      return tr(
+        '设备数量已达上限（$max 台），请在网页端删除旧设备后再试。',
+        'Device limit reached ($max devices). Remove an old device on the web portal to add a new one.',
+      );
+    }
+    return tr(
+      '免费版最多 $max 台设备。升级到会员可同时使用 5 台设备，请在网页端删除旧设备或升级会员。',
+      'The free plan allows up to $max devices. Upgrade to Premium to use 5 devices at once, or remove an old device on the web portal.',
+    );
+  }
+
   Future<String> _getDeviceFingerprint() async {
     // 先尝试从安全存储读取缓存的指纹
     final cached = await _storage.read(key: 'device_fingerprint');
