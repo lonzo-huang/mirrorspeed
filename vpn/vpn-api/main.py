@@ -307,6 +307,7 @@ class PeerStatusResponse(BaseModel):
     last_handshake: Optional[str]
     tx_bytes: int
     rx_bytes: int
+    endpoint: Optional[str] = None   # 客户端来源：真实公网IP=直连(快速)；127.0.0.1=wstunnel(强力)
 
 
 class SetActiveRequest(BaseModel):
@@ -420,6 +421,7 @@ def list_peers(_key: str = Security(verify_api_key)):
             last_handshake=runtime.get("last_handshake"),
             rx_bytes=runtime.get("rx_bytes", 0),
             tx_bytes=runtime.get("tx_bytes", 0),
+            endpoint=runtime.get("endpoint"),
         ))
 
     return result

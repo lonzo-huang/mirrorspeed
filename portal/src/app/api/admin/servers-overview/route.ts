@@ -53,21 +53,29 @@ export async function GET() {
       const stats = statsR.ok ? await statsR.json() : null
       const peersRaw = peersR.ok ? await peersR.json() : []
       const now = Date.now()
+      let fast = 0, relay = 0
       const peers = (peersRaw as any[]).map(p => {
         const owner = ownerByKey.get(p.public_key)
         const hs = p.last_handshake ? Date.parse(p.last_handshake) : NaN
         const online = !Number.isNaN(hs) && (now - hs) < 180_000   // 3 分钟内握手 = 在线
+        // 模式判定：中继(强力)= endpoint 为回环(wstunnel)；否则直连(快速)
+        const ep = (p.endpoint ?? '') as string
+        const isRelay = ep.startsWith('127.0.0.1') || ep.startsWith('::1') || ep.startsWith('[::1]')
+        let mode: 'fast' | 'relay' | 'offline' = 'offline'
+        if (online && ep) { mode = isRelay ? 'relay' : 'fast'; if (isRelay) relay++; else fast++ }
         return {
           public_key: (p.public_key ?? '').slice(0, 16),
           vpn_ip: p.vpn_ip, active: p.active,
           last_handshake: p.last_handshake,
-          online,
+          online, mode,
           rx_bytes: p.rx_bytes ?? 0, tx_bytes: p.tx_bytes ?? 0,
           device_label: owner?.device_label ?? '',
           email: owner?.email ?? '(未知/孤儿)',
         }
       })
-      return { ...base, online: true, stats, peers }
+      const onlineCount = fast + relay
+      const summary = { online: onlineCount, fast, relay, fast_pct: onlineCount > 0 ? Math.round(fast / onlineCount * 100) : 0 }
+      return { ...base, online: true, stats, peers, summary }
     } catch (e: any) {
       return { ...base, online: false, error: String(e?.message ?? e), peers: [] }
     }

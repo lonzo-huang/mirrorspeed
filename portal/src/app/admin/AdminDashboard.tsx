@@ -1,21 +1,24 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 
 interface Peer {
   public_key: string; vpn_ip: string; active: boolean; last_handshake: string | null
-  online: boolean; rx_bytes: number; tx_bytes: number; device_label: string; email: string
+  online: boolean; mode: 'fast' | 'relay' | 'offline'
+  rx_bytes: number; tx_bytes: number; device_label: string; email: string
+  downBps?: number; upBps?: number
 }
 interface ServerStats {
   status: string; active_peers: number; total_peers: number
   cpu_percent: number; mem_percent: number; bw_tx_mbps: number; bw_rx_mbps: number
   load_1m: number; uptime_seconds: number
 }
+interface Summary { online: number; fast: number; relay: number; fast_pct: number }
 interface ServerRow {
   id: string; name: string; display_name: string; location: string | null; flag_emoji: string | null
   endpoint: string; online: boolean; error?: string
-  db_status: string | null; last_checked_at: string | null; max_peers: number | null
-  stats: ServerStats | null; peers: Peer[]
+  db_status: string | null; max_peers: number | null
+  stats: ServerStats | null; peers: Peer[]; summary?: Summary
 }
 
 function fmtBytes(n: number): string {
@@ -24,14 +27,18 @@ function fmtBytes(n: number): string {
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
   return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${u[i]}`
 }
+function fmtSpeed(bps?: number): string {
+  if (!bps || bps <= 0) return '—'
+  return `${fmtBytes(bps)}/s`
+}
 function fmtAgo(iso: string | null): string {
   if (!iso) return '—'
   const s = Math.floor((Date.now() - Date.parse(iso)) / 1000)
   if (Number.isNaN(s)) return '—'
-  if (s < 60) return `${s}s 前`
-  if (s < 3600) return `${Math.floor(s / 60)}m 前`
-  if (s < 86400) return `${Math.floor(s / 3600)}h 前`
-  return `${Math.floor(s / 86400)}d 前`
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m`
+  if (s < 86400) return `${Math.floor(s / 3600)}h`
+  return `${Math.floor(s / 86400)}d`
 }
 function fmtUptime(s: number): string {
   const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600)
@@ -43,6 +50,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState<string>('')
+  const prevRef = useRef<Map<string, { rx: number; tx: number; t: number }>>(new Map())
 
   const load = useCallback(async () => {
     setErr(null)
@@ -50,6 +58,22 @@ export default function AdminDashboard() {
       const res = await fetch('/api/admin/servers-overview', { cache: 'no-store' })
       if (!res.ok) { setErr(`HTTP ${res.status}`); setLoading(false); return }
       const data = await res.json()
+      const t = Date.now()
+      const prev = prevRef.current
+      const next = new Map<string, { rx: number; tx: number; t: number }>()
+      for (const sv of (data.servers ?? []) as ServerRow[]) {
+        for (const p of sv.peers ?? []) {
+          const k = `${sv.id}/${p.public_key}`
+          const pr = prev.get(k)
+          if (pr && t > pr.t) {
+            const dt = (t - pr.t) / 1000
+            p.downBps = Math.max(0, Math.round((p.rx_bytes - pr.rx) / dt))
+            p.upBps = Math.max(0, Math.round((p.tx_bytes - pr.tx) / dt))
+          }
+          next.set(k, { rx: p.rx_bytes, tx: p.tx_bytes, t })
+        }
+      }
+      prevRef.current = next
       setServers(data.servers ?? [])
       setFetchedAt(new Date().toLocaleTimeString())
     } catch (e: any) {
@@ -65,8 +89,8 @@ export default function AdminDashboard() {
     return () => clearInterval(t)
   }, [load])
 
-  const totalOnlinePeers = servers.reduce((s, sv) => s + sv.peers.filter(p => p.online).length, 0)
-  const totalPeers = servers.reduce((s, sv) => s + sv.peers.length, 0)
+  const totalOnline = servers.reduce((s, sv) => s + (sv.summary?.online ?? 0), 0)
+  const totalFast = servers.reduce((s, sv) => s + (sv.summary?.fast ?? 0), 0)
 
   return (
     <div className="min-h-screen bg-background text-foreground px-5 py-8 md:px-10">
@@ -75,14 +99,13 @@ export default function AdminDashboard() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">VPN 服务器管理后台</h1>
             <p className="text-sm text-muted-foreground">
-              {servers.length} 台节点 · 在线 peer {totalOnlinePeers}/{totalPeers}
-              {fetchedAt && ` · 更新于 ${fetchedAt}（每 30s 自动刷新）`}
+              {servers.length} 台节点 · 在线 {totalOnline} · 快速模式 {totalFast}/{totalOnline}
+              {totalOnline > 0 && `（${Math.round(totalFast / totalOnline * 100)}%）`}
+              {fetchedAt && ` · 更新于 ${fetchedAt}（每 30s 自动刷新，速率为两次刷新均值）`}
             </p>
           </div>
           <button onClick={load}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
-            刷新
-          </button>
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">刷新</button>
         </header>
 
         {err && <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">加载失败：{err}</div>}
@@ -91,7 +114,6 @@ export default function AdminDashboard() {
         <div className="space-y-6">
           {servers.map(sv => (
             <section key={sv.id} className="glass-panel rounded-2xl p-5 ring-1 ring-white/5">
-              {/* server header */}
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{sv.flag_emoji || '🌐'}</span>
@@ -100,14 +122,20 @@ export default function AdminDashboard() {
                     <div className="font-mono text-xs text-muted-foreground">{sv.endpoint}</div>
                   </div>
                 </div>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${
-                  sv.online ? 'bg-emerald-400/10 text-emerald-300 ring-emerald-400/30'
-                            : 'bg-red-500/10 text-red-400 ring-red-500/30'}`}>
-                  {sv.online ? '在线' : `离线${sv.error ? ' · ' + sv.error : ''}`}
-                </span>
+                <div className="flex items-center gap-2">
+                  {sv.summary && sv.online && (
+                    <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs ring-1 ring-white/10">
+                      快速 <b className="text-emerald-300">{sv.summary.fast}</b> · 强力 <b className="text-amber-300">{sv.summary.relay}</b> · 快速率 <b>{sv.summary.fast_pct}%</b>
+                    </span>
+                  )}
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${
+                    sv.online ? 'bg-emerald-400/10 text-emerald-300 ring-emerald-400/30'
+                              : 'bg-red-500/10 text-red-400 ring-red-500/30'}`}>
+                    {sv.online ? '在线' : `离线${sv.error ? ' · ' + sv.error : ''}`}
+                  </span>
+                </div>
               </div>
 
-              {/* stats grid */}
               {sv.stats && (
                 <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                   <Stat label="活跃 Peer" value={`${sv.stats.active_peers}/${sv.stats.total_peers}`} />
@@ -120,35 +148,36 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {/* peers table */}
               {sv.peers.length > 0 ? (
                 <div className="overflow-x-auto rounded-xl ring-1 ring-white/5">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-white/5 text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2 font-medium">状态</th>
+                        <th className="px-3 py-2 font-medium">模式</th>
                         <th className="px-3 py-2 font-medium">VPN IP</th>
                         <th className="px-3 py-2 font-medium">用户</th>
-                        <th className="px-3 py-2 font-medium">设备</th>
-                        <th className="px-3 py-2 font-medium">最近握手</th>
-                        <th className="px-3 py-2 font-medium text-right">↓ 接收</th>
-                        <th className="px-3 py-2 font-medium text-right">↑ 发送</th>
-                        <th className="px-3 py-2 font-medium">公钥</th>
+                        <th className="px-3 py-2 font-medium text-right">↓ 速率</th>
+                        <th className="px-3 py-2 font-medium text-right">↑ 速率</th>
+                        <th className="px-3 py-2 font-medium text-right">累计↓/↑</th>
+                        <th className="px-3 py-2 font-medium">握手</th>
                       </tr>
                     </thead>
                     <tbody>
                       {sv.peers.map((p, i) => (
                         <tr key={i} className="border-t border-white/5">
+                          <td className="px-3 py-2"><span className={`inline-block size-2 rounded-full ${p.online ? 'bg-emerald-400' : 'bg-zinc-600'}`} /></td>
                           <td className="px-3 py-2">
-                            <span className={`inline-block size-2 rounded-full ${p.online ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+                            {p.mode === 'fast' && <span className="rounded bg-emerald-400/15 px-1.5 py-0.5 text-[10px] text-emerald-300">快速</span>}
+                            {p.mode === 'relay' && <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-300">强力</span>}
+                            {p.mode === 'offline' && <span className="text-zinc-600">—</span>}
                           </td>
                           <td className="px-3 py-2 font-mono">{p.vpn_ip}</td>
-                          <td className="px-3 py-2">{p.email}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{p.device_label || '—'}</td>
+                          <td className="px-3 py-2">{p.email}{p.device_label ? <span className="text-muted-foreground"> · {p.device_label}</span> : ''}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmtSpeed(p.downBps)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmtSpeed(p.upBps)}</td>
+                          <td className="px-3 py-2 text-right font-mono text-muted-foreground">{fmtBytes(p.rx_bytes)}/{fmtBytes(p.tx_bytes)}</td>
                           <td className="px-3 py-2 text-muted-foreground">{fmtAgo(p.last_handshake)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmtBytes(p.rx_bytes)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmtBytes(p.tx_bytes)}</td>
-                          <td className="px-3 py-2 font-mono text-muted-foreground">{p.public_key}…</td>
                         </tr>
                       ))}
                     </tbody>
