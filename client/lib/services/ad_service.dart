@@ -148,6 +148,21 @@ class AdService {
     return _rewardedPool.isNotEmpty;
   }
 
+  /// 展示**一条**激励广告：看到奖励点 → onEarned；未就绪/未看完 → onUnavailable。
+  /// （Rewarded 广告通常较长，看完即满足要求，立即发放奖励。）
+  Future<void> showRewardedForReward({
+    required void Function() onEarned,
+    required void Function() onUnavailable,
+  }) async {
+    if (!_supported) { onUnavailable(); return; }
+    if (_rewardedPool.isEmpty) {
+      final ok = await _waitRewardedReady(const Duration(seconds: 8));
+      if (!ok) { onUnavailable(); return; }
+    }
+    final res = await _showOne();
+    if (res.earned) { onEarned(); } else { onUnavailable(); }
+  }
+
   /// 连续播放激励广告，累计满 [targetSec] 秒（一条不够自动接着播下一条，
   /// 全程无需用户再次点击）。每条结束回调 [onProgress]（本条秒数, 累计秒数）；
   /// 用户中途跳过(未获奖)即停止。结束时回调 [onDone]（累计秒数, 是否达标）。
