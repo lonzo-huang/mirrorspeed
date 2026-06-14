@@ -51,11 +51,14 @@ export async function GET(req: NextRequest) {
   try { superIds = JSON.parse(cfg.get('super_user_ids') ?? '[]') } catch { /* ignore */ }
   const superSet = new Set(superIds)
 
-  // 3) 本机所有活跃 peer（vpn_ip + user_id）
+  // 3) 本机**真实按需 peer**（provisioned=true，全局唯一 IP）。
+  //    只认 provisioned=true：旧的全笛卡尔积残留行(provisioned=false)用的是 per-server 旧 IP，
+  //    会与新全局 IP 撞车、把付费用户错带进 free 档，必须排除。
   const { data: peers } = await (admin.from('vpn_device_peers') as any)
     .select('vpn_ip, user_id')
     .eq('server_id', server.id)
     .eq('is_active', true)
+    .eq('provisioned', true)
 
   const peerList = (peers ?? []) as Array<{ vpn_ip: string; user_id: string }>
   const userIds  = Array.from(new Set(peerList.map(p => p.user_id)))
@@ -76,16 +79,22 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 5) 分桶
-  const free_ips: string[] = []
-  const paid_ips: string[] = []
-  const super_ips: string[] = []
+  // 5) 分桶：同一 IP 取**最高档**（super > paid > free），避免万一撞车把付费降级。
+  const tierByIp = new Map<string, number>()   // 2=super 1=paid 0=free
   for (const p of peerList) {
     const ip = stripMask(p.vpn_ip)
     if (!ip) continue
-    if (superSet.has(p.user_id))      super_ips.push(ip)
-    else if (paidUsers.has(p.user_id)) paid_ips.push(ip)
-    else                               free_ips.push(ip)
+    const tier = superSet.has(p.user_id) ? 2 : (paidUsers.has(p.user_id) ? 1 : 0)
+    const prev = tierByIp.get(ip)
+    if (prev === undefined || tier > prev) tierByIp.set(ip, tier)
+  }
+  const free_ips: string[] = []
+  const paid_ips: string[] = []
+  const super_ips: string[] = []
+  for (const [ip, tier] of tierByIp) {
+    if (tier === 2) super_ips.push(ip)
+    else if (tier === 1) paid_ips.push(ip)
+    else free_ips.push(ip)
   }
 
   return NextResponse.json(
