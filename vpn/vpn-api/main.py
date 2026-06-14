@@ -490,7 +490,13 @@ def ensure_peer(req: EnsurePeerRequest, _key: str = Security(verify_api_key)):
     with _conf_lock:
         for p in parse_peers_from_conf():
             if p["public_key"] == req.public_key:
-                return {"status": "exists", "vpn_ip": f"{ip}/32"}
+                cur_ip = (p.get("vpn_ip") or "").split("/")[0]
+                if cur_ip == ip:
+                    return {"status": "exists", "vpn_ip": f"{ip}/32"}
+                # 自愈：已存在但 AllowedIPs 不对（历史坏分配 / 0.0.0.0 残留）→ 删旧块重建为正确 IP。
+                # 注意：配额挂起(0.0.0.0)的设备由 portal 在调用前过滤，不会走到这里被误恢复。
+                remove_peer_from_conf(req.public_key)
+                break
 
         name = req.peer_name or f"ms-{req.public_key[:12]}"
         block = f"\n# Name = {name}\n[Peer]\nPublicKey    = {req.public_key}\n"
