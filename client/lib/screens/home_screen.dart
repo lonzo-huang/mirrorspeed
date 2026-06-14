@@ -164,6 +164,15 @@ class HomeScreen extends StatelessWidget {
                   ]),
                 ),
 
+                // ── 今日流量已达上限（免费用户超额被挂起）────────
+                if (auth.isSuspended) ...[
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _QuotaSuspendedBanner(),
+                  ),
+                ],
+
                 // ── 快捷入口 ───────────────────────────────────
                 const SizedBox(height: 14),
                 _QuickMenu(onNodes: () => _showServerList(context)),
@@ -882,6 +891,58 @@ class _ToggleItem extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// 今日免费流量已达上限：提示明日刷新 / 升级会员，并可看广告继续使用。
+class _QuotaSuspendedBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: kGold.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kGold.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.info_outline_rounded, color: kGold, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                tr('今日流量已达上限', "Today's data limit reached"),
+                style: const TextStyle(color: kGold, fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            tr('已超出当日免费流量阈值。请明日自动刷新，或升级会员享不限流量；也可观看广告后继续使用。',
+               'You have reached the daily free-data threshold. It resets tomorrow — or upgrade to Premium for unlimited data. You can also watch an ad to keep using the service.'),
+            style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 12.5, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => context.push('/vip'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kGold,
+                  side: BorderSide(color: kGold.withOpacity(0.6)),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                child: Text(tr('升级会员', 'Upgrade')),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(child: _AdExtendButton(compact: true)),
+          ]),
+        ],
       ),
     );
   }

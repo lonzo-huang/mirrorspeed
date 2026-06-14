@@ -90,6 +90,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ devices: [], _debug: 'no_devices' })
   }
 
+  // ── 各设备今日用量 / 挂起状态（用于客户端配额提示）──────────
+  // 免费用户超过当日额度后，sync-servers 会把 peer 挂起（AllowedIPs=0.0.0.0/32）。
+  // 这里聚合每个设备的今日用量与是否被挂起，供客户端展示「今日流量已达上限」提示。
+  const today = new Date().toISOString().slice(0, 10)
+  const usageByDevice = new Map<string, { bytes: number; suspended: boolean }>()
+  if (!isPaidUser) {
+    const { data: peerRows } = await (admin.from('vpn_device_peers') as any)
+      .select('device_id, daily_bytes, daily_reset_at, is_suspended')
+      .in('device_id', devices.map(d => d.id))
+      .eq('is_active', true)
+    for (const p of (peerRows ?? []) as any[]) {
+      const cur = usageByDevice.get(p.device_id) ?? { bytes: 0, suspended: false }
+      cur.bytes += (p.daily_reset_at as string) >= today ? (p.daily_bytes ?? 0) : 0
+      if (p.is_suspended) cur.suspended = true
+      usageByDevice.set(p.device_id, cur)
+    }
+  }
+
   // ── 所有活跃服务器（无需 api_secret：configs 不再 provisioning）──
   const { data: serversRaw } = await (admin.from('vpn_servers') as any)
     .select(`id, display_name, flag_emoji, location, endpoint, port, public_key, port_secret, api_url,
@@ -150,13 +168,15 @@ export async function GET(req: NextRequest) {
       }
     })
 
+    const usage = usageByDevice.get(dev.id)
     return {
       id:                  dev.id,
       label:               dev.device_label,
       daily_quota_bytes:   dailyQuotaBytes,
       daily_quota_seconds: dailyQuotaSeconds,
-      daily_bytes_used:    0,        // 时间制试用为强制额度；字节仅展示，按需模型下置 0
-      is_suspended:        false,
+      daily_bytes_used:    usage?.bytes ?? 0,
+      // 免费用户超额被挂起 → 客户端据此提示「今日流量已达上限，请明日刷新或升级会员」
+      is_suspended:        usage?.suspended ?? false,
       servers:             serverConfigs,
     }
   }))
