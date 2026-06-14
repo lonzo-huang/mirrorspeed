@@ -91,11 +91,11 @@ export async function GET(req: NextRequest) {
   const free_ips: string[] = []
   const paid_ips: string[] = []
   const super_ips: string[] = []
-  for (const [ip, tier] of tierByIp) {
+  tierByIp.forEach((tier, ip) => {
     if (tier === 2) super_ips.push(ip)
     else if (tier === 1) paid_ips.push(ip)
     else free_ips.push(ip)
-  }
+  })
 
   return NextResponse.json(
     {
