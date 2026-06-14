@@ -235,5 +235,3 @@ timeout 30 tcpdump -ni any 'udp and (portrange 30000-49999 or port 51820)' -c 40
   闲置由 `gc-peers` cron 回收。详见 `docs/on-demand-provisioning.md`。
 - **限速**：app_config 三档速率；ratelimit-sync 下发各档 IP；服务器 ipset+fwmark+tc 在 awg0 egress 限下行。
   详见 README §2.1.4。
-</parameter>
-</invoke>
