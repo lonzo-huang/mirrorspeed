@@ -33,8 +33,9 @@ function fmtSpeed(bps?: number): string {
 }
 function fmtAgo(iso: string | null): string {
   if (!iso) return '—'
-  const s = Math.floor((Date.now() - Date.parse(iso)) / 1000)
+  let s = Math.floor((Date.now() - Date.parse(iso)) / 1000)
   if (Number.isNaN(s)) return '—'
+  if (s < 0) s = 0                 // 容忍时钟/时区微小偏差，不显示负数
   if (s < 60) return `${s}s`
   if (s < 3600) return `${Math.floor(s / 60)}m`
   if (s < 86400) return `${Math.floor(s / 3600)}h`

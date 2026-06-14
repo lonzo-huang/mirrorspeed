@@ -57,7 +57,9 @@ export async function GET() {
       const peers = (peersRaw as any[]).map(p => {
         const owner = ownerByKey.get(p.public_key)
         const hs = p.last_handshake ? Date.parse(p.last_handshake) : NaN
-        const online = !Number.isNaN(hs) && (now - hs) < 180_000   // 3 分钟内握手 = 在线
+        const age = now - hs   // 距上次握手的毫秒数
+        // 在线 = 最近 3 分钟内握手；并拒绝"未来时间"(age<0，时区错位的脏数据)避免误判在线
+        const online = !Number.isNaN(hs) && age >= -60_000 && age < 180_000
         // 模式判定：中继(强力)= endpoint 为回环(wstunnel)；否则直连(快速)
         const ep = (p.endpoint ?? '') as string
         const isRelay = ep.startsWith('127.0.0.1') || ep.startsWith('::1') || ep.startsWith('[::1]')

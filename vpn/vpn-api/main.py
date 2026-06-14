@@ -23,7 +23,7 @@ import re
 import subprocess
 import time
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -183,7 +183,8 @@ def get_live_stats() -> dict[str, dict]:
             "endpoint": endpoint if endpoint != "(none)" else None,
             "allowed_ips": allowed_ips,
             "last_handshake": (
-                datetime.fromtimestamp(int(last_hs)).isoformat()
+                # 输出 UTC（带时区），避免下游(浏览器/Portal)按本地时区误解析成"未来时间"
+                datetime.fromtimestamp(int(last_hs), tz=timezone.utc).isoformat()
                 if last_hs != "0" else None
             ),
             "rx_bytes": int(rx),
