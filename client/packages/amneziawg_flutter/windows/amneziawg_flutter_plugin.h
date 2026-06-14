@@ -69,10 +69,12 @@ class AmneziawgFlutterPlugin final : public flutter::Plugin {
   // -- Tunnel operations ------------------------------------------------------
   void Initialize(const std::string& tunnel_name,
                   std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+  // start/stop run on a detached worker thread (they block on the SCM), so the
+  // result is shared rather than uniquely owned.
   void StartTunnel(const std::string& wg_conf,
                    const std::string& tunnel_name,
-                   std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
-  void StopTunnel(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+                   std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+  void StopTunnel(std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
   void GetStage(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
   void GetTransfer(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 

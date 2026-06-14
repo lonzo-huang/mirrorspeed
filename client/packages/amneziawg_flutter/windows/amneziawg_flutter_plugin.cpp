@@ -190,10 +190,19 @@ void AmneziawgFlutterPlugin::HandleMethodCall(
       result->Error("MISSING_ARGS", "wgQuickConfig is required", nullptr);
       return;
     }
-    StartTunnel(conf, svc_name, std::move(result));
+    // Installing/starting the tunnel service blocks for seconds (SCM stop+purge,
+    // WFP setup, adapter creation). Run it off the platform thread so the UI
+    // never freezes; StartTunnel owns the result and replies when done.
+    std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> r(result.release());
+    std::thread([this, conf, svc_name, r]() mutable {
+      StartTunnel(conf, svc_name, r);
+    }).detach();
 
   } else if (method == "stop") {
-    StopTunnel(std::move(result));
+    std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> r(result.release());
+    std::thread([this, r]() mutable {
+      StopTunnel(r);
+    }).detach();
 
   } else if (method == "stage") {
     GetStage(std::move(result));
@@ -223,7 +232,7 @@ void AmneziawgFlutterPlugin::Initialize(
 void AmneziawgFlutterPlugin::StartTunnel(
     const std::string& wg_conf,
     const std::string& tunnel_name,
-    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+    std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
 
   service_name_ = Utf8ToWide(tunnel_name);
 
@@ -261,7 +270,7 @@ void AmneziawgFlutterPlugin::StartTunnel(
 }
 
 void AmneziawgFlutterPlugin::StopTunnel(
-    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+    std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
 
   StopMonitoring();
   if (!service_name_.empty()) {
@@ -370,11 +379,18 @@ bool AmneziawgFlutterPlugin::InstallAndStartService(
   SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
   if (!scm) return false;
 
-  // Try to open existing service first
-  SC_HANDLE svc = OpenServiceW(scm, service_name.c_str(), SERVICE_ALL_ACCESS);
-  if (!svc) {
-    // Create new service
-    svc = CreateServiceW(
+  // A freshly DeleteService'd tunnel may still linger in "marked for deletion"
+  // state for a moment; CreateService/StartService then fail with
+  // ERROR_SERVICE_MARKED_FOR_DELETE (1072) or ERROR_SERVICE_EXISTS (1073).
+  // Retry the create+start a few times, giving the SCM time to purge the old
+  // service, instead of failing the whole connection on a transient race.
+  bool started = false;
+  for (int attempt = 0; attempt < 20 && !started; ++attempt) {
+    if (attempt > 0) Sleep(250);
+
+    // Prefer a clean create. Only reuse an existing service if it's genuinely
+    // there (not pending deletion).
+    SC_HANDLE svc = CreateServiceW(
         scm,
         service_name.c_str(),
         L"MirrorSpeed VPN",
@@ -384,27 +400,49 @@ bool AmneziawgFlutterPlugin::InstallAndStartService(
         SERVICE_ERROR_NORMAL,
         bin_path.c_str(),
         nullptr, nullptr, nullptr, nullptr, nullptr);
-  }
-  if (!svc) {
-    CloseServiceHandle(scm);
-    return false;
+
+    if (!svc) {
+      DWORD err = GetLastError();
+      if (err == ERROR_SERVICE_MARKED_FOR_DELETE) {
+        continue;  // old instance still purging — wait and retry
+      }
+      if (err == ERROR_SERVICE_EXISTS) {
+        // A healthy service with this name already exists — adopt it.
+        svc = OpenServiceW(scm, service_name.c_str(), SERVICE_ALL_ACCESS);
+        if (!svc) {
+          if (GetLastError() == ERROR_SERVICE_MARKED_FOR_DELETE) continue;
+          break;
+        }
+      } else {
+        break;  // unrecoverable
+      }
+    }
+
+    // Give the service its own (unrestricted) service SID. The tunnel scopes
+    // its WFP firewall rules to the service's SID; without a service SID in the
+    // process token the tunnel fails at "Enabling firewall rules: The specified
+    // group does not exist." (firewall/helpers.go). This matches what WireGuard
+    // for Windows does when installing its tunnel service.
+    SERVICE_SID_INFO sidInfo{};
+    sidInfo.dwServiceSidType = SERVICE_SID_TYPE_UNRESTRICTED;
+    ChangeServiceConfig2W(svc, SERVICE_CONFIG_SERVICE_SID_INFO, &sidInfo);
+
+    if (StartServiceW(svc, 0, nullptr)) {
+      started = true;
+    } else {
+      DWORD err = GetLastError();
+      if (err == ERROR_SERVICE_ALREADY_RUNNING) {
+        started = true;
+      } else if (err == ERROR_SERVICE_MARKED_FOR_DELETE) {
+        // The instance we just created/opened is being torn down under us —
+        // drop it and let the loop recreate a fresh one.
+        CloseServiceHandle(svc);
+        continue;
+      }
+    }
+    CloseServiceHandle(svc);
   }
 
-  // Give the service its own (unrestricted) service SID. The tunnel scopes its
-  // WFP firewall rules to the service's SID; without a service SID in the
-  // process token the tunnel fails at "Enabling firewall rules: The specified
-  // group does not exist." (firewall/helpers.go). This matches what WireGuard
-  // for Windows does when installing its tunnel service.
-  SERVICE_SID_INFO sidInfo{};
-  sidInfo.dwServiceSidType = SERVICE_SID_TYPE_UNRESTRICTED;
-  ChangeServiceConfig2W(svc, SERVICE_CONFIG_SERVICE_SID_INFO, &sidInfo);
-
-  bool started = StartServiceW(svc, 0, nullptr) != FALSE;
-  if (!started && GetLastError() == ERROR_SERVICE_ALREADY_RUNNING) {
-    started = true;
-  }
-
-  CloseServiceHandle(svc);
   CloseServiceHandle(scm);
   return started;
 }
@@ -432,7 +470,22 @@ bool AmneziawgFlutterPlugin::StopAndRemoveService(
   }
 
   bool deleted = DeleteService(svc) != FALSE;
-  CloseServiceHandle(svc);
+  CloseServiceHandle(svc);   // last handle closed → SCM can now purge it
+
+  // DeleteService only *marks* the service for deletion; it isn't actually
+  // removed until every open handle is closed AND it has stopped. If we return
+  // before the purge completes, the next CreateService/StartService fails with
+  // ERROR_SERVICE_MARKED_FOR_DELETE (1072). Poll until it's truly gone.
+  for (int i = 0; i < 40; ++i) {
+    SC_HANDLE probe = OpenServiceW(scm, service_name.c_str(), SERVICE_QUERY_STATUS);
+    if (!probe) {
+      if (GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST) break;  // fully purged
+      break;
+    }
+    CloseServiceHandle(probe);
+    Sleep(100);
+  }
+
   CloseServiceHandle(scm);
   return deleted;
 }

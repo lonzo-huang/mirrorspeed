@@ -37,6 +37,10 @@ export async function ensureDeviceCrypto(admin: Admin, deviceId: string): Promis
     patch.private_key_enc = privEnc
   }
 
+  // 0.0.0.0 是无效占位（历史脏数据/半途失败留下），按未分配处理重新分配，
+  // 避免在服务器上建出 AllowedIPs=0.0.0.0/32 的孤儿 peer。
+  if (vpnIp === '0.0.0.0' || vpnIp === '0.0.0.0/32') vpnIp = null
+
   if (!vpnIp) {
     const { data: ip, error } = await (admin as any).rpc('allocate_device_ip', { p_device_id: deviceId })
     if (error || !ip) {
