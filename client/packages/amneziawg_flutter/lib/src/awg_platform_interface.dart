@@ -42,4 +42,12 @@ abstract class AmneziawgFlutterInterface extends PlatformInterface {
   /// Total bytes transferred through the tunnel since it came up (rx + tx).
   /// Returns -1 when unavailable (tunnel down, or platform not supported).
   Future<int> transfer();
+
+  /// Cumulative [rx, tx] bytes since the tunnel came up.
+  /// rx = received (download), tx = sent (upload).
+  /// Returns [-1, -1] when unavailable. Default falls back to combined transfer().
+  Future<List<int>> transferRxTx() async {
+    final t = await transfer();
+    return t < 0 ? const [-1, -1] : [t, 0];
+  }
 }

@@ -66,10 +66,7 @@ class HomeScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // ── 头部 ──────────────────────────────────────
-                _Header(
-                  onRefresh: () => auth.refreshConfigs(),
-                  onExit:    () => _confirmExit(context),
-                ),
+                _Header(onExit: () => _confirmExit(context)),
 
                 // ── 通告 / 更新 / 到期 banner ──────────────────
                 Padding(
@@ -92,7 +89,7 @@ class HomeScreen extends StatelessWidget {
                   onTap:      vpn.isBusy ? null : onConnect,
                 ),
 
-                const SizedBox(height: 18),
+                const SizedBox(height: 10),
 
                 // ── 状态副标题 ─────────────────────────────────
                 Center(
@@ -107,16 +104,16 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 22),
+                const SizedBox(height: 14),
 
-                // ── 三栏数据：延迟 / 时长 / 负载 ───────────────
+                // ── 三栏数据：延迟 / 上传 / 下载 ───────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _StatsRow(
                     connected: vpn.isConnected,
                     pingMs:    server?.latencyMs,
-                    elapsed:   vpn.isConnected ? vpn.elapsedFormatted : '--',
-                    loadPct:   server?.loadPercent,
+                    upStr:     vpn.isConnected ? vpn.uploadSpeedStr   : '0 B/s',
+                    downStr:   vpn.isConnected ? vpn.downloadSpeedStr : '0 B/s',
                   ),
                 ),
 
@@ -168,7 +165,7 @@ class HomeScreen extends StatelessWidget {
                 ),
 
                 // ── 快捷入口 ───────────────────────────────────
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
                 _QuickMenu(onNodes: () => _showServerList(context)),
 
                 // ── 错误提示 ───────────────────────────────────
@@ -270,32 +267,25 @@ class LatencyDot extends StatelessWidget {
 
 // ── 头部：Logo + 名称 + 刷新 + 退出 ──────────────────────────────
 class _Header extends StatelessWidget {
-  final VoidCallback onRefresh;
   final VoidCallback onExit;
-  const _Header({required this.onRefresh, required this.onExit});
+  const _Header({required this.onExit});
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 8, 4),
+      padding: const EdgeInsets.fromLTRB(20, 10, 8, 2),
       child: Row(children: [
-        Container(
-          width: 38, height: 38,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [kAccentOn, Color(0xFF38E0D0)]),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(Icons.shield_rounded, size: 20, color: Color(0xFF06121A)),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(11),
+          child: Image.asset('assets/icon/app_icon.png', width: 36, height: 36, fit: BoxFit.cover),
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(Brand.appName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           Text('MIRROR SPEED', style: TextStyle(fontSize: 9, letterSpacing: 2, color: Colors.white.withOpacity(0.35))),
         ])),
+        // 关闭：强制断开 VPN 并退出 App
         IconButton(
-          onPressed: onRefresh, tooltip: tr('刷新', 'Refresh'),
-          icon: Icon(Icons.refresh_rounded, size: 20, color: Colors.white.withOpacity(0.55))),
-        IconButton(
-          onPressed: onExit, tooltip: tr('退出', 'Exit'),
+          onPressed: onExit, tooltip: tr('断开并退出', 'Disconnect & exit'),
           icon: Icon(Icons.power_settings_new_rounded, size: 20, color: Colors.white.withOpacity(0.55))),
       ]),
     );
@@ -331,16 +321,16 @@ class _HeroConnectState extends State<_HeroConnect> with SingleTickerProviderSta
       ),
     );
     return SizedBox(
-      height: 248,
+      height: 200,
       child: Center(child: Stack(alignment: Alignment.center, children: [
-        Container(width: 200, height: 200, decoration: BoxDecoration(shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: c.withOpacity(0.16), blurRadius: 70, spreadRadius: 8)])),
-        ringW(212, 0.20, 1.0),
-        ringW(178, 0.30, -1.4),
+        Container(width: 170, height: 170, decoration: BoxDecoration(shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: c.withOpacity(0.16), blurRadius: 60, spreadRadius: 6)])),
+        ringW(180, 0.20, 1.0),
+        ringW(150, 0.30, -1.4),
         GestureDetector(
           onTap: widget.onTap,
           child: Container(
-            width: 150, height: 150,
+            width: 128, height: 128,
             decoration: BoxDecoration(
               shape: BoxShape.circle, color: const Color(0xFF181A28),
               border: Border.all(color: c.withOpacity(0.5), width: 4),
@@ -370,28 +360,28 @@ class _HeroConnectState extends State<_HeroConnect> with SingleTickerProviderSta
 class _StatsRow extends StatelessWidget {
   final bool connected;
   final int? pingMs;
-  final String elapsed;
-  final int? loadPct;
-  const _StatsRow({required this.connected, this.pingMs, required this.elapsed, this.loadPct});
+  final String upStr;
+  final String downStr;
+  const _StatsRow({required this.connected, this.pingMs, required this.upStr, required this.downStr});
   @override
   Widget build(BuildContext context) {
     Widget item(String label, String value, {bool accent = false}) => Expanded(child: Column(children: [
       Text(label.toUpperCase(), style: TextStyle(fontSize: 9, letterSpacing: 1.5, color: Colors.white.withOpacity(0.4))),
-      const SizedBox(height: 4),
-      Text(value, style: TextStyle(fontSize: 14, fontFamily: 'monospace', fontWeight: FontWeight.w600,
+      const SizedBox(height: 3),
+      Text(value, style: TextStyle(fontSize: 13, fontFamily: 'monospace', fontWeight: FontWeight.w600,
         color: accent ? kAccentOn : Colors.white)),
     ]));
-    final div = Container(width: 1, height: 30, color: Colors.white.withOpacity(0.07));
+    final div = Container(width: 1, height: 26, color: Colors.white.withOpacity(0.07));
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(color: kPanel.withOpacity(0.6), borderRadius: BorderRadius.circular(16),
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      decoration: BoxDecoration(color: kPanel.withOpacity(0.6), borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white.withOpacity(0.05))),
       child: Row(children: [
         item(tr('延迟', 'Ping'), pingMs != null ? '${pingMs}ms' : '-- ms', accent: connected),
         div,
-        item(tr('时长', 'Time'), elapsed),
+        item(tr('上传', 'Upload'), upStr, accent: connected),
         div,
-        item(tr('负载', 'Load'), loadPct != null ? '$loadPct%' : '--%'),
+        item(tr('下载', 'Download'), downStr, accent: connected),
       ]),
     );
   }

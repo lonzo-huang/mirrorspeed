@@ -52,6 +52,9 @@ dependencies:
   # ── 广告（AdMob：开屏 + 激励视频；仅 Android/iOS，Windows 不构建）──
   google_mobile_ads: ^5.3.1
 
+  # ── 系统分享（邀请好友：复制/微信/WhatsApp 等）──
+  share_plus: ^10.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -77,3 +80,4 @@ flutter:
     - assets/images/
     - assets/lottie/
     - assets/routes/
+    - assets/icon/

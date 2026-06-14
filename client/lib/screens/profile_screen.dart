@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
@@ -160,11 +161,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               // ── 功能列表 ────────────────────────────────────
               _InfoCard(children: [
-                _ActionRow(
-                  icon:  Icons.refresh_rounded,
-                  label: tr('刷新配置', 'Refresh config'),
-                  onTap: () => auth.refreshConfigs(),
-                ),
                 _ActionRow(
                   icon:  Icons.open_in_new_rounded,
                   label: tr('管理订阅', 'Manage subscription'),
@@ -656,16 +652,17 @@ class _InviteCard extends StatelessWidget {
               },
             ),
             const SizedBox(width: 8),
-            // 分享链接按钮
+            // 分享按钮：调起系统分享(复制/微信/WhatsApp 等)
             _IconBtn(
               icon:    Icons.share_rounded,
-              tooltip: tr('分享邀请链接', 'Share link'),
+              tooltip: tr('分享', 'Share'),
               onTap: () {
-                Clipboard.setData(ClipboardData(text: _shareUrl));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(tr('邀请链接已复制到剪贴板', 'Invite link copied')),
-                    duration: const Duration(seconds: 2)),
+                if (_shareUrl.isEmpty) return;
+                final msg = tr(
+                  '我在用 MirrorSpeed，高速又稳定，一起来用吧！邀请码 $_code\n$_shareUrl',
+                  'I\'m using MirrorSpeed — fast & stable. Join me! Invite code $_code\n$_shareUrl',
                 );
+                Share.share(msg, subject: tr('MirrorSpeed 邀请', 'MirrorSpeed invite'));
               },
             ),
           ]),

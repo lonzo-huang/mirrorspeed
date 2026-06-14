@@ -58,4 +58,15 @@ class AmneziawgFlutterMethodChannel extends AmneziawgFlutterInterface {
       return -1;
     }
   }
+
+  @override
+  Future<List<int>> transferRxTx() async {
+    try {
+      final v = await _controlChannel.invokeListMethod<int>('transferRxTx');
+      if (v != null && v.length >= 2) return v;
+    } catch (_) { /* 平台未实现 → 回退 */ }
+    // 回退：用合并值（仅当 down 显示，up=0）
+    final t = await transfer();
+    return t < 0 ? const [-1, -1] : [t, 0];
+  }
 }

@@ -91,21 +91,19 @@ class _SplashScreenState extends State<SplashScreen>
                         boxShadow: [BoxShadow(color: _kCyan.withOpacity(0.25), blurRadius: 60, spreadRadius: 10)],
                       ),
                     ),
-                    // Logo
+                    // Logo（App 图标）
                     ScaleTransition(
                       scale: _scale,
                       child: Container(
-                        width: 112, height: 112,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [kAccentOn, _kCyan],
-                            begin: Alignment.topLeft, end: Alignment.bottomRight,
-                          ),
                           borderRadius: BorderRadius.circular(28),
                           boxShadow: [BoxShadow(
-                            color: kAccentOn.withOpacity(0.5), blurRadius: 40, offset: const Offset(0, 12))],
+                            color: kAccentOn.withOpacity(0.45), blurRadius: 40, offset: const Offset(0, 12))],
                         ),
-                        child: const Icon(Icons.shield_rounded, size: 56, color: Color(0xFF06121A)),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(28),
+                          child: Image.asset('assets/icon/app_icon.png', width: 112, height: 112, fit: BoxFit.cover),
+                        ),
                       ),
                     ),
                   ],

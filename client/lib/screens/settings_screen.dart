@@ -17,7 +17,7 @@ class SettingsScreen extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 28),
         child: Column(children: [
           _group(tr('协议', 'Protocol'), [
-            _row(tr('协议', 'Protocol'), 'AmneziaWG', locked: true),
+            _row(tr('协议', 'Protocol'), 'MirrorTunnel V1.0', locked: true),
             _row('DNS', tr('智能 DNS', 'Smart DNS'), locked: true),
             _row('IPv6', tr('已保护', 'Protected'), locked: true),
           ]),

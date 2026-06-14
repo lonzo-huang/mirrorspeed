@@ -14,6 +14,19 @@ class AdService {
   bool get _platformOk => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
   bool _enabled = true;                 // 付费会员为 false
   bool get _supported => _platformOk && _enabled;
+  // 看完激励广告后的一段时间内，抑制开屏广告（避免手动看完广告紧接着又弹开屏，#2）。
+  DateTime _suppressAppOpenUntil = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// 运行时启用/关闭所有广告（付费会员关闭，#3）。关闭时立即丢弃已加载的广告，
+  /// 防止冷启动以"非会员"加载后、会员身份确认前残留的开屏/激励被展示。
+  void setEnabled(bool enabled) {
+    _enabled = enabled;
+    if (!enabled) {
+      _appOpenAd?.dispose(); _appOpenAd = null;
+      for (final a in _rewardedPool) { a.dispose(); }
+      _rewardedPool.clear();
+    }
+  }
 
   bool _initialized = false;
   Future<void> initialize({bool enabled = true}) async {
@@ -52,8 +65,9 @@ class AdService {
 
   /// 启动时调用：已加载则展示开屏；未加载则静默跳过并预加载（绝不阻塞启动）。
   void showAppOpenIfAvailable() {
-    // 连播激励广告期间，绝不插入开屏广告（避免在两条激励广告之间弹出打断）。
+    // 连播激励广告期间 / 刚看完激励广告的冷却期内，绝不插入开屏广告。
     if (!_supported || _showingFullScreen || _chaining) return;
+    if (DateTime.now().isBefore(_suppressAppOpenUntil)) return;
     final ad = _appOpenAd;
     if (ad == null) { loadAppOpen(); return; }
     _appOpenAd = null;
@@ -120,6 +134,8 @@ class AdService {
     }
     final ad = _rewardedPool.removeAt(0);
     loadRewarded();                 // 立即补池
+    // 看激励广告会触发 paused→resumed，resume 时不要再弹开屏：冷却 90 秒。
+    _suppressAppOpenUntil = DateTime.now().add(const Duration(seconds: 90));
     final completer = Completer<({bool earned, int watchedSec})>();
     _showingFullScreen = true;
     var earned = false;

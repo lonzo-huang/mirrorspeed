@@ -5,6 +5,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
+import '../services/ad_service.dart';
 import '../models/server_config.dart';
 import '../env.dart';
 import '../version.dart';
@@ -209,6 +210,8 @@ class AuthProvider extends ChangeNotifier {
         _configs.first.dailyQuotaBytes == null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_member', paid);
+    // 运行时立即生效：会员 → 关停并丢弃所有广告（修复会员偶尔仍看到开屏，#3）。
+    AdService.instance.setEnabled(!paid);
   }
 
   // ── 登出 ─────────────────────────────────────────────────────

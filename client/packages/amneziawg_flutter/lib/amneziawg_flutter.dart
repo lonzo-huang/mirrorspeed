@@ -47,4 +47,7 @@ class AmneziaWG {
 
   /// 隧道累计流量(rx+tx 字节)；不可用时返回 -1。
   Future<int> transfer() => AmneziawgFlutterInterface.instance.transfer();
+
+  /// 隧道累计 [rx, tx] 字节(rx=下行/收, tx=上行/发)；不可用时 [-1,-1]。
+  Future<List<int>> transferRxTx() => AmneziawgFlutterInterface.instance.transferRxTx();
 }

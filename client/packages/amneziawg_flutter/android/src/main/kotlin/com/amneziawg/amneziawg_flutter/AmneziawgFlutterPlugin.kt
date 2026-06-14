@@ -130,6 +130,7 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
             "stop"            -> stopTunnel(result)
             "stage"           -> result.success(getStatus())
             "transfer"        -> getTransfer(result)
+            "transferRxTx"    -> getTransferRxTx(result)
             "checkPermission" -> { checkPermission(); result.success(null) }
             else              -> result.notImplemented()
         }
@@ -213,6 +214,24 @@ class AmneziawgFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                 -1L
             }
             mainResult(result) { it.success(total) }
+        }
+    }
+
+    // 返回 [rx, tx] 累计字节(下行/上行)，供主页实时速率展示。未起/异常返回 [-1,-1]。
+    private fun getTransferRxTx(result: Result) {
+        scope.launch(Dispatchers.IO) {
+            val arr: List<Long> = try {
+                val t = tunnel
+                val b = backend
+                if (t == null || b == null) listOf(-1L, -1L)
+                else {
+                    val stats = b.getStatistics(t)
+                    listOf(stats.totalRx(), stats.totalTx())
+                }
+            } catch (e: Exception) {
+                listOf(-1L, -1L)
+            }
+            mainResult(result) { it.success(arr) }
         }
     }
 

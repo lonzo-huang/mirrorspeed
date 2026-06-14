@@ -11,6 +11,7 @@ import '../models/server_config.dart';
 import '../services/ws_relay_service.dart';
 import '../services/port_hopping.dart';
 import '../services/api_service.dart';
+import '../brand.dart';
 import '../env.dart';
 
 export 'package:amneziawg_flutter/amneziawg_flutter.dart' show VpnStage;
@@ -57,6 +58,12 @@ class VpnProvider extends ChangeNotifier {
   // 用量在【本地】累计（隧道适配器 rx+tx），上限从服务器拉取（setDailyQuota）。
   // 按 UTC 日期重置，与服务端每日额度对齐。
   int                _dailyUsed   = 0;       // 今日已用字节（本地累计）
+  // 实时速率（字节/秒），由 rx/tx 增量计算，用于主页"上传/下载"展示
+  int                _downBps     = 0;
+  int                _upBps       = 0;
+  int                _lastRx      = -1;
+  int                _lastTx      = -1;
+  int                _lastSpeedMs = 0;
   String             _usageDay    = '';      // 当前计量所属 UTC 日期 yyyy-mm-dd
   int?               _statsBaseline;         // 上次轮询的隧道累计值，用于求增量
   int?               _quotaBytes;            // 服务器下发的今日上限（仅用于流量展示）
@@ -88,6 +95,16 @@ class VpnProvider extends ChangeNotifier {
 
   // ── 本地用量/试用对外接口 ────────────────────────────────────
   int   get dailyUsed     => _dailyUsed;
+  // 实时上/下行速率（格式化字符串，如 "1.2 MB/s"），未连接时为 "0 B/s"
+  String get downloadSpeedStr => _fmtBps(_downBps);
+  String get uploadSpeedStr   => _fmtBps(_upBps);
+  String _fmtBps(int b) {
+    if (b <= 0) return '0 B/s';
+    const u = ['B', 'KB', 'MB', 'GB'];
+    double v = b.toDouble(); int i = 0;
+    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+    return '${v.toStringAsFixed(v < 10 && i > 0 ? 1 : 0)} ${u[i]}/s';
+  }
   int?  get quotaBytes    => _quotaBytes;
 
   /// 当前是否处于「按时间免费试用」模式（免费用户）。
@@ -163,11 +180,17 @@ class VpnProvider extends ChangeNotifier {
     );
     _stageSub = AmneziaWG.instance.vpnStageSnapshot.listen(_onStage);
 
-    // 恢复上次选择的路由模式
+    // 恢复上次选择的路由模式；首次无记录时：中文用户默认「智能」，其它默认「全局」。
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('routing_mode');
     if (saved == RoutingMode.smart.name) {
       _routingMode = RoutingMode.smart;
+      notifyListeners();
+    } else if (saved == RoutingMode.global.name) {
+      _routingMode = RoutingMode.global;
+      notifyListeners();
+    } else if (Brand.isZh) {
+      _routingMode = RoutingMode.smart;   // 中文首次默认智能
       notifyListeners();
     }
     // 恢复「智能分配 / 手动选择」偏好（默认智能）
@@ -1006,17 +1029,35 @@ class VpnProvider extends ChangeNotifier {
   }
 
   Future<void> _pollUsage() async {
-    final total = await AmneziaWG.instance.transfer()
-        .timeout(const Duration(seconds: 3), onTimeout: () => -1);
+    // 取 rx/tx 分项：rx=下行(收)、tx=上行(发)。隧道未起/平台不支持返回 [-1,-1]。
+    final rxtx = await AmneziaWG.instance.transferRxTx()
+        .timeout(const Duration(seconds: 3), onTimeout: () => const [-1, -1]);
     _rollDayIfNeeded();
-    if (total < 0) return;                 // 隧道未起 / 平台不支持
-    if (_statsBaseline == null) { _statsBaseline = total; return; }
+    final rx = rxtx.isNotEmpty ? rxtx[0] : -1;
+    final tx = rxtx.length > 1 ? rxtx[1] : -1;
+    if (rx < 0 || tx < 0) { _downBps = 0; _upBps = 0; return; }
+
+    // 速率 = 增量 / 时间间隔
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (_lastRx >= 0 && _lastSpeedMs > 0) {
+      final dt = (nowMs - _lastSpeedMs) / 1000.0;
+      if (dt >= 0.5) {
+        final dRx = rx - _lastRx, dTx = tx - _lastTx;
+        _downBps = dRx > 0 ? (dRx / dt).round() : 0;
+        _upBps   = dTx > 0 ? (dTx / dt).round() : 0;
+        _lastRx = rx; _lastTx = tx; _lastSpeedMs = nowMs;
+      }
+    } else {
+      _lastRx = rx; _lastTx = tx; _lastSpeedMs = nowMs;
+    }
+
+    // 今日总用量（rx+tx）
+    final total = rx + tx;
+    if (_statsBaseline == null) { _statsBaseline = total; notifyListeners(); return; }
     var delta = total - _statsBaseline!;
     if (delta < 0) delta = total;          // 计数归零（隧道重启）
     _statsBaseline = total;
-    if (delta <= 0) return;
-    _dailyUsed += delta;
-    _persistUsage();
+    if (delta > 0) { _dailyUsed += delta; _persistUsage(); }
     notifyListeners();
   }
 
@@ -1162,12 +1203,24 @@ class VpnProvider extends ChangeNotifier {
     return false;
   }
 
-  /// 看完一条激励视频 → 增加奖励时长（#4）。立即生效，可解除「已用尽」。
+  /// 看完一条激励视频 → 增加奖励时长。立即生效，可解除「已用尽」。
+  /// 关键修复：**重新锚定起点**，让"剩余时长 = 当前剩余(已 clamp≥0) + 奖励"，
+  /// 避免断开期间墙钟跑太久把 elapsed 撑到远超额度，导致看广告加的时间被淹没（剩余永远 0）。
   Future<void> addAdBonusMinutes(int minutes) async {
     _rollTrialDayIfNeeded();
-    _adBonusSec += minutes * 60;
+    final bonus = minutes * 60;
+    if (_trialStartMs == null) {
+      // 还没开始计时：直接加进奖励池即可。
+      _adBonusSec += bonus;
+    } else {
+      final curRemain = trialRemainingSec;          // 已 clamp ≥ 0
+      _adBonusSec += bonus;
+      final desired = curRemain + bonus;            // 目标剩余
+      // 令 trialTotalSec - elapsed == desired  →  startMs = now - (total - desired)*1000
+      _trialStartMs = DateTime.now().millisecondsSinceEpoch - (trialTotalSec - desired) * 1000;
+    }
+    _trialExceeded = false;
     await _persistTrial();
-    if (trialRemainingSec > 0) _trialExceeded = false;
     notifyListeners();
   }
 
