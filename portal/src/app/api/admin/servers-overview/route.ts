@@ -22,18 +22,29 @@ export async function GET() {
   if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
   const admin = gate.admin
 
-  // 归属映射：public_key → {device_label, email}
-  const [{ data: devs }, { data: profiles }, { data: servers }] = await Promise.all([
-    (admin.from('vpn_devices') as any).select('public_key, device_label, user_id').not('public_key', 'is', null),
+  // 归属映射：public_key → {device_id, email, tier}
+  const [{ data: devs }, { data: profiles }, { data: servers }, { data: subs }, { data: cfg }] = await Promise.all([
+    (admin.from('vpn_devices') as any).select('id, public_key, user_id').not('public_key', 'is', null),
     admin.from('profiles').select('id, email'),
     admin.from('vpn_servers')
       .select('id, name, display_name, location, flag_emoji, endpoint, api_url, api_secret, status, last_checked_at, active_peers, load_percent, max_peers')
       .eq('is_active', true).order('sort_order'),
+    admin.from('subscriptions').select('user_id').eq('status', 'active'),
+    admin.from('app_config' as any).select('value').eq('key', 'super_user_ids').maybeSingle(),
   ])
   const emailById = new Map<string, string>((profiles ?? []).map((p: any) => [p.id, p.email]))
-  const ownerByKey = new Map<string, { device_label: string; email: string }>()
+  const paidSet = new Set<string>(((subs ?? []) as any[]).map(s => s.user_id))
+  let superSet = new Set<string>()
+  try { superSet = new Set(JSON.parse((cfg as any)?.value ?? '[]')) } catch { /* ignore */ }
+  const tierOf = (uid: string) => superSet.has(uid) ? '超级' : (paidSet.has(uid) ? '付费' : '免费')
+
+  const ownerByKey = new Map<string, { device_id: string; email: string; tier: string }>()
   for (const d of (devs ?? []) as any[]) {
-    ownerByKey.set(d.public_key, { device_label: d.device_label ?? '', email: emailById.get(d.user_id) ?? '' })
+    ownerByKey.set(d.public_key, {
+      device_id: (d.id ?? '').slice(0, 8),
+      email: emailById.get(d.user_id) ?? '',
+      tier: tierOf(d.user_id),
+    })
   }
 
   const result = await Promise.all((servers ?? []).map(async (srv: any) => {
@@ -66,13 +77,11 @@ export async function GET() {
         let mode: 'fast' | 'relay' | 'offline' = 'offline'
         if (online && ep) { mode = isRelay ? 'relay' : 'fast'; if (isRelay) relay++; else fast++ }
         return {
-          public_key: (p.public_key ?? '').slice(0, 16),
-          vpn_ip: p.vpn_ip, active: p.active,
-          last_handshake: p.last_handshake,
+          vpn_ip: p.vpn_ip,
           online, mode,
-          rx_bytes: p.rx_bytes ?? 0, tx_bytes: p.tx_bytes ?? 0,
-          device_label: owner?.device_label ?? '',
+          device_id: owner?.device_id ?? '—',
           email: owner?.email ?? '(未知/孤儿)',
+          tier: owner?.tier ?? '—',
         }
       })
       const onlineCount = fast + relay

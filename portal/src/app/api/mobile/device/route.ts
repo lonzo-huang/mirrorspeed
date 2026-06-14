@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { createClient }      from '@supabase/supabase-js'
+import { ensureDeviceCrypto } from '@/lib/device-crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import type { Database } from '@/types/database.types'
 
@@ -15,64 +16,6 @@ async function getUserFromBearer(req: NextRequest) {
   )
   const { data: { user } } = await supabase.auth.getUser(token)
   return user
-}
-
-/** Create WireGuard peers on every active server for a given device. */
-async function provisionPeers(
-  admin:    ReturnType<typeof createAdminClient>,
-  userId:   string,
-  deviceId: string,
-) {
-  const { data: servers } = await admin
-    .from('vpn_servers').select('id, name, api_url, api_secret').eq('is_active', true)
-
-  if (!servers?.length) return { ok: false, error: '当前没有可用的 VPN 服务器，请稍后再试' }
-
-  const { encryptKey } = await import('@/lib/clash')
-  const { buildPeerName } = await import('@/lib/wireguard')
-
-  const results = await Promise.allSettled(servers.map(async (server: { id: string; name: string; api_url: string; api_secret: string | null }) => {
-    // 每个服务器用自己的 api_secret（数据库 per-server），与 /api/mobile/configs
-    // 一致，不再依赖 Vercel 环境变量。
-    if (!server.api_secret) {
-      throw new Error(`VPN server ${server.name} 未配置 api_secret`)
-    }
-    // 确定性命名（与 /api/mobile/configs 的自动配置完全一致），保证同一
-    // device+server 永远同名、幂等。
-    const peerName = buildPeerName(deviceId, server.id)
-    const res = await fetch(`${server.api_url}/peers`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Secret': server.api_secret },
-      body:    JSON.stringify({ peer_name: peerName }),
-    })
-    if (!res.ok) {
-      const err = await res.text()
-      throw new Error(`VPN server ${server.name} returned ${res.status}: ${err}`)
-    }
-    const peerInfo = await res.json()
-    const { error } = await admin.from('vpn_device_peers').insert({
-      device_id:         deviceId,
-      server_id:         server.id,
-      user_id:           userId,
-      peer_name:         peerName,
-      public_key:        peerInfo.public_key,
-      private_key_enc:   encryptKey(peerInfo.private_key),
-      preshared_key_enc: encryptKey(peerInfo.preshared_key),
-      vpn_ip:            peerInfo.vpn_ip,
-    })
-    // 23505 = 唯一索引冲突：另一并发请求已为该 (device, server) 建好 peer。
-    // 视为成功（已存在），不重复报错。
-    if (error && (error as { code?: string }).code !== '23505') {
-      throw new Error(`DB insert failed for ${server.name}: ${error.message}`)
-    }
-  }))
-
-  const failed = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]
-  if (failed.length === results.length) {
-    const reasons = failed.map(f => f.reason?.message ?? String(f.reason)).join('; ')
-    return { ok: false, error: `VPN 服务器通信失败: ${reasons}` }
-  }
-  return { ok: true, error: null }
 }
 
 // POST /api/mobile/device
@@ -96,110 +39,66 @@ export async function POST(req: NextRequest) {
   // sub 为 null = 免费用户，继续流程（不再拒绝）
 
   const body = await req.json().catch(() => ({}))
-  const { platform, device_name, device_id: cachedDeviceId } = body as {
-    platform: string; device_name: string; device_id?: string
+  const { platform, device_name, device_id: cachedDeviceId, fingerprint } = body as {
+    platform: string; device_name: string; device_id?: string; fingerprint?: string
   }
   if (!platform || !device_name) {
     return NextResponse.json({ error: '缺少必填字段 platform / device_name' }, { status: 400 })
   }
 
-  // ── Case 1: app already has a device_id cached ──────────────────────────────
+  // 复用已有设备：确保其全局密钥 + IP 就绪（on-demand：连接时才在服务器建 peer，此处不预建）。
+  const reuse = async (d: { id: string; device_label: string; sub_token: string }) => {
+    await ensureDeviceCrypto(admin, d.id)
+    return NextResponse.json({ device_id: d.id, device_label: d.device_label, sub_token: d.sub_token })
+  }
+
+  // ── Case 1: app 已缓存 device_id 且属于本用户 → 复用 ──
   if (cachedDeviceId) {
-    const { data: existing } = await admin
-      .from('vpn_devices')
+    const { data: existing } = await admin.from('vpn_devices')
       .select('id, device_label, sub_token')
-      .eq('id', cachedDeviceId)
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .maybeSingle()
-
-    if (existing) {
-      // Ensure this device has peers (may be missing if VPN API was down at registration)
-      const { count: peerCount } = await admin
-        .from('vpn_device_peers')
-        .select('id', { count: 'exact', head: true })
-        .eq('device_id', existing.id)
-        .eq('is_active', true)
-
-      if ((peerCount ?? 0) === 0) {
-        const { ok, error } = await provisionPeers(admin, user.id, existing.id)
-        if (!ok) return NextResponse.json({ error }, { status: 502 })
-      }
-
-      return NextResponse.json({
-        device_id:    existing.id,
-        device_label: existing.device_label,
-        sub_token:    existing.sub_token,
-      })
-    }
-    // device_id not found / not owned by user — fall through to create a new one
+      .eq('id', cachedDeviceId).eq('user_id', user.id).eq('is_active', true).maybeSingle()
+    if (existing) return reuse(existing)
   }
 
-  // ── Case 2: check if user already has an active device (re-use first one) ──
-  // This handles the case where app lost its cached device_id
-  const { data: userDevices } = await admin
-    .from('vpn_devices')
-    .select('id, device_label, sub_token')
-    .eq('user_id', user.id)
-    .eq('is_active', true)
-    .order('created_at', { ascending: false })
-    .limit(2)
-
-  if (userDevices && userDevices.length > 0) {
-    // Re-use the most recently created device
-    const existing = userDevices[0]
-
-    const { count: peerCount } = await admin
-      .from('vpn_device_peers')
-      .select('id', { count: 'exact', head: true })
-      .eq('device_id', existing.id)
-      .eq('is_active', true)
-
-    if ((peerCount ?? 0) === 0) {
-      const { ok, error } = await provisionPeers(admin, user.id, existing.id)
-      if (!ok) return NextResponse.json({ error }, { status: 502 })
-    }
-
-    return NextResponse.json({
-      device_id:    existing.id,
-      device_label: existing.device_label,
-      sub_token:    existing.sub_token,
-    })
+  // ── Case 2: 按硬件指纹匹配同一台设备（同设备重装/丢缓存时复用；不同设备不会被合并）──
+  if (fingerprint) {
+    const { data: byFp } = await admin.from('vpn_devices')
+      .select('id, device_label, sub_token')
+      .eq('user_id', user.id).eq('fingerprint', fingerprint).eq('is_active', true).maybeSingle()
+    if (byFp) return reuse(byFp)
   }
 
-  // ── Case 3: new device ────────────────────────────────────────────────────────
-  // Check device limit
-  if ((userDevices?.length ?? 0) >= 2) {
-    return NextResponse.json({ error: '设备数量已达上限（2台），请在网页端删除旧设备后再试' }, { status: 409 })
-  }
-
-  // Create device record (no device_fingerprint column in schema)
-  const { data: dev, error: dbErr } = await admin
-    .from('vpn_devices')
-    .insert({
-      user_id:         user.id,
-      subscription_id: sub?.id ?? null,
-      device_label:    device_name,
-      os_hint:         platform,
-      is_active:       true,
-    })
-    .select('id, device_label, sub_token')
-    .single()
-
-  if (dbErr || !dev) {
-    console.error('[mobile/device] insert failed:', dbErr)
+  // ── Case 3: 新设备（受上限约束）──
+  const MAX_DEVICES = 2
+  const { count: devCount } = await admin.from('vpn_devices')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id).eq('is_active', true)
+  if ((devCount ?? 0) >= MAX_DEVICES) {
     return NextResponse.json(
-      { error: `创建设备失败: ${dbErr?.message ?? 'unknown'}` },
-      { status: 500 },
+      { error: `设备数量已达上限（${MAX_DEVICES}台），请在网页端删除旧设备后再试` },
+      { status: 409 },
     )
   }
 
-  // Create WireGuard peers on all active servers
-  const { ok, error: peerErr } = await provisionPeers(admin, user.id, dev.id)
-  if (!ok) {
-    // Roll back device record so the user can retry
-    await admin.from('vpn_devices').delete().eq('id', dev.id)
-    return NextResponse.json({ error: peerErr }, { status: 502 })
+  const { data: dev, error: dbErr } = await admin.from('vpn_devices').insert({
+    user_id:         user.id,
+    subscription_id: sub?.id ?? null,
+    device_label:    device_name,
+    os_hint:         platform,
+    fingerprint:     fingerprint ?? null,
+    is_active:       true,
+  }).select('id, device_label, sub_token').single()
+
+  if (dbErr || !dev) {
+    console.error('[mobile/device] insert failed:', dbErr)
+    return NextResponse.json({ error: `创建设备失败: ${dbErr?.message ?? 'unknown'}` }, { status: 500 })
+  }
+
+  // on-demand：生成设备全局密钥 + 分配全局 IP（不在所有服务器预建 peer）。
+  const crypto = await ensureDeviceCrypto(admin, dev.id)
+  if (!crypto) {
+    await admin.from('vpn_devices').delete().eq('id', dev.id)   // 回滚，便于重试
+    return NextResponse.json({ error: '设备初始化失败，请重试' }, { status: 500 })
   }
 
   return NextResponse.json({

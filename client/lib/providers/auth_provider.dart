@@ -121,14 +121,16 @@ class AuthProvider extends ChangeNotifier {
       // 自动注册/获取设备
       // Pass cached device_id (if any) so the server can recognise returning devices
       // without relying on a device_fingerprint column that doesn't exist in the schema.
-      final cachedId   = await _storage.read(key: 'device_id');
-      final platform   = _getPlatform();
-      final deviceName = await _getDeviceName();
+      final cachedId    = await _storage.read(key: 'device_id');
+      final platform    = _getPlatform();
+      final deviceName  = await _getDeviceName();
+      final fingerprint = await _getDeviceFingerprint();   // 硬件指纹，区分不同终端
 
       final info = await ApiService.instance.registerDevice(
         platform:        platform,
         deviceName:      deviceName,
         cachedDeviceId:  cachedId,
+        fingerprint:     fingerprint,
       );
       _deviceId    = info['device_id']    as String?;
       _deviceLabel = info['device_label'] as String?;

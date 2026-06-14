@@ -21,12 +21,14 @@ class ApiService {
     required String platform,
     required String deviceName,
     String? cachedDeviceId,          // UUID cached from previous registration
+    String? fingerprint,             // 硬件指纹：区分同账号的不同终端
   }) async {
     final body = <String, dynamic>{
       'platform':    platform,
       'device_name': deviceName,
     };
     if (cachedDeviceId != null) body['device_id'] = cachedDeviceId;
+    if (fingerprint != null)    body['fingerprint'] = fingerprint;
 
     final res = await http.post(
       Uri.parse('$kApiBase/api/mobile/device'),

@@ -1,12 +1,10 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 
 interface Peer {
-  public_key: string; vpn_ip: string; active: boolean; last_handshake: string | null
-  online: boolean; mode: 'fast' | 'relay' | 'offline'
-  rx_bytes: number; tx_bytes: number; device_label: string; email: string
-  downBps?: number; upBps?: number
+  vpn_ip: string; online: boolean; mode: 'fast' | 'relay' | 'offline'
+  device_id: string; email: string; tier: string
 }
 interface ServerStats {
   status: string; active_peers: number; total_peers: number
@@ -21,37 +19,18 @@ interface ServerRow {
   stats: ServerStats | null; peers: Peer[]; summary?: Summary
 }
 
-function fmtBytes(n: number): string {
-  if (!n) return '0'
-  const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; let v = n
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
-  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${u[i]}`
-}
-function fmtSpeed(bps?: number): string {
-  if (!bps || bps <= 0) return '—'
-  return `${fmtBytes(bps)}/s`
-}
-function fmtAgo(iso: string | null): string {
-  if (!iso) return '—'
-  let s = Math.floor((Date.now() - Date.parse(iso)) / 1000)
-  if (Number.isNaN(s)) return '—'
-  if (s < 0) s = 0                 // 容忍时钟/时区微小偏差，不显示负数
-  if (s < 60) return `${s}s`
-  if (s < 3600) return `${Math.floor(s / 60)}m`
-  if (s < 86400) return `${Math.floor(s / 3600)}h`
-  return `${Math.floor(s / 86400)}d`
-}
 function fmtUptime(s: number): string {
   const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600)
   return d > 0 ? `${d}d ${h}h` : `${h}h ${Math.floor((s % 3600) / 60)}m`
 }
+
+const REFRESH_MS = 30 * 60 * 1000   // 30 分钟自动刷新（按需点"刷新"手动更新）
 
 export default function AdminDashboard() {
   const [servers, setServers] = useState<ServerRow[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState<string>('')
-  const prevRef = useRef<Map<string, { rx: number; tx: number; t: number }>>(new Map())
 
   const load = useCallback(async () => {
     setErr(null)
@@ -59,24 +38,8 @@ export default function AdminDashboard() {
       const res = await fetch('/api/admin/servers-overview', { cache: 'no-store' })
       if (!res.ok) { setErr(`HTTP ${res.status}`); setLoading(false); return }
       const data = await res.json()
-      const t = Date.now()
-      const prev = prevRef.current
-      const next = new Map<string, { rx: number; tx: number; t: number }>()
-      for (const sv of (data.servers ?? []) as ServerRow[]) {
-        for (const p of sv.peers ?? []) {
-          const k = `${sv.id}/${p.public_key}`
-          const pr = prev.get(k)
-          if (pr && t > pr.t) {
-            const dt = (t - pr.t) / 1000
-            p.downBps = Math.max(0, Math.round((p.rx_bytes - pr.rx) / dt))
-            p.upBps = Math.max(0, Math.round((p.tx_bytes - pr.tx) / dt))
-          }
-          next.set(k, { rx: p.rx_bytes, tx: p.tx_bytes, t })
-        }
-      }
-      prevRef.current = next
       setServers(data.servers ?? [])
-      setFetchedAt(new Date().toLocaleTimeString())
+      setFetchedAt(new Date().toLocaleString())
     } catch (e: any) {
       setErr(String(e?.message ?? e))
     } finally {
@@ -86,7 +49,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     load()
-    const t = setInterval(load, 30_000)
+    const t = setInterval(load, REFRESH_MS)
     return () => clearInterval(t)
   }, [load])
 
@@ -95,14 +58,14 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground px-5 py-8 md:px-10">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-5xl">
         <header className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">VPN 服务器管理后台</h1>
             <p className="text-sm text-muted-foreground">
-              {servers.length} 台节点 · 在线 {totalOnline} · 快速模式 {totalFast}/{totalOnline}
+              {servers.length} 台节点 · 在线 {totalOnline} · 快速 {totalFast}
               {totalOnline > 0 && `（${Math.round(totalFast / totalOnline * 100)}%）`}
-              {fetchedAt && ` · 更新于 ${fetchedAt}（每 30s 自动刷新，速率为两次刷新均值）`}
+              {fetchedAt && ` · 更新于 ${fetchedAt}（每 30 分钟自动刷新）`}
             </p>
           </div>
           <button onClick={load}
@@ -157,11 +120,9 @@ export default function AdminDashboard() {
                         <th className="px-3 py-2 font-medium">状态</th>
                         <th className="px-3 py-2 font-medium">模式</th>
                         <th className="px-3 py-2 font-medium">VPN IP</th>
-                        <th className="px-3 py-2 font-medium">用户</th>
-                        <th className="px-3 py-2 font-medium text-right">↓ 速率</th>
-                        <th className="px-3 py-2 font-medium text-right">↑ 速率</th>
-                        <th className="px-3 py-2 font-medium text-right">累计↓/↑</th>
-                        <th className="px-3 py-2 font-medium">握手</th>
+                        <th className="px-3 py-2 font-medium">用户名</th>
+                        <th className="px-3 py-2 font-medium">设备 ID</th>
+                        <th className="px-3 py-2 font-medium">套餐</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -174,11 +135,13 @@ export default function AdminDashboard() {
                             {p.mode === 'offline' && <span className="text-zinc-600">—</span>}
                           </td>
                           <td className="px-3 py-2 font-mono">{p.vpn_ip}</td>
-                          <td className="px-3 py-2">{p.email}{p.device_label ? <span className="text-muted-foreground"> · {p.device_label}</span> : ''}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmtSpeed(p.downBps)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmtSpeed(p.upBps)}</td>
-                          <td className="px-3 py-2 text-right font-mono text-muted-foreground">{fmtBytes(p.rx_bytes)}/{fmtBytes(p.tx_bytes)}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{fmtAgo(p.last_handshake)}</td>
+                          <td className="px-3 py-2">{p.email}</td>
+                          <td className="px-3 py-2 font-mono text-muted-foreground">{p.device_id}</td>
+                          <td className="px-3 py-2">
+                            <span className={
+                              p.tier === '付费' ? 'text-emerald-300' : p.tier === '超级' ? 'text-[var(--gold,#E8C766)]' : 'text-muted-foreground'
+                            }>{p.tier}</span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
