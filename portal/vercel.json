@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/check-subscriptions",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/gc-peers",
+      "schedule": "30 3 * * *"
     }
   ]
 }
