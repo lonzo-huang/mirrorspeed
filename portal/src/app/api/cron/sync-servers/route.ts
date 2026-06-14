@@ -254,6 +254,12 @@ async function enforceQuotas(
         await setPeerActive(srv.url, peer.peer_name, true, srv.secret)
         await admin.from('vpn_device_peers').update({ is_suspended: false }).eq('id', peer.id)
 
+      } else if (!isOverQuota && peer.is_suspended) {
+        // 免费用户当天用量已回落到额度以下（或额度被上调）：立即恢复，
+        // 不必等到午夜。避免调高 free_daily_bytes 后仍被封到第二天。
+        await setPeerActive(srv.url, peer.peer_name, true, srv.secret)
+        await admin.from('vpn_device_peers').update({ is_suspended: false }).eq('id', peer.id)
+
       } else if (isOverQuota && !peer.is_suspended) {
         // 超额免费用户：暂停
         await setPeerActive(srv.url, peer.peer_name, false, srv.secret)
