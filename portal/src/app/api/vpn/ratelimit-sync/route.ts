@@ -51,16 +51,16 @@ export async function GET(req: NextRequest) {
   try { superIds = JSON.parse(cfg.get('super_user_ids') ?? '[]') } catch { /* ignore */ }
   const superSet = new Set(superIds)
 
-  // 3) 本机**真实按需 peer**（provisioned=true，全局唯一 IP）。
-  //    只认 provisioned=true：旧的全笛卡尔积残留行(provisioned=false)用的是 per-server 旧 IP，
-  //    会与新全局 IP 撞车、把付费用户错带进 free 档，必须排除。
-  const { data: peers } = await (admin.from('vpn_device_peers') as any)
+  // 3) 所有活跃设备的**全局唯一 IP + 归属用户**（来自 vpn_devices，权威来源）。
+  //    不用 vpn_device_peers/provisioned：那张表的标志位会漂移、且含旧 per-server 脏 IP，
+  //    导致大部分设备漏下发、限速覆盖不全。每个设备的全局 IP 跨服务器一致，
+  //    多下发的 IP 在本机 ipset 里若无对应 peer 也不会误伤。
+  const { data: devs } = await (admin.from('vpn_devices') as any)
     .select('vpn_ip, user_id')
-    .eq('server_id', server.id)
     .eq('is_active', true)
-    .eq('provisioned', true)
+    .not('vpn_ip', 'is', null)
 
-  const peerList = (peers ?? []) as Array<{ vpn_ip: string; user_id: string }>
+  const peerList = (devs ?? []) as Array<{ vpn_ip: string; user_id: string }>
   const userIds  = Array.from(new Set(peerList.map(p => p.user_id)))
 
   // 4) 付费判定：active 订阅 OR 邀请奖励期内
