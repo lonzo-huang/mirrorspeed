@@ -221,6 +221,62 @@ void AmneziawgFlutterPlugin::HandleMethodCall(
 
 // -- Tunnel operations ------------------------------------------------------
 
+// 从 wg 配置里解析 `DNS = a, b` 行，返回 IPv4 DNS 列表（宽字符，供 netsh）。
+static std::vector<std::wstring> ParseDnsServers(const std::string& conf) {
+  std::vector<std::wstring> out;
+  std::istringstream ss(conf);
+  std::string line;
+  while (std::getline(ss, line)) {
+    size_t b = line.find_first_not_of(" \t\r");
+    if (b == std::string::npos) continue;
+    std::string t = line.substr(b);
+    if (t.rfind("DNS", 0) != 0) continue;          // 行首是 DNS
+    size_t eq = t.find('=');
+    if (eq == std::string::npos) continue;
+    std::stringstream vs(t.substr(eq + 1));
+    std::string ip;
+    while (std::getline(vs, ip, ',')) {
+      size_t s = ip.find_first_not_of(" \t\r");
+      size_t e = ip.find_last_not_of(" \t\r");
+      if (s == std::string::npos) continue;
+      std::string v = ip.substr(s, e - s + 1);
+      if (v.empty() || v.find(':') != std::string::npos) continue;  // 仅 IPv4
+      out.push_back(Utf8ToWide(v));
+    }
+    break;   // 只取第一条 DNS 行
+  }
+  return out;
+}
+
+static void RunHidden(const std::wstring& cmdline) {
+  STARTUPINFOW si{}; si.cb = sizeof(si);
+  PROCESS_INFORMATION pi{};
+  std::vector<wchar_t> buf(cmdline.begin(), cmdline.end());
+  buf.push_back(L'\0');
+  if (CreateProcessW(nullptr, buf.data(), nullptr, nullptr, FALSE,
+                     CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+    WaitForSingleObject(pi.hProcess, 8000);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+  }
+}
+
+// 隧道服务不会把配置里的 DNS 应用到 wintun 适配器（适配器名 = 隧道名），
+// 全局模式下 DNS 因此退回本地网卡 → 域名解析失败（隧道通但打不开网页）。
+// 这里隧道起来后用 netsh 显式把 DNS 设到适配器上。适配器需片刻才出现，故重试。
+static void ApplyAdapterDns(const std::wstring& iface, const std::vector<std::wstring>& dns) {
+  if (dns.empty()) return;
+  for (int attempt = 0; attempt < 6; ++attempt) {
+    Sleep(500);
+    RunHidden(L"netsh interface ipv4 set dnsservers name=\"" + iface +
+              L"\" static " + dns[0] + L" primary");
+    for (size_t i = 1; i < dns.size(); ++i) {
+      RunHidden(L"netsh interface ipv4 add dnsservers name=\"" + iface +
+                L"\" address=" + dns[i] + L" index=" + std::to_wstring(i + 1));
+    }
+  }
+}
+
 void AmneziawgFlutterPlugin::Initialize(
     const std::string& tunnel_name,
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
@@ -267,6 +323,14 @@ void AmneziawgFlutterPlugin::StartTunnel(
   result->Success(flutter::EncodableValue());
   SendStageEvent("connecting");
   StartMonitoring();
+
+  // 隧道服务不自动设置适配器 DNS → 后台线程里 netsh 应用（带重试，等适配器就绪），
+  // 不阻塞连接返回。否则全局模式域名解析失败、隧道通却打不开网页。
+  auto dns = ParseDnsServers(wg_conf);
+  if (!dns.empty()) {
+    std::wstring ifname = service_name_;
+    std::thread([ifname, dns]() { ApplyAdapterDns(ifname, dns); }).detach();
+  }
 }
 
 void AmneziawgFlutterPlugin::StopTunnel(
