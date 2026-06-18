@@ -226,6 +226,56 @@ def syncconf():
         )
 
 
+# ── 增量 peer 操作（O(1)，面向上万级在线规模）──────────────────────────────
+# 不再"整文件重写 + awg syncconf 全量重载"（O(n)、且持锁串行）。
+# 改用 `awg set`：单个 peer 增量增删，运行态即时生效；conf 仅作重启持久化。
+# 已知公钥集合常驻内存（单 worker + _conf_lock），免去每次连接解析整份配置。
+_known_pubkeys: set[str] = set()
+
+
+def _load_known_pubkeys() -> None:
+    try:
+        for p in parse_peers_from_conf():
+            if p.get("public_key"):
+                _known_pubkeys.add(p["public_key"])
+    except Exception:
+        pass
+
+
+def awg_apply_peer(public_key: str, allowed_ip: str, preshared_key: str = "") -> None:
+    """运行态增量添加/更新单个 peer（幂等：已存在则更新其 allowed-ips，自带自愈）。"""
+    cmd = ["awg", "set", WG_IFACE, "peer", public_key, "allowed-ips", f"{allowed_ip}/32"]
+    psk_file = None
+    try:
+        if preshared_key:
+            import tempfile, os
+            fd, psk_file = tempfile.mkstemp(prefix="awgpsk_")
+            with os.fdopen(fd, "w") as f:
+                f.write(preshared_key)
+            cmd += ["preshared-key", psk_file]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"awg set failed: {r.stderr.strip()}")
+    finally:
+        if psk_file:
+            try:
+                import os
+                os.unlink(psk_file)
+            except OSError:
+                pass
+
+
+def awg_remove_peer(public_key: str) -> None:
+    """运行态增量移除单个 peer。"""
+    subprocess.run(["awg", "set", WG_IFACE, "peer", public_key, "remove"],
+                   capture_output=True, text=True)
+
+
+@app.on_event("startup")
+def _startup_load_pubkeys() -> None:
+    _load_known_pubkeys()
+
+
 def append_peer_to_conf(name: str, public_key: str, preshared_key: str, vpn_ip: str):
     """Append a new [Peer] block to awg0.conf."""
     block = (
@@ -465,7 +515,8 @@ def create_peer(req: CreatePeerRequest, _key: str = Security(verify_api_key)):
             preshared_key=preshared_key,
             vpn_ip=vpn_ip,
         )
-        syncconf()
+        awg_apply_peer(public_key, vpn_ip, preshared_key)   # 运行态即时生效（O(1)）
+        _known_pubkeys.add(public_key)
 
     return PeerResponse(
         peer_name=req.peer_name,
@@ -487,36 +538,31 @@ def ensure_peer(req: EnsurePeerRequest, _key: str = Security(verify_api_key)):
     if not re.fullmatch(r"10\.200\.\d{1,3}\.\d{1,3}", ip):
         raise HTTPException(status_code=400, detail=f"Invalid vpn_ip: {req.vpn_ip!r}")
 
+    name = req.peer_name or f"ms-{req.public_key[:12]}"
     with _conf_lock:
-        for p in parse_peers_from_conf():
-            if p["public_key"] == req.public_key:
-                cur_ip = (p.get("vpn_ip") or "").split("/")[0]
-                if cur_ip == ip:
-                    return {"status": "exists", "vpn_ip": f"{ip}/32"}
-                # 自愈：已存在但 AllowedIPs 不对（历史坏分配 / 0.0.0.0 残留）→ 删旧块重建为正确 IP。
-                # 注意：配额挂起(0.0.0.0)的设备由 portal 在调用前过滤，不会走到这里被误恢复。
-                remove_peer_from_conf(req.public_key)
-                break
+        # 1) 运行态即时生效（O(1)，幂等 + 自愈：awg set 会把该 peer 的 allowed-ips 改成正确值）。
+        awg_apply_peer(req.public_key, ip, req.preshared_key or "")
 
-        name = req.peer_name or f"ms-{req.public_key[:12]}"
-        block = f"\n# Name = {name}\n[Peer]\nPublicKey    = {req.public_key}\n"
-        if req.preshared_key:
-            block += f"PresharedKey = {req.preshared_key}\n"
-        block += f"AllowedIPs   = {ip}/32\n"
-        with open(WG_CONF, "a") as f:
-            f.write(block)
-        syncconf()
+        # 2) 持久化（仅供重启恢复）：conf 里没有该公钥才追加；不解析/重写整份配置。
+        if req.public_key not in _known_pubkeys:
+            block = f"\n# Name = {name}\n[Peer]\nPublicKey    = {req.public_key}\n"
+            if req.preshared_key:
+                block += f"PresharedKey = {req.preshared_key}\n"
+            block += f"AllowedIPs   = {ip}/32\n"
+            with open(WG_CONF, "a") as f:
+                f.write(block)
+            _known_pubkeys.add(req.public_key)
 
-    return {"status": "created", "vpn_ip": f"{ip}/32"}
+    return {"status": "ok", "vpn_ip": f"{ip}/32"}
 
 
 @app.post("/peers/remove", status_code=200)
 def remove_peer_by_key(req: RemovePeerRequest, _key: str = Security(verify_api_key)):
     """按公钥移除 peer（闲置回收 GC 用）。幂等：不存在也返回 200。"""
     with _conf_lock:
-        removed = remove_peer_from_conf(req.public_key)
-        if removed:
-            syncconf()
+        awg_remove_peer(req.public_key)              # 运行态即时移除（O(1)）
+        removed = remove_peer_from_conf(req.public_key)  # 清理持久化配置
+        _known_pubkeys.discard(req.public_key)
     return {"status": "removed" if removed else "absent"}
 
 
@@ -531,11 +577,11 @@ def delete_peer(peer_name: str, _key: str = Security(verify_api_key)):
         if target is None:
             raise HTTPException(status_code=404, detail=f"Peer {peer_name!r} not found")
 
+        awg_remove_peer(target["public_key"])        # 运行态即时移除（O(1)）
         removed = remove_peer_from_conf(target["public_key"])
+        _known_pubkeys.discard(target["public_key"])
         if not removed:
             raise HTTPException(status_code=500, detail="Failed to remove peer from config")
-
-        syncconf()
 
 
 @app.patch("/peers/{peer_name}/status", status_code=204)
@@ -589,6 +635,7 @@ def set_peer_status(peer_name: str, req: SetActiveRequest, _key: str = Security(
             )
             new_text = re.sub(r"# OrigIP = [\d.]+\n", "", new_text)
             WG_CONF.write_text(new_text)
+            awg_apply_peer(pub_key, orig_ip)             # 运行态即时恢复（O(1)）
 
         else:
             # Disable: record original IP as comment, set AllowedIPs to 0.0.0.0/32
@@ -620,5 +667,4 @@ def set_peer_status(peer_name: str, req: SetActiveRequest, _key: str = Security(
                 flags=re.DOTALL,
             )
             WG_CONF.write_text(new_text)
-
-        syncconf()
+            awg_apply_peer(pub_key, "0.0.0.0")           # 运行态即时挂起（O(1)）
