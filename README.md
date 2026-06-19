@@ -390,7 +390,101 @@ $env:PATH = "C:\tools\flutter\bin;C:\Program Files\GitHub CLI\;" + $env:PATH
 
 ---
 
-## 6. 日常运维
+## 6. 运营配置（Supabase `app_config` 集中说明）
+
+所有"无需发版即可调整"的运营开关都集中在 Supabase 的 **`app_config`** 表（结构为
+`key (text)` / `value (text)`，value 多为字符串或一段 JSON）。在 **Supabase Dashboard →
+Table Editor → `app_config`** 直接增改，或用下方 SQL（**SQL Editor** 执行）。改完通常
+**秒级~60 秒生效**（客户端下次拉取 / 服务器下次同步）。
+
+| key | 作用 | 默认 / 缺省行为 | 生效时机 |
+|-----|------|----------------|----------|
+| `announcement` | 全局公告（App 首页 banner） | 无 = 不显示 | 客户端拉取，~60s |
+| `min_supported_version` | **强制更新**下限，低于此版本弹不可关闭的更新窗 | 无 = 仅软提示 | 客户端启动/拉取 |
+| `free_daily_bytes` | 免费用户**每设备每日**流量上限（字节） | `524288000`（500MB） | `sync-servers` cron（每日）+ 手动触发 |
+| `free_daily_seconds` | 免费用户每日时长额度（秒，时间制试用） | `3600`（1h） | 客户端拉取 |
+| `ratelimit_free_mbit` | 免费档下行限速（Mbit，下行=用户下载） | `4` | 各服务器 `ms-ratelimit` 每 60s |
+| `ratelimit_paid_mbit` | 付费档下行限速（Mbit） | `10` | 同上 |
+| `ratelimit_super_mbit` | 超级用户档限速（Mbit，`0`=不限速） | `0` | 同上 |
+| `super_user_ids` | 超级用户 `user_id` 列表（JSON 数组，享 super 档/不限速） | `[]` | 同上 |
+| `peer_gc_days` | 闲置 peer 回收天数（超过未握手则 GC） | `30` | `gc-peers` cron（每日 3:30） |
+| `cn_apk_url` / `cn_win_url` / `cn_apk_cn_url` | 国内镜像下载地址（Vercel Blob / GitHub 兜底） | 由 `release.ps1` 自动写入 | 下载页/接口 |
+
+> 说明：限速「下行」指**服务器→客户端**（用户的下载速度）；机制 = tc(HTB) + ipset + fwmark，
+> 详见 §2.1.4。配额封禁会把该设备 peer 的 `AllowedIPs` 临时设为 `0.0.0.0/32`（握手通但流量不通），
+> 次日或额度回落后自动恢复。
+
+### 6.1 发布 / 撤下全局公告
+
+`value` 存一段 JSON：`level` 取 `info | warning | critical`；`active:false` 或删除该行即撤下。
+
+```sql
+-- 发布公告
+insert into app_config (key, value) values (
+  'announcement',
+  '{"id":"2026-06-19","title":"系统维护","body":"今晚 02:00 维护约 30 分钟","level":"warning","active":true,"url":null}'
+)
+on conflict (key) do update set value = excluded.value;
+
+-- 撤下（置 active=false，或直接 delete）
+update app_config set value = jsonb_set(value::jsonb, '{active}', 'false')::text where key = 'announcement';
+```
+
+### 6.2 设置 / 解除强制更新（最低支持版本）
+
+低于 `min_supported_version` 的 App 一打开就弹**无法关闭**的更新窗，必须升级才能用；
+不设此键则只在有新版本时软提示（可"稍后"）。
+
+```sql
+-- 强制所有低于 2.3.6 的客户端升级
+insert into app_config (key, value) values ('min_supported_version', '2.3.6')
+on conflict (key) do update set value = excluded.value;
+
+-- 解除强制更新
+delete from app_config where key = 'min_supported_version';
+```
+
+### 6.3 调整免费每日流量额度（兜底防滥用）
+
+免费用户主要靠看广告续时长，流量额度仅作兜底。测试期可调高（如 50GB）：
+
+```sql
+update app_config set value = '53687091200' where key = 'free_daily_bytes';   -- 50GB/设备/天
+```
+> 调高后，被封禁(0.0.0.0/32)的设备不必等到午夜——下次 `sync-servers` 即恢复。
+> 立即生效可手动触发：`curl -H "Authorization: Bearer <CRON_SECRET>" https://www.mirrorspeed.com/api/cron/sync-servers`
+
+### 6.4 调整分级限速值
+
+```sql
+update app_config set value = '4'  where key = 'ratelimit_free_mbit';   -- 免费 4Mbit
+update app_config set value = '20' where key = 'ratelimit_paid_mbit';   -- 付费 20Mbit
+update app_config set value = '0'  where key = 'ratelimit_super_mbit';  -- 超级不限速
+```
+各 VPN 服务器的 `ms-ratelimit.timer` 每 60s 拉取一次，自动套用新值，无需登服务器。
+
+### 6.5 设置超级用户（不限速 / super 档）
+
+`super_user_ids` 是一段 JSON 数组，元素为 `profiles.id`（用户 UUID）：
+
+```sql
+-- 先查出用户 UUID
+select id, email from profiles where email = 'someone@example.com';
+
+-- 写入超级用户列表（整体覆盖）
+insert into app_config (key, value) values ('super_user_ids', '["<uuid1>","<uuid2>"]')
+on conflict (key) do update set value = excluded.value;
+```
+
+### 6.6 调整闲置 peer 回收天数
+
+```sql
+update app_config set value = '30' where key = 'peer_gc_days';   -- 超过 30 天未握手的 peer 回收
+```
+
+---
+
+## 7. 日常运维
 
 ### 查看服务器状态
 ```bash
@@ -418,7 +512,7 @@ curl -H "Authorization: Bearer <CRON_SECRET>" \
 
 ---
 
-## 7. 故障排查速查
+## 8. 故障排查速查
 
 | 症状 | 检查点 |
 |------|--------|
@@ -436,7 +530,7 @@ curl -H "Authorization: Bearer <CRON_SECRET>" \
 
 ---
 
-## 8. 技术架构详解
+## 9. 技术架构详解
 
 ### AmneziaWG 配置生成流程
 
@@ -509,21 +603,24 @@ Windows 上「能握手但下载不动、随即回退中继」的根因与修复
 
 ---
 
-## 9. 项目现状与待办（交接备忘 · 2026-06）
+## 10. 项目现状与待办（交接备忘 · 2026-06）
 
 > 给后续开发者 / AI：本节是项目当前进度的快照，便于无缝接手。
 
-### 9.1 已完成（近期）
-- **客户端 v2.3.0**：UI 全新设计（参考设计师稿）—— 开屏旋转光环、主页大圆环连接按钮 + 三栏数据 + 快捷宫格、毛玻璃底部导航；新增**会员 / 设置 / 使用帮助**页面；**「我的」页保留旧设计**。
-- **按时间免费试用** + **AdMob 广告**（开屏 + 激励视频连播满 50 秒解锁 +30 分钟）。
-- **双模式节点选择**（智能评分 + 手动列表含 10 秒平均延迟/三档负载）。
-- **三种登录**（OTP / 邮箱密码 / Google），官网登录同步加密码方式。
-- **品牌图标**：替换 Flutter 默认图标为青绿盾牌；网站 favicon / OG / PWA 图标齐全。
-- **Play 上架素材**：512 图标、1024×500 特征图、AAB、`/delete-account` 页、审核测试账号。
-- **官网新增页**：`/help`（App 帮助按钮指向）、`/delete-account`。
+### 10.1 已完成（近期，截至 v2.3.6）
+- **按需建 peer + /16 子网架构**：每设备一对全局密钥 + 全局唯一 IP（`ip_pool`，10.200.0.0/16 ≈ 6.5 万 IP），连接前 `ensure-peer` 按需建；`gc-peers` 回收闲置。详见 `docs/on-demand-provisioning.md`。
+- **vpn-api peer 操作 O(1)**：改用 `awg set` 增量增删（替代整文件重写 + `awg syncconf` 全量重载），支撑上万在线；公钥常驻内存，连接热路径不解析整份配置。
+- **分级限速**（tc HTB + ipset + fwmark，下行）：免费/付费/超级三档，值与超级用户列表由 `app_config` 下发，各服务器每 60s 同步；限速 IP 取自 `vpn_devices` 全局 IP（全覆盖）。
+- **客户端 v2.3.x 累积**：全新 UI；按时间免费试用 + AdMob 激励视频（看一条 +30 分钟）；双模式节点选择；三种登录（OTP/邮箱密码/Google，网页端 6 位验证码）；品牌图标；多设备指纹识别（免费 2 台 / 会员 5 台，超限本地化提示并引导升级）；配额超额提示横幅。
+- **Windows 专项修复（v2.3.4–2.3.6）**：连接稳定性（消除"服务已标记为删除"1072 + 连接不再假死，操作移出 UI 线程）；**DNS 自动应用到适配器**（修"隧道通但打不开网页"）；**单实例**（二次启动唤起已有窗口）；**系统托盘常驻**（点 X 最小化到托盘，菜单显示/退出）；**固定手机尺寸窗口**（禁最大化/拉伸）；启动图标。
+- **在线更新提示**：启动软提示弹窗 + `app_config.min_supported_version` 强制更新（见 §6.2）。
+- **管理后台 `/admin`**（仅 `profiles.role='admin'`）：各节点健康 + 每 peer 状态/模式/VPN IP/用户名/设备ID/套餐，30 分钟自动刷新 + 手动。
+- **运营配置集中化**：公告 / 强更 / 配额 / 限速 / 超级用户 / GC 天数全部走 `app_config`，无需发版（见 §6）。
+- **可选系统优化脚本** `vpn/10-system-optimize.sh`（BBR/缓冲区/conntrack/服务精简，带备份回滚，装机后手动跑）。
+- **Play 上架素材**：512 图标、1024×500 特征图、AAB、`/delete-account`、`/help`、审核测试账号。
 - **release.ps1**：CN 镜像失败自动回退 GitHub 直链。
 
-### 9.2 进行中 / 下一步
+### 10.2 进行中 / 下一步
 - **UI 还原剩余**：节点页（设计师版含搜索 + 按国家分组 + ping 条）、登录页配色统一。设计稿在 `D:\tmp\mirrorspeed ui`（**React/Vite 代码**，需用 Flutter 重写，非直接复用）。
 - **Google Play 内购（IAP / Route B）**：用户已选做 IAP（而非外部支付，避免拒审）。
   - DB 迁移 `portal/supabase/migrations/015_iap_google.sql`（plans 加 `google_product_id`/`billing_period_days`；subscriptions 加 `platform`/`store_purchase_token` 等）—— **待在 Supabase SQL Editor 执行**。
@@ -531,12 +628,15 @@ Windows 上「能握手但下载不动、随即回退中继」的根因与修复
   - 需用户提供：Play 订阅商品（`vip_monthly/quarterly/yearly`）、Service Account JSON、Pub/Sub 主题。
   - VIP 页购买按钮当前为「敬请期待」占位（IAP 未接前不接外部支付）。
 
-### 9.3 合规红线（务必遵守）
+### 10.3 合规红线（务必遵守）
 - 对外命名不出现 `awg/amneziawg`；**中文壳不出现 "VPN" 字样**（用「加速器」）。
 - 上 Play 前：**隐藏 Android 端所有外部支付/升级跳转**（数字商品必须走 Google Play 结算，否则拒审）。VIP 页已不接外部支付。
 - 暴露过的密钥（`VPN_API_SECRET` / `CRON_SECRET` / `PORT_SECRET`）建议轮换。
 
-### 9.4 其它待办
-- Vercel Blob 被 suspended → 国内镜像迁自有服务器 / OSS（nginx 静态托管，无流量配额）。
-- 服务器侧：同步 `06-peer-manager.sh`；ES01/FRA01 迁 /21 子网；重编 `mirrorspeed_svc.exe` 做适配器描述本地化。
-- 准备开 2 个新加坡站点（共 4 站）——智能分配已支持同区域均衡。
+### 10.4 已知遗留 / 其它待办
+- **IPv6 泄漏**：双栈网络下隧道只接管 IPv4，IPv6 流量绕过隧道直出（能用但泄漏真实 IP）。需客户端连接时接管或屏蔽 IPv6。
+- **适配器描述仍为 "WireGuard Tunnel"**（合规应为 MirrorSpeed）：wintun 驱动层池名，需重编 `mirrorspeed_svc.exe` / 改池名，比设 DNS 更深一层。
+- **管理后台"在线/活跃"检测**：偶发"有流量却显示活跃 0"，待核 `/peers` 握手时间上报。
+- **Google Play 内购（IAP / Route B）**：迁移 `015_iap_google.sql` 待执行；待建 `/api/iap/google/verify`、RTDN webhook、Flutter `in_app_purchase`。VIP 页购买当前为占位（IAP 未接前不接外部支付）。
+- 暴露过的密钥（`VPN_API_SECRET` / `CRON_SECRET` / `PORT_SECRET`）建议轮换。
+- 准备开 2 个新加坡站点（共 4 站）——智能分配已支持同区域均衡；**新节点 `install.sh` 开箱即用**（/16 + O(1) vpn-api + 限速均已固化，无需手动补丁）。
