@@ -94,10 +94,22 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     }
   }
 
-  // Single-instance: forward deep-link to existing window and exit
+  // Single-instance: a 2nd launch never opens a 2nd window.
   HANDLE mutex = CreateMutexW(nullptr, TRUE, kMutexName);
-  if (GetLastError() == ERROR_ALREADY_EXISTS && !deep_link_url.empty()) {
-    ForwardToExistingInstance(deep_link_url);
+  if (GetLastError() == ERROR_ALREADY_EXISTS) {
+    if (!deep_link_url.empty()) {
+      // OAuth/deep-link launch → hand the URL to the running instance.
+      ForwardToExistingInstance(deep_link_url);
+    } else {
+      // Plain re-launch → just bring the existing window to the foreground
+      // (it may be hidden in the tray or minimized).
+      HWND existing = FindWindowW(kWindowClass, kWindowTitle);
+      if (existing) {
+        ShowWindow(existing, SW_SHOW);
+        ShowWindow(existing, SW_RESTORE);
+        SetForegroundWindow(existing);
+      }
+    }
     if (mutex) CloseHandle(mutex);
     ::CoUninitialize();
     return EXIT_SUCCESS;

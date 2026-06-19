@@ -30,6 +30,10 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_BUILD=${FLUTT
 # Disable Windows macros that collide with C++ standard library functions.
 target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 
+# Compile sources as UTF-8 so CJK string literals (e.g. tray menu labels) and
+# comments build correctly under /WX without per-string \u escapes.
+target_compile_options(${BINARY_NAME} PRIVATE "/utf-8")
+
 # runner.exe.manifest already declares requestedExecutionLevel=requireAdministrator.
 # Stop the linker from emitting its own (asInvoker) UAC manifest fragment, which
 # otherwise conflicts with ours and makes mt.exe fail with LNK1327 during embed.

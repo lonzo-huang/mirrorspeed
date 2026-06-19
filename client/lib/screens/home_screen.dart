@@ -19,6 +19,9 @@ Future<void> _moveAppToBackground() async {
   try { await _lifecycleChannel.invokeMethod('moveToBackground'); } catch (_) {}
 }
 
+// 启动更新提示：每次 App 运行最多弹一次（强制更新除外，强制会持续拦截）。
+bool _updateDialogShown = false;
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -26,6 +29,13 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final vpn  = context.watch<VpnProvider>();
+
+    // 在线版本提示：强制更新(min_version)→不可关闭的拦截弹窗；普通新版本→可稍后的提示。
+    if (auth.forceUpdate || (auth.updateAvailable && !_updateDialogShown)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showUpdateDialog(context, version: auth.latestVersion ?? '', force: auth.forceUpdate, url: auth.downloadUrl);
+      });
+    }
 
     // 优先用真实节点（已登录配置已加载）；否则退回展示节点（公开列表）。
     final realServers = auth.displayServers.where((s) => !s.isDisplayOnly).toList();
@@ -85,7 +95,6 @@ class HomeScreen extends StatelessWidget {
                 _HeroConnect(
                   connected:  vpn.isConnected,
                   connecting: connecting,
-                  elapsed:    vpn.elapsedFormatted,
                   onTap:      vpn.isBusy ? null : onConnect,
                 ),
 
@@ -208,6 +217,48 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  // 在线版本更新弹窗。force=true 时不可关闭(强制更新),否则可"稍后"。
+  Future<void> _showUpdateDialog(BuildContext context,
+      {required String version, required bool force, required String url}) async {
+    if (!force) {
+      if (_updateDialogShown) return;
+      _updateDialogShown = true;
+    }
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !force,
+      builder: (ctx) => PopScope(
+        canPop: !force,   // 强制更新时拦截返回键
+        child: AlertDialog(
+          backgroundColor: kCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(children: [
+            const Icon(Icons.system_update_rounded, color: kBrand, size: 20),
+            const SizedBox(width: 8),
+            Text(tr('发现新版本', 'Update available')),
+          ]),
+          content: Text(
+            force
+              ? tr('当前版本过旧，需更新到 v$version 才能继续使用。',
+                   'Your version is outdated. Please update to v$version to continue.')
+              : tr('新版本 v$version 已发布，建议立即更新以获得最新修复与体验。',
+                   'Version v$version is available. Update now for the latest fixes and improvements.'),
+            style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          actions: [
+            if (!force)
+              TextButton(onPressed: () => Navigator.pop(ctx),
+                child: Text(tr('稍后', 'Later'), style: const TextStyle(color: Colors.white54))),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: kBrand),
+              onPressed: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+              child: Text(tr('立即更新', 'Update now')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _confirmExit(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -305,9 +356,8 @@ class _Header extends StatelessWidget {
 class _HeroConnect extends StatefulWidget {
   final bool connected;
   final bool connecting;
-  final String elapsed;
   final VoidCallback? onTap;
-  const _HeroConnect({required this.connected, required this.connecting, required this.elapsed, this.onTap});
+  const _HeroConnect({required this.connected, required this.connecting, this.onTap});
   @override State<_HeroConnect> createState() => _HeroConnectState();
 }
 
@@ -354,9 +404,6 @@ class _HeroConnectState extends State<_HeroConnect> with SingleTickerProviderSta
                 active ? tr('已连接', 'Connected')
                        : widget.connecting ? tr('连接中', 'Connecting') : tr('点击连接', 'Tap to connect'),
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: active ? kAccentOn : Colors.white)),
-              if (active)
-                Padding(padding: const EdgeInsets.only(top: 2),
-                  child: Text(widget.elapsed, style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: kAccentOn.withOpacity(0.7)))),
             ]),
           ),
         ),

@@ -27,6 +27,7 @@ class AuthProvider extends ChangeNotifier {
   // 公开节点（未登录展示）+ 版本/通告（#1 #2）
   List<ServerConfig>     _publicServers = [];
   String?                _latestVersion;
+  String?                _minVersion;
   Map<String, dynamic>?  _announcement;
 
   AuthStatus       get status      => _status;
@@ -45,6 +46,10 @@ class AuthProvider extends ChangeNotifier {
   /// 线上版本是否比当前 App 新（简单 semver 比较）。
   bool get updateAvailable =>
       _latestVersion != null && _isNewer(_latestVersion!, kAppVersion);
+  /// 强制更新：当前版本低于线上下发的最低支持版本（min_supported_version）。
+  bool get forceUpdate =>
+      _minVersion != null && _isNewer(_minVersion!, kAppVersion);
+  String get downloadUrl => 'https://www.mirrorspeed.com/download';
 
   static bool _isNewer(String remote, String local) {
     List<int> parse(String v) => v
@@ -110,6 +115,7 @@ class AuthProvider extends ChangeNotifier {
     _publicServers = results[0] as List<ServerConfig>;
     final ver      = results[1] as Map<String, String?>?;
     _latestVersion = ver?['version'];
+    _minVersion    = ver?['min_version'];
     _announcement  = results[2] as Map<String, dynamic>?;
     notifyListeners();
   }

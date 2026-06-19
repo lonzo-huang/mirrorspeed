@@ -129,7 +129,11 @@ class ApiService {
       final b = jsonDecode(res.body) as Map<String, dynamic>;
       final v = b['version'] as String?;
       if (v == null) return null;
-      return {'version': v, 'url': 'https://www.mirrorspeed.com/download'};
+      return {
+        'version':     v,
+        'url':         'https://www.mirrorspeed.com/download',
+        'min_version': b['min_version'] as String?,   // 低于此版本强制更新
+      };
     } catch (_) {
       return null;
     }
