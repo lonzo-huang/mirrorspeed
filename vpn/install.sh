@@ -148,6 +148,13 @@ if [[ "${SKIP_KERNEL_CHECK:-0}" != "1" ]]; then
     fi
 fi
 
+# 自愈：上一次中途失败可能残留 amnezia 源但 keyring 缺失/为空，会让后续
+# 任意 apt-get update 报 NO_PUBKEY 并中断。此时先清掉残留源（03 会重建）。
+if [[ -f /etc/apt/sources.list.d/amnezia.list && ! -s /usr/share/keyrings/amnezia-ppa.gpg ]]; then
+    warn "检测到残留的 amnezia 源但公钥缺失，已清理（安装时会重建）"
+    rm -f /etc/apt/sources.list.d/amnezia.list
+fi
+
 info "前置检查完成"
 
 # ── 脚本路径确认 ──────────────────────────────────────────────────────────
