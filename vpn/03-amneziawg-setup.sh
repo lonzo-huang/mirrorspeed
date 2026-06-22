@@ -69,18 +69,24 @@ if [[ "${OS_ID}" == "ubuntu" ]]; then
     apt-get update -qq
     apt-get install -y amneziawg
 else
-    echo "  检测到 Debian，从 GitHub Releases 下载预编译包..."
-    AWG_TAG=$(curl -fsSL \
-        "https://api.github.com/repos/amnezia-vpn/amneziawg-linux-kernel-module/releases/latest" \
-        | grep '"tag_name"' | cut -d'"' -f4)
-    [[ -z "${AWG_TAG}" ]] && { echo "ERROR: 无法获取 AmneziaWG 最新版本，检查网络"; exit 1; }
-    AWG_VER="${AWG_TAG#v}"
+    echo "  检测到 Debian，从 GitHub Releases 解析并下载预编译包..."
     ARCH=$(dpkg --print-architecture)
-    BASE_URL="https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/releases/download/${AWG_TAG}"
-
-    echo "  下载版本: ${AWG_TAG}  架构: ${ARCH}"
-    curl -fsSL "${BASE_URL}/amneziawg-dkms_${AWG_VER}_all.deb"         -o /tmp/awg-dkms.deb
-    curl -fsSL "${BASE_URL}/amneziawg-tools_${AWG_VER}_${ARCH}.deb"    -o /tmp/awg-tools.deb
+    API="https://api.github.com/repos/amnezia-vpn/amneziawg-linux-kernel-module/releases/latest"
+    # 直接解析真实的 browser_download_url，避免按版本号拼文件名导致 404
+    # （仓库 tag 版本号与 .deb 文件名常不一致）。
+    ASSETS=$(curl -fsSL "${API}" 2>/dev/null | grep '"browser_download_url"' | cut -d'"' -f4 || true)
+    DKMS_URL=$(echo "${ASSETS}"  | grep -E 'amneziawg-dkms_.*_all\.deb$'        | head -1 || true)
+    TOOLS_URL=$(echo "${ASSETS}" | grep -E "amneziawg-tools_.*_${ARCH}\.deb$"   | head -1 || true)
+    if [[ -z "${DKMS_URL}" || -z "${TOOLS_URL}" ]]; then
+        echo "ERROR: 无法从 GitHub Releases 解析 .deb 资源 URL（可能网络/限流/资源命名变化）"
+        echo "  解析到的资源列表："
+        echo "${ASSETS:-（空）}"
+        exit 1
+    fi
+    echo "  DKMS:  ${DKMS_URL}"
+    echo "  TOOLS: ${TOOLS_URL}"
+    curl -fsSL "${DKMS_URL}"  -o /tmp/awg-dkms.deb
+    curl -fsSL "${TOOLS_URL}" -o /tmp/awg-tools.deb
     dpkg -i /tmp/awg-dkms.deb /tmp/awg-tools.deb || apt-get install -f -y
     rm -f /tmp/awg-dkms.deb /tmp/awg-tools.deb
 fi
