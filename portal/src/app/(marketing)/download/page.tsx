@@ -169,6 +169,11 @@ export default function DownloadPage() {
                     </div>
                   )
                 })}
+                <p className="md:col-span-2 text-xs text-muted-foreground mt-1">
+                  {isChinese
+                    ? '鸿蒙系统（HarmonyOS 4 及以下）请下载上方 Android APK 安装；HarmonyOS NEXT「纯血鸿蒙」暂不支持。'
+                    : 'HarmonyOS (4 and earlier): install the Android APK above. HarmonyOS NEXT is not supported yet.'}
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

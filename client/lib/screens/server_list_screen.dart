@@ -36,7 +36,8 @@ class _ServerListScreenState extends State<ServerListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(tr('选择节点','Select node'), style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(tr('服务器','Servers'), style: const TextStyle(fontWeight: FontWeight.bold)),
+        automaticallyImplyLeading: false,
         backgroundColor: kBg,
         surfaceTintColor: Colors.transparent,
         actions: [
@@ -75,7 +76,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
                     onTap: () async {
                       if (!auth.isLoggedIn) { context.go('/login'); return; }
                       if (blockedByQuota()) return;
-                      Navigator.pop(context);
+                      context.go('/home');   // 切回主页查看连接状态
                       await vpn.connectAuto(servers);
                     },
                   );
@@ -91,7 +92,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
                       return;
                     }
                     if (blockedByQuota()) return;
-                    Navigator.pop(context);
+                    context.go('/home');   // 切回主页查看连接状态
                     await vpn.setAutoSelect(false);   // 手动选择
                     if (vpn.isConnected) {
                       await vpn.switchServer(server);

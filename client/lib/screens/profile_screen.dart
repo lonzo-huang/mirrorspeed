@@ -97,7 +97,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(tr('个人中心','Profile'),
+        title: Text(tr('我的','Me'),
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
@@ -159,6 +159,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 16),
 
+              // ── 连接设置（只读信息，合并自原「设置」页）──────────
+              _InfoCard(children: [
+                _InfoRow(icon: Icons.shield_outlined,    label: tr('协议', 'Protocol'),     value: 'MirrorTunnel V1.0'),
+                _InfoRow(icon: Icons.lock_outline,       label: tr('加密', 'Encryption'),   value: 'ChaCha20'),
+                _InfoRow(icon: Icons.blur_on_rounded,    label: tr('流量混淆', 'Obfuscation'), value: tr('已开启', 'On')),
+                _InfoRow(icon: Icons.block_rounded,      label: tr('断网保护', 'Kill switch'), value: 'ON'),
+                _InfoRow(icon: Icons.language_rounded,   label: tr('语言', 'Language'),     value: tr('跟随系统', 'System')),
+              ]),
+
+              const SizedBox(height: 16),
+
               // ── 功能列表 ────────────────────────────────────
               _InfoCard(children: [
                 _ActionRow(
@@ -188,10 +199,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _ActionRow(
                   icon:  Icons.help_outline_rounded,
                   label: tr('使用帮助', 'Help'),
-                  onTap: () => launchUrl(
-                    Uri.parse('https://mirrorspeed.com/help'),
-                    mode: LaunchMode.externalApplication,
-                  ),
+                  onTap: () => context.push('/help'),   // 应用内 FAQ
                 ),
               ]),
 
@@ -216,6 +224,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   icon:  const Icon(Icons.logout_rounded, size: 18),
                   label: Text(tr('退出登录', 'Sign out'),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // ── 退出程序（断开 VPN 并退出，从原右上角迁移至此）──────
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () => _confirmExitApp(context),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white60,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  icon:  const Icon(Icons.power_settings_new_rounded, size: 18),
+                  label: Text(tr('退出程序', 'Exit app'),
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
                 ),
               ),
@@ -288,6 +313,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  // 退出程序：断开 VPN（清理隧道/路由）后退出 App。
+  Future<void> _confirmExitApp(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(tr('退出程序', 'Exit app')),
+        content: Text(tr('该操作将会断开 VPN 并退出程序。',
+                         'This will disconnect the VPN and exit the app.'),
+          style: const TextStyle(color: Colors.white70, fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: Text(tr('取消', 'Cancel'), style: const TextStyle(color: Colors.white54))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+            child: Text(tr('退出', 'Exit'), style: const TextStyle(color: kDanger))),
+        ],
+      ),
+    ) ?? false;
+    if (!ok) return;
+    try { await context.read<VpnProvider>().disconnect(); } catch (_) {}
+    await Future.delayed(const Duration(milliseconds: 500));  // 等原生隧道拆除
+    await SystemNavigator.pop();
   }
 
   Future<bool> _confirmLogout(BuildContext context) async {

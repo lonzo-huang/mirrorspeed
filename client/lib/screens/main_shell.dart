@@ -12,8 +12,11 @@ class MainShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final location     = GoRouterState.of(context).matchedLocation;
-    final selectedIndex = location.startsWith('/profile') ? 1 : 0;
+    final location = GoRouterState.of(context).matchedLocation;
+    final selectedIndex = location.startsWith('/servers') ? 1
+                        : location.startsWith('/vip')     ? 2
+                        : location.startsWith('/profile') ? 3
+                        : 0;
 
     return Scaffold(
       backgroundColor: kBg,
@@ -32,7 +35,7 @@ class MainShell extends StatelessWidget {
               child: SizedBox(
                 height: 58,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
                       _NavItem(
@@ -42,9 +45,21 @@ class MainShell extends StatelessWidget {
                         onTap:    () => context.go('/home'),
                       ),
                       _NavItem(
+                        icon:     Icons.dns_rounded,
+                        label:    tr('服务器', 'Servers'),
+                        selected: selectedIndex == 1,
+                        onTap:    () => context.go('/servers'),
+                      ),
+                      _NavItem(
+                        icon:     Icons.workspace_premium_rounded,
+                        label:    tr('会员', 'VIP'),
+                        selected: selectedIndex == 2,
+                        onTap:    () => context.go('/vip'),
+                      ),
+                      _NavItem(
                         icon:     Icons.person_rounded,
                         label:    tr('我的', 'Me'),
-                        selected: selectedIndex == 1,
+                        selected: selectedIndex == 3,
                         onTap:    () => context.go('/profile'),
                       ),
                     ],

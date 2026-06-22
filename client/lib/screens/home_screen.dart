@@ -11,7 +11,6 @@ import '../models/server_config.dart';
 import '../brand.dart';
 import '../env.dart';
 import '../theme.dart';
-import 'server_list_screen.dart';
 
 // 返回键 → 退到后台（不退出应用，VPN 保持运行）；退出由右上角退出键负责。
 const MethodChannel _lifecycleChannel = MethodChannel('com.mirrorspeed.app/lifecycle');
@@ -76,7 +75,7 @@ class HomeScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // ── 头部 ──────────────────────────────────────
-                _Header(onExit: () => _confirmExit(context)),
+                const _Header(),
 
                 // ── 通告 / 更新 / 到期 banner ──────────────────
                 Padding(
@@ -146,7 +145,7 @@ class HomeScreen extends StatelessWidget {
                     child: _NodeCard(
                       server:   server,
                       auto:     vpn.autoSelect,
-                      onTap:    () => _showServerList(context),
+                      onTap:    () => context.go('/servers'),
                     ),
                   ),
                 ],
@@ -181,10 +180,6 @@ class HomeScreen extends StatelessWidget {
                     child: _QuotaSuspendedBanner(),
                   ),
                 ],
-
-                // ── 快捷入口 ───────────────────────────────────
-                const SizedBox(height: 14),
-                _QuickMenu(onNodes: () => _showServerList(context)),
 
                 // ── 错误提示 ───────────────────────────────────
                 Padding(
@@ -259,45 +254,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmExit(BuildContext context) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: kCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(tr('退出应用', 'Exit app')),
-        content: Text(tr('退出后将断开连接。返回键只会回到后台，连接保持。',
-                         'Exiting disconnects the VPN. The back button only sends the app to the background and keeps the connection.'),
-          style: const TextStyle(color: Colors.white70, fontSize: 13)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false),
-            child: Text(tr('取消', 'Cancel'), style: const TextStyle(color: Colors.white54))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true),
-            child: Text(tr('退出', 'Exit'), style: const TextStyle(color: kDanger))),
-        ],
-      ),
-    ) ?? false;
-    if (ok) {
-      // 强制断开并清理隧道/路由后再退出（#3）。
-      try { await context.read<VpnProvider>().disconnect(); } catch (_) {}
-      await Future.delayed(const Duration(milliseconds: 500)); // 等原生隧道完全拆除
-      await SystemNavigator.pop();
-    }
-  }
-
-  void _showServerList(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: kSurface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
-        child: const ServerListScreen(),
-      ),
-    );
-  }
-
 }
 
 // 延迟用颜色点表示，不显示具体数值（#6）：
@@ -325,14 +281,13 @@ class LatencyDot extends StatelessWidget {
   }
 }
 
-// ── 头部：Logo + 名称 + 刷新 + 退出 ──────────────────────────────
+// ── 头部：Logo + 名称（退出已移至「我的」）─────────────────────────
 class _Header extends StatelessWidget {
-  final VoidCallback onExit;
-  const _Header({required this.onExit});
+  const _Header();
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 8, 2),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
       child: Row(children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(11),
@@ -343,10 +298,6 @@ class _Header extends StatelessWidget {
           Text(Brand.appName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           Text('MIRROR SPEED', style: TextStyle(fontSize: 9, letterSpacing: 2, color: Colors.white.withOpacity(0.35))),
         ])),
-        // 关闭：强制断开 VPN 并退出 App
-        IconButton(
-          onPressed: onExit, tooltip: tr('断开并退出', 'Disconnect & exit'),
-          icon: Icon(Icons.power_settings_new_rounded, size: 20, color: Colors.white.withOpacity(0.55))),
       ]),
     );
   }
@@ -487,53 +438,6 @@ class _NodeCard extends StatelessWidget {
         ]),
       ),
     );
-  }
-}
-
-// ── 快捷入口宫格 ─────────────────────────────────────────────────
-class _QuickMenu extends StatelessWidget {
-  final VoidCallback onNodes;
-  const _QuickMenu({required this.onNodes});
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(tr('快捷', 'Quick').toUpperCase(),
-          style: TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.4))),
-        const SizedBox(height: 12),
-        Row(children: [
-          _QuickItem(icon: Icons.dns_rounded, label: tr('节点', 'Nodes'), onTap: onNodes),
-          _QuickItem(icon: Icons.workspace_premium_rounded, label: tr('会员', 'VIP'), highlight: true, onTap: () => context.push('/vip')),
-          _QuickItem(icon: Icons.settings_rounded, label: tr('设置', 'Settings'), onTap: () => context.push('/settings')),
-          _QuickItem(icon: Icons.help_outline_rounded, label: tr('帮助', 'Help'), onTap: () => context.push('/help')),
-        ]),
-      ]),
-    );
-  }
-}
-
-class _QuickItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool highlight;
-  final VoidCallback onTap;
-  const _QuickItem({required this.icon, required this.label, this.highlight = false, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(child: GestureDetector(
-      onTap: onTap,
-      child: Column(children: [
-        Container(width: 50, height: 50, alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: highlight ? kBrand.withOpacity(0.15) : Colors.white.withOpacity(0.04),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: highlight ? kBrand.withOpacity(0.3) : Colors.white.withOpacity(0.05))),
-          child: Icon(icon, size: 21, color: highlight ? kBrand : Colors.white.withOpacity(0.85))),
-        const SizedBox(height: 7),
-        Text(label, style: TextStyle(fontSize: 11, color: highlight ? kBrand : Colors.white.withOpacity(0.6))),
-      ]),
-    ));
   }
 }
 
