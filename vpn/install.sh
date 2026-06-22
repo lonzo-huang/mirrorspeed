@@ -378,6 +378,21 @@ bash scripts/register-server.sh \\
 
 REGINFO
 
+cat <<'RLINFO'
+
+─────────────────────────────────────────────────────────────────
+⚠ 注册到 Portal 之后，请激活限速同步（务必）
+─────────────────────────────────────────────────────────────────
+限速同步脚本要凭本机 api_secret 调 Portal 接口，注册前 Portal 不认它，
+首次 ms-ratelimit.service 会失败（属正常）。注册成功后在本机执行一次：
+
+  systemctl start ms-ratelimit.service
+  journalctl -u ms-ratelimit.service -n 5 --no-pager   # 应显示 free_ips/paid_ips 数量，不再报错
+
+此后由 ms-ratelimit.timer 每 60s 自动同步，无需再手动。
+─────────────────────────────────────────────────────────────────
+RLINFO
+
 cat <<'OPTINFO'
 
 ─────────────────────────────────────────────────────────────────
