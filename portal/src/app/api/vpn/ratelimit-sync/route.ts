@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
-export const dynamic = 'force-dynamic'
-export const runtime  = 'nodejs'
+export const dynamic     = 'force-dynamic'
+export const runtime     = 'nodejs'
+export const revalidate  = 0
+// 禁用对内层 supabase fetch 的缓存：否则某 secret 在"该节点尚未注册"时段查到的
+// 空结果会被 Next Data Cache 缓存，节点注册后仍返回陈旧空结果 → 误报 Unknown api_secret。
+export const fetchCache  = 'force-no-store'
 
 // GET /api/vpn/ratelimit-sync
 //
