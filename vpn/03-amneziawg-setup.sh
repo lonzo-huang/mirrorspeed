@@ -78,7 +78,10 @@ else
     # 用 HTTPS 抓取 PPA 签名公钥并 dearmor 到 keyring。
     # 不用 gpg --recv-keys：全新机器上 /root/.gnupg 未初始化、dirmngr 未就绪会失败。
     # 0x4166F2C257290828 = Launchpad PPA for amnezia 的签名密钥。
-    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x4166F2C257290828" \
+    # options=mr 返回纯 armored 公钥（无此参数会返回 HTML 包装，dearmor 出来无效 → NO_PUBKEY）。
+    # 先删旧文件，避免 gpg --dearmor 对已存在文件弹交互式 Overwrite 提示。
+    rm -f /usr/share/keyrings/amnezia-ppa.gpg
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0x4166F2C257290828" \
         | gpg --dearmor -o /usr/share/keyrings/amnezia-ppa.gpg
     echo "deb [signed-by=/usr/share/keyrings/amnezia-ppa.gpg] https://ppa.launchpadcontent.net/amnezia/ppa/ubuntu focal main" \
         > /etc/apt/sources.list.d/amnezia.list
