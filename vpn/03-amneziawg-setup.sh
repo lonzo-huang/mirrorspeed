@@ -30,8 +30,10 @@ KERNEL_VER=$(uname -r)
 # 例如旧内核 5.15.0-58 报 "linux-headers-... is not supported"。此时必须先重启。
 # 如确需跳过此检查：SKIP_KERNEL_CHECK=1 bash install.sh
 if [[ "${SKIP_KERNEL_CHECK:-0}" != "1" ]]; then
-    NEWEST_KERNEL=$(dpkg-query -W -f='${Package}\n' 'linux-image-[0-9]*-generic' 2>/dev/null \
-        | sed 's/^linux-image-//' | sort -V | tail -1)
+    # 匹配 Ubuntu(-generic) 与 Debian(-amd64/-arm64，含 -unsigned 后缀)两种命名；
+    # 末尾 || true 避免无匹配时在 set -e + pipefail 下静默中断。
+    NEWEST_KERNEL=$(dpkg-query -W -f='${Package}\n' 'linux-image-[0-9]*' 2>/dev/null \
+        | sed -e 's/^linux-image-//' -e 's/-unsigned$//' | grep -E '^[0-9]' | sort -V | tail -1 || true)
     if [[ -n "${NEWEST_KERNEL}" && "${NEWEST_KERNEL}" != "${KERNEL_VER}" ]]; then
         echo ""
         echo "  ⚠ 内核未运行在最新版本，AmneziaWG 内核模块会编译失败："
