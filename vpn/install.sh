@@ -126,8 +126,10 @@ done
 # 内核一致性检查（提前拦截：避免白跑 Nginx/证书后才在第 3 步 DKMS 编译失败）
 # 运行内核 ≠ 已装最新内核时，AmneziaWG 模块给旧内核编译常失败，必须先重启。
 if [[ "${SKIP_KERNEL_CHECK:-0}" != "1" ]]; then
-    NEWEST_KERNEL=$(dpkg-query -W -f='${Package}\n' 'linux-image-[0-9]*-generic' 2>/dev/null \
-        | sed 's/^linux-image-//' | sort -V | tail -1)
+    # 匹配 Ubuntu(linux-image-x-generic) 与 Debian(linux-image-x-amd64/arm64) 两种命名。
+    # 末尾 `|| true`：无匹配时 dpkg-query 返回非零，避免在 set -e + pipefail 下静默中断。
+    NEWEST_KERNEL=$(dpkg-query -W -f='${Package}\n' 'linux-image-[0-9]*' 2>/dev/null \
+        | sed 's/^linux-image-//' | grep -E '^[0-9]' | sort -V | tail -1 || true)
     RUNNING_KERNEL=$(uname -r)
     if [[ -n "${NEWEST_KERNEL}" && "${NEWEST_KERNEL}" != "${RUNNING_KERNEL}" ]]; then
         err "内核未运行在最新版本，AmneziaWG 内核模块会编译失败："
