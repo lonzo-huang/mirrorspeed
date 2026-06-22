@@ -128,8 +128,10 @@ done
 if [[ "${SKIP_KERNEL_CHECK:-0}" != "1" ]]; then
     # 匹配 Ubuntu(linux-image-x-generic) 与 Debian(linux-image-x-amd64/arm64) 两种命名。
     # 末尾 `|| true`：无匹配时 dpkg-query 返回非零，避免在 set -e + pipefail 下静默中断。
+    # 归一化：Debian 镜像包名带 -unsigned 后缀（如 6.1.0-49-amd64-unsigned），
+    # 但 uname -r 不含该后缀；不去掉会误判"内核不一致"。
     NEWEST_KERNEL=$(dpkg-query -W -f='${Package}\n' 'linux-image-[0-9]*' 2>/dev/null \
-        | sed 's/^linux-image-//' | grep -E '^[0-9]' | sort -V | tail -1 || true)
+        | sed -e 's/^linux-image-//' -e 's/-unsigned$//' | grep -E '^[0-9]' | sort -V | tail -1 || true)
     RUNNING_KERNEL=$(uname -r)
     if [[ -n "${NEWEST_KERNEL}" && "${NEWEST_KERNEL}" != "${RUNNING_KERNEL}" ]]; then
         err "内核未运行在最新版本，AmneziaWG 内核模块会编译失败："
