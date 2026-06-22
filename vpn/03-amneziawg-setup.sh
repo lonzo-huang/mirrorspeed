@@ -73,11 +73,13 @@ else
     # PPA 里是 DKMS 包，会用本机内核头文件现场编译，所以在 Debian 上同样可用。
     # （该 GitHub 仓库无预编译 release，不能直接下 .deb。）
     echo "  检测到 Debian：添加 Amnezia PPA(focal) 并安装 amneziawg（DKMS 本地编译）..."
-    apt-get install -y --no-install-recommends gnupg ca-certificates
+    apt-get install -y --no-install-recommends gnupg ca-certificates curl
     install -d -m 0755 /usr/share/keyrings
-    # 导入 PPA 签名公钥到独立 keyring（替代已弃用的 apt-key）
-    gpg --no-default-keyring --keyring /usr/share/keyrings/amnezia-ppa.gpg \
-        --keyserver keyserver.ubuntu.com --recv-keys 57290828
+    # 用 HTTPS 抓取 PPA 签名公钥并 dearmor 到 keyring。
+    # 不用 gpg --recv-keys：全新机器上 /root/.gnupg 未初始化、dirmngr 未就绪会失败。
+    # 0x4166F2C257290828 = Launchpad PPA for amnezia 的签名密钥。
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x4166F2C257290828" \
+        | gpg --dearmor -o /usr/share/keyrings/amnezia-ppa.gpg
     echo "deb [signed-by=/usr/share/keyrings/amnezia-ppa.gpg] https://ppa.launchpadcontent.net/amnezia/ppa/ubuntu focal main" \
         > /etc/apt/sources.list.d/amnezia.list
     apt-get update -qq
