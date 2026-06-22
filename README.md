@@ -229,6 +229,21 @@ sudo DOMAIN="jp01.yourdomain.com" \
 - `VPN_API_SECRET` 不传会**自动生成**（每台服务器独立，结尾会打印，注册时写入 DB）。
 - 安装结束会输出一段 **`INSERT INTO public.vpn_servers ...` SQL** 和一条 `register-server.sh` 命令——含**公钥、port_secret、AWG 混淆参数**，下一步直接用。
 
+> **操作系统兼容性（Ubuntu 22.04/24.04 · Debian 12）**
+> - 脚本自动识别发行版安装 AmneziaWG：**Ubuntu** 用 Amnezia PPA；**Debian** 也加同一 Launchpad PPA(focal) 装 DKMS 包，用本机内核头文件**现场编译**（该上游仓库无预编译 release，不要走"下 .deb"的老思路）。
+> - **DKMS 要求"正在运行的内核"与已装内核头文件一致**。云镜像常预装了更新内核但仍跑旧内核 → 装前务必先升级内核并**重启**，否则模块编译失败：
+>   ```bash
+>   apt-get update
+>   apt-get install -y linux-image-amd64 linux-headers-amd64   # Ubuntu 用 linux-headers-$(uname -r)
+>   reboot
+>   ```
+>   `install.sh` 的前置内核检查会主动拦截"内核未运行在最新版本"的情况并提示重启（已兼容 Debian 的 `-amd64`/`-unsigned` 命名）。
+> - 装完**注册到 Portal 之后**，需在该机执行一次激活限速同步（注册前 Portal 不认本机 api_secret，首次会失败，属正常）：
+>   ```bash
+>   systemctl start ms-ratelimit.service
+>   journalctl -u ms-ratelimit.service -n 3 --no-pager   # 看到 free_ips/paid_ips 数量即 OK
+>   ```
+
 > **方式二：Docker Compose**（适合快速复制，少定制）：
 > ```bash
 > cd vpn/docker
@@ -509,6 +524,22 @@ curl -H "Authorization: Bearer <CRON_SECRET>" \
 
 ### 订阅管理
 通过 Stripe Dashboard 管理，Portal 通过 Webhook 自动同步到 `subscriptions` 表。
+
+### 交接 / 转售服务器前的清理
+运行时**完全不依赖 git 源码**（安装时已把所需文件复制到系统位置）。要隐藏源码：
+```bash
+cd /opt/mirrorspeed
+# 保留运行时 vpn-api/，删掉全部源码与仓库历史
+rm -rf .git portal client docs vpn icon scripts *.md .gitignore .claude
+systemctl is-active vpn-api awg-quick@awg0 wstunnel nginx nftables   # 验证仍正常
+```
+保留：`/opt/mirrorspeed/vpn-api/`（systemd 服务指向它）。运行时其余在
+`/usr/local/bin`、`/etc/wireguard`、`/etc/amnezia`、`/etc/nginx`、`/etc/systemd/system`。
+
+> ⚠️ **删代码 ≠ 藏密钥**：对方有 root 仍能读 `/opt/mirrorspeed/vpn-api/.env`、
+> `/etc/wireguard/.port-secret`、`/etc/mirrorspeed/ratelimit.env`。**交给不信任的人时应直接停用该节点**
+> （Portal 删节点 + 轮换密钥），否则对方可冒充该节点、推算端口、读取用户 peer。
+> 顺手清历史：`cat /dev/null > ~/.bash_history && history -c`。
 
 ---
 
