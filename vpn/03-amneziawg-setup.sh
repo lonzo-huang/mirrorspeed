@@ -51,9 +51,12 @@ fi
 apt-get update -qq
 apt-get install -y --no-install-recommends \
     build-essential dkms iptables iproute2 curl ca-certificates
-# 内核头文件：优先装精确匹配版本，不可用则回退 generic 元包（避免整脚本 set -e 中断）
+# 内核头文件：优先装精确匹配版本；回退到发行版元包
+#   - Ubuntu: linux-headers-generic
+#   - Debian: linux-headers-<arch>（如 linux-headers-amd64 / linux-headers-arm64）
 apt-get install -y "linux-headers-${KERNEL_VER}" 2>/dev/null \
-    || apt-get install -y linux-headers-generic
+    || apt-get install -y linux-headers-generic 2>/dev/null \
+    || apt-get install -y "linux-headers-$(dpkg --print-architecture)"
 
 if [[ "${OS_ID}" == "ubuntu" ]]; then
     echo "  检测到 Ubuntu，使用 Amnezia PPA..."
