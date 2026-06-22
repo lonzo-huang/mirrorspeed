@@ -69,26 +69,19 @@ if [[ "${OS_ID}" == "ubuntu" ]]; then
     apt-get update -qq
     apt-get install -y amneziawg
 else
-    echo "  检测到 Debian，从 GitHub Releases 解析并下载预编译包..."
-    ARCH=$(dpkg --print-architecture)
-    API="https://api.github.com/repos/amnezia-vpn/amneziawg-linux-kernel-module/releases/latest"
-    # 直接解析真实的 browser_download_url，避免按版本号拼文件名导致 404
-    # （仓库 tag 版本号与 .deb 文件名常不一致）。
-    ASSETS=$(curl -fsSL "${API}" 2>/dev/null | grep '"browser_download_url"' | cut -d'"' -f4 || true)
-    DKMS_URL=$(echo "${ASSETS}"  | grep -E 'amneziawg-dkms_.*_all\.deb$'        | head -1 || true)
-    TOOLS_URL=$(echo "${ASSETS}" | grep -E "amneziawg-tools_.*_${ARCH}\.deb$"   | head -1 || true)
-    if [[ -z "${DKMS_URL}" || -z "${TOOLS_URL}" ]]; then
-        echo "ERROR: 无法从 GitHub Releases 解析 .deb 资源 URL（可能网络/限流/资源命名变化）"
-        echo "  解析到的资源列表："
-        echo "${ASSETS:-（空）}"
-        exit 1
-    fi
-    echo "  DKMS:  ${DKMS_URL}"
-    echo "  TOOLS: ${TOOLS_URL}"
-    curl -fsSL "${DKMS_URL}"  -o /tmp/awg-dkms.deb
-    curl -fsSL "${TOOLS_URL}" -o /tmp/awg-tools.deb
-    dpkg -i /tmp/awg-dkms.deb /tmp/awg-tools.deb || apt-get install -f -y
-    rm -f /tmp/awg-dkms.deb /tmp/awg-tools.deb
+    # 官方 Debian 方式：加 Amnezia 的 Launchpad PPA(focal)，安装 amneziawg。
+    # PPA 里是 DKMS 包，会用本机内核头文件现场编译，所以在 Debian 上同样可用。
+    # （该 GitHub 仓库无预编译 release，不能直接下 .deb。）
+    echo "  检测到 Debian：添加 Amnezia PPA(focal) 并安装 amneziawg（DKMS 本地编译）..."
+    apt-get install -y --no-install-recommends gnupg ca-certificates
+    install -d -m 0755 /usr/share/keyrings
+    # 导入 PPA 签名公钥到独立 keyring（替代已弃用的 apt-key）
+    gpg --no-default-keyring --keyring /usr/share/keyrings/amnezia-ppa.gpg \
+        --keyserver keyserver.ubuntu.com --recv-keys 57290828
+    echo "deb [signed-by=/usr/share/keyrings/amnezia-ppa.gpg] https://ppa.launchpadcontent.net/amnezia/ppa/ubuntu focal main" \
+        > /etc/apt/sources.list.d/amnezia.list
+    apt-get update -qq
+    apt-get install -y amneziawg
 fi
 
 # 验证工具可用
