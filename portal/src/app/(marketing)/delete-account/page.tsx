@@ -63,7 +63,7 @@ export default function DeleteAccountPage() {
             </h2>
             <ul className="list-disc list-inside space-y-2 text-sm text-foreground/80 leading-relaxed">
               <li>{isZh ? '你的账号与登录信息（邮箱地址）' : 'Your account and sign-in information (email address)'}</li>
-              <li>{isZh ? '设备元数据与 VPN 配置（WireGuard 密钥、设备标签）' : 'Device metadata and VPN configuration (WireGuard keys, device labels)'}</li>
+              <li>{isZh ? '设备元数据与 VPN 配置（MirrorSpeed 密钥、设备标签）' : 'Device metadata and VPN configuration (MirrorSpeed keys, device labels)'}</li>
               <li>{isZh ? '邀请码、奖励时长等与账号关联的记录' : 'Referral codes, bonus time, and other account-linked records'}</li>
             </ul>
             <p className="text-sm text-foreground/80 leading-relaxed mt-3">

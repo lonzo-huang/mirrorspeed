@@ -35,7 +35,7 @@ export function SiteFooter() {
       </div>
       <div className="max-w-6xl mx-auto mt-16 pt-8 border-t border-white/5 text-[10px] text-muted-foreground uppercase tracking-widest font-mono flex justify-between">
         <span>© 2026 Mirror Group International</span>
-        <span>Protocol: Mirror v2.4 · WireGuard</span>
+        <span>Protocol: MirrorSpeed Engine v2.4</span>
       </div>
     </footer>
   );

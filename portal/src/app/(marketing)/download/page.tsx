@@ -244,6 +244,22 @@ export default function DownloadPage() {
               </div>
             ))}
           </div>
+
+          <div className="border-t border-white/10 my-14" />
+
+          {/* ── Custom private server (individual quote) ──────────── */}
+          <div className="glass-panel rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold mb-1">{dl.customTitle}</h2>
+              <p className="text-sm text-muted-foreground max-w-xl">{dl.customDesc}</p>
+            </div>
+            <a
+              href="mailto:mirrorspeed@mirrorquant.com?subject=Custom%20Private%20Server"
+              className="shrink-0 text-sm font-bold bg-primary text-primary-foreground px-5 py-2.5 rounded-lg hover:bg-mirror transition-colors text-center whitespace-nowrap"
+            >
+              {dl.customCta}
+            </a>
+          </div>
         </div>
       </main>
       <SiteFooter />

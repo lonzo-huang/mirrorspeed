@@ -8,7 +8,7 @@ const CONTACT = 'mirrorspeed@mirrorquant.com'
 
 const SECTIONS_EN = [
   { h: "1. Information We Collect", p: "We collect only the minimum information necessary to provide the Service: your email address (for authentication), payment information processed by Stripe (we never see your full card details), and basic device metadata (OS type, device label) required to provision your VPN configuration. We do not collect browsing history, DNS queries, IP addresses, traffic destinations, or connection timestamps." },
-  { h: "2. How We Use Your Information", p: "Your email is used solely for authentication, transactional emails (subscription confirmation, renewal reminders), and customer support. Payment data is processed by Stripe under their Privacy Policy. Device metadata is used to generate your WireGuard configuration and enforce device limits." },
+  { h: "2. How We Use Your Information", p: "Your email is used solely for authentication, transactional emails (subscription confirmation, renewal reminders), and customer support. Payment data is processed by Stripe under their Privacy Policy. Device metadata is used to generate your MirrorSpeed configuration and enforce device limits." },
   { h: "3. No-Logs VPN Policy", p: "MirrorSpeed operates a strict no-logs policy for VPN traffic. We do not record, monitor, or store: the websites you visit, the content of your communications, your real IP address while connected, DNS queries made through the VPN, or connection timestamps. This policy has been independently audited." },
   { h: "4. Data Sharing", p: "We do not sell, rent, or trade your personal data to any third parties. We share data only with: Stripe (payment processing), Supabase (database infrastructure, subject to their DPA), Brevo (transactional email delivery), and Vercel (hosting infrastructure). All sub-processors are GDPR-compliant." },
   { h: "5. Data Retention", p: "Account data is retained for the duration of your account and deleted within 30 days of account closure upon request. Payment records are retained for 7 years as required by financial regulations. VPN configuration data is deleted immediately upon device removal." },
@@ -22,7 +22,7 @@ const SECTIONS_EN = [
 
 const SECTIONS_ZH = [
   { h: "1. 我们收集的信息", p: "我们仅收集提供服务所需的最少信息：您的电子邮件地址（用于身份验证）、Stripe 处理的付款信息（我们从不看到您的完整卡片详情），以及提供 VPN 配置所需的基本设备元数据（操作系统类型、设备标签）。我们不收集浏览历史、DNS 查询、IP 地址、流量目的地或连接时间戳。" },
-  { h: "2. 我们如何使用您的信息", p: "您的电子邮件仅用于身份验证、交易性邮件（订阅确认、续费提醒）和客户支持。付款数据由 Stripe 根据其隐私政策处理。设备元数据用于生成您的 WireGuard 配置并执行设备限制。" },
+  { h: "2. 我们如何使用您的信息", p: "您的电子邮件仅用于身份验证、交易性邮件（订阅确认、续费提醒）和客户支持。付款数据由 Stripe 根据其隐私政策处理。设备元数据用于生成您的 MirrorSpeed 配置并执行设备限制。" },
   { h: "3. VPN 零日志政策", p: "MirrorSpeed 对 VPN 流量执行严格的零日志政策。我们不记录、监控或存储：您访问的网站、您的通信内容、您连接时的真实 IP 地址、通过 VPN 进行的 DNS 查询或连接时间戳。此政策已经过独立审计。" },
   { h: "4. 数据共享", p: "我们不向任何第三方出售、出租或交易您的个人数据。我们仅与以下方共享数据：Stripe（付款处理）、Supabase（数据库基础设施，受其 DPA 约束）、Brevo（交易性电子邮件投递）和 Vercel（托管基础设施）。所有子处理器均符合 GDPR。" },
   { h: "5. 数据保留", p: "账户数据在您账户存续期间保留，应要求在账户关闭后 30 天内删除。付款记录根据财务法规保留 7 年。VPN 配置数据在设备移除后立即删除。" },

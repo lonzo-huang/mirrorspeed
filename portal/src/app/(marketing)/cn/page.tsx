@@ -55,8 +55,8 @@ const FEATURES = [
   },
   {
     Icon: Shield,
-    title: 'WireGuard 加密',
-    desc: '新一代 WireGuard 协议，比传统 OpenVPN 快 3 倍，加密强度全球顶级，代码量极小、安全性极高。',
+    title: '镜速自研加密引擎',
+    desc: '镜速自研加速引擎，比传统 OpenVPN 快 3 倍，加密强度全球顶级，连接更快、更稳、更安全。',
   },
   {
     Icon: Wifi,

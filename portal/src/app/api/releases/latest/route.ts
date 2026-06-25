@@ -28,6 +28,8 @@ export interface LatestRelease {
 
 function detectPlatform(name: string): ReleaseAsset['platform'] {
   const n = name.toLowerCase()
+  // .aab 仅供 Google Play，不对外下载；文件名含 'android' 会被误判为 android，需先排除。
+  if (n.endsWith('.aab'))                                                                    return 'other'
   if (n.includes('android') || n.endsWith('.apk'))                                          return 'android'
   if (n.includes('windows') || n.endsWith('.zip') || n.endsWith('.exe') || n.endsWith('.msix')) return 'windows'
   if (n.includes('ios')     || n.endsWith('.ipa'))                                          return 'ios'
