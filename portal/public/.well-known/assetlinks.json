@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.mirrorspeed.vpn",
+      "sha256_cert_fingerprints": [
+        "36:F7:0E:B2:44:22:12:16:F2:29:F1:87:FD:54:85:31:21:4F:38:4C:24:64:FB:B6:0A:AC:A8:2F:D9:4D:81:F8"
+      ]
+    }
+  }
+]
