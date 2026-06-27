@@ -118,9 +118,15 @@ for port in 80 443; do
     fi
 done
 
+# 精简镜像常缺 curl/ca-certificates，先尝试自动安装（需 DNS 正常）
+if ! command -v curl &>/dev/null; then
+    warn "未检测到 curl，尝试自动安装..."
+    apt-get update -qq 2>/dev/null && apt-get install -y -qq curl ca-certificates 2>/dev/null || true
+fi
+
 # 检查必要工具
 for cmd in curl ip systemctl awk; do
-    command -v "${cmd}" &>/dev/null || { err "缺少命令: ${cmd}"; exit 1; }
+    command -v "${cmd}" &>/dev/null || { err "缺少命令: ${cmd}（请先 apt-get install -y ${cmd}；若解析失败先修 /etc/resolv.conf DNS）"; exit 1; }
 done
 
 # 内核一致性检查（提前拦截：避免白跑 Nginx/证书后才在第 3 步 DKMS 编译失败）
