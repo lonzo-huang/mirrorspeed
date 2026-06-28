@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { SiteNav } from '@/components/site/SiteNav'
-import { SiteFooter } from '@/components/site/SiteFooter'
+import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n } from '@/lib/i18n'
 import type { LatestRelease, ReleaseAsset } from '@/app/api/releases/latest/route'
 
@@ -90,9 +89,8 @@ export default function DownloadPage() {
       ]
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SiteNav />
-      <main className="px-6 pt-16 pb-24">
+    <LandingChrome forcedLang={isChinese ? 'zh' : 'en'}>
+      <main className="px-6 pb-24">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
             <h1 className="text-5xl font-bold tracking-tighter mb-3">{dl.title}</h1>
@@ -262,7 +260,6 @@ export default function DownloadPage() {
           </div>
         </div>
       </main>
-      <SiteFooter />
-    </div>
+    </LandingChrome>
   )
 }

@@ -178,3 +178,16 @@
     50% { stroke-opacity: 0.8; }
 }
 .circuit-pulse { animation: circuit-pulse 3s ease-in-out infinite; }
+
+/* 内容页（下载/隐私/服务条款）复用落地页外壳时，把它们现有的 shadcn/glass-panel
+ * 类桥接到落地页的深色玻璃风，实现全站统一外观，无需逐页重写 markup。 */
+.ms-landing .glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
+}
+.ms-landing .bg-background { background: transparent !important; }
+.ms-landing h1, .ms-landing h2, .ms-landing h3 { font-family: 'Unbounded', sans-serif; }
+
