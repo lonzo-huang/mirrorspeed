@@ -689,6 +689,9 @@ const FinalCTA = () => {
 // ============ Footer ============
 const Footer = () => {
   const t = useT();
+  const { lang } = useApp();
+  // 部分页面（下载/条款/Cookie/免责/帮助/博客）暂无对应 i18n key，用 zh/en 兜底文案。
+  const L = (zh, en) => (lang === "zh" ? zh : en);
   return (
     <footer className="relative pt-20 pb-10 border-t border-app-subtle overflow-hidden" data-testid="main-footer">
       <div className="absolute inset-x-0 bottom-0 flex justify-center pointer-events-none overflow-hidden">
@@ -696,7 +699,7 @@ const Footer = () => {
       </div>
       <div className="relative max-w-6xl mx-auto px-6 sm:px-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
-          <div className="col-span-2">
+          <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <img src="/icon-192.png" alt="MirrorSpeed" className="h-8 w-8 rounded-lg" />
               <span className="font-heading font-bold text-lg text-app-primary">MirrorSpeed</span>
@@ -706,19 +709,30 @@ const Footer = () => {
           <div>
             <h4 className="font-mono text-[10px] uppercase tracking-widest text-app-muted mb-4">{t("ft_product")}</h4>
             <ul className="space-y-2.5 text-sm text-app-secondary">
-              <li><a href="#features" className="hover:text-app-primary">{t("nav_features")}</a></li>
-              <li><a href="#network" className="hover:text-app-primary">{t("nav_network")}</a></li>
-              <li><a href="#pricing" className="hover:text-app-primary">{t("nav_pricing")}</a></li>
-              <li><a href="#faq" className="hover:text-app-primary">{t("nav_faq")}</a></li>
+              <li><a href="/#features" className="hover:text-app-primary">{t("nav_features")}</a></li>
+              <li><a href="/#network" className="hover:text-app-primary">{t("nav_network")}</a></li>
+              <li><a href="/#pricing" className="hover:text-app-primary">{t("nav_pricing")}</a></li>
+              <li><a href="/download" className="hover:text-app-primary">{L("下载", "Download")}</a></li>
+              <li><a href="/#faq" className="hover:text-app-primary">{t("nav_faq")}</a></li>
             </ul>
           </div>
           <div>
             <h4 className="font-mono text-[10px] uppercase tracking-widest text-app-muted mb-4">{t("ft_company")}</h4>
             <ul className="space-y-2.5 text-sm text-app-secondary">
-              <li><a href="https://mirrorspeed.com/servers" className="hover:text-app-primary">{t("ft_servers")}</a></li>
-              <li><a href="https://mirrorspeed.com/login" className="hover:text-app-primary">{t("nav_signin")}</a></li>
-              <li><a href="mailto:support@mirrorspeed.com" className="hover:text-app-primary">{t("ft_support")}</a></li>
-              <li><a href="#" className="hover:text-app-primary">{t("ft_privacy")}</a></li>
+              <li><a href="/servers" className="hover:text-app-primary">{t("ft_servers")}</a></li>
+              <li><a href="/blog" className="hover:text-app-primary">{L("博客", "Blog")}</a></li>
+              <li><a href="/help" className="hover:text-app-primary">{L("帮助中心", "Help")}</a></li>
+              <li><a href="/support" className="hover:text-app-primary">{t("ft_support")}</a></li>
+              <li><a href="/login" className="hover:text-app-primary">{t("nav_signin")}</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-mono text-[10px] uppercase tracking-widest text-app-muted mb-4">{L("法律", "Legal")}</h4>
+            <ul className="space-y-2.5 text-sm text-app-secondary">
+              <li><a href="/privacy" className="hover:text-app-primary">{t("ft_privacy")}</a></li>
+              <li><a href="/terms" className="hover:text-app-primary">{L("服务条款", "Terms")}</a></li>
+              <li><a href="/cookies" className="hover:text-app-primary">{L("Cookie 政策", "Cookies")}</a></li>
+              <li><a href="/disclaimer" className="hover:text-app-primary">{L("免责声明", "Disclaimer")}</a></li>
             </ul>
           </div>
         </div>
