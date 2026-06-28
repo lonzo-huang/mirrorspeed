@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { Loader2, Shield } from 'lucide-react'
-import { SiteNav } from '@/components/site/SiteNav'
-import { SiteFooter } from '@/components/site/SiteFooter'
+import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n } from '@/lib/i18n'
 
 const PLAN_KEYS = ['yearly', 'biennial', 'monthly', 'quarterly'] as const
@@ -41,13 +40,15 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SiteNav />
-      <main className="px-6 pt-16 pb-24">
+    <LandingChrome forcedLang={lang === 'zh' ? 'zh' : 'en'}>
+      <main className="px-6 pb-24">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
-            <h1 className="text-5xl font-bold tracking-tighter mb-3">{t.pricing.title}</h1>
-            <p className="text-muted-foreground">{t.pricing.sub}</p>
+            <span className="font-mono text-xs text-accent-cyan tracking-widest uppercase mb-3 inline-block">// Pricing</span>
+            <h1 className="font-heading text-5xl sm:text-6xl font-black tracking-tighter mb-3">
+              <span className="text-gradient-cyan">{t.pricing.title}</span>
+            </h1>
+            <p className="text-app-secondary text-lg">{t.pricing.sub}</p>
           </div>
 
           {error && (
@@ -117,15 +118,14 @@ export default function PricingPage() {
             })}
           </div>
 
-          <p className="text-center mt-8 text-sm text-muted-foreground flex items-center justify-center gap-2">
-            <Shield className="w-4 h-4 text-mirror" />
+          <p className="text-center mt-8 text-sm text-app-muted flex items-center justify-center gap-2">
+            <Shield className="w-4 h-4 text-accent-cyan" />
             {lang === 'zh'
               ? '7天无理由退款 · Stripe 安全支付 · 随时取消'
               : '7-day money-back guarantee · Secure payment via Stripe · Cancel anytime'}
           </p>
         </div>
       </main>
-      <SiteFooter />
-    </div>
+    </LandingChrome>
   )
 }

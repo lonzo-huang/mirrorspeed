@@ -57,23 +57,25 @@ export default function AdminDashboard() {
   const totalFast = servers.reduce((s, sv) => s + (sv.summary?.fast ?? 0), 0)
 
   return (
-    <div className="min-h-screen bg-background text-foreground px-5 py-8 md:px-10">
-      <div className="mx-auto max-w-5xl">
+    <div className="ms-landing min-h-screen bg-app text-app-primary px-5 py-8 md:px-10 relative overflow-hidden">
+      <div className="absolute inset-0 grid-bg opacity-20 pointer-events-none" />
+      <div className="absolute -top-32 right-1/4 h-96 w-96 rounded-full pointer-events-none" style={{ background: 'var(--accent-cyan-glow)', filter: 'blur(140px)', opacity: 0.15 }} />
+      <div className="relative mx-auto max-w-5xl">
         <header className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">VPN 服务器管理后台</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="font-heading text-3xl font-black tracking-tighter"><span className="text-gradient-cyan">VPN 服务器管理后台</span></h1>
+            <p className="text-sm text-app-muted">
               {servers.length} 台节点 · 在线 {totalOnline} · 快速 {totalFast}
               {totalOnline > 0 && `（${Math.round(totalFast / totalOnline * 100)}%）`}
               {fetchedAt && ` · 更新于 ${fetchedAt}（每 30 分钟自动刷新）`}
             </p>
           </div>
           <button onClick={load}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">刷新</button>
+            className="rounded-lg px-4 py-2 text-sm font-semibold rounded-xl glow-cyan hover:scale-[1.02] transition-transform">刷新</button>
         </header>
 
         {err && <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">加载失败：{err}</div>}
-        {loading && <div className="text-muted-foreground">加载中…</div>}
+        {loading && <div className="text-app-muted">加载中…</div>}
 
         <div className="space-y-6">
           {servers.map(sv => (
@@ -82,8 +84,8 @@ export default function AdminDashboard() {
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{sv.flag_emoji || '🌐'}</span>
                   <div>
-                    <div className="font-semibold">{sv.display_name} <span className="text-xs text-muted-foreground">({sv.name})</span></div>
-                    <div className="font-mono text-xs text-muted-foreground">{sv.endpoint}</div>
+                    <div className="font-semibold">{sv.display_name} <span className="text-xs text-app-muted">({sv.name})</span></div>
+                    <div className="font-mono text-xs text-app-muted">{sv.endpoint}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -115,7 +117,7 @@ export default function AdminDashboard() {
               {sv.peers.length > 0 ? (
                 <div className="overflow-x-auto rounded-xl ring-1 ring-white/5">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-white/5 text-muted-foreground">
+                    <thead className="bg-white/5 text-app-muted">
                       <tr>
                         <th className="px-3 py-2 font-medium">状态</th>
                         <th className="px-3 py-2 font-medium">模式</th>
@@ -136,10 +138,10 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-3 py-2 font-mono">{p.vpn_ip}</td>
                           <td className="px-3 py-2">{p.email}</td>
-                          <td className="px-3 py-2 font-mono text-muted-foreground">{p.device_id}</td>
+                          <td className="px-3 py-2 font-mono text-app-muted">{p.device_id}</td>
                           <td className="px-3 py-2">
                             <span className={
-                              p.tier === '付费' ? 'text-emerald-300' : p.tier === '超级' ? 'text-[var(--gold,#E8C766)]' : 'text-muted-foreground'
+                              p.tier === '付费' ? 'text-emerald-300' : p.tier === '超级' ? 'text-[var(--gold,#E8C766)]' : 'text-app-muted'
                             }>{p.tier}</span>
                           </td>
                         </tr>
@@ -148,7 +150,7 @@ export default function AdminDashboard() {
                   </table>
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground">无 peer{sv.online ? '' : '（服务器离线，无法读取）'}</div>
+                <div className="text-xs text-app-muted">无 peer{sv.online ? '' : '（服务器离线，无法读取）'}</div>
               )}
             </section>
           ))}
@@ -161,7 +163,7 @@ export default function AdminDashboard() {
 function Stat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div className="rounded-xl bg-white/5 px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-[10px] uppercase tracking-wide text-app-muted">{label}</div>
       <div className={`font-mono text-sm font-semibold ${warn ? 'text-amber-400' : ''}`}>{value}</div>
     </div>
   )

@@ -1,7 +1,6 @@
 import { notFound }  from 'next/navigation'
 import Link           from 'next/link'
-import { SiteNav }    from '@/components/site/SiteNav'
-import { SiteFooter } from '@/components/site/SiteFooter'
+import { LandingChrome } from '@/components/landing/LandingPage'
 import type { Metadata } from 'next'
 
 interface Post {
@@ -65,7 +64,7 @@ function renderContent(content: string) {
   }
   // Otherwise render as plain pre-formatted text
   return (
-    <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">
+    <div className="text-sm text-app-secondary leading-relaxed whitespace-pre-wrap">
       {content}
     </div>
   )
@@ -76,13 +75,12 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
   if (!post) notFound()
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SiteNav />
-      <main className="px-6 pt-16 pb-24">
+    <LandingChrome>
+      <main className="px-6 pb-24">
         <article className="max-w-3xl mx-auto">
 
           {/* Back link */}
-          <Link href="/blog" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-8">
+          <Link href="/blog" className="inline-flex items-center gap-1.5 text-sm text-app-muted hover:text-accent-cyan transition-colors mb-8">
             ← Blog
           </Link>
 
@@ -90,7 +88,7 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
           {post.tags.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-4">
               {post.tags.map(tag => (
-                <span key={tag} className="text-[10px] font-bold uppercase tracking-widest text-mirror bg-mirror/10 rounded-full px-2.5 py-0.5">
+                <span key={tag} className="text-[10px] font-bold uppercase tracking-widest text-accent-cyan bg-[var(--accent-cyan-glow)] rounded-full px-2.5 py-0.5">
                   {tag}
                 </span>
               ))}
@@ -98,10 +96,12 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
           )}
 
           {/* Title */}
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tighter mb-4">{post.title}</h1>
+          <h1 className="font-heading text-3xl md:text-5xl font-black tracking-tighter mb-4">
+            <span className="text-gradient-cyan">{post.title}</span>
+          </h1>
 
           {/* Meta */}
-          <div className="flex items-center gap-3 text-sm text-muted-foreground mb-8 pb-8 border-b border-border">
+          <div className="flex items-center gap-3 text-sm text-app-muted mb-8 pb-8 border-b border-app-subtle">
             <span>{post.author}</span>
             <span>·</span>
             <time dateTime={post.published_at}>
@@ -125,7 +125,6 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
 
         </article>
       </main>
-      <SiteFooter />
-    </div>
+    </LandingChrome>
   )
 }

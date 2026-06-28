@@ -52,17 +52,22 @@ export default function TermsPage() {
     <LandingChrome forcedLang={isZh ? 'zh' : 'en'}>
       <main className="px-6 pb-24">
         <article className="max-w-3xl mx-auto">
-          <p className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground mb-3">
-            {isZh ? '最后更新：2026 年 5 月 28 日' : 'Last updated: May 28, 2026'}
-          </p>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tighter mb-6">
-            {isZh ? '服务条款' : 'Terms of Service'}
-          </h1>
-          <p className="text-muted-foreground text-lg mb-12">
-            {isZh
-              ? '在使用 MirrorSpeed 之前，请仔细阅读本服务条款。这些条款管理您对我们 VPN 服务的使用。'
-              : 'Please read these Terms of Service carefully before using MirrorSpeed. These terms govern your use of our VPN service.'}
-          </p>
+          <div className="text-center mb-14">
+            <span className="font-mono text-xs text-accent-cyan tracking-widest uppercase mb-3 inline-block">
+              // {isZh ? '条款' : 'Terms'}
+            </span>
+            <p className="text-[11px] font-mono uppercase tracking-widest text-app-muted mb-3">
+              {isZh ? '最后更新：2026 年 5 月 28 日' : 'Last updated: May 28, 2026'}
+            </p>
+            <h1 className="font-heading text-4xl md:text-6xl font-black tracking-tighter mb-6">
+              <span className="text-gradient-cyan">{isZh ? '服务条款' : 'Terms of Service'}</span>
+            </h1>
+            <p className="text-app-secondary text-lg max-w-2xl mx-auto">
+              {isZh
+                ? '在使用 MirrorSpeed 之前，请仔细阅读本服务条款。这些条款管理您对我们 VPN 服务的使用。'
+                : 'Please read these Terms of Service carefully before using MirrorSpeed. These terms govern your use of our VPN service.'}
+            </p>
+          </div>
           <div className="space-y-4">
             {SECTIONS.map((s, i) => (
               <section key={i} className="glass-panel rounded-2xl p-6">

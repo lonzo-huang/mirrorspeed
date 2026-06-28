@@ -1,7 +1,6 @@
 'use client'
 
-import { SiteNav }    from '@/components/site/SiteNav'
-import { SiteFooter } from '@/components/site/SiteFooter'
+import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n }    from '@/lib/i18n'
 
 const CONTACT = 'mirrorspeed@mirrorquant.com'
@@ -36,32 +35,32 @@ export default function HelpPage() {
   const FAQ = isZh ? FAQ_ZH : FAQ_EN
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SiteNav />
-      <main className="px-6 pt-16 pb-24">
+    <LandingChrome forcedLang={isZh ? 'zh' : 'en'}>
+      <main className="px-6 pb-24">
         <article className="max-w-3xl mx-auto">
-          <p className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground mb-3">
-            {isZh ? '使用帮助' : 'Help Center'}
-          </p>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tighter mb-6">
-            {isZh ? '使用帮助' : 'Help & FAQ'}
-          </h1>
-          <p className="text-muted-foreground text-lg mb-12">
-            {isZh
-              ? '关于连接、节点选择、免费时长与会员的常见问题。如未解答，欢迎联系我们。'
-              : 'Common questions about connecting, choosing nodes, free time, and membership. If something is not covered, reach out to us.'}
-          </p>
+          <div className="text-center mb-14">
+            <span className="font-mono text-xs text-accent-cyan tracking-widest uppercase mb-3 inline-block">
+              // {isZh ? '帮助' : 'Help'}
+            </span>
+            <h1 className="font-heading text-4xl md:text-6xl font-black tracking-tighter mb-6">
+              <span className="text-gradient-cyan">{isZh ? '使用帮助' : 'Help & FAQ'}</span>
+            </h1>
+            <p className="text-app-secondary text-lg max-w-2xl mx-auto">
+              {isZh
+                ? '关于连接、节点选择、免费时长与会员的常见问题。如未解答，欢迎联系我们。'
+                : 'Common questions about connecting, choosing nodes, free time, and membership. If something is not covered, reach out to us.'}
+            </p>
+          </div>
           <div className="space-y-4">
             {FAQ.map((s, i) => (
               <section key={i} className="glass-panel rounded-2xl p-6">
-                <h2 className="text-lg font-bold mb-3">{s.h}</h2>
-                <p className="text-sm text-foreground/80 leading-relaxed">{s.p}</p>
+                <h2 className="text-lg font-bold mb-3 text-app-primary">{s.h}</h2>
+                <p className="text-sm text-app-secondary leading-relaxed">{s.p}</p>
               </section>
             ))}
           </div>
         </article>
       </main>
-      <SiteFooter />
-    </div>
+    </LandingChrome>
   )
 }

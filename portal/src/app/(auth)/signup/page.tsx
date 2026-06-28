@@ -64,13 +64,16 @@ function SignupForm() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
-        <Link href="/" className="block text-center text-lg font-extrabold tracking-tighter uppercase mb-8 text-foreground hover:text-mirror transition-colors">
-          MirrorSpeed
+    <div className="ms-landing min-h-screen bg-app text-app-primary flex items-center justify-center p-6 relative overflow-hidden">
+      <div className="absolute inset-0 grid-bg opacity-40 pointer-events-none" />
+      <div className="absolute top-1/4 left-1/4 h-[500px] w-[500px] rounded-full pointer-events-none" style={{ background: 'var(--accent-cyan-glow)', filter: 'blur(140px)', opacity: 0.35 }} />
+      <div className="absolute bottom-1/4 right-1/4 h-[400px] w-[400px] rounded-full pointer-events-none" style={{ background: 'rgba(255,0,85,0.15)', filter: 'blur(120px)' }} />
+      <div className="w-full max-w-md relative">
+        <Link href="/" className="block text-center font-heading text-2xl font-black tracking-tighter uppercase mb-8 hover:scale-[1.02] transition-transform" data-testid="signup-back-home">
+          <span className="text-gradient-cyan">MirrorSpeed</span>
         </Link>
 
-        <div className="glass-panel p-10 rounded-3xl">
+        <div className="glass-panel p-10 rounded-3xl border-app-subtle">
           {error && (
             <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
               {error}
@@ -81,10 +84,10 @@ function SignupForm() {
             /* ── OTP 验证码输入 ── */
             <div>
               <div className="text-center mb-6">
-                <Mail className="w-12 h-12 text-mirror mx-auto mb-3" />
-                <h2 className="font-semibold text-foreground mb-1">{t.auth.otpSent}</h2>
-                <p className="text-sm text-muted-foreground">{t.auth.enterOtp}</p>
-                <p className="text-xs text-mirror mt-1">{email}</p>
+                <Mail className="w-12 h-12 text-accent-cyan mx-auto mb-3" />
+                <h2 className="font-heading font-semibold text-app-primary mb-1">{t.auth.otpSent}</h2>
+                <p className="text-sm text-app-secondary">{t.auth.enterOtp}</p>
+                <p className="text-xs text-accent-cyan mt-1">{email}</p>
               </div>
               <form onSubmit={verifyOtp} className="space-y-3">
                 <input
@@ -97,19 +100,20 @@ function SignupForm() {
                   placeholder={t.auth.otpPlaceholder}
                   required
                   autoFocus
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-2xl text-center tracking-[0.5em] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-mirror transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-2xl text-center tracking-[0.5em] text-app-primary placeholder:text-app-muted/40 focus:outline-none focus:border-[var(--accent-cyan)] transition-colors"
                 />
                 <button
                   type="submit"
                   disabled={loading !== null || otp.length < 6}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-mirror transition-all disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 py-3 font-bold rounded-xl transition-all disabled:opacity-50 glow-cyan hover:scale-[1.01]"
+                  style={{ background: 'linear-gradient(135deg, var(--accent-cyan) 0%, #0080ff 100%)', color: '#000' }}
                 >
                   <KeyRound className="w-4 h-4" />
                   {loading === 'verify' || loading === 'redirecting' ? t.auth.redirecting : t.auth.verify}
                 </button>
               </form>
               <button
-                className="mt-4 w-full text-sm text-muted-foreground hover:text-mirror transition-colors"
+                className="mt-4 w-full text-sm text-app-muted hover:text-accent-cyan transition-colors"
                 onClick={() => { setStep('email'); setOtp(''); setError(null); }}
               >
                 ← {t.auth.resend}
@@ -118,8 +122,8 @@ function SignupForm() {
           ) : (
             /* ── 邮箱输入 ── */
             <>
-              <h2 className="text-2xl font-bold mb-8 text-center text-foreground">
-                {t.auth.signupTitle}
+              <h2 className="font-heading text-2xl font-black mb-8 text-center tracking-tighter">
+                <span className="text-gradient-cyan">{t.auth.signupTitle}</span>
               </h2>
 
               {/* OAuth */}
@@ -132,7 +136,7 @@ function SignupForm() {
                     <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
                     <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
                   </svg>
-                  <span className="text-sm font-medium text-foreground">
+                  <span className="text-sm font-medium text-app-primary">
                     {loading === 'google' ? t.auth.redirecting : t.auth.google}
                   </span>
                 </button>
@@ -144,7 +148,7 @@ function SignupForm() {
                     <rect y="10" width="8" height="8" fill="#00A4EF"/>
                     <rect x="10" y="10" width="8" height="8" fill="#FFB900"/>
                   </svg>
-                  <span className="text-sm font-medium text-foreground">
+                  <span className="text-sm font-medium text-app-primary">
                     {loading === 'microsoft' ? t.auth.redirecting : t.auth.microsoft}
                   </span>
                 </button>
@@ -152,7 +156,7 @@ function SignupForm() {
 
               <div className="relative py-5 flex items-center gap-4">
                 <div className="h-px flex-grow bg-white/10" />
-                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{t.auth.orEmail}</span>
+                <span className="text-[10px] text-app-muted uppercase font-bold tracking-widest">{t.auth.orEmail}</span>
                 <div className="h-px flex-grow bg-white/10" />
               </div>
 
@@ -163,12 +167,13 @@ function SignupForm() {
                   onChange={e => setEmail(e.target.value)}
                   placeholder={t.auth.email}
                   required
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-mirror transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-app-primary placeholder:text-app-muted focus:outline-none focus:border-[var(--accent-cyan)] transition-colors"
                 />
                 <button
                   type="submit"
                   disabled={loading !== null}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-mirror transition-all disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 py-3 font-bold rounded-xl glow-cyan hover:scale-[1.01] transition-all disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, var(--accent-cyan) 0%, #0080ff 100%)', color: '#000' }}
                 >
                   <Mail className="w-4 h-4" />
                   {loading === 'email' ? t.auth.sending : t.auth.submit}
@@ -178,8 +183,8 @@ function SignupForm() {
           )}
         </div>
 
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          <Link href="/login" className="hover:text-mirror transition-colors">
+        <p className="text-center text-sm text-app-muted mt-6">
+          <Link href="/login" className="hover:text-accent-cyan transition-colors">
             {t.auth.switchToLogin}
           </Link>
         </p>
@@ -191,8 +196,8 @@ function SignupForm() {
 export default function SignupPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading…</div>
+      <div className="ms-landing min-h-screen bg-app flex items-center justify-center">
+        <div className="text-app-muted">Loading…</div>
       </div>
     }>
       <SignupForm />

@@ -42,17 +42,22 @@ export default function PrivacyPage() {
     <LandingChrome forcedLang={isZh ? 'zh' : 'en'}>
       <main className="px-6 pb-24">
         <article className="max-w-3xl mx-auto">
-          <p className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground mb-3">
-            {isZh ? '最后更新：2026 年 5 月 28 日' : 'Last updated: May 28, 2026'}
-          </p>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tighter mb-6">
-            {isZh ? '隐私政策' : 'Privacy Policy'}
-          </h1>
-          <p className="text-muted-foreground text-lg mb-12">
-            {isZh
-              ? 'MirrorSpeed 致力于保护您的隐私。本政策说明我们收集哪些数据、如何使用数据，以及您对个人信息的权利。'
-              : 'MirrorSpeed is committed to protecting your privacy. This policy explains what data we collect, how we use it, and your rights regarding your personal information.'}
-          </p>
+          <div className="text-center mb-14">
+            <span className="font-mono text-xs text-accent-cyan tracking-widest uppercase mb-3 inline-block">
+              // {isZh ? '隐私' : 'Privacy'}
+            </span>
+            <p className="text-[11px] font-mono uppercase tracking-widest text-app-muted mb-3">
+              {isZh ? '最后更新：2026 年 5 月 28 日' : 'Last updated: May 28, 2026'}
+            </p>
+            <h1 className="font-heading text-4xl md:text-6xl font-black tracking-tighter mb-6">
+              <span className="text-gradient-cyan">{isZh ? '隐私政策' : 'Privacy Policy'}</span>
+            </h1>
+            <p className="text-app-secondary text-lg max-w-2xl mx-auto">
+              {isZh
+                ? 'MirrorSpeed 致力于保护您的隐私。本政策说明我们收集哪些数据、如何使用数据，以及您对个人信息的权利。'
+                : 'MirrorSpeed is committed to protecting your privacy. This policy explains what data we collect, how we use it, and your rights regarding your personal information.'}
+            </p>
+          </div>
           <div className="space-y-4">
             {SECTIONS.map((s, i) => (
               <section key={i} className="glass-panel rounded-2xl p-6">

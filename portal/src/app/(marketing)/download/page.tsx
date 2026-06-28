@@ -93,8 +93,11 @@ export default function DownloadPage() {
       <main className="px-6 pb-24">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
-            <h1 className="text-5xl font-bold tracking-tighter mb-3">{dl.title}</h1>
-            <p className="text-muted-foreground max-w-2xl mx-auto">{dl.sub}</p>
+            <span className="font-mono text-xs text-accent-cyan tracking-widest uppercase mb-3 inline-block">// Download</span>
+            <h1 className="font-heading text-5xl sm:text-6xl font-black tracking-tighter mb-4">
+              <span className="text-gradient-cyan">{dl.title}</span>
+            </h1>
+            <p className="text-app-secondary text-lg max-w-2xl mx-auto">{dl.sub}</p>
           </div>
 
           {/* ── Native client section ──────────────────────────────── */}

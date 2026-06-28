@@ -1,13 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { SiteNav } from '@/components/site/SiteNav'
-import { SiteFooter } from '@/components/site/SiteFooter'
+import { LandingChrome } from '@/components/landing/LandingPage'
 import { ServerCard, SERVERS } from '@/components/site/ServerCard'
 import { useI18n } from '@/lib/i18n'
 
 export default function ServersPage() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [now, setNow] = useState('--:--:--')
 
   useEffect(() => {
@@ -20,16 +19,18 @@ export default function ServersPage() {
   const avgLatency = Math.round(SERVERS.reduce((s, n) => s + n.latency, 0) / SERVERS.length)
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SiteNav />
-      <main className="px-6 pt-16 pb-24">
+    <LandingChrome forcedLang={lang === 'zh' ? 'zh' : 'en'}>
+      <main className="px-6 pb-24">
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-between items-end mb-12 flex-wrap gap-4">
             <div>
-              <h1 className="text-4xl font-bold tracking-tight mb-2">{t.servers.title}</h1>
-              <p className="text-muted-foreground">{t.servers.sub}</p>
+              <span className="font-mono text-xs text-accent-cyan tracking-widest uppercase mb-3 inline-block">// Network</span>
+              <h1 className="font-heading text-5xl sm:text-6xl font-black tracking-tighter mb-2">
+                <span className="text-gradient-cyan">{t.servers.title}</span>
+              </h1>
+              <p className="text-app-secondary text-lg">{t.servers.sub}</p>
             </div>
-            <div className="text-right font-mono text-[10px] uppercase text-muted-foreground tracking-widest">
+            <div className="text-right font-mono text-[10px] uppercase text-app-muted tracking-widest">
               <div>Last refresh: {now}</div>
               <div className="mt-1">{SERVERS.length} locations · avg {avgLatency}ms</div>
             </div>
@@ -40,7 +41,6 @@ export default function ServersPage() {
           </div>
         </div>
       </main>
-      <SiteFooter />
-    </div>
+    </LandingChrome>
   )
 }

@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { SiteNav }    from '@/components/site/SiteNav'
-import { SiteFooter } from '@/components/site/SiteFooter'
+import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n }    from '@/lib/i18n'
 import { Send, CheckCircle } from 'lucide-react'
 
@@ -86,18 +85,19 @@ export default function SupportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SiteNav />
-      <main className="px-6 pt-16 pb-24">
+    <LandingChrome forcedLang={lang === 'zh' ? 'zh' : 'en'}>
+      <main className="px-6 pb-24">
         <div className="max-w-4xl mx-auto">
 
           {/* Header */}
           <div className="text-center mb-16">
-            <span className="inline-block text-[11px] font-bold uppercase tracking-widest text-mirror border border-mirror/30 rounded-full px-4 py-1.5 mb-6">
-              {c.badge}
+            <span className="font-mono text-xs text-accent-cyan tracking-widest uppercase mb-3 inline-block">
+              // {c.badge}
             </span>
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tighter mb-4">{c.title}</h1>
-            <p className="text-muted-foreground text-lg max-w-xl mx-auto">{c.sub}</p>
+            <h1 className="font-heading text-4xl md:text-6xl font-black tracking-tighter mb-4">
+              <span className="text-gradient-cyan">{c.title}</span>
+            </h1>
+            <p className="text-app-secondary text-lg max-w-xl mx-auto">{c.sub}</p>
           </div>
 
           {/* Info cards */}
@@ -105,8 +105,8 @@ export default function SupportPage() {
             {c.cards.map((card, i) => (
               <div key={i} className="glass-panel rounded-2xl p-6 text-center">
                 <div className="text-3xl mb-3">{card.icon}</div>
-                <h3 className="font-bold mb-1">{card.title}</h3>
-                <p className="text-sm text-muted-foreground">{card.desc}</p>
+                <h3 className="font-bold mb-1 text-app-primary">{card.title}</h3>
+                <p className="text-sm text-app-secondary">{card.desc}</p>
               </div>
             ))}
           </div>
@@ -116,14 +116,14 @@ export default function SupportPage() {
             {done ? (
               <div className="glass-panel rounded-2xl p-10 text-center">
                 <CheckCircle className="h-14 w-14 text-green-400 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold mb-3">{c.successTitle}</h2>
-                <p className="text-muted-foreground">{c.successBody}</p>
+                <h2 className="text-2xl font-bold mb-3 text-app-primary">{c.successTitle}</h2>
+                <p className="text-app-secondary">{c.successBody}</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="glass-panel rounded-2xl p-8 space-y-5">
                 <div className="grid md:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-sm font-medium mb-1.5">{c.name} *</label>
+                    <label className="block text-sm font-medium mb-1.5 text-app-primary">{c.name} *</label>
                     <input
                       type="text"
                       value={name}
@@ -134,7 +134,7 @@ export default function SupportPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1.5">{c.email} *</label>
+                    <label className="block text-sm font-medium mb-1.5 text-app-primary">{c.email} *</label>
                     <input
                       type="email"
                       value={email}
@@ -147,7 +147,7 @@ export default function SupportPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1.5">{c.subject}</label>
+                  <label className="block text-sm font-medium mb-1.5 text-app-primary">{c.subject}</label>
                   <input
                     type="text"
                     value={subject}
@@ -158,7 +158,7 @@ export default function SupportPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1.5">{c.message} *</label>
+                  <label className="block text-sm font-medium mb-1.5 text-app-primary">{c.message} *</label>
                   <textarea
                     value={message}
                     onChange={e => setMessage(e.target.value)}
@@ -179,7 +179,7 @@ export default function SupportPage() {
                   type="submit"
                   disabled={sending}
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold
-                             bg-mirror text-black hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                             bg-gradient-to-r from-[var(--accent-cyan)] to-[#0080ff] text-black hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed glow-cyan"
                 >
                   <Send className="h-4 w-4" />
                   {sending ? c.sending : c.send}
@@ -190,7 +190,6 @@ export default function SupportPage() {
 
         </div>
       </main>
-      <SiteFooter />
-    </div>
+    </LandingChrome>
   )
 }

@@ -1,7 +1,6 @@
 'use client'
 
-import { SiteNav }    from '@/components/site/SiteNav'
-import { SiteFooter } from '@/components/site/SiteFooter'
+import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n }    from '@/lib/i18n'
 
 const CONTACT = 'mirrorspeed@mirrorquant.com'
@@ -34,32 +33,35 @@ export default function CookiesPage() {
   const SECTIONS = isZh ? SECTIONS_ZH : SECTIONS_EN
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SiteNav />
-      <main className="px-6 pt-16 pb-24">
+    <LandingChrome forcedLang={isZh ? 'zh' : 'en'}>
+      <main className="px-6 pb-24">
         <article className="max-w-3xl mx-auto">
-          <p className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground mb-3">
-            {isZh ? '最后更新：2026 年 5 月 28 日' : 'Last updated: May 28, 2026'}
-          </p>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tighter mb-6">
-            {isZh ? 'Cookie 政策' : 'Cookie Policy'}
-          </h1>
-          <p className="text-muted-foreground text-lg mb-12">
-            {isZh
-              ? '我们信奉隐私优先的网络。MirrorSpeed 仅使用必要 Cookie——没有跟踪器、没有广告、没有分析。'
-              : 'We believe in a privacy-first web. MirrorSpeed uses only essential cookies — no trackers, no ads, no profiling.'}
-          </p>
+          <div className="text-center mb-14">
+            <span className="font-mono text-xs text-accent-cyan tracking-widest uppercase mb-3 inline-block">
+              // {isZh ? 'Cookie' : 'Cookies'}
+            </span>
+            <p className="text-[11px] font-mono uppercase tracking-widest text-app-muted mb-3">
+              {isZh ? '最后更新：2026 年 5 月 28 日' : 'Last updated: May 28, 2026'}
+            </p>
+            <h1 className="font-heading text-4xl md:text-6xl font-black tracking-tighter mb-6">
+              <span className="text-gradient-cyan">{isZh ? 'Cookie 政策' : 'Cookie Policy'}</span>
+            </h1>
+            <p className="text-app-secondary text-lg max-w-2xl mx-auto">
+              {isZh
+                ? '我们信奉隐私优先的网络。MirrorSpeed 仅使用必要 Cookie——没有跟踪器、没有广告、没有分析。'
+                : 'We believe in a privacy-first web. MirrorSpeed uses only essential cookies — no trackers, no ads, no profiling.'}
+            </p>
+          </div>
           <div className="space-y-4">
             {SECTIONS.map((s, i) => (
               <section key={i} className="glass-panel rounded-2xl p-6">
-                <h2 className="text-lg font-bold mb-3">{s.h}</h2>
-                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">{s.p}</p>
+                <h2 className="text-lg font-bold mb-3 text-app-primary">{s.h}</h2>
+                <p className="text-sm text-app-secondary leading-relaxed whitespace-pre-line">{s.p}</p>
               </section>
             ))}
           </div>
         </article>
       </main>
-      <SiteFooter />
-    </div>
+    </LandingChrome>
   )
 }
