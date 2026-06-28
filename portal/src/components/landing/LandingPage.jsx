@@ -96,7 +96,7 @@ const Nav = () => {
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "py-3" : "py-5"}`} data-testid="main-nav">
       <div className="mx-auto max-w-7xl px-6 sm:px-8">
         <div className={`flex items-center justify-between rounded-full px-5 py-3 ${scrolled ? "glass" : ""}`}>
-          <a href="#top" className="flex items-center gap-2" data-testid="nav-logo">
+          <a href="/" className="flex items-center gap-2" data-testid="nav-logo">
             <img src="/icon-192.png" alt="MirrorSpeed" className="h-8 w-8 rounded-lg" style={{ boxShadow: "0 0 12px rgba(34,211,160,0.4)" }} />
             <span className="font-heading font-bold text-lg tracking-tight text-app-primary">MirrorSpeed</span>
           </a>

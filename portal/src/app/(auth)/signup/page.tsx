@@ -27,11 +27,6 @@ function SignupForm() {
     await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } })
   }
 
-  async function signInWithMicrosoft() {
-    setLoading('microsoft')
-    await supabase.auth.signInWithOAuth({ provider: 'azure', options: { redirectTo, scopes: 'openid email profile' } })
-  }
-
   async function sendOtp(e: React.FormEvent) {
     e.preventDefault()
     if (!email.trim()) return
@@ -69,8 +64,9 @@ function SignupForm() {
       <div className="absolute top-1/4 left-1/4 h-[500px] w-[500px] rounded-full pointer-events-none" style={{ background: 'var(--accent-cyan-glow)', filter: 'blur(140px)', opacity: 0.35 }} />
       <div className="absolute bottom-1/4 right-1/4 h-[400px] w-[400px] rounded-full pointer-events-none" style={{ background: 'rgba(255,0,85,0.15)', filter: 'blur(120px)' }} />
       <div className="w-full max-w-md relative">
-        <Link href="/" className="block text-center font-heading text-2xl font-black tracking-tighter uppercase mb-8 hover:scale-[1.02] transition-transform" data-testid="signup-back-home">
-          <span className="text-gradient-cyan">MirrorSpeed</span>
+        <Link href="/" className="flex items-center justify-center gap-2.5 mb-8 hover:scale-[1.02] transition-transform" data-testid="signup-back-home">
+          <img src="/icon-192.png" alt="MirrorSpeed" className="h-9 w-9 rounded-lg" style={{ boxShadow: '0 0 12px rgba(34,211,160,0.4)' }} />
+          <span className="font-heading text-2xl font-black tracking-tighter uppercase text-gradient-cyan">MirrorSpeed</span>
         </Link>
 
         <div className="glass-panel p-10 rounded-3xl border-app-subtle">
@@ -138,18 +134,6 @@ function SignupForm() {
                   </svg>
                   <span className="text-sm font-medium text-app-primary">
                     {loading === 'google' ? t.auth.redirecting : t.auth.google}
-                  </span>
-                </button>
-                <button onClick={signInWithMicrosoft} disabled={loading !== null}
-                  className="w-full flex items-center justify-center gap-3 py-3 glass-panel rounded-xl hover:bg-white/5 transition-all disabled:opacity-50">
-                  <svg width="18" height="18" viewBox="0 0 18 18">
-                    <rect width="8" height="8" fill="#F25022"/>
-                    <rect x="10" width="8" height="8" fill="#7FBA00"/>
-                    <rect y="10" width="8" height="8" fill="#00A4EF"/>
-                    <rect x="10" y="10" width="8" height="8" fill="#FFB900"/>
-                  </svg>
-                  <span className="text-sm font-medium text-app-primary">
-                    {loading === 'microsoft' ? t.auth.redirecting : t.auth.microsoft}
                   </span>
                 </button>
               </div>

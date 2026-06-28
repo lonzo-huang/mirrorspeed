@@ -1154,7 +1154,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>("en");
 
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("ms-lang") as Lang | null : null;
+    // 落地页（Nav 语言下拉）用 "ms_lang"（下划线），本系统历史用 "ms-lang"（连字符）。
+    // 两者桥接：优先读任一已保存值，实现主页 ↔ 内容页语言互通。
+    const saved = typeof window !== "undefined"
+      ? ((localStorage.getItem("ms-lang") || localStorage.getItem("ms_lang")) as Lang | null)
+      : null;
     const allLangs: Lang[] = ["en", "zh", "de", "fr", "it", "es", "uk", "ja"];
     if (saved && allLangs.includes(saved)) {
       setLangState(saved);
@@ -1168,6 +1172,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     setLangState(l);
     if (typeof window !== "undefined") {
       localStorage.setItem("ms-lang", l);
+      localStorage.setItem("ms_lang", l);  // 同步落地页所用的键
       // Persist to server for email notifications (best-effort, no await)
       fetch("/api/user/lang", {
         method: "PATCH",
