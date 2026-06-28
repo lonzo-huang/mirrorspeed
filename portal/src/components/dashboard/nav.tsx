@@ -33,7 +33,7 @@ export function DashboardNav({ profile }: { profile: Profile }) {
     .split(' ').slice(0, 2).map(s => s[0]?.toUpperCase()).join('')
 
   return (
-    <nav className="border-b border-border bg-background/80 backdrop-blur-sm">
+    <nav className="relative z-50 border-b border-border bg-background/80 backdrop-blur-sm">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-2">
