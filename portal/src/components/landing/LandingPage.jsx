@@ -87,6 +87,7 @@ const Nav = () => {
     { href: "#features", key: "nav_features" },
     { href: "#network", key: "nav_network" },
     { href: "#pricing", key: "nav_pricing" },
+    { href: "/download", key: "ob_s1_t" },
     { href: "#faq", key: "nav_faq" },
   ];
   const currentLang = SUPPORTED_LANGS.find((l) => l.code === lang);
@@ -155,7 +156,7 @@ const Nav = () => {
             <a href="https://mirrorspeed.com/login" className="hidden sm:inline-flex text-sm text-app-secondary hover:text-app-primary px-3 py-2" data-testid="nav-login-link">
               {t("nav_signin")}
             </a>
-            <a href="https://mirrorspeed.com/login" className="group inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold hover:opacity-90 transition" style={{ background: "var(--text-primary)", color: "var(--bg-primary)" }} data-testid="nav-cta-button">
+            <a href="/download" className="group inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold hover:opacity-90 transition" style={{ background: "var(--text-primary)", color: "var(--bg-primary)" }} data-testid="nav-cta-button">
               {t("nav_get_started")}
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
             </a>
@@ -219,7 +220,7 @@ const Hero = () => {
         </motion.p>
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.5 }} className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <a href="https://mirrorspeed.com/login" className="group relative inline-flex items-center gap-2 rounded-full px-7 py-4 font-semibold text-base glow-cyan hover:scale-[1.02] transition-transform" style={{ background: "linear-gradient(135deg, var(--accent-cyan) 0%, #0080ff 100%)", color: "#000" }} data-testid="hero-cta-primary">
+          <a href="/download" className="group relative inline-flex items-center gap-2 rounded-full px-7 py-4 font-semibold text-base glow-cyan hover:scale-[1.02] transition-transform" style={{ background: "linear-gradient(135deg, var(--accent-cyan) 0%, #0080ff 100%)", color: "#000" }} data-testid="hero-cta-primary">
             <Download className="h-4 w-4" />
             {t("hero_cta_primary")}{heroPriceSuffix}
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -668,7 +669,7 @@ const FinalCTA = () => {
             </motion.h2>
             <p className="mt-6 text-app-secondary max-w-xl mx-auto">{t("cta_sub")}</p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <a href="https://mirrorspeed.com/login" className="group inline-flex items-center gap-2 rounded-full px-8 py-4 font-semibold text-base glow-cyan hover:scale-[1.02] transition-transform" style={{ background: "linear-gradient(135deg, var(--accent-cyan) 0%, #0080ff 100%)", color: "#000" }} data-testid="final-cta-primary">
+              <a href="/download" className="group inline-flex items-center gap-2 rounded-full px-8 py-4 font-semibold text-base glow-cyan hover:scale-[1.02] transition-transform" style={{ background: "linear-gradient(135deg, var(--accent-cyan) 0%, #0080ff 100%)", color: "#000" }} data-testid="final-cta-primary">
                 {t("cta_btn")}{ctaPriceSuffix}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </a>
