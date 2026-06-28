@@ -59,7 +59,7 @@ function SignupForm() {
   }
 
   return (
-    <div className="ms-landing min-h-screen bg-app text-app-primary flex items-center justify-center p-6 relative overflow-hidden">
+    <div data-theme="dark" className="ms-landing min-h-screen bg-app text-app-primary flex items-center justify-center p-6 relative overflow-hidden">
       <div className="absolute inset-0 grid-bg opacity-40 pointer-events-none" />
       <div className="absolute top-1/4 left-1/4 h-[500px] w-[500px] rounded-full pointer-events-none" style={{ background: 'var(--accent-cyan-glow)', filter: 'blur(140px)', opacity: 0.35 }} />
       <div className="absolute bottom-1/4 right-1/4 h-[400px] w-[400px] rounded-full pointer-events-none" style={{ background: 'rgba(255,0,85,0.15)', filter: 'blur(120px)' }} />
@@ -180,7 +180,7 @@ function SignupForm() {
 export default function SignupPage() {
   return (
     <Suspense fallback={
-      <div className="ms-landing min-h-screen bg-app flex items-center justify-center">
+      <div data-theme="dark" className="ms-landing min-h-screen bg-app flex items-center justify-center">
         <div className="text-app-muted">Loading…</div>
       </div>
     }>

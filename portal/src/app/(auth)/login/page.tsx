@@ -83,8 +83,8 @@ function LoginForm() {
   }
 
   return (
-    <div className="ms-landing min-h-screen bg-app text-app-primary flex items-center justify-center p-6 relative overflow-hidden">
-      {/* dark-theme decorative background — pure CSS, no JS */}
+    <div data-theme="dark" className="ms-landing min-h-screen bg-app text-app-primary flex items-center justify-center p-6 relative overflow-hidden">
+      {/* 登录页为纯深色设计：在容器上锁定 data-theme=dark，覆盖全局日/夜间模式，避免浅色下输入框不可见 */}
       <div className="absolute inset-0 grid-bg opacity-40 pointer-events-none" />
       <div className="absolute top-1/4 left-1/4 h-[500px] w-[500px] rounded-full pointer-events-none" style={{ background: 'var(--accent-cyan-glow)', filter: 'blur(140px)', opacity: 0.35 }} />
       <div className="absolute bottom-1/4 right-1/4 h-[400px] w-[400px] rounded-full pointer-events-none" style={{ background: 'rgba(255,0,85,0.15)', filter: 'blur(120px)' }} />
