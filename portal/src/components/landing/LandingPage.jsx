@@ -84,11 +84,11 @@ const Nav = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   const links = [
-    { href: "#features", key: "nav_features" },
-    { href: "#network", key: "nav_network" },
-    { href: "#pricing", key: "nav_pricing" },
+    { href: "/#features", key: "nav_features" },
+    { href: "/#network", key: "nav_network" },
+    { href: "/#pricing", key: "nav_pricing" },
     { href: "/download", key: "ob_s1_t" },
-    { href: "#faq", key: "nav_faq" },
+    { href: "/#faq", key: "nav_faq" },
   ];
   const currentLang = SUPPORTED_LANGS.find((l) => l.code === lang);
 
@@ -763,22 +763,55 @@ const LandingPage = ({ forcedLang }) => {
   }, [theme, lang]);
 
   return (
-    <AppCtx.Provider value={{ lang, setLang: setLangState, theme, setTheme: setThemeState }}>
-      <div className="ms-landing min-h-screen bg-app text-app-primary overflow-x-hidden">
-        <Nav />
-        <main>
-          <Hero />
-          <Onboarding />
-          <Features />
-          <GlobalNetwork />
-          <Testimonials />
-          <Pricing />
-          <FAQ />
-          <FinalCTA />
-        </main>
-        <Footer />
-      </div>
-    </AppCtx.Provider>
+    <LandingChromeInner lang={lang} setLang={setLangState} theme={theme} setTheme={setThemeState}>
+      <Hero />
+      <Onboarding />
+      <Features />
+      <GlobalNetwork />
+      <Testimonials />
+      <Pricing />
+      <FAQ />
+      <FinalCTA />
+    </LandingChromeInner>
+  );
+};
+
+// 内部：仅渲染外壳（导航 + 内容 + 页脚），由 LandingPage / LandingChrome 复用。
+const LandingChromeInner = ({ lang, setLang, theme, setTheme, children }) => (
+  <AppCtx.Provider value={{ lang, setLang, theme, setTheme }}>
+    <div className="ms-landing min-h-screen bg-app text-app-primary overflow-x-hidden">
+      <Nav />
+      <main>{children}</main>
+      <Footer />
+    </div>
+  </AppCtx.Provider>
+);
+
+// 对外：给「下载/隐私/服务条款」等内容页复用同一套导航+页脚+深色玻璃主题，
+// 让全站风格统一。children 即页面正文（已自带顶部留白以避开 fixed 导航）。
+export const LandingChrome = ({ forcedLang, children }) => {
+  const [lang, setLangState] = useState(forcedLang || "en");
+  const [theme, setThemeState] = useState("dark");
+
+  useEffect(() => {
+    if (forcedLang) setLangState(forcedLang);
+    else setLangState(detectLang());
+    try {
+      const savedTheme = localStorage.getItem("ms_theme");
+      if (savedTheme === "light" || savedTheme === "dark") setThemeState(savedTheme);
+    } catch (_) {}
+  }, [forcedLang]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.setAttribute("dir", RTL_LANGS.includes(lang) ? "rtl" : "ltr");
+    try { localStorage.setItem("ms_theme", theme); } catch (_) {}
+  }, [theme, lang]);
+
+  return (
+    <LandingChromeInner lang={lang} setLang={setLangState} theme={theme} setTheme={setThemeState}>
+      <div className="pt-28 sm:pt-32">{children}</div>
+    </LandingChromeInner>
   );
 };
 
