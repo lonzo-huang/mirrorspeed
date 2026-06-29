@@ -8,17 +8,45 @@ import { Mail, KeyRound } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 
 function SignupForm() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+  const isZh = lang === 'zh'
   const searchParams = useSearchParams()
   const router = useRouter()
   const next  = searchParams.get('next') ?? '/dashboard'
 
-  const [email, setEmail]     = useState('')
-  const [otp, setOtp]         = useState('')
-  const [step, setStep]       = useState<'email' | 'otp'>('email')
-  const [loading, setLoading] = useState<string | null>(null)
-  const [error, setError]     = useState<string | null>(null)
+  const [email, setEmail]       = useState('')
+  const [otp, setOtp]           = useState('')
+  const [password, setPassword] = useState('')
+  const [pwMode, setPwMode]     = useState(false)   // false = 验证码注册, true = 密码注册
+  const [info, setInfo]         = useState<string | null>(null)
+  const [step, setStep]         = useState<'email' | 'otp'>('email')
+  const [loading, setLoading]   = useState<string | null>(null)
+  const [error, setError]       = useState<string | null>(null)
   const supabase = createClient()
+
+  async function signUpWithPassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email.trim() || !password) return
+    setLoading('password')
+    setError(null)
+    setInfo(null)
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { emailRedirectTo: redirectTo },
+    })
+    if (error) { setLoading(null); setError(error.message); return }
+    if (data.session) {
+      // 邮箱确认已关闭：直接登录
+      setLoading('redirecting')
+      router.push(next)
+      router.refresh()
+    } else {
+      // 需邮箱确认
+      setLoading(null)
+      setInfo(isZh ? '注册成功！请查收邮件完成验证后登录。' : 'Account created! Check your email to confirm, then sign in.')
+    }
+  }
 
   const redirectTo = `${typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback?next=${encodeURIComponent(next)}`
 
@@ -73,6 +101,11 @@ function SignupForm() {
           {error && (
             <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
               {error}
+            </div>
+          )}
+          {info && (
+            <div className="mb-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400">
+              {info}
             </div>
           )}
 
@@ -144,7 +177,7 @@ function SignupForm() {
                 <div className="h-px flex-grow bg-white/10" />
               </div>
 
-              <form onSubmit={sendOtp} className="space-y-3">
+              <form onSubmit={pwMode ? signUpWithPassword : sendOtp} className="space-y-3">
                 <input
                   type="email"
                   value={email}
@@ -153,16 +186,39 @@ function SignupForm() {
                   required
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-app-primary placeholder:text-app-muted focus:outline-none focus:border-[var(--accent-cyan)] transition-colors"
                 />
+                {pwMode && (
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder={isZh ? '设置密码（至少 6 位）' : 'Password (min 6 chars)'}
+                    required
+                    minLength={6}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-app-primary placeholder:text-app-muted focus:outline-none focus:border-[var(--accent-cyan)] transition-colors"
+                  />
+                )}
                 <button
                   type="submit"
                   disabled={loading !== null}
                   className="w-full flex items-center justify-center gap-2 py-3 font-bold rounded-xl glow-cyan hover:scale-[1.01] transition-all disabled:opacity-50"
                   style={{ background: 'linear-gradient(135deg, var(--accent-cyan) 0%, #0080ff 100%)', color: '#000' }}
                 >
-                  <Mail className="w-4 h-4" />
-                  {loading === 'email' ? t.auth.sending : t.auth.submit}
+                  {pwMode ? <KeyRound className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                  {pwMode
+                    ? (loading === 'password' || loading === 'redirecting' ? (isZh ? '注册中…' : 'Creating…') : (isZh ? '注册账户' : 'Create account'))
+                    : (loading === 'email' ? t.auth.sending : t.auth.submit)}
                 </button>
               </form>
+
+              <button
+                type="button"
+                className="mt-4 w-full text-sm text-app-muted hover:text-accent-cyan transition-colors"
+                onClick={() => { setPwMode(!pwMode); setError(null); setInfo(null); setPassword('') }}
+              >
+                {pwMode
+                  ? (isZh ? '改用邮箱验证码注册' : 'Use email code instead')
+                  : (isZh ? '改用用户名密码注册' : 'Sign up with email & password')}
+              </button>
             </>
           )}
         </div>

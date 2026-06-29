@@ -161,7 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               // ── 连接设置（只读信息，合并自原「设置」页）──────────
               _InfoCard(children: [
-                _InfoRow(icon: Icons.shield_outlined,    label: tr('协议', 'Protocol'),     value: 'MirrorTunnel V1.0'),
+                _InfoRow(icon: Icons.shield_outlined,    label: tr('加速协议', 'Acceleration protocol'),     value: 'MirrorTunnel V1.0'),
                 _InfoRow(icon: Icons.lock_outline,       label: tr('加密', 'Encryption'),   value: 'ChaCha20'),
                 _InfoRow(icon: Icons.blur_on_rounded,    label: tr('流量混淆', 'Obfuscation'), value: tr('已开启', 'On')),
                 _InfoRow(icon: Icons.block_rounded,      label: tr('断网保护', 'Kill switch'), value: 'ON'),

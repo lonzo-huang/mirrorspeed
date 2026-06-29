@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -14,6 +15,8 @@ class ServerListScreen extends StatefulWidget {
 }
 
 class _ServerListScreenState extends State<ServerListScreen> {
+  Timer? _refreshTimer;
+
   @override
   void initState() {
     super.initState();
@@ -26,6 +29,43 @@ class _ServerListScreenState extends State<ServerListScreen> {
         ApiService.instance.ensurePeer();   // serverIds 省略 = 全部活跃节点
       }
     });
+    // 延迟每 30 秒自动刷新一次（顶部仍保留手动刷新按钮）。
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      final servers = context.read<AuthProvider>().displayServers;
+      context.read<VpnProvider>().measureLatencies(servers, rounds: 1);
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  // 分组：先按大洲排序，再按国家聚拢（同国相邻），同国内按校正延迟升序。
+  // 返回扁平的「行」列表：大洲表头 + 节点。
+  List<_Row> _buildRows(List<ServerConfig> servers) {
+    final sorted = [...servers]..sort((a, b) {
+      final ca = kContinentOrder[a.continent] ?? 99;
+      final cb = kContinentOrder[b.continent] ?? 99;
+      if (ca != cb) return ca.compareTo(cb);
+      final co = a.isoCountry.compareTo(b.isoCountry);   // 同洲内同国聚拢
+      if (co != 0) return co;
+      final la = a.displayLatencyMs ?? 9999;
+      final lb = b.displayLatencyMs ?? 9999;
+      return la.compareTo(lb);
+    });
+    final rows = <_Row>[];
+    String? curCont;
+    for (final s in sorted) {
+      if (s.continent != curCont) {
+        curCont = s.continent;
+        rows.add(_Row.header(curCont));
+      }
+      rows.add(_Row.server(s));
+    }
+    return rows;
   }
 
   @override
@@ -33,6 +73,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
     final auth    = context.watch<AuthProvider>();
     final vpn     = context.watch<VpnProvider>();
     final servers = auth.displayServers;
+    final rows    = _buildRows(servers);
 
     return Scaffold(
       appBar: AppBar(
@@ -53,8 +94,12 @@ class _ServerListScreenState extends State<ServerListScreen> {
           : ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               // +1：列表首项为「智能选择」
-              itemCount: servers.length + 1,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemCount: rows.length + 1,
+              separatorBuilder: (_, i) {
+                // 表头前后留多一点空隙
+                if (i + 1 <= rows.length && rows[i].isHeader) return const SizedBox(height: 14);
+                return const SizedBox(height: 8);
+              },
               itemBuilder: (ctx, i) {
                 // 免费时长已用尽且当前未连接：禁止连接任何节点，给出提示。
                 bool blockedByQuota() {
@@ -81,7 +126,11 @@ class _ServerListScreenState extends State<ServerListScreen> {
                     },
                   );
                 }
-                final server = servers[i - 1];
+                final row = rows[i - 1];
+                if (row.isHeader) {
+                  return _ContinentHeader(code: row.continent!);
+                }
+                final server = row.server!;
                 return _ServerTile(
                   server:   server,
                   isActive: !vpn.autoSelect && vpn.activeServer?.id == server.id,
@@ -107,6 +156,32 @@ class _ServerListScreenState extends State<ServerListScreen> {
   }
 }
 
+// ── 列表行：大洲表头 或 节点 ─────────────────────────────────────────
+class _Row {
+  final String? continent;     // 非 null → 表头
+  final ServerConfig? server;  // 非 null → 节点
+  _Row.header(this.continent) : server = null;
+  _Row.server(this.server) : continent = null;
+  bool get isHeader => continent != null;
+}
+
+class _ContinentHeader extends StatelessWidget {
+  final String code;
+  const _ContinentHeader({required this.code});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 2, top: 2),
+      child: Text(
+        continentLabel(code, Brand.isZh).toUpperCase(),
+        style: TextStyle(
+          fontSize: 11, letterSpacing: 2, fontWeight: FontWeight.w700,
+          color: Colors.white.withOpacity(0.45)),
+      ),
+    );
+  }
+}
+
 // ── 三档负载色块通用工具 ─────────────────────────────────────────────
 // tier: 0 空闲(绿) · 1 适中(黄) · 2 繁忙(红)
 Color _loadColor(int tier) =>
@@ -114,6 +189,45 @@ Color _loadColor(int tier) =>
 String _loadLabel(int tier) => tier == 0
     ? tr('空闲','Idle')
     : (tier == 1 ? tr('适中','Busy') : tr('繁忙','Full'));
+
+// 信号格颜色：4 满格绿 · 3 浅绿 · 2 黄 · 1 红 · 0 灰
+Color _signalColor(int bars) {
+  switch (bars) {
+    case 4: return kSuccess;
+    case 3: return Colors.lightGreen;
+    case 2: return Colors.amber;
+    case 1: return kDanger;
+    default: return Colors.white24;
+  }
+}
+
+// ── 信号格（4 格，高度递增）────────────────────────────────────────
+class _SignalBars extends StatelessWidget {
+  final int bars;   // 0–4
+  const _SignalBars({required this.bars});
+  @override
+  Widget build(BuildContext context) {
+    final color = _signalColor(bars);
+    const heights = [6.0, 9.0, 12.0, 15.0];
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 0; i < 4; i++) ...[
+          Container(
+            width: 3.5,
+            height: heights[i],
+            decoration: BoxDecoration(
+              color: (i < bars) ? color : Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(1.5),
+            ),
+          ),
+          if (i < 3) const SizedBox(width: 2),
+        ],
+      ],
+    );
+  }
+}
 
 // ── 智能选择项 ──────────────────────────────────────────────────────
 class _AutoTile extends StatelessWidget {
@@ -157,23 +271,15 @@ class _ServerTile extends StatelessWidget {
   final VoidCallback  onTap;
   const _ServerTile({ required this.server, required this.isActive, required this.onTap });
 
-  // 延迟颜色：<=100 绿 · 101–300 黄 · >300 红（截断显示 >300ms）· 无样本灰
-  Color _latencyColor(int? ms) {
-    if (ms == null) return Colors.white38;
-    if (ms <= 100)  return kSuccess;
-    if (ms <= 300)  return Colors.amber;
-    return kDanger;
-  }
-
   String _latencyText(int? ms) {
     if (ms == null) return '—';
-    if (ms > 300)   return '>300ms';
     return '${ms}ms';
   }
 
   @override
   Widget build(BuildContext context) {
-    final latency = server.latencyMs;
+    final dispLat = server.displayLatencyMs;   // 校正后展示延迟
+    final bars    = server.signalBars;
     final tier    = server.loadTier;
     return Material(
       color: isActive ? kBrand.withOpacity(0.18) : kCard,
@@ -199,13 +305,19 @@ class _ServerTile extends StatelessWidget {
                   style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
               ]),
             ])),
-            // 延迟数值（10 秒滚动平均）。测量中→转圈；测量完成但失败→超时（不再永久转圈）。
+            // 延迟以信号格显示（基于校正后的延迟）。测量中→转圈；失败→超时。
             if (server.latencyMeasured || server.status == 'offline')
-              Text(
-                server.latencyMs == null ? tr('超时','timeout') : _latencyText(latency),
-                style: TextStyle(
-                  color: server.latencyMs == null ? kDanger : _latencyColor(latency),
-                  fontSize: 13, fontWeight: FontWeight.w600))
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                if (dispLat == null)
+                  Text(tr('超时','timeout'),
+                    style: const TextStyle(color: kDanger, fontSize: 13, fontWeight: FontWeight.w600))
+                else ...[
+                  Text(_latencyText(dispLat),
+                    style: TextStyle(color: _signalColor(bars), fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 7),
+                  _SignalBars(bars: bars),
+                ],
+              ])
             else
               SizedBox(width: 12, height: 12,
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white.withOpacity(0.3))),

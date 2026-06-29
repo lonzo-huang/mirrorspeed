@@ -115,6 +115,83 @@ class ServerConfig {
   bool get isDisplayOnly => wgConf.isEmpty;
 
   String get label => '$flagEmoji $displayName';
+
+  // ── 信号/延迟展示处理 ─────────────────────────────────────────────
+  // 用户回访反馈：原始 RTT 比体感偏大。按经验校正显示值（仅影响展示，不影响选路评分）：
+  //   <100ms   → 原值
+  //   100–200ms → 原值 / 2
+  //   >200ms   → 原值 / 3
+  /// 校正后用于展示的延迟（毫秒）；无样本时 null。
+  int? get displayLatencyMs {
+    final ms = latencyMs;
+    if (ms == null) return null;
+    if (ms < 100) return ms;
+    if (ms <= 200) return (ms / 2).round();
+    return (ms / 3).round();
+  }
+
+  /// 信号格数（基于校正后延迟）：4=满格 ·3 ·2 ·1 ·0=无样本。
+  /// ≤100→4 · 100–200→3 · 200–300→2 · >300→1。
+  int get signalBars {
+    final ms = displayLatencyMs;
+    if (ms == null) return 0;
+    if (ms <= 100) return 4;
+    if (ms <= 200) return 3;
+    if (ms <= 300) return 2;
+    return 1;
+  }
+
+  // ── 地理分组 ───────────────────────────────────────────────────────
+  /// 由旗帜 emoji（两个区域指示符）解析出 ISO-3166 alpha-2 国家码（大写）。无法解析时 ''。
+  String get isoCountry {
+    final runes = flagEmoji.runes.toList();
+    if (runes.length < 2) return '';
+    const base = 0x1F1E6; // 区域指示符 'A'
+    final a = runes[0] - base, b = runes[1] - base;
+    if (a < 0 || a > 25 || b < 0 || b > 25) return '';
+    return String.fromCharCode(65 + a) + String.fromCharCode(65 + b);
+  }
+
+  /// 国家所属大洲（用于分组）。未知归入「其他」。
+  String get continent => _continentByIso[isoCountry] ?? 'OT';
+}
+
+// ISO alpha-2 → 大洲代码（AS 亚洲 / EU 欧洲 / NA 北美 / SA 南美 / OC 大洋洲 / AF 非洲 / OT 其他）。
+// 只列出本服务网络可能出现的国家，未列出的归 OT。
+const Map<String, String> _continentByIso = {
+  // 亚洲
+  'CN': 'AS', 'HK': 'AS', 'TW': 'AS', 'MO': 'AS', 'JP': 'AS', 'KR': 'AS',
+  'SG': 'AS', 'MY': 'AS', 'TH': 'AS', 'VN': 'AS', 'ID': 'AS', 'PH': 'AS',
+  'IN': 'AS', 'AE': 'AS', 'TR': 'AS', 'IL': 'AS', 'KZ': 'AS',
+  // 欧洲
+  'DE': 'EU', 'FR': 'EU', 'GB': 'EU', 'NL': 'EU', 'IT': 'EU', 'ES': 'EU',
+  'SE': 'EU', 'CH': 'EU', 'PL': 'EU', 'FI': 'EU', 'NO': 'EU', 'IE': 'EU',
+  'AT': 'EU', 'BE': 'EU', 'DK': 'EU', 'RU': 'EU', 'UA': 'EU', 'RO': 'EU',
+  'CZ': 'EU', 'PT': 'EU', 'GR': 'EU', 'HU': 'EU',
+  // 北美
+  'US': 'NA', 'CA': 'NA', 'MX': 'NA',
+  // 南美
+  'BR': 'SA', 'AR': 'SA', 'CL': 'SA', 'CO': 'SA', 'PE': 'SA',
+  // 大洋洲
+  'AU': 'OC', 'NZ': 'OC',
+  // 非洲
+  'ZA': 'AF', 'EG': 'AF', 'NG': 'AF',
+};
+
+/// 大洲展示名（中/英）与排序权重。
+const Map<String, int> kContinentOrder = {
+  'AS': 0, 'EU': 1, 'NA': 2, 'SA': 3, 'OC': 4, 'AF': 5, 'OT': 6,
+};
+String continentLabel(String code, bool isZh) {
+  switch (code) {
+    case 'AS': return isZh ? '亚洲' : 'Asia';
+    case 'EU': return isZh ? '欧洲' : 'Europe';
+    case 'NA': return isZh ? '北美洲' : 'North America';
+    case 'SA': return isZh ? '南美洲' : 'South America';
+    case 'OC': return isZh ? '大洋洲' : 'Oceania';
+    case 'AF': return isZh ? '非洲' : 'Africa';
+    default:   return isZh ? '其他' : 'Other';
+  }
 }
 
 // display_name 在 DB 里通常是中文（如「德国 法兰克福 01」）。非中文设备改用

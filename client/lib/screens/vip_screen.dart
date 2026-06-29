@@ -15,12 +15,15 @@ class _Plan {
 }
 
 class _VipScreenState extends State<VipScreen> {
-  String _pick = 'y';
+  String _pick = 'yearly';
 
+  // 与官网套餐/价格保持一致（CN：¥；EN：$）。
+  // monthly ¥24 · quarterly ¥36 · yearly ¥96 · biennial ¥168
   List<_Plan> get _plans => [
-    _Plan('m', tr('月付', 'Monthly'),   tr('/月', '/mo'),  '¥28',  tr('灵活', 'Flexible')),
-    _Plan('q', tr('季付', 'Quarterly'), tr('/季', '/qtr'), '¥68',  tr('省 19%', 'Save 19%')),
-    _Plan('y', tr('年付', 'Yearly'),    tr('/年', '/yr'),  '¥188', tr('省 44%', 'Save 44%'), best: true),
+    _Plan('monthly',   tr('月付', 'Monthly'),    tr('/月',  '/mo'),  tr('¥24',  '\$3'),     tr('灵活', 'Flexible')),
+    _Plan('quarterly', tr('季付', 'Quarterly'),  tr('/季',  '/qtr'), tr('¥36',  '\$4.50'),  tr('省 50%', 'Save 50%')),
+    _Plan('yearly',    tr('年付', 'Yearly'),     tr('/年',  '/yr'),  tr('¥96',  '\$12'),    tr('省 67%', 'Save 67%'), best: true),
+    _Plan('biennial',  tr('两年', '2-Year'),     tr('/2年', '/2yr'), tr('¥168', '\$21.60'), tr('省 71%', 'Save 71%')),
   ];
 
   @override
@@ -67,13 +70,17 @@ class _VipScreenState extends State<VipScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Plans
-          Row(children: [
-            for (final p in _plans) ...[
-              Expanded(child: _PlanCard(plan: p, selected: _pick == p.id, onTap: () => setState(() => _pick = p.id))),
-              if (p.id != 'y') const SizedBox(width: 10),
-            ],
-          ]),
+          // Plans（4 个套餐：2×2 网格，避免一行挤）
+          for (int r = 0; r < _plans.length; r += 2) ...[
+            Row(children: [
+              for (int c = r; c < r + 2 && c < _plans.length; c++) ...[
+                Expanded(child: _PlanCard(plan: _plans[c], selected: _pick == _plans[c].id,
+                  onTap: () => setState(() => _pick = _plans[c].id))),
+                if (c == r) const SizedBox(width: 10),
+              ],
+            ]),
+            if (r + 2 < _plans.length) const SizedBox(height: 10),
+          ],
           const SizedBox(height: 20),
 
           // Perks
@@ -85,7 +92,7 @@ class _VipScreenState extends State<VipScreen> {
             child: Column(children: [
               _perk(Icons.all_inclusive_rounded, tr('无限时长', 'Unlimited time'), tr('不限免费额度，随心连接', 'No daily free-time limit')),
               _perk(Icons.bolt_rounded, tr('极速节点', 'Premium speed'), tr('优先接入高带宽节点', 'Priority high-bandwidth nodes')),
-              _perk(Icons.shield_rounded, tr('强加密', 'Strong encryption'), tr('WireGuard / AmneziaWG 混淆', 'WireGuard / AmneziaWG obfuscation')),
+              _perk(Icons.shield_rounded, tr('强加密', 'Strong encryption'), tr('自研加速引擎，极速安全', 'Proprietary speed engine, fast & secure')),
               _perk(Icons.devices_rounded, tr('多设备', 'Multi-device'), tr('多台设备同时在线', 'Use on multiple devices')),
               _perk(Icons.block_rounded, tr('无广告', 'Ad-free'), tr('彻底去除所有广告', 'Removes all ads'), last: true),
             ]),
