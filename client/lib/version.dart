@@ -1,3 +1,3 @@
 // Auto-updated by the release script -- do not edit manually.
 // Keep in sync with pubspec.yaml version field.
-const String kAppVersion = '2.3.7';
+const String kAppVersion = '2.4.1';
