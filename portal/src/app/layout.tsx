@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+// 全站引入落地页主题（.ms-landing / .bg-app / .glass-panel / [data-theme] 变量）。
+// 登录/注册/dashboard 等页用到这些类但自身不引入 LandingPage.jsx，必须在此全局加载，
+// 否则这些类无样式 → 深色主题失效（表现为浅色/看不清）。
+import '@/components/landing/landing.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
