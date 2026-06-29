@@ -190,11 +190,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
         />
-        {/* 防闪烁：水合前就按已保存偏好(ms_theme)设好 html[data-theme]，
-            保证主页与内容页(下载/隐私等)首屏主题一致，无暗→亮跳变。 */}
+        {/* 防闪烁：水合前就设好 html[data-theme]。
+            登录/注册/dashboard/admin 为纯深色页，强制 dark，无视全局偏好；
+            其余页按已保存偏好(ms_theme)，保证主页与内容页首屏主题一致。 */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('ms_theme');if(t!=='light'&&t!=='dark'){t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`,
+            __html: `(function(){try{var p=location.pathname;var t;if(/^\\/(login|signup|dashboard|admin)(\\/|$)/.test(p)){t='dark';}else{t=localStorage.getItem('ms_theme');if(t!=='light'&&t!=='dark'){t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';}}document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`,
           }}
         />
       </head>

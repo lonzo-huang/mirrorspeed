@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getUser, createAdminClient } from '@/lib/supabase/server'
 import AdminDashboard from './AdminDashboard'
+import { ForceDarkTheme } from '@/components/ForceDarkTheme'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,5 +11,5 @@ export default async function AdminPage() {
   const admin = createAdminClient()
   const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()
   if ((profile as any)?.role !== 'admin') redirect('/dashboard')
-  return <AdminDashboard />
+  return <><ForceDarkTheme /><AdminDashboard /></>
 }
