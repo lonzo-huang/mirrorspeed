@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, createContext, useContext } from "react";
+import { useEffect, useState, useRef, createContext, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, Zap, Globe, Lock, Smartphone, Shuffle, Headphones, Check,
@@ -769,10 +769,14 @@ const LandingPage = ({ forcedLang }) => {
     } catch (_) {}
   }, [forcedLang]);
 
+  const skipFirstWrite = useRef(true);
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     document.documentElement.setAttribute("lang", lang);
     document.documentElement.setAttribute("dir", RTL_LANGS.includes(lang) ? "rtl" : "ltr");
+    // 跳过挂载首跑：此时 theme/lang 还是初始默认值（读取 localStorage 的 effect 尚未生效），
+    // 若此刻写入会用默认值覆盖掉已保存的偏好（典型表现：把 light 覆盖成 dark）。
+    if (skipFirstWrite.current) { skipFirstWrite.current = false; return; }
     try { localStorage.setItem("ms_theme", theme); localStorage.setItem("ms_lang", lang); } catch (_) {}
   }, [theme, lang]);
 
@@ -816,9 +820,12 @@ export const LandingChrome = ({ forcedLang, children }) => {
     } catch (_) {}
   }, [forcedLang]);
 
+  const skipFirstWrite = useRef(true);
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     document.documentElement.setAttribute("dir", RTL_LANGS.includes(lang) ? "rtl" : "ltr");
+    // 跳过挂载首跑，避免用初始默认 theme 覆盖已保存偏好（详见 LandingPage 同名注释）。
+    if (skipFirstWrite.current) { skipFirstWrite.current = false; return; }
     try { localStorage.setItem("ms_theme", theme); } catch (_) {}
   }, [theme, lang]);
 

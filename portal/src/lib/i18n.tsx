@@ -1156,8 +1156,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // 落地页（Nav 语言下拉）用 "ms_lang"（下划线），本系统历史用 "ms-lang"（连字符）。
     // 两者桥接：优先读任一已保存值，实现主页 ↔ 内容页语言互通。
+    // 优先读落地页/主页所用的 "ms_lang"（语言切换的真正来源），再回退历史的 "ms-lang"，
+    // 避免旧的 ms-lang 残值（如 zh）覆盖主页当前选择（如 en）。
     const saved = typeof window !== "undefined"
-      ? ((localStorage.getItem("ms-lang") || localStorage.getItem("ms_lang")) as Lang | null)
+      ? ((localStorage.getItem("ms_lang") || localStorage.getItem("ms-lang")) as Lang | null)
       : null;
     const allLangs: Lang[] = ["en", "zh", "de", "fr", "it", "es", "uk", "ja"];
     if (saved && allLangs.includes(saved)) {
