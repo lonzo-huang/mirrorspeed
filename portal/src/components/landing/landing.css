@@ -191,3 +191,9 @@
 .ms-landing .bg-background { background: transparent !important; }
 .ms-landing h1, .ms-landing h2, .ms-landing h3 { font-family: 'Unbounded', sans-serif; }
 
+/* 手机端性能：background-attachment: fixed 在移动浏览器上会触发整屏重绘，
+ * 快速滚动时出现明显卡顿/半屏白块。手机端改为 scroll（桌面端保持 fixed 不变，观感不受影响）。 */
+@media (max-width: 768px) {
+    .ms-landing { background-attachment: scroll; }
+}
+

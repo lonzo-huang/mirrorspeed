@@ -95,10 +95,10 @@ const Nav = () => {
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "py-3" : "py-5"}`} data-testid="main-nav">
       <div className="mx-auto max-w-7xl px-6 sm:px-8">
-        <div className={`flex items-center justify-between rounded-full px-5 py-3 ${scrolled ? "glass" : ""}`}>
-          <a href="/" className="flex items-center gap-2" data-testid="nav-logo">
-            <img src="/icon-192.png" alt="MirrorSpeed" className="h-8 w-8 rounded-lg" style={{ boxShadow: "0 0 12px rgba(34,211,160,0.4)" }} />
-            <span className="font-heading font-bold text-lg tracking-tight text-app-primary">MirrorSpeed</span>
+        <div className={`flex flex-nowrap items-center justify-between gap-2 rounded-full px-4 sm:px-5 py-3 ${scrolled ? "glass" : ""}`}>
+          <a href="/" className="flex items-center gap-2 min-w-0" data-testid="nav-logo">
+            <img src="/icon-192.png" alt="MirrorSpeed" className="h-8 w-8 rounded-lg shrink-0" style={{ boxShadow: "0 0 12px rgba(34,211,160,0.4)" }} />
+            <span className="font-heading font-bold text-lg tracking-tight text-app-primary truncate">MirrorSpeed</span>
           </a>
 
           <nav className="hidden md:flex items-center gap-7">
@@ -109,7 +109,7 @@ const Nav = () => {
             ))}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               className="p-2 rounded-full hover:bg-app-tertiary transition-colors text-app-secondary"
@@ -156,11 +156,12 @@ const Nav = () => {
             <a href="https://mirrorspeed.com/login" className="hidden sm:inline-flex text-sm text-app-secondary hover:text-app-primary px-3 py-2" data-testid="nav-login-link">
               {t("nav_signin")}
             </a>
-            <a href="/download" className="group inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold hover:opacity-90 transition" style={{ background: "var(--text-primary)", color: "var(--bg-primary)" }} data-testid="nav-cta-button">
+            {/* 手机端隐藏 CTA（移入汉堡菜单），避免与 logo/主题键挤在一起、文字被压成竖排 */}
+            <a href="/download" className="group hidden sm:inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap shrink-0 hover:opacity-90 transition" style={{ background: "var(--text-primary)", color: "var(--bg-primary)" }} data-testid="nav-cta-button">
               {t("nav_get_started")}
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
             </a>
-            <button onClick={() => setOpen(!open)} className="md:hidden p-2 text-app-primary" aria-label="Menu" data-testid="nav-mobile-toggle">
+            <button onClick={() => setOpen(!open)} className="md:hidden p-2 text-app-primary shrink-0" aria-label="Menu" data-testid="nav-mobile-toggle">
               {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
@@ -171,6 +172,13 @@ const Nav = () => {
               {links.map((l) => (
                 <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="block py-2 text-app-secondary">{t(l.key)}</a>
               ))}
+              <div className="pt-2 mt-1 border-t border-app-subtle flex flex-col gap-2">
+                <a href="https://mirrorspeed.com/login" onClick={() => setOpen(false)} className="block py-2 text-app-secondary" data-testid="nav-mobile-login">{t("nav_signin")}</a>
+                <a href="/download" onClick={() => setOpen(false)} className="inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold" style={{ background: "var(--text-primary)", color: "var(--bg-primary)" }} data-testid="nav-mobile-cta">
+                  {t("nav_get_started")}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </a>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
