@@ -53,6 +53,15 @@ android {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled   = false
             isShrinkResources = false
+            // 上传原生调试符号：让 Play 控制台能符号化原生(C/Go 隧道)崩溃与 ANR。
+            ndk { debugSymbolLevel = "FULL" }
+        }
+    }
+
+    // 16KB 分页设备要求：jniLibs 以非压缩、页对齐方式打包（配合 16KB 对齐的 .so）。
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
         }
     }
 }

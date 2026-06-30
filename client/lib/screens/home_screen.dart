@@ -557,8 +557,8 @@ class _AdExtendButtonState extends State<_AdExtendButton> {
         if (!mounted) return;
         setState(() => _busy = false);
         messenger.showSnackBar(SnackBar(
-          content: Text(tr('广告未加载好或未看完，请稍后重试', 'Ad not ready or not finished — please try again')),
-          backgroundColor: kDanger, duration: const Duration(seconds: 2)));
+          content: Text(tr('当前网络无法加载广告，可稍后重试或升级会员', 'Ads can\'t load on the current network — try again later or go Premium')),
+          backgroundColor: kDanger, duration: const Duration(seconds: 3)));
       },
     );
   }
