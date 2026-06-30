@@ -161,6 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               // ── 连接设置（只读信息，合并自原「设置」页）──────────
               _InfoCard(children: [
+                _ConnModeRow(vpn: vpn),
                 _InfoRow(icon: Icons.shield_outlined,    label: tr('加速协议', 'Acceleration protocol'),     value: 'MirrorTunnel V1.0'),
                 _InfoRow(icon: Icons.lock_outline,       label: tr('加密', 'Encryption'),   value: 'ChaCha20'),
                 _InfoRow(icon: Icons.blur_on_rounded,    label: tr('流量混淆', 'Obfuscation'), value: tr('已开启', 'On')),
@@ -468,6 +469,71 @@ class _InfoRow extends StatelessWidget {
           fontWeight: FontWeight.w500,
         )),
     ]),
+  );
+}
+
+// ── 连接模式选择行 ───────────────────────────────────────────────
+class _ConnModeRow extends StatelessWidget {
+  final VpnProvider vpn;
+  const _ConnModeRow({required this.vpn});
+
+  String _desc(ConnMode m) {
+    switch (m) {
+      case ConnMode.auto:       return tr('直连优先，失败自动切换', 'Direct first, auto-fallback');
+      case ConnMode.direct:     return tr('直连 UDP，速度最快', 'Direct UDP, fastest');
+      case ConnMode.relay:      return tr('中继 443，抗封锁', 'Relay over 443');
+      case ConnMode.cloudflare: return tr('Cloudflare 中继', 'Cloudflare relay');
+    }
+  }
+
+  void _pick(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+            child: Align(alignment: Alignment.centerLeft,
+              child: Text(tr('连接模式', 'Connection mode'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+          ),
+          for (final m in ConnMode.values)
+            ListTile(
+              leading: Icon(
+                m == vpn.connMode ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                color: m == vpn.connMode ? kBrand : Colors.white38, size: 22),
+              title: Text(vpn.connModeLabel(m, Brand.isZh),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              subtitle: Text(_desc(m),
+                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.45))),
+              onTap: () { Navigator.pop(ctx); vpn.setConnMode(m); },
+            ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: () => _pick(context),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      child: Row(children: [
+        const Icon(Icons.swap_horiz_rounded, size: 17, color: Colors.white38),
+        const SizedBox(width: 12),
+        Text(tr('连接模式', 'Connection mode'),
+          style: const TextStyle(color: Colors.white70, fontSize: 14)),
+        const Spacer(),
+        Text(vpn.connModeLabel(vpn.connMode, Brand.isZh),
+          style: const TextStyle(color: kBrand, fontSize: 14, fontWeight: FontWeight.w600)),
+        const SizedBox(width: 4),
+        Icon(Icons.chevron_right_rounded, size: 18, color: Colors.white.withOpacity(0.3)),
+      ]),
+    ),
   );
 }
 

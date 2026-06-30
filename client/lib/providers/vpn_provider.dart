@@ -22,6 +22,13 @@ enum VpnStatus    { disconnected, connecting, connected, disconnecting, error }
 /// - [relay]      wstunnel 443  → 对外显示「强力模式」
 /// - [cloudflare] Cloudflare    → 对外显示「暴力模式」
 enum VpnProtocol  { direct, relay, cloudflare }
+
+/// 用户可选的「连接模式」偏好（与自动降级解耦）：
+/// - [auto]       自动（默认）：直连，失败逐层降级到强力/超级
+/// - [direct]     快速：仅直连 UDP，不降级
+/// - [relay]      强力：直接走 wstunnel 443 中继
+/// - [cloudflare] 超级：直接走 Cloudflare 中继
+enum ConnMode { auto, direct, relay, cloudflare }
 /// 路由模式
 /// - [global]：全局模式，所有流量走 VPN（0.0.0.0/0）
 /// - [smart] ：智能模式，中国大陆 IP 直连，境外流量走 VPN
@@ -40,6 +47,7 @@ class VpnProvider extends ChangeNotifier {
   StreamSubscription<VpnStage>? _stageSub;
 
   VpnProtocol        _protocol         = VpnProtocol.direct;
+  ConnMode           _connMode         = ConnMode.auto;   // 用户「连接模式」偏好
   bool               _switchingToRelay = false;
   // 用户主动断开标志：置位后，任何挂起的连通性探测/回退计时器都不得再发起
   // 新的连接尝试（修复「手动断开后又自动切到下一模式」）。connect() 清零。
@@ -86,6 +94,7 @@ class VpnProvider extends ChangeNotifier {
   int?          get elapsedSecs  => _elapsedSecs;
   String?       get error        => _error;
   VpnProtocol   get protocol     => _protocol;
+  ConnMode      get connMode     => _connMode;
   bool          get isRelayMode  => _protocol != VpnProtocol.direct;
   RoutingMode   get routingMode  => _routingMode;
 
@@ -195,6 +204,10 @@ class VpnProvider extends ChangeNotifier {
     }
     // 恢复「智能分配 / 手动选择」偏好（默认智能）
     _autoSelect = prefs.getBool('auto_select') ?? true;
+    // 恢复「连接模式」偏好（默认自动）
+    final cmName = prefs.getString('conn_mode');
+    _connMode = ConnMode.values.firstWhere((e) => e.name == cmName,
+        orElse: () => ConnMode.auto);
 
     // 冷启动采纳已在运行的隧道（返回键退后台后进程被系统回收又重开的情况）：
     // 直接显示「已连接」，避免用户再点连接而叠加第二条隧道；试用沿用已持久化
@@ -309,6 +322,27 @@ class VpnProvider extends ChangeNotifier {
         await ApiService.instance.ensurePeer(serverIds: [server.id]);
       }
 
+      // 强制连接模式：强力/超级 跳过直连，直接走对应中继。
+      if (_connMode == ConnMode.relay || _connMode == ConnMode.cloudflare) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('last_server_id', server.id);
+        } catch (_) {}
+        if (_connMode == ConnMode.cloudflare) {
+          final cfUrl = server.cfRelayUrl;
+          // 该节点无 Cloudflare 线路时退回强力(wstunnel)。
+          await _switchToRelay(server,
+              relayBaseUrl: (cfUrl != null && cfUrl.isNotEmpty)
+                  ? cfUrl
+                  : 'wss://${server.relayHost}',
+              force: true);
+        } else {
+          await _switchToRelay(server,
+              relayBaseUrl: 'wss://${server.relayHost}', force: true);
+        }
+        return;
+      }
+
       // 1. 计算实际连接端口（端口跳变 or 固定端口），并钉死到本次会话。
       //    端口只在此处基于时间计算一次；连上后整个会话不再改变。
       final effectivePort = _computePort(server);
@@ -333,10 +367,13 @@ class VpnProvider extends ChangeNotifier {
       // 16s 给 _postConnectCheck 的多次探测（约 4+5+1+5s）留足时间，避免
       // 在直连其实可用、只是数据面稍慢稳定时被过早切走。
       // 使用 relayHost（域名）而非 endpoint（可能为 IP），确保 TLS 证书匹配。
-      _fallbackTimer = Timer(
-        const Duration(seconds: 16),
-        () => _switchToRelay(server, relayBaseUrl: 'wss://${server.relayHost}'),
-      );
+      // 仅「自动」模式下才在直连超时后降级；「快速」模式只直连，不降级。
+      if (_connMode == ConnMode.auto) {
+        _fallbackTimer = Timer(
+          const Duration(seconds: 16),
+          () => _switchToRelay(server, relayBaseUrl: 'wss://${server.relayHost}'),
+        );
+      }
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('last_server_id', server.id);
@@ -449,8 +486,8 @@ class VpnProvider extends ChangeNotifier {
         if (_status != VpnStatus.connected) {
           await _relay.stop();
           final cfUrl = server.cfRelayUrl;
-          if (!isCf && cfUrl != null) {
-            // 层 3：wstunnel-443 超时 → 尝试 Cloudflare Tunnel
+          if (_connMode == ConnMode.auto && !isCf && cfUrl != null) {
+            // 层 3：wstunnel-443 超时 → 尝试 Cloudflare Tunnel（仅自动模式降级）
             await _switchToRelay(server, relayBaseUrl: cfUrl, force: true);
           } else {
             // 所有层均失败
@@ -976,6 +1013,32 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('auto_select', v);
+  }
+
+  /// 记录用户的「连接模式」偏好（自动/快速/强力/超级）。
+  /// 若当前已连接，立即按新模式重连，方便即时切换/测试。
+  Future<void> setConnMode(ConnMode m) async {
+    if (_connMode == m) return;
+    _connMode = m;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('conn_mode', m.name);
+    // 已连接 → 用同一节点按新模式重连。
+    final s = _activeServer;
+    if (isConnected && s != null && !s.isDisplayOnly) {
+      await disconnect();
+      await connect(s);
+    }
+  }
+
+  /// 「连接模式」本地化名称。
+  String connModeLabel(ConnMode m, bool zh) {
+    switch (m) {
+      case ConnMode.auto:       return zh ? '自动' : 'Auto';
+      case ConnMode.direct:     return zh ? '快速' : 'Fast';
+      case ConnMode.relay:      return zh ? '强力' : 'Strong';
+      case ConnMode.cloudflare: return zh ? '超级' : 'Ultra';
+    }
   }
 
   String get elapsedFormatted {
