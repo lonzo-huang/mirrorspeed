@@ -119,7 +119,7 @@ class HomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _StatsRow(
                     connected: vpn.isConnected,
-                    pingMs:    server?.latencyMs,
+                    pingMs:    server?.displayLatencyMs,
                     upStr:     vpn.isConnected ? vpn.uploadSpeedStr   : '0 B/s',
                     downStr:   vpn.isConnected ? vpn.downloadSpeedStr : '0 B/s',
                   ),
@@ -256,12 +256,13 @@ class HomeScreen extends StatelessWidget {
 
 }
 
-// 延迟用颜色点表示，不显示具体数值（#6）：
-//   <500ms 绿色 · 500–1500ms 黄色 · >1500ms 红色 · 测量中灰色
+// 延迟颜色点（基于校正后的延迟，与服务器列表信号格一致）：
+//   ≤100 绿 · ≤200 浅绿 · ≤300 黄 · >300 红 · 测量中灰
 Color latencyColor(int? ms) {
   if (ms == null)   return Colors.white38;
-  if (ms < 500)     return kSuccess;
-  if (ms <= 1500)   return Colors.amber;
+  if (ms <= 100)    return kSuccess;
+  if (ms <= 200)    return Colors.lightGreen;
+  if (ms <= 300)    return Colors.amber;
   return kDanger;
 }
 
@@ -402,7 +403,7 @@ class _NodeCard extends StatelessWidget {
   const _NodeCard({required this.server, required this.auto, required this.onTap});
   @override
   Widget build(BuildContext context) {
-    final ms = server.latencyMs;
+    final ms = server.displayLatencyMs;
     final c  = auto ? kAccentOn : Colors.amber;
     return GestureDetector(
       onTap: onTap,

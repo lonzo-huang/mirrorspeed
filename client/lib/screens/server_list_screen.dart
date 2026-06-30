@@ -92,7 +92,8 @@ class _ServerListScreenState extends State<ServerListScreen> {
       body: servers.isEmpty
           ? Center(child: Text(tr('暂无可用节点','No nodes available'), style: const TextStyle(color: Colors.white54)))
           : ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              // 底部留白避开悬浮底部导航栏（extendBody），否则最后几项被遮住、滚不到底。
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
               // +1：列表首项为「智能选择」
               itemCount: rows.length + 1,
               separatorBuilder: (_, i) {
@@ -271,14 +272,9 @@ class _ServerTile extends StatelessWidget {
   final VoidCallback  onTap;
   const _ServerTile({ required this.server, required this.isActive, required this.onTap });
 
-  String _latencyText(int? ms) {
-    if (ms == null) return '—';
-    return '${ms}ms';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final dispLat = server.displayLatencyMs;   // 校正后展示延迟
+    final dispLat = server.displayLatencyMs;   // 校正后展示延迟（仅用于判断是否超时）
     final bars    = server.signalBars;
     final tier    = server.loadTier;
     return Material(
@@ -305,19 +301,12 @@ class _ServerTile extends StatelessWidget {
                   style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
               ]),
             ])),
-            // 延迟以信号格显示（基于校正后的延迟）。测量中→转圈；失败→超时。
+            // 仅以信号格显示状态（不再显示具体延迟数值）。测量中→转圈；失败→超时。
             if (server.latencyMeasured || server.status == 'offline')
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                if (dispLat == null)
-                  Text(tr('超时','timeout'),
+              (dispLat == null
+                ? Text(tr('超时','timeout'),
                     style: const TextStyle(color: kDanger, fontSize: 13, fontWeight: FontWeight.w600))
-                else ...[
-                  Text(_latencyText(dispLat),
-                    style: TextStyle(color: _signalColor(bars), fontSize: 13, fontWeight: FontWeight.w600)),
-                  const SizedBox(width: 7),
-                  _SignalBars(bars: bars),
-                ],
-              ])
+                : _SignalBars(bars: bars))
             else
               SizedBox(width: 12, height: 12,
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white.withOpacity(0.3))),

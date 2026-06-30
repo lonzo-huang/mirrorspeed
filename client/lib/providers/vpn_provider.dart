@@ -899,6 +899,9 @@ class VpnProvider extends ChangeNotifier {
     int rounds = 3,
     Duration gap = const Duration(milliseconds: 600),
   }) async {
+    // 已连接时「冻结」连接前测得的延迟：探测包会走隧道（你→VPN节点→目标节点），
+    // 导致其他节点延迟暴涨且失真。连接期间不重测，沿用连接前的值。
+    if (isConnected) return;
     // 用 relayHost（= api_url 域名，证书有效）而非 endpoint：部分节点的 endpoint
     // 是另一个域名/裸 IP，HTTPS 健康检查会一直失败导致 UI 永久转圈（如西班牙节点）。
     Uri urlOf(ServerConfig s) =>
