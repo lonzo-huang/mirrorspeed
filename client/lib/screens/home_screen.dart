@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../utils/portal_link.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
 import '../services/ad_service.dart';
@@ -598,8 +599,6 @@ class _AdExtendButtonState extends State<_AdExtendButton> {
 class _UpgradeButton extends StatelessWidget {
   const _UpgradeButton();
 
-  static const _pricingUrl = 'https://mirrorspeed.com/pricing';
-
   @override
   Widget build(BuildContext context) => Column(children: [
     Container(
@@ -622,10 +621,7 @@ class _UpgradeButton extends StatelessWidget {
     SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
-        onPressed: () => launchUrl(
-          Uri.parse(_pricingUrl),
-          mode: LaunchMode.externalApplication,
-        ),
+        onPressed: () => openPortal('/pricing'),
         style: FilledButton.styleFrom(
           backgroundColor: kBrand,
           shape:   RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -736,10 +732,7 @@ class _ExpiryBanner extends StatelessWidget {
         : tr('您的订阅将在 $days 天后到期', 'Your subscription expires in $days days');
 
     return GestureDetector(
-      onTap: () => launchUrl(
-        Uri.parse('https://mirrorspeed.com/dashboard/billing'),
-        mode: LaunchMode.externalApplication,
-      ),
+      onTap: () => openPortal('/dashboard/billing'),
       child: Container(
         width: double.infinity,
         margin:  const EdgeInsets.only(top: 12, bottom: 4),

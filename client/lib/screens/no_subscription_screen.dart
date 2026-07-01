@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../brand.dart';
-import '../env.dart';
+import '../utils/portal_link.dart';
 
 class NoSubscriptionScreen extends StatelessWidget {
   const NoSubscriptionScreen({super.key});
@@ -29,7 +28,7 @@ class NoSubscriptionScreen extends StatelessWidget {
               ElevatedButton.icon(
                 icon: const Icon(Icons.open_in_new_rounded, size: 18),
                 label: Text(tr('前往订阅', 'Subscribe')),
-                onPressed: () => launchUrl(Uri.parse('$kApiBase/dashboard/billing')),
+                onPressed: () => openPortal('/dashboard/billing'),
               ),
               const SizedBox(height: 16),
               TextButton(

@@ -11,6 +11,7 @@ import '../services/api_service.dart';
 import '../brand.dart';
 import '../theme.dart';
 import '../version.dart';
+import '../utils/portal_link.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -176,10 +177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _ActionRow(
                   icon:  Icons.open_in_new_rounded,
                   label: tr('管理订阅', 'Manage subscription'),
-                  onTap: () => launchUrl(
-                    Uri.parse('https://mirrorspeed.com/dashboard'),
-                    mode: LaunchMode.externalApplication,
-                  ),
+                  onTap: () => openPortal('/dashboard'),
                 ),
                 _ActionRow(
                   icon:  Icons.privacy_tip_outlined,
