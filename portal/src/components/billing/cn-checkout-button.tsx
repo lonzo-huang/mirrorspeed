@@ -58,6 +58,7 @@ export function CnCheckoutButton({ planKey }: { planKey: string }) {
         <span className="text-[10px] text-muted-foreground uppercase tracking-widest">人民币支付</span>
         <div className="flex-1 h-px bg-border/60" />
       </div>
+      <p className="text-[10px] text-center text-[#1677ff]">移动端推荐「支付宝」，可直接唤起 App 付款（微信为扫码）</p>
 
       <div className="grid grid-cols-2 gap-2">
         {/* Alipay */}
@@ -75,6 +76,7 @@ export function CnCheckoutButton({ planKey }: { planKey: string }) {
                   <path d="M3.648 12.267c0 4.765 3.868 8.633 8.633 8.633a8.607 8.607 0 005.605-2.07c-.756-.385-3.975-1.988-6.3-3.293-1.218 1.522-2.493 2.478-4.088 2.478-2.096 0-3.204-1.516-3.204-3.09 0-2.294 2.127-3.836 5.125-3.836.98 0 2.016.148 3.052.43-.21-.448-.406-.9-.586-1.343H5.607v-.816h4.865a31.32 31.32 0 01-.307-.98H5.607v-.816h4.26c-.15-.757-.238-1.466-.238-2.082 0-3.052 2.085-4.706 4.707-4.706 1.93 0 3.437.804 4.436 2.054l-1.49 1.273c-.672-.868-1.664-1.39-2.946-1.39-1.72 0-2.793 1.037-2.793 2.827 0 .588.085 1.264.23 1.954h5.122v.816H11.8c.098.316.2.642.3.98h5.088v.816h-4.76c.182.47.378.94.587 1.4 1.93.684 3.64 1.537 4.727 2.1A8.61 8.61 0 0020.281 12a8.633 8.633 0 00-8.633-8.633A8.633 8.633 0 003.015 12c.006.09.012.179.012.267H3.648z"/>
                 </svg>
                 支付宝 {price}
+                <span className="ml-1 rounded bg-[#1677ff] text-white text-[8px] px-1 py-0.5 leading-none">推荐</span>
               </>
             )
           }

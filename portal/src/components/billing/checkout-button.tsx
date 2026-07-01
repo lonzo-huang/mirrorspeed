@@ -5,7 +5,7 @@ import { CreditCard, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 
 export function CheckoutButton({ planKey }: { planKey: string }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [loading, setLoading] = useState(false)
 
   const [errMsg, setErrMsg] = useState<string | null>(null)
@@ -44,6 +44,9 @@ export function CheckoutButton({ planKey }: { planKey: string }) {
           : <><CreditCard className="h-4 w-4" /> {t.pricing.featured}</>
         }
       </button>
+      <p className="text-[11px] text-center text-muted-foreground">
+        {lang === 'zh' ? '· 美元(USD)支付，Stripe 信用卡 ·' : '· Paid in USD via Stripe ·'}
+      </p>
       {errMsg && (
         <p className="text-xs text-red-400 text-center">{errMsg}</p>
       )}

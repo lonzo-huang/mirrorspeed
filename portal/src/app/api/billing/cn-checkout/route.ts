@@ -50,14 +50,12 @@ export async function POST(req: NextRequest) {
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin).replace(/\/$/, '')
     const amount = CNY_AMOUNTS[plan]
 
-    // WeChat Pay 需要指定 client：移动端传 ios/android → Stripe 尝试直接唤起微信 App；
-    // 桌面端 web → 展示二维码扫码。支付宝在移动端由 Stripe 托管页自动跳转支付宝 App，无需额外参数。
-    const rawWechatClient = body.wechatClient
-    const wechatClient: 'web' | 'ios' | 'android' =
-      rawWechatClient === 'ios' || rawWechatClient === 'android' ? rawWechatClient : 'web'
+    // WeChat Pay：Stripe「托管 Checkout」只支持 client='web'（展示二维码扫码）。
+    // ios/android 仅用于原生 SDK 集成，在托管页会报「requires payment_method_options」，故一律用 web。
+    // 支付宝在移动端由 Stripe 托管页自动跳转支付宝 App（更顺，故前端推荐支付宝）。
     const paymentMethodOptions: Record<string, any> = {}
     if (method === 'wechat_pay') {
-      paymentMethodOptions.wechat_pay = { client: wechatClient }
+      paymentMethodOptions.wechat_pay = { client: 'web' }
     }
 
     const session = await stripe.checkout.sessions.create({

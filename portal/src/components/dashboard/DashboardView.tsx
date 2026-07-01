@@ -58,6 +58,7 @@ export function DashboardView({ userEmail, displayName, profile, subscription, d
   const d = t.dash
   const deviceCount = devices.length
   const isActive = subscription?.status === 'active'
+  const maxDevices = isActive ? 4 : 2   // 付费 4 台 / 免费 2 台
   const plan = subscription?.plan
 
   return (
@@ -120,11 +121,11 @@ export function DashboardView({ userEmail, displayName, profile, subscription, d
             <span className="text-sm font-medium text-muted-foreground">{d.devicesLabel}</span>
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {deviceCount} <span className="text-base font-normal text-muted-foreground">/ 2</span>
+            {deviceCount} <span className="text-base font-normal text-muted-foreground">/ {maxDevices}</span>
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {deviceCount < 2
-              ? `${2 - deviceCount} ${d.devSlotsLeft}`
+            {deviceCount < maxDevices
+              ? `${maxDevices - deviceCount} ${d.devSlotsLeft}`
               : d.devLimitReached}
           </p>
         </div>

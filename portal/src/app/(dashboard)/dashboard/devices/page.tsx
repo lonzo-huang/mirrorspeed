@@ -175,7 +175,7 @@ export default function DevicesPage() {
           )
         })}
 
-        {devices.length < 3 && hasSub && (
+        {devices.length < 4 && hasSub && (
           <div className="card border-dashed border-gray-300">
             <div className="flex items-center gap-3 mb-4">
               <Plus className="h-5 w-5 text-gray-400" />
