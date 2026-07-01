@@ -3,12 +3,23 @@
 import { useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 
-// CNY display prices for each plan
+// CNY display prices for each plan (实际扣款总额)
 const CNY_PRICES: Record<string, string> = {
   monthly:   '¥24',
-  quarterly: '¥36',
-  yearly:    '¥96',
-  biennial:  '¥168',
+  quarterly: '¥39',
+  halfyear:  '¥66',
+  yearly:    '¥108',
+  biennial:  '¥192',
+}
+
+// 移动端：告诉 Stripe 用哪种微信支付客户端。
+// ios/android → 尝试直接唤起微信 App 完成支付；web(桌面) → 显示二维码扫码。
+function detectWechatClient(): 'web' | 'ios' | 'android' {
+  if (typeof navigator === 'undefined') return 'web'
+  const ua = navigator.userAgent || ''
+  if (/iPhone|iPad|iPod/i.test(ua)) return 'ios'
+  if (/Android/i.test(ua)) return 'android'
+  return 'web'
 }
 
 export function CnCheckoutButton({ planKey }: { planKey: string }) {
@@ -24,7 +35,7 @@ export function CnCheckoutButton({ planKey }: { planKey: string }) {
       const res = await fetch('/api/billing/cn-checkout', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ plan: planKey, method }),
+        body:    JSON.stringify({ plan: planKey, method, wechatClient: detectWechatClient() }),
       })
       const data = await res.json()
       if (data.url) {
