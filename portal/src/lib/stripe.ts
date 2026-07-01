@@ -10,6 +10,7 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 export const STRIPE_PRICE_IDS: Record<string, string> = {
   yearly:    process.env.STRIPE_PRICE_YEARLY!,    // $12/yr  → $1/mo
   biennial:  process.env.STRIPE_PRICE_BIENNIAL!,  // $21.60/2yr → $0.90/mo
+  halfyear:  process.env.STRIPE_PRICE_HALFYEAR!,  // 半年循环 Price（需在 Stripe 新建后配置此环境变量）
   monthly:   process.env.STRIPE_PRICE_MONTHLY!,   // $3/mo
   quarterly: process.env.STRIPE_PRICE_QUARTERLY!, // $4.50/qtr → $1.50/mo
 }

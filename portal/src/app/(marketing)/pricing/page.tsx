@@ -5,7 +5,7 @@ import { Loader2, Shield } from 'lucide-react'
 import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n } from '@/lib/i18n'
 
-const PLAN_KEYS = ['yearly', 'biennial', 'monthly', 'quarterly'] as const
+const PLAN_KEYS = ['yearly', 'biennial', 'halfyear', 'monthly', 'quarterly'] as const
 type PlanKey = typeof PLAN_KEYS[number]
 
 export default function PricingPage() {

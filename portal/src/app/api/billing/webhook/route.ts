@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 const PLAN_DURATION: Record<string, number> = {
   monthly:   30,
   quarterly: 91,
+  halfyear:  182,
   yearly:    365,
   biennial:  730,
 }

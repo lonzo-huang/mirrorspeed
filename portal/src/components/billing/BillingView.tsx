@@ -7,7 +7,7 @@ import { CnCheckoutButton } from '@/components/billing/cn-checkout-button'
 import { ManageButton } from '@/components/billing/manage-button'
 import { useI18n } from '@/lib/i18n'
 
-const PLAN_KEYS = ['yearly', 'biennial', 'monthly', 'quarterly'] as const
+const PLAN_KEYS = ['yearly', 'biennial', 'halfyear', 'monthly', 'quarterly'] as const
 type PlanKey = typeof PLAN_KEYS[number]
 
 interface Subscription {
@@ -42,7 +42,7 @@ export function BillingView({ subscription, payments }: Props) {
   const isPastDue = subscription?.status === 'past_due'
 
   // Map plan index → planKey
-  const planKeys: PlanKey[] = ['yearly', 'biennial', 'monthly', 'quarterly']
+  const planKeys: PlanKey[] = ['yearly', 'biennial', 'halfyear', 'monthly', 'quarterly']
 
   return (
     <div className="space-y-6">

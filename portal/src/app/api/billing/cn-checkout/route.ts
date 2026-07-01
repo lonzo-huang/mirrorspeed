@@ -4,10 +4,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 // CNY amounts in fen (cents) for each plan
 const CNY_AMOUNTS: Record<string, number> = {
-  monthly:   2400,   // ¥24
-  quarterly: 3600,   // ¥36
-  yearly:    9600,   // ¥96
-  biennial:  16800,  // ¥168
+  monthly:   2400,   // ¥24  (¥24/月)
+  quarterly: 3900,   // ¥39  (¥13/月 ×3)
+  halfyear:  6600,   // ¥66  (¥11/月 ×6)
+  yearly:    10800,  // ¥108 (¥9/月  ×12)
+  biennial:  19200,  // ¥192 (¥8/月  ×24)
 }
 
 // POST /api/billing/cn-checkout — Alipay / WeChat Pay (one-time, CNY)
