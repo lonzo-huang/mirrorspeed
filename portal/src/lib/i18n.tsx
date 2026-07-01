@@ -59,7 +59,7 @@ const dict = {
       plans: [
         { name: "Yearly",    price: "$1",    per: "/mo", desc: "Billed $12/yr",         feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 3 devices simultaneously", "24/7 support", "Cancel anytime"] },
         { name: "2-Year",    price: "$0.90", per: "/mo", desc: "Billed $21.60/2 yrs",   feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 3 devices simultaneously", "24/7 support", "Cancel anytime"] },
-        { name: "Half-Year", price: "$1.20", per: "/mo", desc: "Billed $7.20/6 mos",    feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 3 devices simultaneously", "24/7 support", "Cancel anytime"] },
+        { name: "Half-Year", price: "$1.50", per: "/mo", desc: "Billed $9.00/6 mos",    feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 3 devices simultaneously", "24/7 support", "Cancel anytime"] },
         { name: "Monthly",   price: "$3",    per: "/mo", desc: "Billed monthly",         feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 3 devices simultaneously", "24/7 support", "Cancel anytime"] },
         { name: "Quarterly", price: "$1.50", per: "/mo", desc: "Billed $4.50/quarter",  feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 3 devices simultaneously", "24/7 support", "Cancel anytime"] },
       ],
@@ -81,8 +81,8 @@ const dict = {
       orEmail: "Or email", email: "Email address", password: "Password",
       submit: "Send Code", switchToSignup: "No account? Sign up", switchToLogin: "Have an account? Log in",
       terms: "By continuing you agree to our Terms and Privacy Policy.",
-      otpSent: "Check your inbox", enterOtp: "Enter the 8-digit code from your email",
-      otpPlaceholder: "00000000", verify: "Verify & Sign In", resend: "Resend code",
+      otpSent: "Check your inbox", enterOtp: "Enter the 6-digit code from your email",
+      otpPlaceholder: "000000", verify: "Verify & Sign In", resend: "Resend code",
       loading: "Loading...", sending: "Sending...", redirecting: "Signing in...", invalidOtp: "Invalid code, please try again.",
     },
     dash: {
@@ -223,8 +223,8 @@ const dict = {
       orEmail: "或使用邮箱", email: "邮箱地址", password: "密码",
       submit: "发送验证码", switchToSignup: "还没有账户？注册", switchToLogin: "已有账户？登录",
       terms: "继续即表示同意服务条款和隐私政策。",
-      otpSent: "验证码已发送，请查收邮件", enterOtp: "请输入邮件中的 8 位验证码",
-      otpPlaceholder: "00000000", verify: "验证并登录", resend: "重新发送",
+      otpSent: "验证码已发送，请查收邮件", enterOtp: "请输入邮件中的 6 位验证码",
+      otpPlaceholder: "000000", verify: "验证并登录", resend: "重新发送",
       loading: "加载中...", sending: "发送中...", redirecting: "正在登录...", invalidOtp: "验证码不正确，请重试。",
     },
     dash: {
@@ -343,7 +343,7 @@ const dict = {
       plans: [
         { name: "Jährlich",    price: "$1",    per: "/Mo.", desc: "$12/Jahr",         feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 3 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
         { name: "2 Jahre",     price: "$0.90", per: "/Mo.", desc: "$21.60/2 Jahre",   feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 3 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
-        { name: "Halbjahr",    price: "$1.20", per: "/Mo.", desc: "$7.20/6 Monate",   feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 3 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
+        { name: "Halbjahr",    price: "$1.50", per: "/Mo.", desc: "$9.00/6 Monate",   feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 3 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
         { name: "Monatlich",   price: "$3",    per: "/Mo.", desc: "Monatlich",         feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 3 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
         { name: "Quartal",     price: "$1.50", per: "/Mo.", desc: "$4.50/Quartal",    feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 3 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
       ],
@@ -365,8 +365,8 @@ const dict = {
       orEmail: "Oder E-Mail", email: "E-Mail-Adresse", password: "Passwort",
       submit: "Code senden", switchToSignup: "Kein Konto? Registrieren", switchToLogin: "Bereits Konto? Anmelden",
       terms: "Mit dem Fortfahren stimmen Sie unseren AGB und Datenschutzrichtlinien zu.",
-      otpSent: "Code gesendet — E-Mail prüfen", enterOtp: "8-stelligen Code aus der E-Mail eingeben",
-      otpPlaceholder: "00000000", verify: "Verifizieren & Anmelden", resend: "Code erneut senden",
+      otpSent: "Code gesendet — E-Mail prüfen", enterOtp: "6-stelligen Code aus der E-Mail eingeben",
+      otpPlaceholder: "000000", verify: "Verifizieren & Anmelden", resend: "Code erneut senden",
       loading: "Laden...", sending: "Senden...", redirecting: "Anmelden...", invalidOtp: "Ungültiger Code, bitte erneut versuchen.",
     },
     dash: {
@@ -485,7 +485,7 @@ const dict = {
       plans: [
         { name: "Annuel",      price: "$1",    per: "/mois", desc: "$12/an",           feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 3 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
         { name: "2 ans",       price: "$0,90", per: "/mois", desc: "$21,60/2 ans",     feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 3 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
-        { name: "Semestriel",  price: "$1,20", per: "/mois", desc: "$7,20/6 mois",     feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 3 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
+        { name: "Semestriel",  price: "$1,50", per: "/mois", desc: "$9,00/6 mois",     feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 3 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
         { name: "Mensuel",     price: "$3",    per: "/mois", desc: "Mensuel",           feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 3 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
         { name: "Trimestriel", price: "$1,50", per: "/mois", desc: "$4,50/trimestre",  feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 3 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
       ],
@@ -507,8 +507,8 @@ const dict = {
       orEmail: "Ou par e-mail", email: "Adresse e-mail", password: "Mot de passe",
       submit: "Envoyer le code", switchToSignup: "Pas de compte ? S'inscrire", switchToLogin: "Déjà un compte ? Se connecter",
       terms: "En continuant, vous acceptez nos Conditions et notre Politique de confidentialité.",
-      otpSent: "Code envoyé — vérifiez vos e-mails", enterOtp: "Entrez le code à 8 chiffres reçu par e-mail",
-      otpPlaceholder: "00000000", verify: "Vérifier et se connecter", resend: "Renvoyer le code",
+      otpSent: "Code envoyé — vérifiez vos e-mails", enterOtp: "Entrez le code à 6 chiffres reçu par e-mail",
+      otpPlaceholder: "000000", verify: "Vérifier et se connecter", resend: "Renvoyer le code",
       loading: "Chargement...", sending: "Envoi...", redirecting: "Connexion...", invalidOtp: "Code invalide, veuillez réessayer.",
     },
     dash: {
@@ -627,7 +627,7 @@ const dict = {
       plans: [
         { name: "Annuale",     price: "$1",    per: "/mese", desc: "$12/anno",          feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 3 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
         { name: "2 anni",      price: "$0,90", per: "/mese", desc: "$21,60/2 anni",     feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 3 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
-        { name: "Semestrale",  price: "$1,20", per: "/mese", desc: "$7,20/6 mesi",      feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 3 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
+        { name: "Semestrale",  price: "$1,50", per: "/mese", desc: "$9,00/6 mesi",      feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 3 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
         { name: "Mensile",     price: "$3",    per: "/mese", desc: "Mensile",            feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 3 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
         { name: "Trimestrale", price: "$1,50", per: "/mese", desc: "$4,50/trimestre",   feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 3 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
       ],
@@ -649,8 +649,8 @@ const dict = {
       orEmail: "O via email", email: "Indirizzo email", password: "Password",
       submit: "Invia codice", switchToSignup: "Nessun account? Registrati", switchToLogin: "Hai un account? Accedi",
       terms: "Continuando accetti i nostri Termini e la nostra Informativa sulla privacy.",
-      otpSent: "Codice inviato — controlla la tua email", enterOtp: "Inserisci il codice a 8 cifre dalla tua email",
-      otpPlaceholder: "00000000", verify: "Verifica e accedi", resend: "Invia di nuovo",
+      otpSent: "Codice inviato — controlla la tua email", enterOtp: "Inserisci il codice a 6 cifre dalla tua email",
+      otpPlaceholder: "000000", verify: "Verifica e accedi", resend: "Invia di nuovo",
       loading: "Caricamento...", sending: "Invio...", redirecting: "Accesso...", invalidOtp: "Codice non valido, riprova.",
     },
     dash: {
@@ -769,7 +769,7 @@ const dict = {
       plans: [
         { name: "Anual",      price: "$1",    per: "/mes", desc: "$12/año",           feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 3 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
         { name: "2 años",     price: "$0,90", per: "/mes", desc: "$21,60/2 años",     feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 3 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
-        { name: "Semestral",  price: "$1,20", per: "/mes", desc: "$7,20/6 meses",     feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 3 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
+        { name: "Semestral",  price: "$1,50", per: "/mes", desc: "$9,00/6 meses",     feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 3 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
         { name: "Mensual",    price: "$3",    per: "/mes", desc: "Mensual",            feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 3 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
         { name: "Trimestral", price: "$1,50", per: "/mes", desc: "$4,50/trimestre",   feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 3 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
       ],
@@ -791,8 +791,8 @@ const dict = {
       orEmail: "O con email", email: "Dirección de email", password: "Contraseña",
       submit: "Enviar código", switchToSignup: "¿Sin cuenta? Regístrate", switchToLogin: "¿Ya tienes cuenta? Inicia sesión",
       terms: "Al continuar aceptas nuestros Términos y Política de privacidad.",
-      otpSent: "Código enviado — revisa tu correo", enterOtp: "Introduce el código de 8 dígitos de tu correo",
-      otpPlaceholder: "00000000", verify: "Verificar e iniciar sesión", resend: "Reenviar código",
+      otpSent: "Código enviado — revisa tu correo", enterOtp: "Introduce el código de 6 dígitos de tu correo",
+      otpPlaceholder: "000000", verify: "Verificar e iniciar sesión", resend: "Reenviar código",
       loading: "Cargando...", sending: "Enviando...", redirecting: "Iniciando sesión...", invalidOtp: "Código inválido, inténtalo de nuevo.",
     },
     dash: {
@@ -911,7 +911,7 @@ const dict = {
       plans: [
         { name: "Річний",      price: "$1",    per: "/міс", desc: "$12/рік",          feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 3 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
         { name: "2 роки",      price: "$0,90", per: "/міс", desc: "$21,60/2 роки",    feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 3 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
-        { name: "Півроку",     price: "$1,20", per: "/міс", desc: "$7,20/6 міс",      feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 3 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
+        { name: "Півроку",     price: "$1,50", per: "/міс", desc: "$9,00/6 міс",      feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 3 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
         { name: "Місячний",    price: "$3",    per: "/міс", desc: "Щомісяця",          feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 3 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
         { name: "Квартальний", price: "$1,50", per: "/міс", desc: "$4,50/квартал",    feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 3 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
       ],
@@ -933,8 +933,8 @@ const dict = {
       orEmail: "Або за email", email: "Електронна пошта", password: "Пароль",
       submit: "Надіслати код", switchToSignup: "Немає акаунту? Зареєструватись", switchToLogin: "Вже є акаунт? Увійти",
       terms: "Продовжуючи, ви погоджуєтесь з нашими Умовами та Політикою конфіденційності.",
-      otpSent: "Код надіслано — перевір пошту", enterOtp: "Введи 8-значний код з листа",
-      otpPlaceholder: "00000000", verify: "Підтвердити та увійти", resend: "Надіслати знову",
+      otpSent: "Код надіслано — перевір пошту", enterOtp: "Введи 6-значний код з листа",
+      otpPlaceholder: "000000", verify: "Підтвердити та увійти", resend: "Надіслати знову",
       loading: "Завантаження...", sending: "Надсилання...", redirecting: "Вхід...", invalidOtp: "Невірний код, спробуй ще раз.",
     },
     dash: {
@@ -1053,7 +1053,7 @@ const dict = {
       plans: [
         { name: "年払い",     price: "$1",    per: "/月", desc: "$12/年",          feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時3台まで", "24時間サポート", "いつでもキャンセル可"] },
         { name: "2年払い",    price: "$0.90", per: "/月", desc: "$21.60/2年",      feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時3台まで", "24時間サポート", "いつでもキャンセル可"] },
-        { name: "半年払い",   price: "$1.20", per: "/月", desc: "$7.20/6ヶ月",     feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時3台まで", "24時間サポート", "いつでもキャンセル可"] },
+        { name: "半年払い",   price: "$1.50", per: "/月", desc: "$9.00/6ヶ月",     feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時3台まで", "24時間サポート", "いつでもキャンセル可"] },
         { name: "月払い",     price: "$3",    per: "/月", desc: "月払い",           feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時3台まで", "24時間サポート", "いつでもキャンセル可"] },
         { name: "四半期払い", price: "$1.50", per: "/月", desc: "$4.50/四半期",    feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時3台まで", "24時間サポート", "いつでもキャンセル可"] },
       ],
@@ -1075,8 +1075,8 @@ const dict = {
       orEmail: "またはメールで", email: "メールアドレス", password: "パスワード",
       submit: "コードを送信", switchToSignup: "アカウントなし？登録する", switchToLogin: "アカウントあり？ログイン",
       terms: "続けることで、利用規約とプライバシーポリシーに同意します。",
-      otpSent: "コードを送信しました — メールを確認してください", enterOtp: "メールに届いた8桁のコードを入力",
-      otpPlaceholder: "00000000", verify: "確認してログイン", resend: "コードを再送",
+      otpSent: "コードを送信しました — メールを確認してください", enterOtp: "メールに届いた6桁のコードを入力",
+      otpPlaceholder: "000000", verify: "確認してログイン", resend: "コードを再送",
       loading: "読み込み中...", sending: "送信中...", redirecting: "ログイン中...", invalidOtp: "コードが無効です。もう一度お試しください。",
     },
     dash: {

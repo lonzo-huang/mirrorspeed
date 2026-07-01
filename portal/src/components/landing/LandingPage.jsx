@@ -543,7 +543,7 @@ const Pricing = () => {
   const plans = [
     { nameK: "pr_monthly", usd: 3.00, noteK: "pr_billed_m", savePct: null, testId: "monthly" },
     { nameK: "pr_quarterly", usd: 1.80, noteK: "pr_billed_q", savePct: 40, testId: "quarterly" },
-    { nameK: "pr_halfyear", usd: 1.45, noteK: "pr_billed_h", savePct: 52, testId: "halfyear" },
+    { nameK: "pr_halfyear", usd: 1.50, noteK: "pr_billed_h", savePct: 50, testId: "halfyear" },
     { nameK: "pr_yearly", usd: 1.20, noteK: "pr_billed_y", savePct: 60, testId: "yearly" },
     { nameK: "pr_2yr", usd: 1.00, noteK: "pr_billed_2y", featured: true, badgeK: "pr_popular", savePct: 67, testId: "2yr" },
   ];
