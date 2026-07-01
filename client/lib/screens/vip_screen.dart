@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../brand.dart';
 import '../theme.dart';
+import '../utils/portal_link.dart';
 import 'sub_page.dart';
 
 class VipScreen extends StatefulWidget {
@@ -8,24 +10,35 @@ class VipScreen extends StatefulWidget {
   @override State<VipScreen> createState() => _VipScreenState();
 }
 
+// 套餐定义：官网价(cny 人民币总额 / usd 美元总额) + 周期(月数)。
 class _Plan {
-  final String id, name, per, price, sub;
-  final bool best;
-  const _Plan(this.id, this.name, this.per, this.price, this.sub, {this.best = false});
+  final String key, nameZh, nameEn;
+  final int    months;
+  final int    cny;      // 官网人民币总额
+  final double usd;      // 官网美元总额
+  final bool   best;
+  const _Plan(this.key, this.nameZh, this.nameEn, this.months, this.cny, this.usd, {this.best = false});
+
+  String get name => Brand.isZh ? nameZh : nameEn;
+  // 应用内购价 = 官网美元价 × 1.2 后向下取整（整数美元）。
+  int get iapUsd => (usd * 1.2).floor();
+  String cnyPerMonth() => '¥${(cny / months).round()}';
+  String usdIapPerMonth() => '\$${(iapUsd / months).toStringAsFixed(2)}';
 }
 
-class _VipScreenState extends State<VipScreen> {
-  String _pick = 'biennial';
+const List<_Plan> _kPlans = [
+  _Plan('monthly',   '月付',   'Monthly',   1,  24,  3.00),
+  _Plan('quarterly', '季付',   'Quarterly', 3,  39,  4.50),
+  _Plan('halfyear',  '半年',   'Half-Year', 6,  66,  9.00),
+  _Plan('yearly',    '年付',   'Yearly',    12, 108, 12.00, best: true),
+  _Plan('biennial',  '两年',   '2-Year',    24, 192, 21.60),
+];
 
-  // 与官网首页套餐/价格保持一致：5 档，按「每月」显示（¥ = USD×7.2 向上取整）。
-  // 月 $3.00 / 季 $1.80 / 半年 $1.45 / 年 $1.20 / 两年 $1.00（每月均价）
-  List<_Plan> get _plans => [
-    _Plan('monthly',   tr('月付',   'Monthly'),   tr('/月', '/mo'), tr('¥22', '\$3.00'),  tr('灵活', 'Flexible')),
-    _Plan('quarterly', tr('季付',   'Quarterly'), tr('/月', '/mo'), tr('¥13', '\$1.80'),  tr('省 40%', 'Save 40%')),
-    _Plan('halfyear',  tr('半年付', 'Half-Year'), tr('/月', '/mo'), tr('¥11', '\$1.45'),  tr('省 52%', 'Save 52%')),
-    _Plan('yearly',    tr('年付',   'Yearly'),    tr('/月', '/mo'), tr('¥9',  '\$1.20'),  tr('省 60%', 'Save 60%')),
-    _Plan('biennial',  tr('两年',   '2-Year'),    tr('/月', '/mo'), tr('¥8',  '\$1.00'),  tr('省 67%', 'Save 67%'), best: true),
-  ];
+enum _Tab { iap, web, custom }
+
+class _VipScreenState extends State<VipScreen> {
+  _Tab   _tab  = _Tab.web;
+  String _pick = 'yearly';
 
   @override
   Widget build(BuildContext context) {
@@ -34,115 +47,147 @@ class _VipScreenState extends State<VipScreen> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          // Hero
-          Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: const LinearGradient(
-                colors: [Color(0xFF1A1530), Color(0xFF0F0B22)],
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-              ),
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(Icons.auto_awesome_rounded, size: 15, color: kGold),
-                const SizedBox(width: 6),
-                Text(tr('尊享会员', 'PREMIUM'), style: const TextStyle(fontSize: 11, letterSpacing: 3, fontWeight: FontWeight.w700, color: kGold)),
-              ]),
-              const SizedBox(height: 14),
-              Text(tr('解锁全部速度与节点', 'Unlock full speed & all nodes'),
-                style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, height: 1.2)),
-              const SizedBox(height: 8),
-              Text(tr('无广告 · 无限时长 · 全部高速节点', 'No ads · Unlimited time · All premium nodes'),
-                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7))),
-              const SizedBox(height: 14),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                for (final tag in [tr('无广告', 'No ads'), tr('多设备', 'Multi-device'), tr('无限速', 'Unlimited'), tr('零日志', 'No-logs')])
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withOpacity(0.1))),
-                    child: Text(tag, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500)),
-                  ),
-              ]),
-            ]),
-          ),
-          const SizedBox(height: 20),
-
-          // Plans（5 个套餐：整宽列表行，与官网一致）
-          for (final p in _plans) ...[
-            _PlanCard(plan: p, selected: _pick == p.id, onTap: () => setState(() => _pick = p.id)),
-            const SizedBox(height: 10),
-          ],
-          const SizedBox(height: 10),
-
-          // Perks
-          Text(tr('会员权益', 'Member benefits').toUpperCase(),
-            style: TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.4))),
-          const SizedBox(height: 10),
-          Container(
-            decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white.withOpacity(0.05))),
-            child: Column(children: [
-              _perk(Icons.all_inclusive_rounded, tr('无限时长', 'Unlimited time'), tr('不限免费额度，随心连接', 'No daily free-time limit')),
-              _perk(Icons.bolt_rounded, tr('极速节点', 'Premium speed'), tr('优先接入高带宽节点', 'Priority high-bandwidth nodes')),
-              _perk(Icons.shield_rounded, tr('强加密', 'Strong encryption'), tr('自研加速引擎，极速安全', 'Proprietary speed engine, fast & secure')),
-              _perk(Icons.devices_rounded, tr('多设备', 'Multi-device'), tr('多台设备同时在线', 'Use on multiple devices')),
-              _perk(Icons.block_rounded, tr('无广告', 'Ad-free'), tr('彻底去除所有广告', 'Removes all ads'), last: true),
-            ]),
-          ),
-          const SizedBox(height: 24),
-
-          // CTA — IAP 开发中，暂不接外部支付（合规）
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(tr('应用内购买即将开放，敬请期待 🎉', 'In-app purchase coming soon 🎉')),
-                  backgroundColor: kBrand, duration: const Duration(seconds: 2)));
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: kBrand, padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-              child: Text(tr('开通会员 · 敬请期待', 'Subscribe · Coming soon'),
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Center(child: Text(tr('订阅可随时取消', 'Cancel anytime'),
-            style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)))),
+          _hero(),
+          const SizedBox(height: 18),
+          _tabSwitcher(),
+          const SizedBox(height: 16),
+          if (_tab == _Tab.iap)    ..._iapTab(),
+          if (_tab == _Tab.web)    ..._webTab(),
+          if (_tab == _Tab.custom) ..._customTab(),
         ]),
       ),
     );
   }
 
-  Widget _perk(IconData icon, String t, String s, {bool last = false}) => Container(
+  // ── Hero ────────────────────────────────────────────────────────
+  Widget _hero() => Container(
+    padding: const EdgeInsets.all(22),
     decoration: BoxDecoration(
-      border: last ? null : Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05)))),
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    child: Row(children: [
-      Container(width: 36, height: 36, alignment: Alignment.center,
-        decoration: BoxDecoration(color: kBrand.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, size: 18, color: kBrand)),
-      const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(t, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-        Text(s, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.45))),
-      ])),
-      const Icon(Icons.check_rounded, size: 18, color: kAccentOn),
+      borderRadius: BorderRadius.circular(24),
+      gradient: const LinearGradient(
+        colors: [Color(0xFF1A1530), Color(0xFF0F0B22)],
+        begin: Alignment.topLeft, end: Alignment.bottomRight),
+      border: Border.all(color: Colors.white.withOpacity(0.08)),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Icon(Icons.auto_awesome_rounded, size: 15, color: kGold),
+        const SizedBox(width: 6),
+        Text(tr('尊享会员', 'PREMIUM'), style: const TextStyle(fontSize: 11, letterSpacing: 3, fontWeight: FontWeight.w700, color: kGold)),
+      ]),
+      const SizedBox(height: 12),
+      Text(tr('解锁全部速度与节点', 'Unlock full speed & all nodes'),
+        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.2)),
+      const SizedBox(height: 8),
+      Text(tr('无广告 · 无限时长 · 4 台设备 · 全部高速节点', 'No ads · Unlimited · 4 devices · All premium nodes'),
+        style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7))),
     ]),
   );
-}
 
-class _PlanCard extends StatelessWidget {
-  final _Plan plan;
-  final bool selected;
-  final VoidCallback onTap;
-  const _PlanCard({required this.plan, required this.selected, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
+  // ── 三档切换 ─────────────────────────────────────────────────────
+  Widget _tabSwitcher() {
+    Widget seg(_Tab t, String label) {
+      final on = _tab == t;
+      return Expanded(child: GestureDetector(
+        onTap: () => setState(() => _tab = t),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: on ? kBrand : Colors.transparent,
+            borderRadius: BorderRadius.circular(12)),
+          child: Text(label, style: TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w600,
+            color: on ? Colors.black : Colors.white.withOpacity(0.6))),
+        ),
+      ));
+    }
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.06))),
+      child: Row(children: [
+        seg(_Tab.iap,    tr('应用内购', 'In-App')),
+        seg(_Tab.web,    tr('官网购买', 'Website')),
+        seg(_Tab.custom, tr('私人定制', 'Custom')),
+      ]),
+    );
+  }
+
+  // ── Tab 1：应用内购（美元，官网价 ×1.2 向下取整）─────────────────
+  List<Widget> _iapTab() => [
+    for (final p in _kPlans) ...[
+      _planRow(
+        p, selected: _pick == p.key, onTap: () => setState(() => _pick = p.key),
+        priceBig: '\$${p.iapUsd}', priceSub: '${p.usdIapPerMonth()}/${tr('月','mo')}'),
+      const SizedBox(height: 10),
+    ],
+    const SizedBox(height: 6),
+    SizedBox(width: double.infinity, child: FilledButton(
+      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('应用内购买即将开放，敬请期待 🎉', 'In-app purchase coming soon 🎉')),
+        backgroundColor: kBrand, duration: const Duration(seconds: 2))),
+      style: FilledButton.styleFrom(backgroundColor: kBrand, padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+      child: Text(tr('开通会员 · 敬请期待', 'Subscribe · Coming soon'),
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+    )),
+    const SizedBox(height: 8),
+    Center(child: Text(tr('通过 App Store / Google Play 计费', 'Billed via App Store / Google Play'),
+      style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)))),
+  ];
+
+  // ── Tab 2：官网购买（人民币，选中后微信/支付宝直付）──────────────
+  List<Widget> _webTab() => [
+    for (final p in _kPlans) ...[
+      _planRow(
+        p, selected: _pick == p.key, onTap: () => setState(() => _pick = p.key),
+        priceBig: '¥${p.cny}', priceSub: '${p.cnyPerMonth()}/${tr('月','mo')}'),
+      const SizedBox(height: 10),
+    ],
+    const SizedBox(height: 6),
+    // 支付宝（推荐）
+    _payButton(
+      label: tr('支付宝支付', 'Alipay'), color: const Color(0xFF1677ff), recommend: true,
+      onTap: () => _payWeb('alipay')),
+    const SizedBox(height: 10),
+    // 微信
+    _payButton(
+      label: tr('微信支付', 'WeChat Pay'), color: const Color(0xFF07c160), recommend: false,
+      onTap: () => _payWeb('wechat_pay')),
+    const SizedBox(height: 10),
+    Center(child: Text(tr('金额与官网一致 · 复用登录，无需重复登录', 'Same as website · uses your login'),
+      style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)))),
+  ];
+
+  // 复用 App 登录态跳转官网完成人民币支付（openPortal 走 /auth/app-bridge 免重复登录）。
+  void _payWeb(String method) {
+    openPortal('/dashboard/billing?plan=$_pick&method=$method&autopay=1');
+  }
+
+  // ── Tab 3：私人定制 ──────────────────────────────────────────────
+  List<Widget> _customTab() => [
+    _customCard(Icons.data_usage_rounded, tr('流量套餐', 'Data plan'),
+      tr('按流量计费，适合轻量使用', 'Pay-as-you-go data'), tr('¥120 起', 'from ¥120')),
+    const SizedBox(height: 10),
+    _customCard(Icons.speed_rounded, tr('普通带宽', 'Standard bandwidth'),
+      tr('共享高速带宽，性价比之选', 'Shared high-speed bandwidth'), tr('¥400 起', 'from ¥400')),
+    const SizedBox(height: 10),
+    _customCard(Icons.rocket_launch_rounded, tr('专线带宽', 'Dedicated line'),
+      tr('独享专线，稳定低延迟', 'Dedicated line, low latency'), tr('¥1200 起', 'from ¥1200')),
+    const SizedBox(height: 10),
+    _customCard(Icons.mail_outline_rounded, tr('其他定制', 'Other'),
+      tr('有特殊需求？邮件联系我们', 'Custom needs? Email us'), tr('邮件联系', 'Email us'),
+      onTap: () => launchUrl(Uri.parse(
+        'mailto:mirrorspeed@mirrorquant.com?subject=${Uri.encodeComponent(tr('私人定制咨询','Custom plan inquiry'))}'))),
+    const SizedBox(height: 12),
+    Center(child: Text(tr('定制方案由客服1对1对接', 'Custom plans handled 1:1 by support'),
+      style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)))),
+  ];
+
+  // ── 通用套餐行（可选中）──────────────────────────────────────────
+  Widget _planRow(_Plan p, {required bool selected, required VoidCallback onTap,
+      required String priceBig, required String priceSub}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -150,38 +195,69 @@ class _PlanCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? kBrand.withOpacity(0.12) : kPanel,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: selected ? kBrand : Colors.white.withOpacity(0.06), width: selected ? 1.5 : 1),
-        ),
+          border: Border.all(color: selected ? kBrand : Colors.white.withOpacity(0.06), width: selected ? 1.5 : 1)),
         child: Row(children: [
-          // 选中圆点
-          Container(
-            width: 20, height: 20,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
+          Container(width: 20, height: 20,
+            decoration: BoxDecoration(shape: BoxShape.circle,
               border: Border.all(color: selected ? kBrand : Colors.white.withOpacity(0.25), width: 2),
-              color: selected ? kBrand : Colors.transparent,
-            ),
-            child: selected ? const Icon(Icons.check, size: 12, color: Colors.black) : null,
-          ),
+              color: selected ? kBrand : Colors.transparent),
+            child: selected ? const Icon(Icons.check, size: 12, color: Colors.black) : null),
           const SizedBox(width: 14),
-          // 名称 + 标签
           Expanded(child: Row(children: [
-            Text(plan.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-            const SizedBox(width: 8),
-            if (plan.best)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            Text(p.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            if (p.best) ...[
+              const SizedBox(width: 8),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(color: kGold.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-                child: Text(tr('最划算', 'BEST'), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: kGold)),
-              )
-            else
-              Text(plan.sub, style: TextStyle(fontSize: 11, color: selected ? kBrand : Colors.white.withOpacity(0.5))),
+                child: Text(tr('最划算', 'BEST'), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: kGold))),
+            ],
           ])),
-          // 价格
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(plan.price, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
-            Text(plan.per, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.45))),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(priceBig, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+            Text(priceSub, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.45))),
           ]),
+        ]),
+      ),
+    );
+  }
+
+  // 支付按钮（支付宝带「推荐」角标）
+  Widget _payButton({required String label, required Color color, required bool recommend, required VoidCallback onTap}) {
+    return SizedBox(width: double.infinity, child: FilledButton(
+      onPressed: onTap,
+      style: FilledButton.styleFrom(backgroundColor: color, padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+        if (recommend) ...[
+          const SizedBox(width: 8),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.25), borderRadius: BorderRadius.circular(20)),
+            child: Text(tr('推荐', 'Best'), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white))),
+        ],
+      ]),
+    ));
+  }
+
+  Widget _customCard(IconData icon, String title, String desc, String price, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.06))),
+        child: Row(children: [
+          Container(width: 40, height: 40, alignment: Alignment.center,
+            decoration: BoxDecoration(color: kBrand.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, size: 20, color: kBrand)),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text(desc, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.45))),
+          ])),
+          Text(price, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: kBrand)),
+          if (onTap != null) Icon(Icons.chevron_right_rounded, size: 18, color: Colors.white.withOpacity(0.3)),
         ]),
       ),
     );

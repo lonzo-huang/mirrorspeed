@@ -2,6 +2,8 @@
 
 import { CheckCircle, CreditCard, Clock } from 'lucide-react'
 import { format } from 'date-fns'
+import { useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { CheckoutButton } from '@/components/billing/checkout-button'
 import { CnCheckoutButton } from '@/components/billing/cn-checkout-button'
 import { ManageButton } from '@/components/billing/manage-button'
@@ -40,6 +42,31 @@ export function BillingView({ subscription, payments }: Props) {
 
   const isActive  = subscription?.status === 'active'
   const isPastDue = subscription?.status === 'past_due'
+
+  // App「官网购买」跳转直付：/dashboard/billing?plan=<key>&method=<alipay|wechat_pay>&autopay=1
+  // 自动发起对应人民币 Checkout（登录态已由 /auth/app-bridge 建立）。
+  const searchParams = useSearchParams()
+  const autopayFired = useRef(false)
+  useEffect(() => {
+    if (autopayFired.current) return
+    if (searchParams.get('autopay') !== '1') return
+    const plan   = searchParams.get('plan')
+    const method = searchParams.get('method')
+    if (!plan || (method !== 'alipay' && method !== 'wechat_pay')) return
+    if (isActive) return   // 已有订阅则不自动付
+    autopayFired.current = true
+    ;(async () => {
+      try {
+        const res = await fetch('/api/billing/cn-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan, method }),
+        })
+        const data = await res.json()
+        if (data.url) window.location.href = data.url
+      } catch (_) { /* 失败则停留在账单页，用户可手动选择 */ }
+    })()
+  }, [searchParams, isActive])
 
   // Map plan index → planKey
   const planKeys: PlanKey[] = ['yearly', 'biennial', 'halfyear', 'monthly', 'quarterly']
