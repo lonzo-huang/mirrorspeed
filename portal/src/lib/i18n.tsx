@@ -58,10 +58,10 @@ const dict = {
       popular: "Most Popular", select: "Select Plan", featured: "Get Started",
       plans: [
         { name: "Yearly",    price: "$1",    per: "/mo", desc: "Billed $12/yr",         feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 4 devices simultaneously", "24/7 support", "Cancel anytime"] },
-        { name: "2-Year",    price: "$0.90", per: "/mo", desc: "Billed $21.60/2 yrs",   feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 4 devices simultaneously", "24/7 support", "Cancel anytime"] },
+        { name: "2-Year",    price: "$0.88", per: "/mo", desc: "Billed $21.00/2 yrs",   feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 4 devices simultaneously", "24/7 support", "Cancel anytime"] },
         { name: "Half-Year", price: "$1.50", per: "/mo", desc: "Billed $9.00/6 mos",    feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 4 devices simultaneously", "24/7 support", "Cancel anytime"] },
         { name: "Monthly",   price: "$3",    per: "/mo", desc: "Billed monthly",         feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 4 devices simultaneously", "24/7 support", "Cancel anytime"] },
-        { name: "Quarterly", price: "$1.50", per: "/mo", desc: "Billed $4.50/quarter",  feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 4 devices simultaneously", "24/7 support", "Cancel anytime"] },
+        { name: "Quarterly", price: "$1.67", per: "/mo", desc: "Billed $5.00/quarter",  feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 4 devices simultaneously", "24/7 support", "Cancel anytime"] },
       ],
     },
     faq: {
@@ -342,10 +342,10 @@ const dict = {
       popular: "Beliebteste", select: "Plan wählen", featured: "Jetzt starten",
       plans: [
         { name: "Jährlich",    price: "$1",    per: "/Mo.", desc: "$12/Jahr",         feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 4 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
-        { name: "2 Jahre",     price: "$0.90", per: "/Mo.", desc: "$21.60/2 Jahre",   feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 4 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
+        { name: "2 Jahre",     price: "$0.88", per: "/Mo.", desc: "$21.00/2 Jahre",   feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 4 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
         { name: "Halbjahr",    price: "$1.50", per: "/Mo.", desc: "$9.00/6 Monate",   feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 4 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
         { name: "Monatlich",   price: "$3",    per: "/Mo.", desc: "Monatlich",         feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 4 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
-        { name: "Quartal",     price: "$1.50", per: "/Mo.", desc: "$4.50/Quartal",    feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 4 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
+        { name: "Quartal",     price: "$1.67", per: "/Mo.", desc: "$5.00/Quartal",    feats: ["Alle 20+ Standorte", "Proprietäre dynamische Verschlüsselung", "Bis zu 4 gleichzeitige Geräte", "24/7 Support", "Jederzeit kündbar"] },
       ],
     },
     faq: {
@@ -484,10 +484,10 @@ const dict = {
       popular: "Le plus populaire", select: "Choisir ce plan", featured: "Commencer",
       plans: [
         { name: "Annuel",      price: "$1",    per: "/mois", desc: "$12/an",           feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 4 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
-        { name: "2 ans",       price: "$0,90", per: "/mois", desc: "$21,60/2 ans",     feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 4 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
+        { name: "2 ans",       price: "$0,88", per: "/mois", desc: "$21,00/2 ans",     feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 4 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
         { name: "Semestriel",  price: "$1,50", per: "/mois", desc: "$9,00/6 mois",     feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 4 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
         { name: "Mensuel",     price: "$3",    per: "/mois", desc: "Mensuel",           feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 4 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
-        { name: "Trimestriel", price: "$1,50", per: "/mois", desc: "$4,50/trimestre",  feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 4 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
+        { name: "Trimestriel", price: "$1,67", per: "/mois", desc: "$5,00/trimestre",  feats: ["Tous les 20+ emplacements", "Chiffrement dynamique exclusif", "Jusqu'à 4 appareils simultanés", "Support 24/7", "Annuler à tout moment"] },
       ],
     },
     faq: {
@@ -626,10 +626,10 @@ const dict = {
       popular: "Più popolare", select: "Scegli piano", featured: "Inizia",
       plans: [
         { name: "Annuale",     price: "$1",    per: "/mese", desc: "$12/anno",          feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 4 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
-        { name: "2 anni",      price: "$0,90", per: "/mese", desc: "$21,60/2 anni",     feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 4 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
+        { name: "2 anni",      price: "$0,88", per: "/mese", desc: "$21,00/2 anni",     feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 4 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
         { name: "Semestrale",  price: "$1,50", per: "/mese", desc: "$9,00/6 mesi",      feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 4 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
         { name: "Mensile",     price: "$3",    per: "/mese", desc: "Mensile",            feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 4 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
-        { name: "Trimestrale", price: "$1,50", per: "/mese", desc: "$4,50/trimestre",   feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 4 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
+        { name: "Trimestrale", price: "$1,67", per: "/mese", desc: "$5,00/trimestre",   feats: ["Tutti i 20+ luoghi", "Crittografia dinamica esclusiva", "Fino a 4 dispositivi simultanei", "Supporto 24/7", "Cancella in qualsiasi momento"] },
       ],
     },
     faq: {
@@ -768,10 +768,10 @@ const dict = {
       popular: "Más popular", select: "Elegir plan", featured: "Comenzar",
       plans: [
         { name: "Anual",      price: "$1",    per: "/mes", desc: "$12/año",           feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 4 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
-        { name: "2 años",     price: "$0,90", per: "/mes", desc: "$21,60/2 años",     feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 4 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
+        { name: "2 años",     price: "$0,88", per: "/mes", desc: "$21,00/2 años",     feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 4 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
         { name: "Semestral",  price: "$1,50", per: "/mes", desc: "$9,00/6 meses",     feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 4 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
         { name: "Mensual",    price: "$3",    per: "/mes", desc: "Mensual",            feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 4 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
-        { name: "Trimestral", price: "$1,50", per: "/mes", desc: "$4,50/trimestre",   feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 4 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
+        { name: "Trimestral", price: "$1,67", per: "/mes", desc: "$5,00/trimestre",   feats: ["Todos los 20+ lugares", "Cifrado dinámico exclusivo", "Hasta 4 dispositivos simultáneos", "Soporte 24/7", "Cancela en cualquier momento"] },
       ],
     },
     faq: {
@@ -910,10 +910,10 @@ const dict = {
       popular: "Найпопулярніший", select: "Обрати план", featured: "Почати",
       plans: [
         { name: "Річний",      price: "$1",    per: "/міс", desc: "$12/рік",          feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 4 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
-        { name: "2 роки",      price: "$0,90", per: "/міс", desc: "$21,60/2 роки",    feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 4 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
+        { name: "2 роки",      price: "$0,88", per: "/міс", desc: "$21,00/2 роки",    feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 4 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
         { name: "Півроку",     price: "$1,50", per: "/міс", desc: "$9,00/6 міс",      feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 4 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
         { name: "Місячний",    price: "$3",    per: "/міс", desc: "Щомісяця",          feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 4 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
-        { name: "Квартальний", price: "$1,50", per: "/міс", desc: "$4,50/квартал",    feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 4 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
+        { name: "Квартальний", price: "$1,67", per: "/міс", desc: "$5,00/квартал",    feats: ["Всі 20+ локацій", "Унікальне динамічне шифрування", "До 4 пристроїв одночасно", "Підтримка 24/7", "Скасуй будь-коли"] },
       ],
     },
     faq: {
@@ -1052,10 +1052,10 @@ const dict = {
       popular: "最人気", select: "プランを選ぶ", featured: "始める",
       plans: [
         { name: "年払い",     price: "$1",    per: "/月", desc: "$12/年",          feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時4台まで", "24時間サポート", "いつでもキャンセル可"] },
-        { name: "2年払い",    price: "$0.90", per: "/月", desc: "$21.60/2年",      feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時4台まで", "24時間サポート", "いつでもキャンセル可"] },
+        { name: "2年払い",    price: "$0.88", per: "/月", desc: "$21.00/2年",      feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時4台まで", "24時間サポート", "いつでもキャンセル可"] },
         { name: "半年払い",   price: "$1.50", per: "/月", desc: "$9.00/6ヶ月",     feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時4台まで", "24時間サポート", "いつでもキャンセル可"] },
         { name: "月払い",     price: "$3",    per: "/月", desc: "月払い",           feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時4台まで", "24時間サポート", "いつでもキャンセル可"] },
-        { name: "四半期払い", price: "$1.50", per: "/月", desc: "$4.50/四半期",    feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時4台まで", "24時間サポート", "いつでもキャンセル可"] },
+        { name: "四半期払い", price: "$1.67", per: "/月", desc: "$5.00/四半期",    feats: ["20以上の全拠点", "独自のダイナミック暗号化", "同時4台まで", "24時間サポート", "いつでもキャンセル可"] },
       ],
     },
     faq: {

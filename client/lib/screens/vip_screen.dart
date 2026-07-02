@@ -28,10 +28,10 @@ class _Plan {
 
 const List<_Plan> _kPlans = [
   _Plan('monthly',   '月付',   'Monthly',   1,  24,  3.00),
-  _Plan('quarterly', '季付',   'Quarterly', 3,  39,  4.50),
+  _Plan('quarterly', '季付',   'Quarterly', 3,  39,  5.00),
   _Plan('halfyear',  '半年',   'Half-Year', 6,  66,  9.00),
   _Plan('yearly',    '年付',   'Yearly',    12, 108, 12.00, best: true),
-  _Plan('biennial',  '两年',   '2-Year',    24, 192, 21.60),
+  _Plan('biennial',  '两年',   '2-Year',    24, 192, 21.00),
 ];
 
 enum _Tab { iap, web, custom }
