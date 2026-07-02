@@ -1,5 +1,7 @@
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +14,9 @@ import '../models/server_config.dart';
 import '../brand.dart';
 import '../env.dart';
 import '../theme.dart';
+
+// 广告仅在 Android/iOS 可用（AdMob 不支持 Windows/桌面）。
+bool get _adsSupported => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
 // 返回键 → 退到后台（不退出应用，VPN 保持运行）；退出由右上角退出键负责。
 const MethodChannel _lifecycleChannel = MethodChannel('com.mirrorspeed.app/lifecycle');
@@ -158,8 +163,11 @@ class HomeScreen extends StatelessWidget {
                     if (vpn.quotaExceeded && !vpn.isConnected) ...[
                       const SizedBox(height: 14),
                       _UpgradeButton(),
-                      const SizedBox(height: 10),
-                      const _AdExtendButton(),
+                      // 广告仅 Android/iOS；Windows/桌面额度用尽只引导升级(方案 A)。
+                      if (_adsSupported) ...[
+                        const SizedBox(height: 10),
+                        const _AdExtendButton(),
+                      ],
                     ] else if (vpn.isFreeTrial) ...[
                       const SizedBox(height: 14),
                       _TrialBar(
@@ -167,8 +175,10 @@ class HomeScreen extends StatelessWidget {
                         totalSec:     vpn.trialTotalSec,
                         exceeded:     vpn.quotaExceeded,
                       ),
-                      const SizedBox(height: 6),
-                      const _AdExtendButton(compact: true),
+                      if (_adsSupported) ...[
+                        const SizedBox(height: 6),
+                        const _AdExtendButton(compact: true),
+                      ],
                     ],
                   ]),
                 ),
@@ -183,28 +193,8 @@ class HomeScreen extends StatelessWidget {
                 ],
 
                 // ── 错误提示 ───────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  child: Column(children: [
-                    if (auth.error != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                        ),
-                        child: Row(children: [
-                          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(tr('配置获取失败: ${auth.error}', 'Failed to load config: ${auth.error}'),
-                            style: const TextStyle(color: Colors.orange, fontSize: 12))),
-                        ]),
-                      ),
-                    if (vpn.error != null) _VpnErrorBanner(message: vpn.error!),
-                  ]),
-                ),
+                // 主页不再直接显示任何错误横幅（体验优化）：错误统一进「我的 → 错误信息」查看。
+                const SizedBox.shrink(),
               ],
             ),
           ),
@@ -443,35 +433,6 @@ class _NodeCard extends StatelessWidget {
   }
 }
 
-class _VpnErrorBanner extends StatelessWidget {
-  final String message;
-  const _VpnErrorBanner({required this.message});
-
-  bool get _isPermission => message.contains('请在刚才弹出');
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _isPermission ? Colors.orange : kDanger;
-    final icon  = _isPermission
-        ? Icons.admin_panel_settings_outlined
-        : Icons.error_outline;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color:        color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(10),
-        border:       Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 8),
-        Expanded(child: Text(message,
-          style: TextStyle(color: color, fontSize: 13))),
-      ]),
-    );
-  }
-}
 
 // ── 免费试用倒计时条（按时间）────────────────────────────────────────────────
 class _TrialBar extends StatelessWidget {

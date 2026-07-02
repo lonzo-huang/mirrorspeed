@@ -175,6 +175,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // ── 功能列表 ────────────────────────────────────
               _InfoCard(children: [
                 _ActionRow(
+                  icon:  Icons.error_outline_rounded,
+                  label: vpn.error != null || auth.error != null
+                      ? tr('错误信息 ●', 'Error info ●')
+                      : tr('错误信息', 'Error info'),
+                  onTap: () => _showErrorInfo(context),
+                ),
+                _ActionRow(
                   icon:  Icons.open_in_new_rounded,
                   label: tr('管理订阅', 'Manage subscription'),
                   onTap: () => openPortal('/dashboard'),
@@ -467,6 +474,35 @@ class _InfoRow extends StatelessWidget {
           fontWeight: FontWeight.w500,
         )),
     ]),
+  );
+}
+
+// 「错误信息」弹窗：集中展示配置/登录与连接错误（不再打扰主页）。
+void _showErrorInfo(BuildContext context) {
+  final auth = context.read<AuthProvider>();
+  final vpn  = context.read<VpnProvider>();
+  final items = <String>[];
+  if (auth.error != null) items.add('${tr('配置 / 登录', 'Config / Login')}：${auth.error}');
+  if (vpn.error  != null) items.add('${tr('连接', 'Connection')}：${vpn.error}');
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: kCard,
+      title: Text(tr('错误信息', 'Error info'), style: const TextStyle(fontSize: 16)),
+      content: items.isEmpty
+          ? Text(tr('暂无错误信息 ✅', 'No errors ✅'),
+              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13))
+          : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final e in items)
+                  Padding(padding: const EdgeInsets.only(bottom: 10),
+                    child: SelectableText(e, style: const TextStyle(color: Colors.orange, fontSize: 13))),
+              ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx),
+          child: Text(tr('关闭', 'Close'))),
+      ],
+    ),
   );
 }
 
