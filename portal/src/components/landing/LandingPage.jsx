@@ -199,7 +199,7 @@ const StatPill = ({ label, value }) => (
 const Hero = () => {
   const t = useT();
   const { lang } = useApp();
-  const heroPrice = formatPrice(LOWEST_USD, lang);
+  const heroPrice = formatPrice(LOWEST_USD, lang, LOWEST_CNY);
   const heroPriceSuffix = ` — ${heroPrice.symbol}${heroPrice.value}${heroPrice.perSuffix || t("pr_monthly_short")}`;
   return (
     <section id="top" className="relative pt-36 sm:pt-44 pb-20 overflow-hidden" data-testid="hero-section">
@@ -529,10 +529,11 @@ const Testimonials = () => {
 // ============ Pricing ============
 // CNY exchange rate (USD → CNY), rounded UP to nearest integer for Chinese display
 const USD_TO_CNY = 7.2;
-const formatPrice = (usd, lang) => {
+const formatPrice = (usd, lang, cny) => {
   if (lang === "zh") {
-    const cny = Math.ceil(usd * USD_TO_CNY);
-    return { symbol: "¥", value: String(cny), perSuffix: "/月" };
+    // 有显式 cny 就用它（与实际人民币扣款一致）；否则回退按汇率估算。
+    const v = (cny != null) ? cny : Math.ceil(usd * USD_TO_CNY);
+    return { symbol: "¥", value: String(v), perSuffix: "/月" };
   }
   return { symbol: "$", value: usd.toFixed(2), perSuffix: null }; // null = use translation
 };
@@ -541,11 +542,12 @@ const Pricing = () => {
   const t = useT();
   const { lang } = useApp();
   const plans = [
-    { nameK: "pr_monthly", usd: 3.00, noteK: "pr_billed_m", savePct: null, testId: "monthly" },
-    { nameK: "pr_quarterly", usd: 1.80, noteK: "pr_billed_q", savePct: 40, testId: "quarterly" },
-    { nameK: "pr_halfyear", usd: 1.50, noteK: "pr_billed_h", savePct: 50, testId: "halfyear" },
-    { nameK: "pr_yearly", usd: 1.20, noteK: "pr_billed_y", savePct: 60, testId: "yearly" },
-    { nameK: "pr_2yr", usd: 1.00, noteK: "pr_billed_2y", featured: true, badgeK: "pr_popular", savePct: 67, testId: "2yr" },
+    // usd/cny 均为「每月」显示价，与 Stripe(美元)及人民币实际扣款完全一致。
+    { nameK: "pr_monthly", usd: 3.00, cny: 24, noteK: "pr_billed_m", savePct: null, testId: "monthly" },
+    { nameK: "pr_quarterly", usd: 1.67, cny: 13, noteK: "pr_billed_q", savePct: 44, testId: "quarterly" },
+    { nameK: "pr_halfyear", usd: 1.50, cny: 11, noteK: "pr_billed_h", savePct: 50, testId: "halfyear" },
+    { nameK: "pr_yearly", usd: 1.00, cny: 9, noteK: "pr_billed_y", savePct: 67, testId: "yearly" },
+    { nameK: "pr_2yr", usd: 0.88, cny: 8, noteK: "pr_billed_2y", featured: true, badgeK: "pr_popular", savePct: 71, testId: "2yr" },
   ];
   const perks = ["perk_locations", "perk_encryption", "perk_devices", "perk_bw", "perk_support", "perk_cancel"];
   return (
@@ -561,7 +563,7 @@ const Pricing = () => {
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {plans.map((p) => {
-            const price = formatPrice(p.usd, lang);
+            const price = formatPrice(p.usd, lang, p.cny);
             const perSuffix = price.perSuffix || t("pr_monthly_short");
             return (
               <motion.div key={p.nameK} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className={`relative rounded-3xl p-6 flex flex-col ${p.featured ? "lg:scale-[1.04] lg:-translate-y-2 border glow-cyan" : "glass glass-hover"}`} style={p.featured ? { background: "linear-gradient(180deg, var(--accent-cyan-glow) 0%, transparent 80%)", borderColor: "var(--accent-cyan)" } : {}} data-testid={`pricing-card-${p.testId}`}>
@@ -616,8 +618,9 @@ const Pricing = () => {
   );
 };
 
-// Lowest price helper for hero/final CTAs (2-year plan)
-const LOWEST_USD = 1.00;
+// Lowest price helper for hero/final CTAs (2-year plan) — 与实际扣款一致
+const LOWEST_USD = 0.88;
+const LOWEST_CNY = 8;
 
 // ============ FAQ ============
 const FAQ = () => {
@@ -662,7 +665,7 @@ const FAQ = () => {
 const FinalCTA = () => {
   const t = useT();
   const { lang } = useApp();
-  const ctaPrice = formatPrice(LOWEST_USD, lang);
+  const ctaPrice = formatPrice(LOWEST_USD, lang, LOWEST_CNY);
   const ctaPriceSuffix = ` — ${ctaPrice.symbol}${ctaPrice.value}${ctaPrice.perSuffix || t("pr_monthly_short")}`;
   return (
     <section className="relative py-24 sm:py-32" data-testid="final-cta-section">
