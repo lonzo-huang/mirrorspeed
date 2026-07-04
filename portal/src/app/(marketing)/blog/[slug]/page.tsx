@@ -163,8 +163,7 @@ export async function generateMetadata(
 }
 
 export default async function BlogPostPage({ params, searchParams }: { params: { slug: string }; searchParams: { lang?: string } }) {
-  const lang = searchParams?.lang || 'en'
-  const post = await getPost(params.slug, lang)
+  const post = await getPost(params.slug, searchParams?.lang)
   if (!post) notFound()
 
   return (
