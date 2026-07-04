@@ -143,8 +143,7 @@ export async function generateStaticParams() {
 export async function generateMetadata(
   { params, searchParams }: { params: { slug: string }; searchParams: { lang?: string } }
 ): Promise<Metadata> {
-  const lang = searchParams?.lang || 'en'
-  const post = await getPost(params.slug, lang)
+  const post = await getPost(params.slug, searchParams?.lang)
   if (!post) return { title: 'Post not found' }
   return {
     title:       `${post.title} — MirrorSpeed Blog`,
