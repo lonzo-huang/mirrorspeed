@@ -1,43 +1,66 @@
-import type { MetadataRoute } from 'next'
+import { MetadataRoute } from 'next'
+import { createClient } from '@supabase/supabase-js'
 
 const SITE_URL = 'https://www.mirrorspeed.com'
 
-/**
- * Dynamic XML sitemap — Next.js serves this at /sitemap.xml.
- * Add new public routes here when you publish them.
- */
-export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date()
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  try {
+    // Fetch published blog posts
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
+    )
+    const { data: posts } = await supabase
+      .from('blog_posts')
+      .select('slug, published_at, updated_at')
+      .eq('published', true)
+      .order('published_at', { ascending: false })
 
-  const routes: Array<{ path: string; priority: number; changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'] }> = [
-    { path: '',           priority: 1.0, changeFrequency: 'weekly'  },
-    { path: '/cn',        priority: 0.95, changeFrequency: 'weekly' },
-    { path: '/en',        priority: 0.95, changeFrequency: 'weekly' },
-    { path: '/download',  priority: 0.9, changeFrequency: 'weekly'  },
-    { path: '/pricing',   priority: 0.9, changeFrequency: 'weekly'  },
-    { path: '/servers',   priority: 0.8, changeFrequency: 'daily'   },
-    { path: '/blog',      priority: 0.8, changeFrequency: 'daily'   },
-    { path: '/help',      priority: 0.7, changeFrequency: 'monthly' },
-    { path: '/support',   priority: 0.7, changeFrequency: 'monthly' },
-    { path: '/privacy',   priority: 0.5, changeFrequency: 'yearly'  },
-    { path: '/terms',     priority: 0.5, changeFrequency: 'yearly'  },
-    { path: '/cookies',   priority: 0.4, changeFrequency: 'yearly'  },
-    { path: '/disclaimer',priority: 0.4, changeFrequency: 'yearly'  },
-  ]
+    const blogEntries: MetadataRoute.Sitemap = (posts ?? []).map(post => ({
+      url: `${SITE_URL}/blog/${post.slug}`,
+      lastModified: post.updated_at || post.published_at,
+      priority: 0.7,
+    }))
 
-  return routes.map((r) => ({
-    url: `${SITE_URL}${r.path}`,
-    lastModified: now,
-    changeFrequency: r.changeFrequency,
-    priority: r.priority,
-    alternates: r.path === '' || r.path === '/cn' || r.path === '/en'
-      ? {
-          languages: {
-            en:        `${SITE_URL}/en`,
-            'zh-CN':   `${SITE_URL}/cn`,
-            'x-default': SITE_URL,
-          },
-        }
-      : undefined,
-  }))
+    // Static pages
+    const staticPages: MetadataRoute.Sitemap = [
+      {
+        url: SITE_URL,
+        lastModified: new Date(),
+        priority: 1.0,
+      },
+      {
+        url: `${SITE_URL}/blog`,
+        lastModified: new Date(),
+        priority: 0.9,
+      },
+      {
+        url: `${SITE_URL}/pricing`,
+        lastModified: new Date(),
+        priority: 0.8,
+      },
+      {
+        url: `${SITE_URL}/download`,
+        lastModified: new Date(),
+        priority: 0.8,
+      },
+      {
+        url: `${SITE_URL}/help`,
+        lastModified: new Date(),
+        priority: 0.6,
+      },
+    ]
+
+    return [...staticPages, ...blogEntries]
+  } catch (error) {
+    console.error('[sitemap] Error fetching posts:', error)
+    return [
+      {
+        url: SITE_URL,
+        lastModified: new Date(),
+        priority: 1.0,
+      },
+    ]
+  }
 }

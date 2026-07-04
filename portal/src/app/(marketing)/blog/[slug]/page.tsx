@@ -1,6 +1,7 @@
 import { notFound }  from 'next/navigation'
 import Link           from 'next/link'
 import { LandingChrome } from '@/components/landing/LandingPage'
+import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 
 interface Post {
@@ -68,6 +69,23 @@ function renderContent(content: string) {
       {content}
     </div>
   )
+}
+
+export async function generateStaticParams() {
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
+    )
+    const { data: posts } = await supabase
+      .from('blog_posts')
+      .select('slug')
+      .eq('published', true)
+    return (posts ?? []).map(post => ({ slug: post.slug }))
+  } catch {
+    return []
+  }
 }
 
 export default async function BlogPostPage({ params }: { params: { slug: string } }) {

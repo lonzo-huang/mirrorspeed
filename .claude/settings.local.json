@@ -28,7 +28,8 @@
       "Bash(Get-ChildItem -Path \"D:\\\\projects\\\\MirrorSpeed\" -Recurse -File)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Sort-Object)",
-      "Bash(powershell -Command \"\\(Get-Content pubspec.yaml\\) -replace 'version: 1\\\\.0\\\\.31\\\\+36', 'version: 1.0.32+37' | Set-Content pubspec.yaml\")"
+      "Bash(powershell -Command \"\\(Get-Content pubspec.yaml\\) -replace 'version: 1\\\\.0\\\\.31\\\\+36', 'version: 1.0.32+37' | Set-Content pubspec.yaml\")",
+      "Bash(git commit -m 'release: 2.3.3 \\(多设备指纹 + 管理后台精简\\) *)"
     ]
   }
 }
