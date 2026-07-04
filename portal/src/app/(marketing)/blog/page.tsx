@@ -21,22 +21,20 @@ async function getPosts(lang?: string): Promise<Post[]> {
       { auth: { persistSession: false } }
     )
 
-    let query = supabase
+    const { data } = await supabase
       .from('blog_posts')
       .select('id, slug, title, excerpt, tags, author, cover_url, published_at')
       .eq('published', true)
       .order('published_at', { ascending: false })
       .limit(50)
 
-    // Only filter by language if lang is explicitly specified
-    if (lang === 'zh') {
-      query = query.eq('language', 'zh')
-    } else if (lang === 'en') {
-      query = query.eq('language', 'en')
+    // Client-side filtering by language if needed
+    if (lang === 'zh' && data) {
+      return data.filter(post => post.slug.endsWith('-cn'))
+    } else if (lang === 'en' && data) {
+      return data.filter(post => !post.slug.endsWith('-cn'))
     }
-    // If no lang specified, show all posts
 
-    const { data } = await query
     return data ?? []
   } catch {
     return []
