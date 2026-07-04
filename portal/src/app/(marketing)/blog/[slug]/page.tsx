@@ -20,7 +20,7 @@ interface Post {
   published_at: string
 }
 
-async function getPost(slug: string): Promise<Post | null> {
+async function getPost(slug: string, lang: string = 'en'): Promise<Post | null> {
   try {
     const base = process.env.NEXT_PUBLIC_APP_URL
       ?? (process.env.VERCEL_URL
@@ -33,31 +33,20 @@ async function getPost(slug: string): Promise<Post | null> {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { persistSession: false } }
     )
+
+    // Determine language: 'zh' for Chinese, 'en' for English
+    const language = lang === 'zh' ? 'zh' : 'en'
+
     const { data } = await supabase
       .from('blog_posts')
       .select('*')
       .eq('slug', slug)
       .eq('published', true)
+      .eq('language', language)
       .single()
     return data ?? null
   } catch {
     return null
-  }
-}
-
-export async function generateMetadata(
-  { params }: { params: { slug: string } }
-): Promise<Metadata> {
-  const post = await getPost(params.slug)
-  if (!post) return { title: 'Post not found' }
-  return {
-    title:       `${post.title} — MirrorSpeed Blog`,
-    description: post.excerpt ?? post.title,
-    openGraph: {
-      title:       post.title,
-      description: post.excerpt ?? '',
-      images:      post.cover_url ? [post.cover_url] : [],
-    },
   }
 }
 
@@ -147,8 +136,26 @@ export async function generateStaticParams() {
   }
 }
 
-export default async function BlogPostPage({ params }: { params: { slug: string } }) {
-  const post = await getPost(params.slug)
+export async function generateMetadata(
+  { params, searchParams }: { params: { slug: string }; searchParams: { lang?: string } }
+): Promise<Metadata> {
+  const lang = searchParams?.lang || 'en'
+  const post = await getPost(params.slug, lang)
+  if (!post) return { title: 'Post not found' }
+  return {
+    title:       `${post.title} — MirrorSpeed Blog`,
+    description: post.excerpt ?? post.title,
+    openGraph: {
+      title:       post.title,
+      description: post.excerpt ?? '',
+      images:      post.cover_url ? [post.cover_url] : [],
+    },
+  }
+}
+
+export default async function BlogPostPage({ params, searchParams }: { params: { slug: string }; searchParams: { lang?: string } }) {
+  const lang = searchParams?.lang || 'en'
+  const post = await getPost(params.slug, lang)
   if (!post) notFound()
 
   return (

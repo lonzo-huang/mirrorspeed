@@ -13,17 +13,22 @@ interface Post {
   published_at: string
 }
 
-async function getPosts(): Promise<Post[]> {
+async function getPosts(lang: string = 'en'): Promise<Post[]> {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { persistSession: false } }
     )
+
+    // Determine language: 'zh' for Chinese, 'en' for English
+    const language = lang === 'zh' ? 'zh' : 'en'
+
     const { data } = await supabase
       .from('blog_posts')
       .select('id, slug, title, excerpt, tags, author, cover_url, published_at')
       .eq('published', true)
+      .eq('language', language)
       .order('published_at', { ascending: false })
       .limit(50)
     return data ?? []
@@ -39,8 +44,9 @@ export const metadata = {
   description: 'VPN tips, privacy guides, and global network updates from MirrorSpeed.',
 }
 
-export default async function BlogPage() {
-  const posts = await getPosts()
+export default async function BlogPage({ searchParams }: { searchParams: { lang?: string } }) {
+  const lang = searchParams?.lang || 'en'
+  const posts = await getPosts(lang)
 
   return (
     <LandingChrome>

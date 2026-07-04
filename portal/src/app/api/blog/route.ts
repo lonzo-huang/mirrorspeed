@@ -13,6 +13,7 @@
  *   tags?:       string[]
  *   author?:     string
  *   coverUrl?:   string
+ *   language?:   'en' | 'zh' (default 'en')
  *   published?:  boolean  (default true)
  *   publishedAt?: string  (ISO date, default now)
  * }
@@ -35,12 +36,14 @@ export async function GET(req: NextRequest) {
   const limit  = Math.min(parseInt(searchParams.get('limit')  ?? '20'),  100)
   const offset = Math.max(parseInt(searchParams.get('offset') ?? '0'),   0)
   const tag    = searchParams.get('tag')
+  const lang   = searchParams.get('lang') ?? 'en'
 
   const supabase = adminClient()
   let query = supabase
     .from('blog_posts')
-    .select('id, slug, title, excerpt, tags, author, cover_url, published_at')
+    .select('id, slug, title, excerpt, tags, author, cover_url, published_at, language')
     .eq('published', true)
+    .eq('language', lang === 'zh' ? 'zh' : 'en')
     .order('published_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
@@ -63,7 +66,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { slug, title, content, excerpt, tags, author, coverUrl, published, publishedAt } = body
+  const { slug, title, content, excerpt, tags, author, coverUrl, language, published, publishedAt } = body
 
   if (!slug || !title || !content) {
     return NextResponse.json({ error: 'slug, title, and content are required' }, { status: 400 })
@@ -80,6 +83,7 @@ export async function POST(req: NextRequest) {
       tags:         tags         ?? [],
       author:       author       ?? 'MirrorSpeed',
       cover_url:    coverUrl     ?? null,
+      language:     language === 'zh' ? 'zh' : 'en',
       published:    published    ?? true,
       published_at: publishedAt  ?? new Date().toISOString(),
       updated_at:   new Date().toISOString(),

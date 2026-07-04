@@ -15,12 +15,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     )
     const { data: posts } = await supabase
       .from('blog_posts')
-      .select('slug, published_at, updated_at')
+      .select('slug, published_at, updated_at, language')
       .eq('published', true)
       .order('published_at', { ascending: false })
 
     const blogEntries: MetadataRoute.Sitemap = (posts ?? []).map(post => ({
-      url: `${SITE_URL}/blog/${post.slug}`,
+      url: `${SITE_URL}/blog/${post.slug}${post.language === 'zh' ? '?lang=zh' : ''}`,
       lastModified: post.updated_at || post.published_at,
       priority: 0.7,
     }))
