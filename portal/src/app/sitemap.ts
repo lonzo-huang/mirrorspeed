@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 
 const SITE_URL = 'https://www.mirrorspeed.com'
 
+export const revalidate = 3600 // ISR: revalidate every hour to catch new blog posts
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     // Fetch published blog posts
