@@ -123,6 +123,10 @@ function sanitizeAndEnhanceHtml(html: string): string {
     .replace(/<code[^>]*>/g, '<code class="bg-[#1e1e1e] px-2 py-1 rounded text-sm font-mono text-accent-cyan">')
 }
 
+// Allow on-demand generation of blog post pages
+export const dynamicParams = true
+export const revalidate = 3600 // ISR: revalidate every hour
+
 export async function generateStaticParams() {
   try {
     const supabase = createClient(
@@ -134,8 +138,10 @@ export async function generateStaticParams() {
       .from('blog_posts')
       .select('slug')
       .eq('published', true)
+      .limit(10)
     return (posts ?? []).map(post => ({ slug: post.slug }))
-  } catch {
+  } catch (e) {
+    console.error('[blog] generateStaticParams error:', e)
     return []
   }
 }
