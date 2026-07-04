@@ -64,42 +64,46 @@ export default async function BlogPage() {
               <p className="text-lg">No posts yet — check back soon.</p>
             </div>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-8">
               {posts.map(post => (
                 <Link key={post.id} href={`/blog/${post.slug}`} className="group block">
-                  <article className="glass-panel rounded-2xl overflow-hidden h-full hover:border-[var(--accent-cyan)] transition-colors">
-                    {post.cover_url && (
-                      <div className="aspect-[16/7] overflow-hidden">
-                        <img
-                          src={post.cover_url}
-                          alt={post.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      </div>
-                    )}
-                    <div className="p-6">
-                      {post.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {post.tags.slice(0, 3).map(tag => (
-                            <span key={tag} className="text-[10px] font-bold uppercase tracking-widest text-accent-cyan bg-[var(--accent-cyan-glow)] rounded-full px-2.5 py-0.5">
-                              {tag}
-                            </span>
-                          ))}
+                  <article className="glass-panel rounded-2xl overflow-hidden hover:border-[var(--accent-cyan)] transition-colors">
+                    <div className="md:flex gap-6">
+                      {post.cover_url && (
+                        <div className="md:w-1/3 aspect-video md:aspect-auto overflow-hidden flex-shrink-0">
+                          <img
+                            src={post.cover_url}
+                            alt={post.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
                         </div>
                       )}
-                      <h2 className="text-lg font-bold mb-2 text-app-primary group-hover:text-accent-cyan transition-colors line-clamp-2">
-                        {post.title}
-                      </h2>
-                      {post.excerpt && (
-                        <p className="text-sm text-app-secondary line-clamp-3 mb-4">{post.excerpt}</p>
-                      )}
-                      <div className="flex items-center justify-between text-xs text-app-muted mt-auto pt-2 border-t border-app-subtle">
-                        <span>{post.author}</span>
-                        <time dateTime={post.published_at}>
-                          {new Date(post.published_at).toLocaleDateString('en-US', {
-                            year: 'numeric', month: 'short', day: 'numeric',
-                          })}
-                        </time>
+                      <div className="p-6 flex-1 flex flex-col justify-between">
+                        {post.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {post.tags.slice(0, 2).map(tag => (
+                              <span key={tag} className="text-[10px] font-bold uppercase tracking-widest text-accent-cyan bg-[var(--accent-cyan-glow)] rounded-full px-2.5 py-0.5">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div>
+                          <h2 className="text-2xl font-bold mb-2 text-app-primary group-hover:text-accent-cyan transition-colors line-clamp-2">
+                            {post.title}
+                          </h2>
+                          {post.excerpt && (
+                            <p className="text-base text-app-secondary line-clamp-2 mb-4">{post.excerpt}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-app-muted pt-2 border-t border-app-subtle">
+                          <span className="font-medium">{post.author}</span>
+                          <time dateTime={post.published_at}>
+                            {new Date(post.published_at).toLocaleDateString('en-US', {
+                              year: 'numeric', month: 'short', day: 'numeric',
+                            })}
+                          </time>
+                        </div>
                       </div>
                     </div>
                   </article>

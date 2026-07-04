@@ -2,6 +2,10 @@ import { notFound }  from 'next/navigation'
 import Link           from 'next/link'
 import { LandingChrome } from '@/components/landing/LandingPage'
 import { createClient } from '@supabase/supabase-js'
+import parse from 'html-react-parser'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/atom-one-dark.css'
+import './blog.css'
 import type { Metadata } from 'next'
 
 interface Post {
@@ -57,18 +61,73 @@ export async function generateMetadata(
   }
 }
 
-// Simple markdown-like renderer for plain text / basic markdown
 function renderContent(content: string) {
-  // If content looks like HTML, render it directly
+  if (!content) return null
+
+  // Parse HTML and enhance it
   if (content.trimStart().startsWith('<')) {
-    return <div className="prose-content" dangerouslySetInnerHTML={{ __html: content }} />
+    const sanitized = sanitizeAndEnhanceHtml(content)
+    return (
+      <div className="prose-blog">
+        {parse(sanitized, {
+          replace: (node: any) => {
+            if (node.type === 'tag') {
+              if (node.name === 'img') {
+                return (
+                  <figure key={node.attribs.src} className="my-6">
+                    <img
+                      src={node.attribs.src}
+                      alt={node.attribs.alt || 'Blog image'}
+                      className="w-full rounded-lg"
+                      loading="lazy"
+                    />
+                    {node.attribs.alt && <figcaption className="text-sm text-app-muted text-center mt-2">{node.attribs.alt}</figcaption>}
+                  </figure>
+                )
+              }
+              if (node.name === 'code' && node.parent?.name === 'pre') {
+                const code = node.children?.[0]?.data || ''
+                const lang = node.attribs.class?.replace('language-', '') || 'text'
+                try {
+                  const highlighted = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value
+                  return (
+                    <pre key={code} className="bg-[#282c34] rounded-lg p-4 overflow-x-auto my-4">
+                      <code dangerouslySetInnerHTML={{ __html: highlighted }} className={`hljs language-${lang}`} />
+                    </pre>
+                  )
+                } catch {
+                  return <pre className="bg-[#282c34] rounded-lg p-4 text-sm my-4"><code>{code}</code></pre>
+                }
+              }
+            }
+          }
+        })}
+      </div>
+    )
   }
-  // Otherwise render as plain pre-formatted text
-  return (
-    <div className="text-sm text-app-secondary leading-relaxed whitespace-pre-wrap">
-      {content}
-    </div>
-  )
+
+  return <div className="text-app-secondary leading-relaxed">{content}</div>
+}
+
+function sanitizeAndEnhanceHtml(html: string): string {
+  return html
+    .replace(/<p>/g, '<p class="mb-4 leading-relaxed">')
+    .replace(/<h1>/g, '<h1 class="text-3xl font-bold mt-8 mb-4 text-foreground">')
+    .replace(/<h2>/g, '<h2 class="text-2xl font-bold mt-8 mb-4 text-foreground">')
+    .replace(/<h3>/g, '<h3 class="text-xl font-bold mt-6 mb-3 text-foreground">')
+    .replace(/<h4>/g, '<h4 class="text-lg font-bold mt-6 mb-3 text-foreground">')
+    .replace(/<h5>/g, '<h5 class="font-bold mt-4 mb-2 text-foreground">')
+    .replace(/<h6>/g, '<h6 class="font-bold mt-4 mb-2 text-foreground">')
+    .replace(/<li>/g, '<li class="ml-6 mb-2 list-disc">')
+    .replace(/<ul>/g, '<ul class="my-4">')
+    .replace(/<ol>/g, '<ol class="my-4">')
+    .replace(/<blockquote>/g, '<blockquote class="border-l-4 border-accent-cyan pl-4 italic my-4 text-app-secondary">')
+    .replace(/<table>/g, '<table class="w-full border-collapse border border-app-subtle my-4">')
+    .replace(/<td>/g, '<td class="border border-app-subtle px-3 py-2">')
+    .replace(/<th>/g, '<th class="border border-app-subtle px-3 py-2 bg-app-subtle font-bold">')
+    .replace(/<img /g, '<img class="max-w-full h-auto rounded-lg my-4" ')
+    .replace(/<a /g, '<a class="text-accent-cyan hover:underline" ')
+    .replace(/<code[^>]*>/g, '<code class="bg-[#1e1e1e] px-2 py-1 rounded text-sm font-mono text-accent-cyan">')
 }
 
 export async function generateStaticParams() {
