@@ -70,8 +70,12 @@ export default function AdminDashboard() {
               {fetchedAt && ` · 更新于 ${fetchedAt}（每 30 分钟自动刷新）`}
             </p>
           </div>
-          <button onClick={load}
-            className="rounded-lg px-4 py-2 text-sm font-semibold rounded-xl glow-cyan hover:scale-[1.02] transition-transform">刷新</button>
+          <div className="flex items-center gap-2">
+            <a href="/admin/blog"
+              className="rounded-xl px-4 py-2 text-sm font-semibold glass hover:bg-white/5 transition-colors">博客管理</a>
+            <button onClick={load}
+              className="rounded-lg px-4 py-2 text-sm font-semibold rounded-xl glow-cyan hover:scale-[1.02] transition-transform">刷新</button>
+          </div>
         </header>
 
         {err && <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">加载失败：{err}</div>}

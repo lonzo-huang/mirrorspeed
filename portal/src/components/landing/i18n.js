@@ -37,6 +37,7 @@ const D = {
   nav_network: { en: "Network", zh: "节点网络", fr: "Réseau", es: "Red", de: "Netzwerk", it: "Rete", ja: "ネットワーク", ko: "네트워크", tr: "Ağ", ar: "الشبكة", ru: "Сеть" },
   nav_pricing: { en: "Pricing", zh: "价格", fr: "Tarifs", es: "Precios", de: "Preise", it: "Prezzi", ja: "料金", ko: "요금", tr: "Fiyatlar", ar: "الأسعار", ru: "Цены" },
   nav_faq: { en: "FAQ", zh: "常见问题", fr: "FAQ", es: "FAQ", de: "FAQ", it: "FAQ", ja: "よくある質問", ko: "자주 묻는 질문", tr: "SSS", ar: "الأسئلة", ru: "Вопросы" },
+  nav_blog: { en: "Blog", zh: "博客", fr: "Blog", es: "Blog", de: "Blog", it: "Blog", ja: "ブログ", ko: "블로그", tr: "Blog", ar: "المدونة", ru: "Блог" },
   nav_signin: { en: "Sign in", zh: "登录", fr: "Connexion", es: "Iniciar sesión", de: "Anmelden", it: "Accedi", ja: "ログイン", ko: "로그인", tr: "Giriş yap", ar: "تسجيل الدخول", ru: "Войти" },
   nav_get_started: { en: "Get Started", zh: "立即开始", fr: "Commencer", es: "Comenzar", de: "Loslegen", it: "Inizia", ja: "始める", ko: "시작하기", tr: "Başla", ar: "ابدأ الآن", ru: "Начать" },
 

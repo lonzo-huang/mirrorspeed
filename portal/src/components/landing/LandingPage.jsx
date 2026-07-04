@@ -89,6 +89,7 @@ const Nav = () => {
     { href: "/#pricing", key: "nav_pricing" },
     { href: "/download", key: "ob_s1_t" },
     { href: "/#faq", key: "nav_faq" },
+    { href: "/blog", key: "nav_blog" },
   ];
   const currentLang = SUPPORTED_LANGS.find((l) => l.code === lang);
 
