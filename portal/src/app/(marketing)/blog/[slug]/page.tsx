@@ -43,7 +43,8 @@ async function getPost(slug: string, lang?: string): Promise<Post | null> {
 
     if (!data) return null
 
-    // Client-side language validation
+    // Auto-detect language from slug if lang param not specified
+    // Only validate against lang param if it was explicitly provided
     if (lang === 'zh' && !slug.endsWith('-cn')) return null
     if (lang === 'en' && slug.endsWith('-cn')) return null
 
