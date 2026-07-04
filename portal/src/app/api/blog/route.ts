@@ -36,16 +36,23 @@ export async function GET(req: NextRequest) {
   const limit  = Math.min(parseInt(searchParams.get('limit')  ?? '20'),  100)
   const offset = Math.max(parseInt(searchParams.get('offset') ?? '0'),   0)
   const tag    = searchParams.get('tag')
-  const lang   = searchParams.get('lang') ?? 'en'
+  const lang   = searchParams.get('lang')
 
   const supabase = adminClient()
   let query = supabase
     .from('blog_posts')
     .select('id, slug, title, excerpt, tags, author, cover_url, published_at, language')
     .eq('published', true)
-    .eq('language', lang === 'zh' ? 'zh' : 'en')
     .order('published_at', { ascending: false })
     .range(offset, offset + limit - 1)
+
+  // Only filter by language if explicitly specified
+  if (lang === 'zh') {
+    query = query.eq('language', 'zh')
+  } else if (lang === 'en') {
+    query = query.eq('language', 'en')
+  }
+  // If no lang specified, show all posts
 
   if (tag) query = query.contains('tags', [tag])
 

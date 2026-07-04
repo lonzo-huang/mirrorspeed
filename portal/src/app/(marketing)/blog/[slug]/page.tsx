@@ -20,7 +20,7 @@ interface Post {
   published_at: string
 }
 
-async function getPost(slug: string, lang: string = 'en'): Promise<Post | null> {
+async function getPost(slug: string, lang?: string): Promise<Post | null> {
   try {
     const base = process.env.NEXT_PUBLIC_APP_URL
       ?? (process.env.VERCEL_URL
@@ -34,16 +34,21 @@ async function getPost(slug: string, lang: string = 'en'): Promise<Post | null> 
       { auth: { persistSession: false } }
     )
 
-    // Determine language: 'zh' for Chinese, 'en' for English
-    const language = lang === 'zh' ? 'zh' : 'en'
-
-    const { data } = await supabase
+    let query = supabase
       .from('blog_posts')
       .select('*')
       .eq('slug', slug)
       .eq('published', true)
-      .eq('language', language)
-      .single()
+
+    // Only filter by language if lang is explicitly specified
+    if (lang === 'zh') {
+      query = query.eq('language', 'zh')
+    } else if (lang === 'en') {
+      query = query.eq('language', 'en')
+    }
+    // If no lang specified, just get the post regardless of language
+
+    const { data } = await query.single()
     return data ?? null
   } catch {
     return null
