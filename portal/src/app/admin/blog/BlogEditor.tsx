@@ -10,7 +10,19 @@ interface PostRow {
   updated_at?: string
 }
 
-const empty = {
+interface PostForm {
+  slug: string
+  title: string
+  excerpt: string
+  content: string
+  tags: string
+  author: string
+  coverUrl: string
+  published: boolean
+  language: 'en' | 'zh'
+}
+
+const empty: PostForm = {
   slug: '', title: '', excerpt: '', content: '', tags: '',
   author: 'MirrorSpeed', coverUrl: '', published: true, language: 'en',
 }
