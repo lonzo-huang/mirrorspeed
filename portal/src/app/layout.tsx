@@ -199,7 +199,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             其余页按已保存偏好(ms_theme)，保证主页与内容页首屏主题一致。 */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var p=location.pathname;var t;if(/^\\/(login|signup|dashboard|admin)(\\/|$)/.test(p)){t='dark';}else{t=localStorage.getItem('ms_theme');if(t!=='light'&&t!=='dark'){t='dark';}}document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`,
+            __html: `(function(){try{document.documentElement.setAttribute('data-theme','dark');localStorage.setItem('ms_theme','dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`,
           }}
         />
       </head>
