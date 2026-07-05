@@ -1159,7 +1159,7 @@ const I18nCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: Dict 
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("zh");
+  const [lang, setLangState] = useState<Lang>("en");
 
   useEffect(() => {
     // 落地页（Nav 语言下拉）用 "ms_lang"（下划线），本系统历史用 "ms-lang"（连字符）。

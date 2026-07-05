@@ -11,6 +11,7 @@ interface Post {
   author:       string
   cover_url:    string | null
   published_at: string
+  language?:    string
 }
 
 async function getPosts(): Promise<Post[]> {
@@ -23,7 +24,7 @@ async function getPosts(): Promise<Post[]> {
 
     const { data } = await supabase
       .from('blog_posts')
-      .select('id, slug, title, excerpt, tags, author, cover_url, published_at')
+      .select('id, slug, title, excerpt, tags, author, cover_url, published_at, language')
       .eq('published', true)
       .order('published_at', { ascending: false })
       .limit(50)
