@@ -12,7 +12,7 @@ interface PostRow {
 
 const empty = {
   slug: '', title: '', excerpt: '', content: '', tags: '',
-  author: 'MirrorSpeed', coverUrl: '', published: true,
+  author: 'MirrorSpeed', coverUrl: '', published: true, language: 'en',
 }
 
 // 简单 slug 生成：中文/空格 → 连字符，仅保留 a-z0-9-
@@ -49,7 +49,7 @@ export function BlogEditor() {
           slug: p.slug, title: p.title, excerpt: p.excerpt ?? '',
           content: p.content ?? '', tags: (p.tags ?? []).join(', '),
           author: p.author ?? 'MirrorSpeed', coverUrl: p.cover_url ?? '',
-          published: p.published ?? true,
+          published: p.published ?? true, language: p.language ?? 'en',
         })
         setSlugLocked(true)
         window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -83,6 +83,7 @@ export function BlogEditor() {
       slug, title: form.title, excerpt: form.excerpt, content: form.content,
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
       author: form.author, coverUrl: form.coverUrl || null, published: form.published,
+      language: form.language,
     }
     const res = await fetch('/api/admin/blog', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -126,9 +127,16 @@ export function BlogEditor() {
         <input className={input} placeholder="标题 *" value={form.title}
           onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
 
-        <input className={input} placeholder="Slug（留空自动生成，如 udp-vs-tcp-speed）" value={form.slug}
-          disabled={slugLocked}
-          onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} />
+        <div className="grid grid-cols-2 gap-3">
+          <select className={input} value={form.language}
+            onChange={e => setForm(f => ({ ...f, language: e.target.value }))}>
+            <option value="en">English 英文</option>
+            <option value="zh">中文 Chinese</option>
+          </select>
+          <input className={input} placeholder="Slug（留空自动生成，如 udp-vs-tcp-speed）" value={form.slug}
+            disabled={slugLocked}
+            onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} />
+        </div>
         {slugLocked && <p className="text-[11px] text-app-muted">slug 已锁定（编辑已有文章）。要改 URL 请新建一篇。</p>}
 
         <input className={input} placeholder="摘要（列表页显示）" value={form.excerpt}
