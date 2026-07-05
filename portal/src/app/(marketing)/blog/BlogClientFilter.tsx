@@ -13,6 +13,7 @@ interface Post {
   author: string
   cover_url: string | null
   published_at: string
+  language?: string
 }
 
 export function BlogClientFilter({ allPosts }: { allPosts: Post[] }) {
@@ -21,9 +22,15 @@ export function BlogClientFilter({ allPosts }: { allPosts: Post[] }) {
 
   useEffect(() => {
     if (lang === 'zh') {
-      setFilteredPosts(allPosts.filter(post => post.slug.endsWith('-cn')))
+      // Filter by language field, fallback to slug suffix for backward compatibility
+      setFilteredPosts(allPosts.filter(post =>
+        post.language === 'zh' || post.slug.endsWith('-cn')
+      ))
     } else {
-      setFilteredPosts(allPosts.filter(post => !post.slug.endsWith('-cn')))
+      // Filter by language field, fallback to slug suffix for backward compatibility
+      setFilteredPosts(allPosts.filter(post =>
+        (post.language === 'en' || !post.language) && !post.slug.endsWith('-cn')
+      ))
     }
   }, [lang, allPosts])
 

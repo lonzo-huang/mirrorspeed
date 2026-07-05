@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   const supabase = adminClient()
   let query = supabase
     .from('blog_posts')
-    .select('id, slug, title, excerpt, tags, author, cover_url, published_at')
+    .select('id, slug, title, excerpt, tags, author, cover_url, published_at, language')
     .eq('published', true)
     .order('published_at', { ascending: false })
     .range(offset, offset + limit - 1)
