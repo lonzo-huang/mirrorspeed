@@ -15,12 +15,32 @@ const empty = {
   author: 'MirrorSpeed', coverUrl: '', published: true, language: 'en',
 }
 
-// 简单 slug 生成：中文/空格 → 连字符，仅保留 a-z0-9-
+// Slug 生成：将中文转换为英文音译，保留 a-z0-9-
 function slugify(s: string) {
-  return s.toLowerCase().trim()
-    .replace(/[^\w一-龥]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-    .slice(0, 80)
+  // 中文汉字转音译映射（常用词）
+  const zhMap: Record<string, string> = {
+    'vpn': 'vpn', '原理': 'principles', '及': 'and', '实现': 'implementation',
+    '之': 'of', 'tcp': 'tcp', '还是': 'vs', 'udp': 'udp', '传输': 'transport',
+    '协议': 'protocol', '的': 'of', '选择': 'choice', '与': 'and', '权衡': 'tradeoff',
+    '为什么': 'why', '推荐': 'recommend', '跨境': 'cross-border', '网速': 'speed',
+    '实测': 'benchmark', '对比': 'comparison', '速度': 'speed', '天花板': 'ceiling',
+    '带宽': 'bandwidth', '网络': 'network', '高延迟': 'high-latency', '游戏': 'gaming',
+    '流媒体': 'streaming', '加速': 'acceleration', '镜速': 'mirrorspeed',
+  }
+
+  let result = s.toLowerCase().trim()
+
+  // 替换已知的中文词组
+  for (const [cn, en] of Object.entries(zhMap)) {
+    result = result.replace(new RegExp(cn, 'g'), en)
+  }
+
+  // 移除所有非ASCII字符（剩余的中文字符转为连字符）
+  result = result.replace(/[^\w]+/g, '-')
+  result = result.replace(/(^-|-$)/g, '')
+
+  // 限制长度
+  return result.slice(0, 80)
 }
 
 export function BlogEditor() {
