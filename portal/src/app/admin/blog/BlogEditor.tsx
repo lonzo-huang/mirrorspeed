@@ -20,11 +20,12 @@ interface PostForm {
   coverUrl: string
   published: boolean
   language: 'en' | 'zh'
+  sourceUrl?: string
 }
 
 const empty: PostForm = {
   slug: '', title: '', excerpt: '', content: '', tags: '',
-  author: 'MirrorSpeed', coverUrl: '', published: true, language: 'en',
+  author: 'MirrorSpeed', coverUrl: '', published: true, language: 'en', sourceUrl: '',
 }
 
 // Slug 生成：将中文转换为英文音译，保留 a-z0-9-
@@ -82,6 +83,7 @@ export function BlogEditor() {
           content: p.content ?? '', tags: (p.tags ?? []).join(', '),
           author: p.author ?? 'MirrorSpeed', coverUrl: p.cover_url ?? '',
           published: p.published ?? true, language: p.language ?? 'en',
+          sourceUrl: p.source_url ?? '',
         })
         setSlugLocked(true)
         window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -116,6 +118,7 @@ export function BlogEditor() {
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
       author: form.author, coverUrl: form.coverUrl || null, published: form.published,
       language: form.language,
+      sourceUrl: form.sourceUrl || null,
     }
     const res = await fetch('/api/admin/blog', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -128,6 +131,71 @@ export function BlogEditor() {
       load()
     } else {
       setMsg('保存失败：' + (data.error ?? res.status))
+    }
+  }
+
+  async function importFromUrl() {
+    const url = prompt('输入文章 URL:')
+    if (!url) return
+    setMsg('正在导入...')
+    setBusy(true)
+    try {
+      const res = await fetch('/api/blog/import-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setForm(f => ({
+          ...f,
+          title: data.data.title || f.title,
+          excerpt: data.data.excerpt || f.excerpt,
+          content: data.data.content || f.content,
+          sourceUrl: data.data.sourceUrl,
+        }))
+        setMsg('✅ 导入成功，点"AI 改写"优化内容')
+      } else {
+        setMsg('❌ 导入失败：' + (data.error || res.status))
+      }
+    } catch (e) {
+      setMsg('❌ 导入错误：' + String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function aiRewrite() {
+    if (!form.content) { setMsg('❌ 请先输入或导入内容'); return }
+    setMsg('✨ AI 改写中...')
+    setBusy(true)
+    try {
+      const res = await fetch('/api/blog/ai-rewrite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: form.content,
+          title: form.title,
+          excerpt: form.excerpt,
+          sourceUrl: form.sourceUrl,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setForm(f => ({
+          ...f,
+          title: data.data.title || f.title,
+          excerpt: data.data.excerpt || f.excerpt,
+          content: data.data.content || f.content,
+        }))
+        setMsg('✅ AI 改写完成！可继续编辑后保存')
+      } else {
+        setMsg('❌ 改写失败：' + (data.error || res.status))
+      }
+    } catch (e) {
+      setMsg('❌ 改写错误：' + String(e))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -174,10 +242,18 @@ export function BlogEditor() {
         <input className={input} placeholder="摘要（列表页显示）" value={form.excerpt}
           onChange={e => setForm(f => ({ ...f, excerpt: e.target.value }))} />
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <label className="text-xs text-app-muted shrink-0">导入 Word：</label>
           <input type="file" accept=".docx" className="text-xs"
             onChange={e => { const f = e.target.files?.[0]; if (f) importDocx(f) }} />
+          <button type="button" onClick={importFromUrl} disabled={busy}
+            className="ml-auto text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50">
+            📥 从 URL 导入
+          </button>
+          <button type="button" onClick={aiRewrite} disabled={busy || !form.content}
+            className="text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded disabled:opacity-50">
+            ✨ AI 改写
+          </button>
         </div>
 
         <textarea className={input + ' font-mono text-xs'} rows={16}
