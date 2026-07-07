@@ -17,10 +17,31 @@ async function requireAdmin() {
   return { ok: true as const, admin }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const gate = await requireAdmin()
   if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
   const admin = gate.admin
+
+  const mode = new URL(req.url).searchParams.get('mode') ?? 'live'
+
+  // ── quick 模式：只读数据库快照，不实时拉服务器，秒回 ───────────────
+  // 用于后台首屏立即渲染；实时明细由前端随后以 live 模式补全。
+  if (mode === 'quick') {
+    const { data: servers } = await admin.from('vpn_servers')
+      .select('id, name, display_name, location, flag_emoji, endpoint, status, last_checked_at, active_peers, load_percent, max_peers')
+      .eq('is_active', true).order('sort_order')
+    const result = (servers ?? []).map((srv: any) => ({
+      id: srv.id, name: srv.name, display_name: srv.display_name, location: srv.location,
+      flag_emoji: srv.flag_emoji, endpoint: srv.endpoint,
+      db_status: srv.status, last_checked_at: srv.last_checked_at, max_peers: srv.max_peers,
+      online: srv.status !== 'offline',
+      stats: null,
+      peers: [],
+      summary: { online: srv.active_peers ?? 0, fast: 0, relay: 0, fast_pct: 0 },
+      pending: true,   // 前端据此显示"实时数据加载中"
+    }))
+    return NextResponse.json({ servers: result, fetched_at: new Date().toISOString(), quick: true })
+  }
 
   // 归属映射：public_key → {device_id, email, tier}
   const [{ data: devs }, { data: profiles }, { data: servers }, { data: subs }, { data: cfg }] = await Promise.all([
@@ -58,8 +79,8 @@ export async function GET() {
     try {
       const headers = { 'X-API-Secret': srv.api_secret }
       const [statsR, peersR] = await Promise.all([
-        fetch(`${srv.api_url}/stats`, { headers, signal: AbortSignal.timeout(8000) }),
-        fetch(`${srv.api_url}/peers`, { headers, signal: AbortSignal.timeout(8000) }),
+        fetch(`${srv.api_url}/stats`, { headers, signal: AbortSignal.timeout(5000) }),
+        fetch(`${srv.api_url}/peers`, { headers, signal: AbortSignal.timeout(5000) }),
       ])
       const stats = statsR.ok ? await statsR.json() : null
       const peersRaw = peersR.ok ? await peersR.json() : []

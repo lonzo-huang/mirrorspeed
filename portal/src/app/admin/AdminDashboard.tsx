@@ -17,6 +17,7 @@ interface ServerRow {
   endpoint: string; online: boolean; error?: string
   db_status: string | null; max_peers: number | null
   stats: ServerStats | null; peers: Peer[]; summary?: Summary
+  pending?: boolean
 }
 
 function fmtUptime(s: number): string {
@@ -29,27 +30,34 @@ const REFRESH_MS = 30 * 60 * 1000   // 30 分钟自动刷新（按需点"刷新"
 export default function AdminDashboard() {
   const [servers, setServers] = useState<ServerRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState<string>('')
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (mode: 'quick' | 'live' = 'live') => {
     setErr(null)
+    if (mode === 'live') setRefreshing(true)
     try {
-      const res = await fetch('/api/admin/servers-overview', { cache: 'no-store' })
-      if (!res.ok) { setErr(`HTTP ${res.status}`); setLoading(false); return }
+      const res = await fetch(`/api/admin/servers-overview?mode=${mode}`, { cache: 'no-store' })
+      if (!res.ok) { setErr(`HTTP ${res.status}`); return }
       const data = await res.json()
       setServers(data.servers ?? [])
-      setFetchedAt(new Date().toLocaleString())
+      if (mode === 'live') setFetchedAt(new Date().toLocaleString())
     } catch (e: any) {
       setErr(String(e?.message ?? e))
     } finally {
       setLoading(false)
+      if (mode === 'live') setRefreshing(false)
     }
   }, [])
 
   useEffect(() => {
-    load()
-    const t = setInterval(load, REFRESH_MS)
+    // 两阶段：先 quick 秒开，再 live 补全实时明细
+    ;(async () => {
+      await load('quick')
+      load('live')
+    })()
+    const t = setInterval(() => load('live'), REFRESH_MS)
     return () => clearInterval(t)
   }, [load])
 
@@ -67,14 +75,16 @@ export default function AdminDashboard() {
             <p className="text-sm text-app-muted">
               {servers.length} 台节点 · 在线 {totalOnline} · 快速 {totalFast}
               {totalOnline > 0 && `（${Math.round(totalFast / totalOnline * 100)}%）`}
-              {fetchedAt && ` · 更新于 ${fetchedAt}（每 30 分钟自动刷新）`}
+              {refreshing && ' · ⏳ 拉取实时数据中…'}
+              {!refreshing && fetchedAt && ` · 更新于 ${fetchedAt}（每 30 分钟自动刷新）`}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <a href="/admin/blog"
               className="rounded-xl px-4 py-2 text-sm font-semibold glass hover:bg-white/5 transition-colors">博客管理</a>
-            <button onClick={load}
-              className="rounded-lg px-4 py-2 text-sm font-semibold rounded-xl glow-cyan hover:scale-[1.02] transition-transform">刷新</button>
+            <button onClick={() => load('live')} disabled={refreshing}
+              className="rounded-lg px-4 py-2 text-sm font-semibold rounded-xl glow-cyan hover:scale-[1.02] transition-transform disabled:opacity-50">
+              {refreshing ? '刷新中…' : '刷新'}</button>
           </div>
         </header>
 
@@ -118,7 +128,9 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {sv.peers.length > 0 ? (
+              {sv.pending ? (
+                <div className="text-xs text-app-muted">⏳ 实时明细加载中…</div>
+              ) : sv.peers.length > 0 ? (
                 <div className="overflow-x-auto rounded-xl ring-1 ring-white/5">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-white/5 text-app-muted">
