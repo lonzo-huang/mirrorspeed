@@ -4,6 +4,7 @@ import { LandingChrome } from '@/components/landing/LandingPage'
 import { createClient } from '@supabase/supabase-js'
 import parse from 'html-react-parser'
 import hljs from 'highlight.js'
+import { marked } from 'marked'
 import 'highlight.js/styles/atom-one-dark.css'
 import './blog.css'
 import type { Metadata } from 'next'
@@ -54,52 +55,66 @@ async function getPost(slug: string, lang?: string): Promise<Post | null> {
   }
 }
 
-function renderContent(content: string) {
+async function renderContent(content: string) {
   if (!content) return null
 
-  // Parse HTML and enhance it
-  if (content.trimStart().startsWith('<')) {
-    const sanitized = sanitizeAndEnhanceHtml(content)
-    return (
-      <div className="prose-blog">
-        {parse(sanitized, {
-          replace: (node: any) => {
-            if (node.type === 'tag') {
-              if (node.name === 'img') {
+  let html: string
+
+  // 检测内容格式
+  const trimmed = content.trimStart()
+
+  if (trimmed.startsWith('<')) {
+    // HTML 格式
+    html = content
+  } else if (trimmed.startsWith('#') || trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.includes('\n##')) {
+    // Markdown 格式（检测标题、列表、加粗等标记）
+    html = await marked(content, {
+      gfm: true,
+      breaks: true,
+    }) as string
+  } else {
+    // 纯文本格式 - 转换换行为段落
+    html = `<p>${content.split('\n\n').map((p: string) => p.replace(/\n/g, '<br />')).join('</p><p>')}</p>`
+  }
+
+  const sanitized = sanitizeAndEnhanceHtml(html)
+  return (
+    <div className="prose-blog">
+      {parse(sanitized, {
+        replace: (node: any) => {
+          if (node.type === 'tag') {
+            if (node.name === 'img') {
+              return (
+                <figure key={node.attribs.src} className="my-6">
+                  <img
+                    src={node.attribs.src}
+                    alt={node.attribs.alt || 'Blog image'}
+                    className="w-full rounded-lg"
+                    loading="lazy"
+                  />
+                  {node.attribs.alt && <figcaption className="text-sm text-app-muted text-center mt-2">{node.attribs.alt}</figcaption>}
+                </figure>
+              )
+            }
+            if (node.name === 'code' && node.parent?.name === 'pre') {
+              const code = node.children?.[0]?.data || ''
+              const lang = node.attribs.class?.replace('language-', '') || 'text'
+              try {
+                const highlighted = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value
                 return (
-                  <figure key={node.attribs.src} className="my-6">
-                    <img
-                      src={node.attribs.src}
-                      alt={node.attribs.alt || 'Blog image'}
-                      className="w-full rounded-lg"
-                      loading="lazy"
-                    />
-                    {node.attribs.alt && <figcaption className="text-sm text-app-muted text-center mt-2">{node.attribs.alt}</figcaption>}
-                  </figure>
+                  <pre key={code} className="bg-[#282c34] rounded-lg p-4 overflow-x-auto my-4">
+                    <code dangerouslySetInnerHTML={{ __html: highlighted }} className={`hljs language-${lang}`} />
+                  </pre>
                 )
-              }
-              if (node.name === 'code' && node.parent?.name === 'pre') {
-                const code = node.children?.[0]?.data || ''
-                const lang = node.attribs.class?.replace('language-', '') || 'text'
-                try {
-                  const highlighted = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value
-                  return (
-                    <pre key={code} className="bg-[#282c34] rounded-lg p-4 overflow-x-auto my-4">
-                      <code dangerouslySetInnerHTML={{ __html: highlighted }} className={`hljs language-${lang}`} />
-                    </pre>
-                  )
-                } catch {
-                  return <pre className="bg-[#282c34] rounded-lg p-4 text-sm my-4"><code>{code}</code></pre>
-                }
+              } catch {
+                return <pre className="bg-[#282c34] rounded-lg p-4 text-sm my-4"><code>{code}</code></pre>
               }
             }
           }
-        })}
-      </div>
-    )
-  }
-
-  return <div className="text-app-secondary leading-relaxed">{content}</div>
+        }
+      })}
+    </div>
+  )
 }
 
 function sanitizeAndEnhanceHtml(html: string): string {
@@ -212,7 +227,7 @@ export default async function BlogPostPage({ params, searchParams }: { params: {
 
           {/* Content */}
           <div className="glass-panel rounded-2xl p-6 md:p-8">
-            {renderContent(post.content)}
+            {await renderContent(post.content)}
           </div>
 
         </article>

@@ -14,13 +14,48 @@ export async function POST(req: NextRequest) {
 
     const groq = new Groq({ apiKey })
 
-    const { content, title, excerpt, sourceUrl } = await req.json()
+    const { content, title, excerpt, sourceUrl, mode = 'rewrite' } = await req.json()
 
     if (!content || typeof content !== 'string') {
       return NextResponse.json({ error: 'Content required' }, { status: 400 })
     }
 
-    const prompt = `你是一个专业的技术内容编辑和排版设计师。我将给你一篇关于 VPN、网络加速、隐私保护的文章。
+    let prompt: string
+
+    if (mode === 'polish') {
+      // 润色模式：只改进文字表达，保持结构不变
+      prompt = `你是一个资深编辑。我需要你润色以下技术文章的文字，改进表达力、专业度和可读性，但不改变主要内容和结构。
+
+原始文章：
+${content.slice(0, 3000)}
+
+你的任务：
+1. 改进措辞和表达，使其更专业、更清晰
+2. 修复语法和标点错误
+3. 消除冗余和重复表述
+4. 增强逻辑连接和过渡
+5. 保持原有的 Markdown 格式不变
+
+只返回润色后的正文内容，不需要改标题或生成摘要。`
+    } else if (mode === 'translate') {
+      // 翻译模式：翻译成相反的语言
+      const isChineseContent = /[一-鿿]/.test(content)
+      prompt = isChineseContent
+        ? `你是一个专业翻译。请将以下中文技术文章翻译成英文，保持 Markdown 格式和技术术语准确。
+
+原始文章：
+${content.slice(0, 3000)}
+
+请返回英文翻译后的完整正文，保持所有 Markdown 格式。`
+        : `你是一个专业翻译。请将以下英文技术文章翻译成中文，保持 Markdown 格式和技术术语准确。
+
+原始文章：
+${content.slice(0, 3000)}
+
+请返回中文翻译后的完整正文，保持所有 Markdown 格式。`
+    } else {
+      // 默认改写模式
+      prompt = `你是一个专业的技术内容编辑和排版设计师。我将给你一篇关于 VPN、网络加速、隐私保护的文章。
 
 原始文章：
 ${content.slice(0, 3000)}
@@ -47,6 +82,7 @@ ${content.slice(0, 3000)}
   "content": "改写后的正文（**必须使用 markdown 格式**，包含标题、列表、加粗等排版元素，确保可读性）",
   "keywords": ["关键词1", "关键词2", "关键词3"]
 }`
+    }
 
     const message = await groq.chat.completions.create({
       model: 'llama-3.1-8b-instant',

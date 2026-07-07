@@ -62,6 +62,7 @@ export function BlogEditor() {
   const [msg, setMsg]     = useState<string | null>(null)
   const [busy, setBusy]   = useState(false)
   const [slugLocked, setSlugLocked] = useState(false)  // 编辑已有文章时锁 slug
+  const [aiMode, setAiMode] = useState<'rewrite' | 'polish' | 'translate'>('rewrite')
 
   async function load() {
     const res = await fetch('/api/admin/blog', { cache: 'no-store' })
@@ -167,7 +168,8 @@ export function BlogEditor() {
 
   async function aiRewrite() {
     if (!form.content) { setMsg('❌ 请先输入或导入内容'); return }
-    setMsg('✨ AI 改写中...')
+    const modeLabel = aiMode === 'rewrite' ? '改写' : aiMode === 'polish' ? '润色' : '翻译'
+    setMsg(`✨ AI ${modeLabel}中...`)
     setBusy(true)
     try {
       const res = await fetch('/api/blog/ai-rewrite', {
@@ -178,6 +180,7 @@ export function BlogEditor() {
           title: form.title,
           excerpt: form.excerpt,
           sourceUrl: form.sourceUrl,
+          mode: aiMode,
         }),
       })
       const data = await res.json()
@@ -188,12 +191,12 @@ export function BlogEditor() {
           excerpt: data.data.excerpt || f.excerpt,
           content: data.data.content || f.content,
         }))
-        setMsg('✅ AI 改写完成！可继续编辑后保存')
+        setMsg(`✅ AI ${modeLabel}完成！可继续编辑后保存`)
       } else {
-        setMsg('❌ 改写失败：' + (data.error || res.status))
+        setMsg(`❌ ${modeLabel}失败：` + (data.error || res.status))
       }
     } catch (e) {
-      setMsg('❌ 改写错误：' + String(e))
+      setMsg(`❌ ${modeLabel}错误：` + String(e))
     } finally {
       setBusy(false)
     }
@@ -250,10 +253,18 @@ export function BlogEditor() {
             className="ml-auto text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50">
             📥 从 URL 导入
           </button>
-          <button type="button" onClick={aiRewrite} disabled={busy || !form.content}
-            className="text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded disabled:opacity-50">
-            ✨ AI 改写
-          </button>
+          <div className="flex items-center gap-1">
+            <select value={aiMode} onChange={e => setAiMode(e.target.value as any)}
+              className="text-xs px-2 py-1 bg-white/5 border border-white/10 rounded text-app-primary">
+              <option value="rewrite">✨ AI 改写</option>
+              <option value="polish">✏️ AI 润色</option>
+              <option value="translate">🌐 AI 翻译</option>
+            </select>
+            <button type="button" onClick={aiRewrite} disabled={busy || !form.content}
+              className="text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded disabled:opacity-50">
+              执行
+            </button>
+          </div>
         </div>
 
         <textarea className={input + ' font-mono text-xs'} rows={16}
