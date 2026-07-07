@@ -94,27 +94,22 @@ export async function POST(req: NextRequest) {
         return
       }
 
-      // 2) 台账（ratelimit / GC 用）：存在则更新，否则插入
-      const { data: existing } = await (admin.from('vpn_device_peers') as any)
-        .select('id').eq('device_id', dev.id).eq('server_id', srv.id).maybeSingle()
-      if (existing) {
-        await (admin.from('vpn_device_peers') as any)
-          .update({ provisioned: true, is_active: true, public_key: crypto.publicKey, vpn_ip: crypto.vpnIp, last_seen_at: new Date().toISOString() })
-          .eq('id', existing.id)
-      } else {
-        await (admin.from('vpn_device_peers') as any).insert({
-          device_id:         dev.id,
-          server_id:         srv.id,
-          user_id:           user.id,
-          peer_name:         `ms-${dev.id}`,
-          public_key:        crypto.publicKey,
-          private_key_enc:   crypto.privateKeyEnc,
-          preshared_key_enc: '',
-          vpn_ip:            crypto.vpnIp,
-          is_active:         true,
-          provisioned:       true,
-        })
-      }
+      // 2) 台账（ratelimit / GC 用）：幂等 upsert（不受并发插入竞态影响）
+      await (admin.from('vpn_device_peers') as any).upsert({
+        device_id:         dev.id,
+        server_id:         srv.id,
+        user_id:           user.id,
+        peer_name:         `ms-${dev.id}`,
+        public_key:        crypto.publicKey,
+        private_key_enc:   crypto.privateKeyEnc,
+        preshared_key_enc: '',
+        vpn_ip:            crypto.vpnIp,
+        is_active:         true,
+        provisioned:       true,
+        last_seen_at:      new Date().toISOString(),
+      }, {
+        onConflict: 'device_id,server_id',
+      })
       results.push({ device_id: dev.id, server_id: srv.id, ok: true })
     }))
   }
