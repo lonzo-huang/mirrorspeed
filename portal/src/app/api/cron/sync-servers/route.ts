@@ -70,7 +70,11 @@ export async function GET(req: NextRequest) {
         const maxPeers   = maxPeersRow?.max_peers ?? 200
         const loadPct    = Math.round((stats.active_peers / maxPeers) * 100)
         let portalStatus = stats.status
-        if (latencyMs > 500) portalStatus = 'degraded'
+        // degraded 反映真实健康度，而非跨洲网络距离：
+        // - 海外节点到 Vercel 的正常往返就有 500-800ms，旧的 500ms 阈值几乎全误报
+        // - 真正的"降级"应看资源过载(CPU/内存)或极端延迟
+        if (stats.cpu_percent > 90 || stats.mem_percent > 90) portalStatus = 'degraded'
+        else if (latencyMs > 1500) portalStatus = 'degraded'
 
         await admin.from('vpn_servers').update({
           status:          portalStatus,
