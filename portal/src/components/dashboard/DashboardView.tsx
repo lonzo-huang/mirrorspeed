@@ -46,15 +46,8 @@ interface Props {
 
 const CURRENCY_SYMBOL: Record<string, string> = { usd: '$', eur: '€', cny: '¥' }
 
-const RECOMMENDED_NODES = [
-  { id: 'HK', location: 'Hong Kong', locationZh: '香港', latency: 14 },
-  { id: 'SG', location: 'Singapore', locationZh: '新加坡', latency: 32 },
-  { id: 'JP', location: 'Japan', locationZh: '日本', latency: 28 },
-  { id: 'US', location: 'United States', locationZh: '美国', latency: 118 },
-]
-
 export function DashboardView({ userEmail, displayName, profile, subscription, devices, payments, isAdmin }: Props) {
-  const { t, lang } = useI18n()
+  const { t } = useI18n()
   const d = t.dash
   const deviceCount = devices.length
   const isActive = subscription?.status === 'active'
@@ -151,30 +144,6 @@ export function DashboardView({ userEmail, displayName, profile, subscription, d
           ) : (
             <p className="text-sm text-muted-foreground">{d.noPayments}</p>
           )}
-        </div>
-      </div>
-
-      {/* Recommended Nodes */}
-      <div className="glass-panel rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-foreground">{d.recNodes}</h2>
-          <Link href="/servers" className="flex items-center gap-1 text-sm text-mirror hover:underline">
-            {d.viewAll} <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {RECOMMENDED_NODES.map(node => (
-            <div key={node.id} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/5 px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-foreground">{node.id}</p>
-                <p className="text-xs text-muted-foreground">{lang === 'zh' ? node.locationZh : node.location}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-mirror">{node.latency}ms</p>
-                <p className="text-xs text-green-400">{d.nodeOnline}</p>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
 

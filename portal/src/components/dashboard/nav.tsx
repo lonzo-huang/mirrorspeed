@@ -3,19 +3,22 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Shield, Monitor, CreditCard, Settings, LogOut, ChevronDown } from 'lucide-react'
+import { Shield, Monitor, CreditCard, Settings, LogOut, ChevronDown, Globe, Check } from 'lucide-react'
 import type { Tables } from '@/types/database.types'
 import { useState } from 'react'
-import { useI18n } from '@/lib/i18n'
+import { useI18n, LANG_LABELS, type Lang } from '@/lib/i18n'
 
 type Profile = Tables<'profiles'>
 
+const LANG_ORDER: Lang[] = ['en', 'zh', 'ja', 'de', 'fr', 'it', 'es', 'uk']
+
 export function DashboardNav({ profile }: { profile: Profile }) {
-  const { t } = useI18n()
+  const { t, lang, setLang } = useI18n()
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [langOpen, setLangOpen] = useState(false)
 
   const NAV_ITEMS = [
     { href: '/dashboard',         label: t.dash.overview,    icon: Shield },
@@ -75,10 +78,48 @@ export function DashboardNav({ profile }: { profile: Profile }) {
           )}
         </div>
 
+        {/* Right side: language switcher + user menu */}
+        <div className="flex items-center gap-1">
+        {/* Language switcher */}
+        <div className="relative">
+          <button
+            onClick={() => { setLangOpen(v => !v); setMenuOpen(false) }}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground
+                       hover:bg-accent/5 hover:text-foreground transition-colors"
+            aria-label="Language"
+          >
+            <Globe className="h-4 w-4" />
+            <span className="hidden sm:block">{LANG_LABELS[lang]}</span>
+            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          </button>
+
+          {langOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setLangOpen(false)} />
+              <div className="absolute right-0 mt-1 w-36 rounded-lg border border-border bg-background/95 backdrop-blur-sm py-1 shadow-lg z-50">
+                {LANG_ORDER.map(l => (
+                  <button
+                    key={l}
+                    onClick={() => { setLang(l); setLangOpen(false) }}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-sm transition-colors
+                      ${l === lang
+                        ? 'text-foreground bg-accent/5'
+                        : 'text-muted-foreground hover:bg-accent/5 hover:text-foreground'
+                      }`}
+                  >
+                    {LANG_LABELS[l]}
+                    {l === lang && <Check className="h-3.5 w-3.5 text-mirror" />}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
         {/* User menu */}
         <div className="relative">
           <button
-            onClick={() => setMenuOpen(v => !v)}
+            onClick={() => { setMenuOpen(v => !v); setLangOpen(false) }}
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground
                        hover:bg-accent/5 hover:text-foreground transition-colors"
           >
@@ -114,6 +155,7 @@ export function DashboardNav({ profile }: { profile: Profile }) {
               </button>
             </div>
           )}
+        </div>
         </div>
       </div>
     </nav>
