@@ -67,7 +67,10 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|\\.well-known|api/sub|api/webhooks).*)',
-  ],
+  // 仅在真正需要服务端会话的路径运行 middleware：
+  //   - /dashboard、/admin：cookie 会话刷新 + 登录/角色门（页面层另有兜底）
+  //   - /login：已登录用户反向重定向到 dashboard
+  // 其余路径（/api/*、营销页、静态资源）不再触发 supabase.auth.getUser()，
+  // 大幅降低 Supabase Auth egress。api/mobile/* 走 Bearer 自校验，无需 middleware。
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/login'],
 }
