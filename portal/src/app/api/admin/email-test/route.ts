@@ -29,7 +29,10 @@ export async function GET() {
 
   return NextResponse.json({
     sentTo:            TEAM_EMAIL,
-    from:              result.from ?? '(default noreply@mirrorspeed.com)',
+    transport:         process.env.SMTP_HOST ? 'smtp' : 'brevo',
+    from:              result.from ?? '(default)',
+    smtpHostSet:       !!process.env.SMTP_HOST,
+    smtpUserSet:       !!process.env.SMTP_USER,
     hasBrevoKey:       !!process.env.BREVO_API_KEY,
     emailFromEnvSet:   !!process.env.EMAIL_FROM_ADDRESS,
     result,

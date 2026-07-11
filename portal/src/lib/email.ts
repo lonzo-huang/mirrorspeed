@@ -1,14 +1,22 @@
 /**
- * Email utility via Brevo HTTP API.
- * No IP restrictions — works reliably on Vercel serverless.
+ * Email utility. Prefers SMTP when configured, otherwise falls back to the
+ * Brevo HTTP API.
  *
- * Required Vercel env var:
- *   BREVO_API_KEY  — from Brevo → SMTP & API → API keys & MCP → Create API key
+ * SMTP (preferred if set) — e.g. send via mirrorspeed@mirrorquant.com:
+ *   SMTP_HOST  — e.g. smtp.gmail.com / smtp.zoho.com / smtp-mail.outlook.com
+ *   SMTP_PORT  — 465 (SSL) or 587 (STARTTLS). Default 465.
+ *   SMTP_USER  — full mailbox address (also used as From if EMAIL_FROM_ADDRESS unset)
+ *   SMTP_PASS  — app-specific password (NOT the login password for Gmail/Workspace)
  *
- * Optional:
- *   EMAIL_FROM_ADDRESS — defaults to noreply@mirrorspeed.com
+ * Brevo (fallback) — used only when SMTP_HOST is not set:
+ *   BREVO_API_KEY  — from Brevo → SMTP & API → API keys
+ *
+ * Optional (both paths):
+ *   EMAIL_FROM_ADDRESS — From address (SMTP defaults to SMTP_USER; Brevo to noreply@mirrorspeed.com)
  *   EMAIL_FROM_NAME    — defaults to MirrorSpeed
  */
+
+import nodemailer from 'nodemailer'
 
 interface SendEmailOptions {
   to:      string
@@ -23,7 +31,49 @@ export interface SendEmailResult {
   from?:   string
 }
 
-export async function sendEmail({ to, subject, html }: SendEmailOptions): Promise<SendEmailResult> {
+export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult> {
+  // SMTP 优先（若已配置）
+  if (process.env.SMTP_HOST) {
+    return sendViaSmtp(opts)
+  }
+  return sendViaBrevo(opts)
+}
+
+// ── SMTP 发送（nodemailer）───────────────────────────────────────────────────
+async function sendViaSmtp({ to, subject, html }: SendEmailOptions): Promise<SendEmailResult> {
+  const host = process.env.SMTP_HOST!
+  const port = parseInt(process.env.SMTP_PORT ?? '465', 10)
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  if (!user || !pass) {
+    console.warn('[email] SMTP_USER / SMTP_PASS not set, cannot send to', to)
+    return { ok: false, error: 'SMTP_USER / SMTP_PASS not configured' }
+  }
+  const from = process.env.EMAIL_FROM_ADDRESS ?? user
+  const name = process.env.EMAIL_FROM_NAME ?? 'MirrorSpeed'
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,           // 465 = SSL；587 = STARTTLS
+      auth: { user, pass },
+    })
+    await transporter.sendMail({
+      from: `"${name}" <${from}>`,
+      to,
+      subject,
+      html,
+    })
+    return { ok: true, from }
+  } catch (e: any) {
+    console.error('[email] SMTP send failed:', e?.message)
+    return { ok: false, error: `smtp: ${e?.message}`, from }
+  }
+}
+
+// ── Brevo HTTP API 发送（回退）──────────────────────────────────────────────
+async function sendViaBrevo({ to, subject, html }: SendEmailOptions): Promise<SendEmailResult> {
   const apiKey = process.env.BREVO_API_KEY
   if (!apiKey) {
     console.warn('[email] BREVO_API_KEY not configured, skipping email to', to)
