@@ -16,34 +16,49 @@ interface SendEmailOptions {
   html:    string
 }
 
-export async function sendEmail({ to, subject, html }: SendEmailOptions): Promise<void> {
+export interface SendEmailResult {
+  ok:      boolean
+  status?: number
+  error?:  string
+  from?:   string
+}
+
+export async function sendEmail({ to, subject, html }: SendEmailOptions): Promise<SendEmailResult> {
   const apiKey = process.env.BREVO_API_KEY
   if (!apiKey) {
     console.warn('[email] BREVO_API_KEY not configured, skipping email to', to)
-    return
+    return { ok: false, error: 'BREVO_API_KEY not configured' }
   }
 
   const fromEmail = process.env.EMAIL_FROM_ADDRESS ?? 'noreply@mirrorspeed.com'
   const fromName  = process.env.EMAIL_FROM_NAME    ?? 'MirrorSpeed'
 
-  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method:  'POST',
-    headers: {
-      'api-key':      apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      sender:      { name: fromName, email: fromEmail },
-      to:          [{ email: to }],
-      subject,
-      htmlContent: html,
-    }),
-  })
+  let res: Response
+  try {
+    res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method:  'POST',
+      headers: {
+        'api-key':      apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender:      { name: fromName, email: fromEmail },
+        to:          [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
+    })
+  } catch (e: any) {
+    console.error('[email] Brevo fetch failed:', e?.message)
+    return { ok: false, error: `fetch failed: ${e?.message}`, from: fromEmail }
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     console.error('[email] Brevo API error:', res.status, text)
+    return { ok: false, status: res.status, error: text, from: fromEmail }
   }
+  return { ok: true, status: res.status, from: fromEmail }
 }
 
 // ── Email templates ────────────────────────────────────────────────────────
