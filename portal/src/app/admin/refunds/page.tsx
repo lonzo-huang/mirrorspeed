@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getUser, createAdminClient } from '@/lib/supabase/server'
 import { ForceDarkTheme } from '@/components/ForceDarkTheme'
+import { EmailTestButton } from '@/components/refund/EmailTestButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,8 @@ export default async function AdminRefundsPage() {
             </div>
             <Link href="/admin" className="text-sm text-mirror hover:underline">← 返回管理后台</Link>
           </div>
+
+          <EmailTestButton />
 
           {rows.length === 0 ? (
             <div className="glass-panel rounded-2xl p-10 text-center text-app-secondary">暂无退款申请</div>
