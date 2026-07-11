@@ -241,7 +241,7 @@ export function RefundView({ defaultEmail }: Props) {
               rows={4}
               placeholder={L('请描述你遇到的问题，如地区、运营商、节点名称、出现的现象等，便于我们快速处理。',
                              'Please describe the issue — region, ISP, node name, what happened — so we can help quickly.')}
-              className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-mirror focus:outline-none"
+              className="w-full rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-mirror focus:outline-none"
             />
           </div>
 
@@ -270,7 +270,7 @@ export function RefundView({ defaultEmail }: Props) {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-mirror focus:outline-none"
+              className="w-full rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-mirror focus:outline-none"
             />
           </div>
         </div>
@@ -323,16 +323,16 @@ export function RefundView({ defaultEmail }: Props) {
           )}
 
           <div className="flex items-center justify-between pt-2">
-            <Link href="/dashboard/billing" className="text-sm text-muted-foreground hover:text-foreground">
-              {L('放弃退款，返回', 'Cancel & go back')}
-            </Link>
             <button
               onClick={submit}
               disabled={submitting}
-              className="btn-primary text-sm disabled:opacity-50"
+              className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2 disabled:opacity-50"
             >
               {submitting ? L('提交中…', 'Submitting…') : L('提交退款申请', 'Submit refund request')}
             </button>
+            <Link href="/dashboard/billing" className="btn-primary text-sm">
+              {L('放弃退款，返回', 'Cancel & go back')}
+            </Link>
           </div>
           <p className="text-xs text-muted-foreground">
             {L('提交申请不代表立即退款。我们会人工审核后通过邮件与你联系。',

@@ -108,7 +108,12 @@ export async function POST(req: NextRequest) {
     screenshotUrl,
     createdAt: new Date(),
   })
-  sendEmail({ to: TEAM_EMAIL, subject: mail.subject, html: mail.html }).catch(() => {})
+  // 必须 await：serverless 在返回响应后会冻结函数，未 await 的 fetch 发不出去。
+  try {
+    await sendEmail({ to: TEAM_EMAIL, subject: mail.subject, html: mail.html })
+  } catch (e) {
+    console.error('[refund] notify email failed:', e)
+  }
 
   return NextResponse.json({ ok: true, id: (row as any)?.id }, { status: 201 })
 }
