@@ -187,6 +187,49 @@ export function makeExpiryWarningEmail(opts: {
   }
 }
 
+// 退款申请通知（发给团队邮箱）。
+export function makeRefundRequestEmail(opts: {
+  email:        string
+  reasonLabel:  string
+  detail:       string
+  plan?:        string | null
+  screenshotUrl?: string | null
+  createdAt:    Date
+}): { subject: string; html: string } {
+  const { email, reasonLabel, detail, plan, screenshotUrl, createdAt } = opts
+  const dateStr = createdAt.toISOString().replace('T', ' ').slice(0, 16)
+  const shot = screenshotUrl
+    ? `<tr><td style="padding:10px 0;color:#aaa">截图</td><td style="padding:10px 0;text-align:right"><a href="${screenshotUrl}" style="color:#a78bfa">查看图片</a></td></tr>`
+    : ''
+  return {
+    subject: `【镜速加速器】新退款申请 · ${reasonLabel}`,
+    html: `
+<!DOCTYPE html><html lang="zh"><body style="font-family:sans-serif;background:#0a0a0a;color:#e5e5e5;padding:32px">
+<div style="max-width:560px;margin:0 auto;background:#111;border:1px solid #222;border-radius:16px;padding:32px">
+  <h1 style="color:#a78bfa;margin:0 0 8px">新退款申请</h1>
+  <p style="color:#aaa;margin:0 0 24px;font-size:14px">MirrorSpeed · 镜速加速器</p>
+  <table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:14px">
+    <tr style="border-bottom:1px solid #333"><td style="padding:10px 0;color:#aaa">订阅邮箱</td><td style="padding:10px 0;text-align:right">${email}</td></tr>
+    <tr style="border-bottom:1px solid #333"><td style="padding:10px 0;color:#aaa">退款原因</td><td style="padding:10px 0;text-align:right;color:#a78bfa;font-weight:bold">${reasonLabel}</td></tr>
+    <tr style="border-bottom:1px solid #333"><td style="padding:10px 0;color:#aaa">套餐</td><td style="padding:10px 0;text-align:right">${plan ?? '—'}</td></tr>
+    ${shot}
+    <tr><td style="padding:10px 0;color:#aaa">提交时间</td><td style="padding:10px 0;text-align:right">${dateStr}</td></tr>
+  </table>
+  <div style="margin:16px 0;padding:14px;background:#0a0a0a;border:1px solid #222;border-radius:10px">
+    <p style="color:#aaa;font-size:12px;margin:0 0 6px">用户描述</p>
+    <p style="margin:0;white-space:pre-wrap;font-size:14px">${(detail || '（未填写）').replace(/</g, '&lt;')}</p>
+  </div>
+  <div style="margin:24px 0;text-align:center">
+    <a href="https://mirrorspeed.com/admin/refunds"
+       style="display:inline-block;padding:12px 32px;background:#a78bfa;color:#000;font-weight:700;border-radius:10px;text-decoration:none">
+      前往管理后台处理
+    </a>
+  </div>
+</div>
+</body></html>`,
+  }
+}
+
 export function makeExpiredEmail(opts: {
   displayName: string
   planKey:     string

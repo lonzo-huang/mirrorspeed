@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { CheckCircle, CreditCard, Clock } from 'lucide-react'
 import { format } from 'date-fns'
 import { useEffect, useRef } from 'react'
@@ -190,6 +191,13 @@ export function BillingView({ subscription, payments }: Props) {
             <p className="text-sm">{dash.noPayments}</p>
           </div>
         )}
+      </div>
+
+      {/* Refund request entry */}
+      <div className="text-center">
+        <Link href="/dashboard/refund" className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2">
+          {isChinese ? '遇到问题？申请退款' : 'Having issues? Request a refund'}
+        </Link>
       </div>
     </div>
   )

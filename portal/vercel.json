@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/gc-peers",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/gc-refund-blobs",
+      "schedule": "0 4 * * *"
     }
   ]
 }

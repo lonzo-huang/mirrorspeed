@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n }    from '@/lib/i18n'
 
@@ -51,6 +52,12 @@ export default function HelpPage() {
                 : 'Common questions about connecting, choosing nodes, free time, and membership. If something is not covered, reach out to us.'}
             </p>
           </div>
+          {isZh && (
+            <Link href="/tutorials" className="glass-panel rounded-2xl p-5 mb-6 flex items-center justify-between hover:bg-app-tertiary transition-colors">
+              <span className="text-sm text-app-primary font-medium">📘 图文使用教程：安装、连接与常见问题排查</span>
+              <span className="text-sm text-accent-cyan">查看教程 →</span>
+            </Link>
+          )}
           <div className="space-y-4">
             {FAQ.map((s, i) => (
               <section key={i} className="glass-panel rounded-2xl p-6">
