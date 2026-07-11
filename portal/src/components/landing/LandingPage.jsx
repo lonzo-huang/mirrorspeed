@@ -624,6 +624,14 @@ const LOWEST_USD = 0.88;
 const LOWEST_CNY = 8;
 
 // ============ FAQ ============
+// 把答案文本里的 URL 渲染成可点击链接（其余部分保持纯文本）。
+const linkifyAnswer = (text) =>
+  String(text).split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} className="text-accent-cyan hover:underline break-all">{part}</a>
+      : part
+  );
+
 const FAQ = () => {
   const t = useT();
   const items = [
@@ -650,7 +658,7 @@ const FAQ = () => {
               <AnimatePresence>
                 {open === i && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
-                    <p className="pb-5 text-app-secondary leading-relaxed">{t(it.a)}</p>
+                    <p className="pb-5 text-app-secondary leading-relaxed">{linkifyAnswer(t(it.a))}</p>
                   </motion.div>
                 )}
               </AnimatePresence>
