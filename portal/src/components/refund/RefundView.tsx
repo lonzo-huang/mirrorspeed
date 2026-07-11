@@ -10,6 +10,42 @@ interface Props {
   defaultEmail: string
 }
 
+// 终端类型（第 4 步）。存储值用英文 `${group.en} / ${model.v}`，便于按平台统计。
+const DEVICE_GROUPS = [
+  {
+    key: 'apple', zh: '苹果', en: 'Apple',
+    models: [
+      { v: 'iPhone', zh: 'iPhone', en: 'iPhone' },
+      { v: 'iPad',   zh: 'iPad',   en: 'iPad' },
+      { v: 'Mac',    zh: 'Mac',    en: 'Mac' },
+    ],
+  },
+  {
+    key: 'android', zh: '安卓', en: 'Android',
+    models: [
+      { v: 'Huawei',  zh: '华为', en: 'Huawei' },
+      { v: 'Xiaomi',  zh: '小米', en: 'Xiaomi' },
+      { v: 'OPPO',    zh: 'OPPO', en: 'OPPO' },
+      { v: 'vivo',    zh: 'vivo', en: 'vivo' },
+      { v: 'Samsung', zh: '三星', en: 'Samsung' },
+      { v: 'ZTE',     zh: '中兴', en: 'ZTE' },
+      { v: 'Honor',   zh: '荣耀', en: 'Honor' },
+      { v: 'Other',   zh: '其他', en: 'Other' },
+    ],
+  },
+  {
+    key: 'pc', zh: 'PC', en: 'PC',
+    models: [
+      { v: 'Windows 7',  zh: 'Windows 7',  en: 'Windows 7' },
+      { v: 'Windows 10', zh: 'Windows 10', en: 'Windows 10' },
+      { v: 'Windows 11', zh: 'Windows 11', en: 'Windows 11' },
+      { v: 'Ubuntu',     zh: 'Ubuntu',     en: 'Ubuntu' },
+      { v: 'Debian',     zh: 'Debian',     en: 'Debian' },
+      { v: 'Other',      zh: '其他',        en: 'Other' },
+    ],
+  },
+] as const
+
 export function RefundView({ defaultEmail }: Props) {
   const { lang } = useI18n()
   const isZh = lang === 'zh'
@@ -20,6 +56,8 @@ export function RefundView({ defaultEmail }: Props) {
   const [detail, setDetail]       = useState('')
   const [email, setEmail]         = useState(defaultEmail)
   const [file, setFile]           = useState<File | null>(null)
+  const [platform, setPlatform]   = useState('')   // apple / android / pc
+  const [model, setModel]         = useState('')   // model.v
   const [submitting, setSubmit]   = useState(false)
   const [error, setError]         = useState('')
   const [done, setDone]           = useState(false)
@@ -37,12 +75,16 @@ export function RefundView({ defaultEmail }: Props) {
     return Array.from(map.entries())
   }, [isZh])
 
+  const group = DEVICE_GROUPS.find(g => g.key === platform)
+  const deviceType = group && model ? `${group.en} / ${model}` : ''
+
   async function submit() {
     setError('')
     if (!reason)                 return setError(L('请选择退款原因', 'Please select a reason'))
     if (detail.trim().length < 5) return setError(L('请描述具体原因（至少 5 个字）', 'Please describe your issue (min 5 chars)'))
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()))
       return setError(L('请填写有效的订阅邮箱', 'Please enter a valid subscription email'))
+    if (!deviceType)             return setError(L('请选择终端类型', 'Please select your device type'))
 
     setSubmit(true)
     try {
@@ -51,6 +93,7 @@ export function RefundView({ defaultEmail }: Props) {
       fd.set('reason_code', reason.code)
       fd.set('detail', detail.trim())
       fd.set('email', email.trim())
+      fd.set('device_type', deviceType)
       if (file) fd.set('screenshot', file)
 
       const res  = await fetch('/api/refund', { method: 'POST', body: fd })
@@ -230,6 +273,48 @@ export function RefundView({ defaultEmail }: Props) {
               className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-mirror focus:outline-none"
             />
           </div>
+        </div>
+      )}
+
+      {/* Step 4 — Device type */}
+      {faqAck === 'yes' && reason && (
+        <div className="glass-panel rounded-2xl p-6 space-y-4">
+          <h2 className="font-semibold text-foreground">
+            4. {L('终端类型', 'Device type')}
+          </h2>
+          <p className="text-sm text-muted-foreground -mt-2">
+            {L('请选择你使用的平台与机型，帮助我们更快定位问题。', 'Select your platform and device so we can pinpoint the issue faster.')}
+          </p>
+
+          {/* platform */}
+          <div className="flex flex-wrap gap-2">
+            {DEVICE_GROUPS.map(g => (
+              <button
+                key={g.key}
+                onClick={() => { setPlatform(g.key); setModel('') }}
+                className={`rounded-lg px-4 py-2 text-sm font-medium border transition-colors
+                  ${platform === g.key ? 'border-mirror bg-mirror/10 text-foreground' : 'border-border text-muted-foreground hover:text-foreground'}`}
+              >
+                {isZh ? g.zh : g.en}
+              </button>
+            ))}
+          </div>
+
+          {/* model (depends on platform) */}
+          {group && (
+            <div className="flex flex-wrap gap-2">
+              {group.models.map(m => (
+                <button
+                  key={m.v}
+                  onClick={() => setModel(m.v)}
+                  className={`rounded-lg px-3 py-1.5 text-sm border transition-colors
+                    ${model === m.v ? 'border-mirror bg-mirror/5 text-foreground' : 'border-border text-muted-foreground hover:text-foreground'}`}
+                >
+                  {isZh ? m.zh : m.en}
+                </button>
+              ))}
+            </div>
+          )}
 
           {error && (
             <div className="flex items-center gap-2 text-sm text-red-400">

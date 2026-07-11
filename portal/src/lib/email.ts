@@ -193,10 +193,11 @@ export function makeRefundRequestEmail(opts: {
   reasonLabel:  string
   detail:       string
   plan?:        string | null
+  deviceType?:  string | null
   screenshotUrl?: string | null
   createdAt:    Date
 }): { subject: string; html: string } {
-  const { email, reasonLabel, detail, plan, screenshotUrl, createdAt } = opts
+  const { email, reasonLabel, detail, plan, deviceType, screenshotUrl, createdAt } = opts
   const dateStr = createdAt.toISOString().replace('T', ' ').slice(0, 16)
   const shot = screenshotUrl
     ? `<tr><td style="padding:10px 0;color:#aaa">截图</td><td style="padding:10px 0;text-align:right"><a href="${screenshotUrl}" style="color:#a78bfa">查看图片</a></td></tr>`
@@ -212,6 +213,7 @@ export function makeRefundRequestEmail(opts: {
     <tr style="border-bottom:1px solid #333"><td style="padding:10px 0;color:#aaa">订阅邮箱</td><td style="padding:10px 0;text-align:right">${email}</td></tr>
     <tr style="border-bottom:1px solid #333"><td style="padding:10px 0;color:#aaa">退款原因</td><td style="padding:10px 0;text-align:right;color:#a78bfa;font-weight:bold">${reasonLabel}</td></tr>
     <tr style="border-bottom:1px solid #333"><td style="padding:10px 0;color:#aaa">套餐</td><td style="padding:10px 0;text-align:right">${plan ?? '—'}</td></tr>
+    <tr style="border-bottom:1px solid #333"><td style="padding:10px 0;color:#aaa">终端类型</td><td style="padding:10px 0;text-align:right">${deviceType ?? '—'}</td></tr>
     ${shot}
     <tr><td style="padding:10px 0;color:#aaa">提交时间</td><td style="padding:10px 0;text-align:right">${dateStr}</td></tr>
   </table>

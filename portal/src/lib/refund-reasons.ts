@@ -15,8 +15,8 @@ export interface RefundReason {
 }
 
 const NET = {
-  retentionZh: '非常抱歉！各地区运营商网络环境复杂。请在「设置」中切换为 AmneziaWG 或「全局模式」后重试；也可在节点列表更换其他节点。若仍无法连接，联系技术支持我们帮你排查。',
-  retentionEn: 'Sorry about that. Network conditions vary by ISP. Please switch to AmneziaWG or Global mode in Settings and retry, or pick a different node. If it still fails, contact support and we’ll help you troubleshoot.',
+  retentionZh: '非常抱歉！各地区运营商网络环境复杂。请在「设置」中切换为 快速 和「全局模式」后重试；也可在节点列表更换其他节点。若仍无法连接，联系技术支持我们帮你排查。',
+  retentionEn: 'Sorry about that. Network conditions vary by ISP. Please switch to Fast and Global mode in Settings and retry, or pick a different node. If it still fails, contact support and we’ll help you troubleshoot.',
 }
 const UNBLOCK = {
   retentionZh: '专属提示：解锁流媒体或 AI 工具需使用特定节点。请在节点列表中更换其他节点服务器重新尝试。',

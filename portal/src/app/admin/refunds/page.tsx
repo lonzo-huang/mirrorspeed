@@ -11,6 +11,7 @@ interface RefundRow {
   reason_label: string | null
   reason_code: string
   detail: string | null
+  device_type: string | null
   screenshot_url: string | null
   plan: string | null
   status: string
@@ -25,7 +26,7 @@ export default async function AdminRefundsPage() {
   if ((profile as any)?.role !== 'admin') redirect('/dashboard')
 
   const { data } = await (admin.from('refund_requests') as any)
-    .select('id, email, reason_label, reason_code, detail, screenshot_url, plan, status, created_at')
+    .select('id, email, reason_label, reason_code, detail, device_type, screenshot_url, plan, status, created_at')
     .order('created_at', { ascending: false })
     .limit(200)
   const rows = (data ?? []) as RefundRow[]
@@ -56,6 +57,7 @@ export default async function AdminRefundsPage() {
                         {r.reason_label ?? r.reason_code}
                       </span>
                       {r.plan && <span className="text-xs text-app-secondary">套餐：{r.plan}</span>}
+                      {r.device_type && <span className="text-xs text-app-secondary">终端：{r.device_type}</span>}
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${

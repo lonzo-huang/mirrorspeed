@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
   const reasonCode = String(form.get('reason_code') ?? '')
   const detail     = String(form.get('detail') ?? '').trim()
   const email      = String(form.get('email') ?? '').trim()
+  const deviceType = String(form.get('device_type') ?? '').trim().slice(0, 60) || null
 
   if (faqAck !== 'yes') {
     return NextResponse.json({ error: '请先确认已查阅 FAQ' }, { status: 400 })
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
       reason_code:    reason.code,
       reason_label:   reason.zh,
       detail,
+      device_type:    deviceType,
       screenshot_url: screenshotUrl,
       plan,
       status:         'pending',
@@ -102,6 +104,7 @@ export async function POST(req: NextRequest) {
     reasonLabel: reason.zh,
     detail,
     plan,
+    deviceType,
     screenshotUrl,
     createdAt: new Date(),
   })
