@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email'
+import { verifyCaptcha } from '@/lib/captcha'
 
 const SUPPORT_EMAIL = 'mirrorspeed@mirrorquant.com'
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, email, subject, message } = await req.json()
+    const { name, email, subject, message, captchaToken, captchaAnswer } = await req.json()
 
     if (!name?.trim() || !email?.trim() || !message?.trim()) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -14,6 +15,11 @@ export async function POST(req: NextRequest) {
     // Basic email validation
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
+    }
+
+    // 验证码校验（防机器人刷表单）
+    if (!verifyCaptcha(captchaToken, captchaAnswer)) {
+      return NextResponse.json({ error: 'captcha', code: 'CAPTCHA_FAILED' }, { status: 400 })
     }
 
     const subjectLine = subject?.trim()

@@ -3,7 +3,7 @@
 import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n }    from '@/lib/i18n'
 
-const CONTACT = 'mirrorspeed@mirrorquant.com'
+const CONTACT = 'https://mirrorspeed.com/support'
 
 const SECTIONS_EN = [
   { h: "1. Acceptance of Terms", p: "By accessing or using MirrorSpeed (\"Service\"), you agree to be bound by these Terms of Service (\"Terms\"). If you do not agree to these Terms, do not use the Service. These Terms apply to all users, including free and paid subscribers." },

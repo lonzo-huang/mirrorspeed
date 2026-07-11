@@ -4,7 +4,15 @@ import Link from 'next/link'
 import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n }    from '@/lib/i18n'
 
-const CONTACT = 'mirrorspeed@mirrorquant.com'
+const SUPPORT_URL = 'https://mirrorspeed.com/support'
+
+// 把答案里的 URL 渲染成可点击链接。
+const linkify = (text: string) =>
+  text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} className="text-accent-cyan hover:underline break-all">{part}</a>
+      : part
+  )
 
 const FAQ_EN = [
   { h: "How do I connect?", p: "Open the app and tap the big power button on the home screen. By default \"Auto select\" picks the fastest, least-busy node for you. Once it turns green you are connected and your traffic is protected." },
@@ -15,7 +23,7 @@ const FAQ_EN = [
   { h: "Smart vs Global routing", p: "Smart mode keeps mainland-China traffic direct and only sends overseas traffic through the VPN, for the best speed. Global mode sends all traffic through the VPN. You can switch on the home screen." },
   { h: "It connected but websites won't load", p: "Tap disconnect and reconnect, or switch to a different node from the node list. If a node shows \"timeout\", pick another one. Make sure your underlying internet connection works first." },
   { h: "How do I upgrade / manage my subscription?", p: "Open \"My\" → membership, or visit your billing dashboard. Members get unlimited time, no ads, and priority nodes." },
-  { h: "Contact support", p: `Still stuck? Email us at ${CONTACT} and we'll help as soon as possible.` },
+  { h: "Contact support", p: `Still stuck? Submit a request at ${SUPPORT_URL} and we'll help as soon as possible.` },
 ]
 
 const FAQ_ZH = [
@@ -27,7 +35,7 @@ const FAQ_ZH = [
   { h: "智能模式与全局模式", p: "智能模式让中国大陆的流量直连，仅将境外流量走 VPN，速度最佳；全局模式则把所有流量都走 VPN。可在主页切换。" },
   { h: "连上了但网页打不开", p: "先断开再重连，或在节点列表里换一个节点。若某节点显示「超时」，请换其他节点。也请先确认你本身的网络是通的。" },
   { h: "如何升级 / 管理订阅？", p: "进入「我的」→ 会员，或打开账单中心。会员享无限时长、无广告及优先节点。" },
-  { h: "联系客服", p: `仍未解决？发邮件到 ${CONTACT}，我们会尽快协助你。` },
+  { h: "联系客服", p: `仍未解决？请通过 ${SUPPORT_URL} 提交求助，我们会尽快协助你。` },
 ]
 
 export default function HelpPage() {
@@ -62,7 +70,7 @@ export default function HelpPage() {
             {FAQ.map((s, i) => (
               <section key={i} className="glass-panel rounded-2xl p-6">
                 <h2 className="text-lg font-bold mb-3 text-app-primary">{s.h}</h2>
-                <p className="text-sm text-app-secondary leading-relaxed">{s.p}</p>
+                <p className="text-sm text-app-secondary leading-relaxed">{linkify(s.p)}</p>
               </section>
             ))}
           </div>

@@ -3,7 +3,7 @@
 import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n }    from '@/lib/i18n'
 
-const CONTACT = 'mirrorspeed@mirrorquant.com'
+const CONTACT = 'https://mirrorspeed.com/support'
 
 const SECTIONS_EN = [
   { h: "1. Information We Collect", p: "We collect only the minimum information necessary to provide the Service: your email address (for authentication), payment information processed by Stripe (we never see your full card details), and basic device metadata (OS type, device label) required to provision your VPN configuration. We do not collect browsing history, DNS queries, IP addresses, traffic destinations, or connection timestamps." },
@@ -11,7 +11,7 @@ const SECTIONS_EN = [
   { h: "3. No-Logs VPN Policy", p: "MirrorSpeed operates a strict no-logs policy for VPN traffic. We do not record, monitor, or store: the websites you visit, the content of your communications, your real IP address while connected, DNS queries made through the VPN, or connection timestamps. This policy has been independently audited." },
   { h: "4. Data Sharing", p: "We do not sell, rent, or trade your personal data to any third parties. We share data only with: Stripe (payment processing), Supabase (database infrastructure, subject to their DPA), Brevo (transactional email delivery), and Vercel (hosting infrastructure). All sub-processors are GDPR-compliant." },
   { h: "5. Data Retention", p: "Account data is retained for the duration of your account and deleted within 30 days of account closure upon request. Payment records are retained for 7 years as required by financial regulations. VPN configuration data is deleted immediately upon device removal." },
-  { h: "6. Your Rights (GDPR / CCPA)", p: `You have the right to access, correct, or delete your personal data at any time. You may request a copy of your data or ask for account deletion by emailing ${CONTACT}. We will respond within 30 days. California residents have additional rights under CCPA.` },
+  { h: "6. Your Rights (GDPR / CCPA)", p: `You have the right to access, correct, or delete your personal data at any time. You may request a copy of your data or ask for account deletion by submitting a request at ${CONTACT}. We will respond within 30 days. California residents have additional rights under CCPA.` },
   { h: "7. Security", p: "All data in transit is encrypted using TLS 1.3. VPN private keys are encrypted at rest using AES-256. We use Supabase Row-Level Security to ensure users can only access their own data. Payment data never touches our servers — it is handled entirely by Stripe's PCI-DSS-certified infrastructure." },
   { h: "8. Cookies", p: "We use only essential cookies required for authentication (session tokens). We do not use advertising, analytics, or tracking cookies. See our Cookie Policy for full details." },
   { h: "9. Children's Privacy", p: `MirrorSpeed is not directed at children under 16. We do not knowingly collect personal data from minors. If you believe a child has provided us with personal data, please contact ${CONTACT}.` },
@@ -25,7 +25,7 @@ const SECTIONS_ZH = [
   { h: "3. VPN 零日志政策", p: "MirrorSpeed 对 VPN 流量执行严格的零日志政策。我们不记录、监控或存储：您访问的网站、您的通信内容、您连接时的真实 IP 地址、通过 VPN 进行的 DNS 查询或连接时间戳。此政策已经过独立审计。" },
   { h: "4. 数据共享", p: "我们不向任何第三方出售、出租或交易您的个人数据。我们仅与以下方共享数据：Stripe（付款处理）、Supabase（数据库基础设施，受其 DPA 约束）、Brevo（交易性电子邮件投递）和 Vercel（托管基础设施）。所有子处理器均符合 GDPR。" },
   { h: "5. 数据保留", p: "账户数据在您账户存续期间保留，应要求在账户关闭后 30 天内删除。付款记录根据财务法规保留 7 年。VPN 配置数据在设备移除后立即删除。" },
-  { h: "6. 您的权利（GDPR / CCPA）", p: `您有权随时访问、更正或删除您的个人数据。您可以通过电子邮件 ${CONTACT} 请求您的数据副本或账户删除。我们将在 30 天内回复。加利福尼亚州居民在 CCPA 下享有额外权利。` },
+  { h: "6. 您的权利（GDPR / CCPA）", p: `您有权随时访问、更正或删除您的个人数据。您可以通过 ${CONTACT} 提交申请，请求您的数据副本或账户删除。我们将在 30 天内回复。加利福尼亚州居民在 CCPA 下享有额外权利。` },
   { h: "7. 安全", p: "所有传输中的数据均使用 TLS 1.3 加密。VPN 私钥在存储时使用 AES-256 加密。我们使用 Supabase 行级安全性确保用户只能访问自己的数据。付款数据从不接触我们的服务器——完全由 Stripe 的 PCI-DSS 认证基础设施处理。" },
   { h: "8. Cookie", p: "我们仅使用身份验证所需的必要 Cookie（会话令牌）。我们不使用广告、分析或跟踪 Cookie。详情请参阅我们的 Cookie 政策。" },
   { h: "9. 儿童隐私", p: `MirrorSpeed 不面向 16 岁以下的儿童。我们不会故意收集未成年人的个人数据。如果您认为儿童向我们提供了个人数据，请联系 ${CONTACT}。` },

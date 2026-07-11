@@ -130,7 +130,7 @@ const JSON_LD = {
       contactPoint: [{
         '@type': 'ContactPoint',
         contactType: 'customer support',
-        email: 'mirrorspeed@mirrorquant.com',
+        url: `${SITE_URL}/support`,
         availableLanguage: ['English', 'Chinese'],
       }],
     },

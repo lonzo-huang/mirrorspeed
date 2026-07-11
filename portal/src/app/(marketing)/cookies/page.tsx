@@ -3,7 +3,7 @@
 import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n }    from '@/lib/i18n'
 
-const CONTACT = 'mirrorspeed@mirrorquant.com'
+const CONTACT = 'https://mirrorspeed.com/support'
 
 const SECTIONS_EN = [
   { h: "What Are Cookies?", p: "Cookies are small text files stored on your device when you visit a website. They help the site remember information about your visit, such as your login session. MirrorSpeed uses cookies sparingly and only where necessary." },

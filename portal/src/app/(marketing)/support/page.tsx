@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { LandingChrome } from '@/components/landing/LandingPage'
 import { useI18n }    from '@/lib/i18n'
-import { Send, CheckCircle } from 'lucide-react'
+import { Send, CheckCircle, RefreshCw } from 'lucide-react'
 
 const COPY = {
   en: {
@@ -18,12 +18,17 @@ const COPY = {
     sending:     'Sending…',
     successTitle: 'Message sent!',
     successBody:  "We've received your message and will reply to your email shortly.",
-    errorGeneric: 'Something went wrong. Please try again or email us directly.',
+    errorGeneric: 'Something went wrong. Please try again.',
     required:    'Please fill in your name, email, and message.',
+    captchaLabel: 'Verify you are human',
+    captchaPrompt: 'What is',
+    captchaPlaceholder: 'Answer',
+    captchaError: 'Incorrect answer, please try again.',
+    captchaRefresh: 'New question',
     cards: [
       { icon: '⚡', title: 'Fast Response', desc: 'We reply within 1 business day, usually much faster.' },
       { icon: '🛡️', title: 'Real Engineers', desc: 'Your ticket goes directly to a technical team member.' },
-      { icon: '📧', title: 'Email Us Directly', desc: 'mirrorspeed@mirrorquant.com' },
+      { icon: '📨', title: 'One Place for Help', desc: 'Send everything from this page — we track every request.' },
     ],
   },
   zh: {
@@ -38,12 +43,17 @@ const COPY = {
     sending:     '发送中…',
     successTitle: '消息已发送！',
     successBody:  '我们已收到您的消息，将尽快回复您的邮件。',
-    errorGeneric: '出现问题，请重试或直接发送邮件给我们。',
+    errorGeneric: '出现问题，请重试。',
     required:    '请填写您的姓名、电子邮件和消息。',
+    captchaLabel: '请完成人机验证',
+    captchaPrompt: '请计算',
+    captchaPlaceholder: '答案',
+    captchaError: '验证码错误，请重试。',
+    captchaRefresh: '换一题',
     cards: [
       { icon: '⚡', title: '快速响应', desc: '我们在 1 个工作日内回复，通常更快。' },
       { icon: '🛡️', title: '真实工程师', desc: '您的工单直接发送给技术团队成员。' },
-      { icon: '📧', title: '直接发邮件', desc: 'mirrorspeed@mirrorquant.com' },
+      { icon: '📨', title: '统一求助入口', desc: '所有问题都从本页提交，我们会逐条跟进处理。' },
     ],
   },
 }
@@ -60,6 +70,26 @@ export default function SupportPage() {
   const [done,    setDone]    = useState(false)
   const [err,     setErr]     = useState<string | null>(null)
 
+  // 验证码
+  const [captchaQ,     setCaptchaQ]     = useState('')
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaAns,   setCaptchaAns]   = useState('')
+
+  const loadCaptcha = useCallback(async () => {
+    setCaptchaAns('')
+    try {
+      const res  = await fetch('/api/support/captcha')
+      const json = await res.json()
+      setCaptchaQ(json.question ?? '')
+      setCaptchaToken(json.token ?? '')
+    } catch {
+      setCaptchaQ('')
+      setCaptchaToken('')
+    }
+  }, [])
+
+  useEffect(() => { loadCaptcha() }, [loadCaptcha])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
@@ -67,18 +97,30 @@ export default function SupportPage() {
       setErr(c.required)
       return
     }
+    if (!captchaAns.trim()) {
+      setErr(c.captchaError)
+      return
+    }
     setSending(true)
     try {
       const res = await fetch('/api/support', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name, email, subject, message }),
+        body:    JSON.stringify({ name, email, subject, message, captchaToken, captchaAnswer: captchaAns }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? c.errorGeneric)
+      if (!res.ok) {
+        if (json.code === 'CAPTCHA_FAILED') {
+          setErr(c.captchaError)
+          await loadCaptcha()
+          return
+        }
+        throw new Error(json.error ?? c.errorGeneric)
+      }
       setDone(true)
     } catch (e: any) {
       setErr(e.message ?? c.errorGeneric)
+      await loadCaptcha()
     } finally {
       setSending(false)
     }
@@ -167,6 +209,34 @@ export default function SupportPage() {
                     className="w-full rounded-xl border border-border bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400
                                focus:border-mirror focus:outline-none focus:ring-1 focus:ring-mirror transition resize-none"
                   />
+                </div>
+
+                {/* 验证码 */}
+                <div>
+                  <label className="block text-sm font-medium mb-1.5 text-app-primary">{c.captchaLabel} *</label>
+                  <div className="flex items-center gap-3">
+                    <span className="shrink-0 rounded-xl bg-white/5 border border-border px-4 py-2.5 text-sm font-mono text-app-primary select-none">
+                      {c.captchaPrompt} {captchaQ || '…'} =
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={captchaAns}
+                      onChange={e => setCaptchaAns(e.target.value)}
+                      required
+                      placeholder={c.captchaPlaceholder}
+                      className="w-28 rounded-xl border border-border bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400
+                                 focus:border-mirror focus:outline-none focus:ring-1 focus:ring-mirror transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={loadCaptcha}
+                      title={c.captchaRefresh}
+                      className="shrink-0 rounded-xl border border-border p-2.5 text-app-secondary hover:text-app-primary hover:bg-white/5 transition"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {err && (

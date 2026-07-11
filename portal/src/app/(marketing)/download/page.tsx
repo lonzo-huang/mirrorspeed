@@ -255,7 +255,7 @@ export default function DownloadPage() {
               <p className="text-sm text-muted-foreground max-w-xl">{dl.customDesc}</p>
             </div>
             <a
-              href="mailto:mirrorspeed@mirrorquant.com?subject=Custom%20Private%20Server"
+              href="/support"
               className="shrink-0 text-sm font-bold bg-primary text-primary-foreground px-5 py-2.5 rounded-lg hover:bg-mirror transition-colors text-center whitespace-nowrap"
             >
               {dl.customCta}
