@@ -215,6 +215,12 @@ html.ios .ms-landing .glass-panel {
     background: rgba(20, 20, 30, 0.85) !important;
 }
 html.ios .noise-overlay::after { display: none !important; }
+/* 大半径 filter:blur() 装饰光球（60–120px 铺满大面积）是 WebKit 最贵的操作。
+ * 它们通过 inline style（style="filter: blur(120px)"）应用，故用 [style*="blur"]
+ * 命中并隐藏（纯装饰、absolute+pointer-events-none，隐藏不影响布局）。 */
+html.ios [style*="blur"] { display: none !important; }
+/* 大光晕阴影也一并去掉 */
+html.ios .glow-cyan { box-shadow: none !important; }
 html.ios .spectrum-bar,
 html.ios .pulse-dot,
 html.ios .float-orb,
