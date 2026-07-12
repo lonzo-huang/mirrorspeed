@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useRef, createContext, useContext } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 import {
   Shield, Zap, Globe, Lock, Smartphone, Shuffle, Headphones, Check,
   ArrowRight, Menu, X, ChevronDown, Download, Mail, Power, Sparkles, TrendingUp,
@@ -816,15 +816,30 @@ const LandingPage = ({ forcedLang }) => {
 };
 
 // 内部：仅渲染外壳（导航 + 内容 + 页脚），由 LandingPage / LandingChrome 复用。
-const LandingChromeInner = ({ lang, setLang, theme, setTheme, children }) => (
-  <AppCtx.Provider value={{ lang, setLang, theme, setTheme }}>
-    <div className="ms-landing min-h-screen bg-app text-app-primary overflow-x-hidden">
-      <Nav />
-      <main>{children}</main>
-      <Footer />
-    </div>
-  </AppCtx.Provider>
-);
+const LandingChromeInner = ({ lang, setLang, theme, setTheme, children }) => {
+  // iOS(WebKit) 或系统「减弱动态效果」→ 关闭 framer-motion 动画（直接渲染最终态），
+  // 与 landing.css 的 .ios CSS 降级配合，进一步减轻 iPhone 上的合成压力。
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    try {
+      setReduce(
+        document.documentElement.classList.contains("ios") ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      );
+    } catch (_) {}
+  }, []);
+  return (
+    <AppCtx.Provider value={{ lang, setLang, theme, setTheme }}>
+      <MotionConfig reducedMotion={reduce ? "always" : "user"}>
+        <div className="ms-landing min-h-screen bg-app text-app-primary overflow-x-hidden">
+          <Nav />
+          <main>{children}</main>
+          <Footer />
+        </div>
+      </MotionConfig>
+    </AppCtx.Provider>
+  );
+};
 
 // 对外：给「下载/隐私/服务条款」等内容页复用同一套导航+页脚+深色玻璃主题，
 // 让全站风格统一。children 即页面正文（已自带顶部留白以避开 fixed 导航）。

@@ -202,6 +202,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: `(function(){try{document.documentElement.setAttribute('data-theme','dark');localStorage.setItem('ms_theme','dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`,
           }}
         />
+        {/* iOS(WebKit)性能降级：iPhone/iPad 上 backdrop-filter 毛玻璃、SVG 噪点、
+            大量持续动画开销极大，滚动卡顿。水合前给 <html> 打 .ios 类，
+            CSS 据此关闭这些特效；桌面/安卓(Blink)完全不受影响。
+            注意 iPadOS 13+ 会伪装成桌面 Safari，需用 maxTouchPoints 补判。 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var u=navigator.userAgent||'';if(/iP(hone|ad|od)/.test(u)||(navigator.maxTouchPoints>1&&/Mac/.test(navigator.platform))){document.documentElement.classList.add('ios');}}catch(e){}})();`,
+          }}
+        />
       </head>
       <body className={`${inter.className} antialiased`}>
         {children}

@@ -197,3 +197,39 @@
     .ms-landing { background-attachment: scroll; }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+ * iOS(WebKit)性能降级（由 <head> 脚本给 <html> 打 .ios 类触发）
+ * WebKit 对 backdrop-filter / SVG feTurbulence / 大量持续动画的合成开销极大，
+ * iPhone/iPad 滚动明显卡顿。这里在 iOS 上：
+ *   1) 毛玻璃 → 半透明纯色底（去掉 backdrop-filter）
+ *   2) 关闭 SVG 噪点叠层
+ *   3) 停掉所有持续动画（频谱条/脉冲点/漂浮球/旋转/电路）
+ *   4) 关闭固定背景
+ * 桌面 / 安卓(Blink) 完全不受影响，视觉不变。
+ * ════════════════════════════════════════════════════════════════════════ */
+html.ios .glass,
+html.ios .glass-panel,
+html.ios .ms-landing .glass-panel {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(20, 20, 30, 0.85) !important;
+}
+html.ios .noise-overlay::after { display: none !important; }
+html.ios .spectrum-bar,
+html.ios .pulse-dot,
+html.ios .float-orb,
+html.ios .orbit-spin,
+html.ios .orbit-spin-rev,
+html.ios .circuit-pulse {
+    animation: none !important;
+}
+html.ios .ms-landing { background-attachment: scroll !important; }
+
+/* 系统「减弱动态效果」开启时，同样停掉持续动画（与 iOS 判定正交的好实践） */
+@media (prefers-reduced-motion: reduce) {
+    .spectrum-bar, .pulse-dot, .float-orb,
+    .orbit-spin, .orbit-spin-rev, .circuit-pulse {
+        animation: none !important;
+    }
+}
+
