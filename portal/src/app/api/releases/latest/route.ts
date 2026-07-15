@@ -94,24 +94,35 @@ export async function GET() {
       }
     } catch { /* non-fatal: CN URLs are optional */ }
 
+    const assets: ReleaseAsset[] = Array.isArray(data.assets)
+      ? (data.assets as any[]).map(a => ({
+          id:                   a.id,
+          name:                 a.name,
+          browser_download_url: a.browser_download_url,
+          size:                 a.size,
+          platform:             detectPlatform(a.name),
+        }))
+      : []
+
+    // 国内下载加速：用 ghproxy 代理包一层 GitHub 资产直链（免 Vercel Blob）。
+    // 代理域名可用 GH_PROXY 环境变量覆盖（ghproxy 偶有不稳，方便随时换）。
+    // 找不到对应资产时，回退到 Supabase app_config 里的旧值（向后兼容）。
+    const ghProxy    = cleanEnvToken(process.env.GH_PROXY) || 'https://ghproxy.com/'
+    const wrapCn     = (u?: string | null) => (u ? `${ghProxy}${u}` : null)
+    const androidUrl = assets.find(a => a.platform === 'android')?.browser_download_url
+    const windowsUrl = assets.find(a => a.platform === 'windows')?.browser_download_url
+
     const release: LatestRelease = {
       version:   String(data.tag_name ?? '').replace(/^v/, ''),
       tag:       data.tag_name  ?? '',
       name:      data.name      ?? '',
       body:      data.body      ?? '',
       published: data.published_at ?? '',
-      assets: Array.isArray(data.assets)
-        ? (data.assets as any[]).map(a => ({
-            id:                   a.id,
-            name:                 a.name,
-            browser_download_url: a.browser_download_url,
-            size:                 a.size,
-            platform:             detectPlatform(a.name),
-          }))
-        : [],
-      cn_apk_url:    cnApkUrl,
-      cn_win_url:    cnWinUrl,
-      cn_apk_cn_url: cnApkCnUrl,
+      assets,
+      // 单一 APK（flavor 已合并）：global 与 CN 都指向同一个安卓包，均走 ghproxy。
+      cn_apk_url:    wrapCn(androidUrl) ?? cnApkUrl,
+      cn_win_url:    wrapCn(windowsUrl) ?? cnWinUrl,
+      cn_apk_cn_url: wrapCn(androidUrl) ?? cnApkCnUrl,
       min_version:   minVersion,
     }
 
