@@ -107,7 +107,7 @@ export async function GET() {
     // 国内下载加速：用 ghproxy 代理包一层 GitHub 资产直链（免 Vercel Blob）。
     // 代理域名可用 GH_PROXY 环境变量覆盖（ghproxy 偶有不稳，方便随时换）。
     // 找不到对应资产时，回退到 Supabase app_config 里的旧值（向后兼容）。
-    const ghProxy    = cleanEnvToken(process.env.GH_PROXY) || 'https://ghproxy.com/'
+    const ghProxy    = cleanEnvToken(process.env.GH_PROXY) || 'https://ghfast.top/'
     const wrapCn     = (u?: string | null) => (u ? `${ghProxy}${u}` : null)
     const androidUrl = assets.find(a => a.platform === 'android')?.browser_download_url
     const windowsUrl = assets.find(a => a.platform === 'windows')?.browser_download_url
