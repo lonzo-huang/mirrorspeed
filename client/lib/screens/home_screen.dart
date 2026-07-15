@@ -125,7 +125,11 @@ class HomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _StatsRow(
                     connected: vpn.isConnected,
-                    pingMs:    server?.displayLatencyMs,
+                    // 已连接：显示每 30s 刷新的优化延迟（首测前回退到节点延迟）；
+                    // 未连接：显示所选节点的校正延迟。
+                    pingMs:    vpn.isConnected
+                        ? (vpn.connectedPingMs ?? server?.displayLatencyMs)
+                        : server?.displayLatencyMs,
                     upStr:     vpn.isConnected ? vpn.uploadSpeedStr   : '0 B/s',
                     downStr:   vpn.isConnected ? vpn.downloadSpeedStr : '0 B/s',
                   ),

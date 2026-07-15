@@ -277,6 +277,24 @@ class _ServerTile extends StatelessWidget {
     final dispLat = server.displayLatencyMs;   // 校正后展示延迟（仅用于判断是否超时）
     final bars    = server.signalBars;
     final tier    = server.loadTier;
+    // 状态显示：以服务器上报的 status 为权威。
+    //   offline           → 「离线」
+    //   仍在测量           → 转圈
+    //   探测失败但非离线    → 不显示「超时」（如西班牙节点健康检查域名问题导致客户端探测
+    //                        失败，但服务端 status 仍在线），按在线展示信号格
+    //   正常               → 按校正延迟显示信号格
+    final Widget statusW;
+    if (server.status == 'offline') {
+      statusW = Text(tr('离线', 'offline'),
+          style: const TextStyle(color: kDanger, fontSize: 13, fontWeight: FontWeight.w600));
+    } else if (!server.latencyMeasured) {
+      statusW = SizedBox(width: 12, height: 12,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white.withOpacity(0.3)));
+    } else if (dispLat == null) {
+      statusW = _SignalBars(bars: server.status == 'degraded' ? 2 : 3);
+    } else {
+      statusW = _SignalBars(bars: bars);
+    }
     return Material(
       color: isActive ? kBrand.withOpacity(0.18) : kCard,
       borderRadius: BorderRadius.circular(14),
@@ -301,15 +319,8 @@ class _ServerTile extends StatelessWidget {
                   style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
               ]),
             ])),
-            // 仅以信号格显示状态（不再显示具体延迟数值）。测量中→转圈；失败→超时。
-            if (server.latencyMeasured || server.status == 'offline')
-              (dispLat == null
-                ? Text(tr('超时','timeout'),
-                    style: const TextStyle(color: kDanger, fontSize: 13, fontWeight: FontWeight.w600))
-                : _SignalBars(bars: bars))
-            else
-              SizedBox(width: 12, height: 12,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white.withOpacity(0.3))),
+            // 状态指示（信号格 / 离线 / 测量中），逻辑见上方 statusW。
+            statusW,
             const SizedBox(width: 12),
             if (isActive)
               const Icon(Icons.check_circle_rounded, color: kBrand, size: 20)

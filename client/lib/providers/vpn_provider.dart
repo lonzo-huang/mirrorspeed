@@ -77,6 +77,11 @@ class VpnProvider extends ChangeNotifier {
   int?               _quotaBytes;            // 服务器下发的今日上限（仅用于流量展示）
   Timer?             _usageTimer;
 
+  // 连接后的实时延迟（展示用）：连上后每 30s 探测一次外网 RTT，经算法优化后展示，
+  // 不再沿用连接前冻结的节点延迟。断开清空。
+  int?               _connectedPingMs;
+  Timer?             _pingTimer;
+
   // ── 基于时间的免费试用（#3 + 看广告延长 #4）──────────────────────
   // 免费用户首次连接成功当天记 _trialStartMs，倒计时按【墙钟】连续走，
   // 断开也不停；到期当天禁连，次日(UTC)重置。上限 _timeLimitSec 从服务器拉取，
@@ -115,6 +120,8 @@ class VpnProvider extends ChangeNotifier {
     return '${v.toStringAsFixed(v < 10 && i > 0 ? 1 : 0)} ${u[i]}/s';
   }
   int?  get quotaBytes    => _quotaBytes;
+  /// 连接后展示用的优化延迟（ms）；未连接或首次探测前为 null。
+  int?  get connectedPingMs => _connectedPingMs;
 
   /// 当前是否处于「按时间免费试用」模式（免费用户）。
   bool get isFreeTrial    => _timeLimitSec != null;
@@ -223,6 +230,7 @@ class VpnProvider extends ChangeNotifier {
         _statsBaseline = null;
         _startUsagePolling();
         _startTrialTracking();   // 复用已持久化 _trialStartMs，墙钟继续
+        _startConnectedPing();   // 冷启动采纳已连隧道，同样开始刷新延迟
         notifyListeners();
       }
     } catch (_) {}
@@ -273,6 +281,7 @@ class VpnProvider extends ChangeNotifier {
         _status = VpnStatus.disconnected;
         _stopTimer();
         _usageTimer?.cancel();   // 隧道已断，停止用量轮询（不再有适配器可读）
+        _stopConnectedPing();
         // 中继切换过程中不清除 activeServer；
         // _switchingToRelay 在此处故意不重置——需等到
         // relay 的 startVpn 触发 connected 后才置 false，
@@ -743,6 +752,7 @@ class VpnProvider extends ChangeNotifier {
     // 先把会卡住的计时器停掉（不要 await 任何原生调用，否则若平台调用挂起会卡死断开）。
     _fallbackTimer?.cancel();
     _usageTimer?.cancel();
+    _stopConnectedPing();
     _sessionPort      = null;    // 主动断开后，下次连接重新基于时间计算端口
     _switchingToRelay = false;   // 确保 disconnected 事件不误判为中继切换中
     _status = VpnStatus.disconnecting;
@@ -792,6 +802,48 @@ class VpnProvider extends ChangeNotifier {
       return res.statusCode == 204 || res.statusCode < 400;
     } catch (_) {
       return false;
+    }
+  }
+
+  // ── 连接后实时延迟（每 30s 刷新，展示用）──────────────────────────────────
+  // 隧道建立后，连接前测得的节点延迟已失去意义（且被冻结）。这里每 30s 探测一次
+  // 经隧道到外网的 RTT，按体感优化后展示，让主页「延迟」数值随实时网络刷新。
+  void _startConnectedPing() {
+    _pingTimer?.cancel();
+    _measureConnectedPing();   // 立即测一次，避免等 30s
+    _pingTimer = Timer.periodic(
+      const Duration(seconds: 30), (_) => _measureConnectedPing());
+  }
+
+  void _stopConnectedPing() {
+    _pingTimer?.cancel();
+    _pingTimer = null;
+    _connectedPingMs = null;
+  }
+
+  // 优化公式（与节点列表展示口径一致，原始 RTT 偏大按体感缩放；设 5ms 下限防 0）。
+  int _optimizePing(int raw) {
+    int v;
+    if (raw < 100)       v = raw;
+    else if (raw <= 200) v = (raw / 2).round();
+    else                 v = (raw / 3).round();
+    return v < 5 ? 5 : v;
+  }
+
+  Future<void> _measureConnectedPing() async {
+    if (_status != VpnStatus.connected) return;
+    try {
+      final sw = Stopwatch()..start();
+      final res = await http.get(
+        Uri.parse('https://connectivitycheck.gstatic.com/generate_204'),
+      ).timeout(const Duration(seconds: 5));
+      sw.stop();
+      if (res.statusCode == 204 || res.statusCode < 400) {
+        _connectedPingMs = _optimizePing(sw.elapsedMilliseconds);
+        notifyListeners();
+      }
+    } catch (_) {
+      // 单次失败保留上次值，不清零（避免偶发抖动把延迟显示成 --）
     }
   }
 
@@ -866,6 +918,7 @@ class VpnProvider extends ChangeNotifier {
       _status = VpnStatus.connected;   // 验证通过才显示已连接（#5）
       _startUsagePolling();
       _startTrialTracking();
+      _startConnectedPing();           // 连上后每 30s 刷新展示延迟
       notifyListeners();
       debugPrint('[VPN] 连通性验证成功，保持直连（快速模式）');
     } else {
@@ -902,6 +955,7 @@ class VpnProvider extends ChangeNotifier {
       _status = VpnStatus.connected;   // 验证通过才显示已连接（#5）
       _startUsagePolling();
       _startTrialTracking();
+      _startConnectedPing();           // 连上后每 30s 刷新展示延迟
       notifyListeners();
       debugPrint('[VPN] 中继连通性验证成功（$modeLabel）');
     } else {
@@ -1240,6 +1294,7 @@ class VpnProvider extends ChangeNotifier {
   Future<void> _forceStopOnQuota() async {
     _userInitiatedDisconnect = true;   // 用尽后禁止任何自动回退
     _trialTimer?.cancel();             // 已用尽，停止 1s 轮询
+    _stopConnectedPing();
     try {
       await AmneziaWG.instance.stopVpn().timeout(const Duration(seconds: 6), onTimeout: () {});
     } catch (_) {}
@@ -1301,6 +1356,7 @@ class VpnProvider extends ChangeNotifier {
     _fallbackTimer?.cancel();
     _usageTimer?.cancel();
     _trialTimer?.cancel();
+    _pingTimer?.cancel();
     _stageSub?.cancel();
     _timer?.cancel();
     // 注意：销毁时【不】拆隧道。返回键/切后台/被系统回收都应保持 VPN 运行，

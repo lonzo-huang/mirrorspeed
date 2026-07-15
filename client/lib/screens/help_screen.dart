@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../brand.dart';
 import '../theme.dart';
 import 'sub_page.dart';
 
+const String _kSupportUrl = 'https://mirrorspeed.com/support';
+
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
 
+  // 每项：[问题, 答案, (可选)点击跳转链接]。带链接的项整卡可点，打开网页帮助。
   List<List<String>> get _faq => [
     [tr('如何连接？', 'How do I connect?'),
      tr('点主页中间的大按钮即可。默认「智能选择」会自动接入延迟最低、最空闲的节点。',
@@ -26,8 +30,9 @@ class HelpScreen extends StatelessWidget {
      tr('先断开重连，或换一个节点；若节点显示「超时」请换其他节点。',
         'Reconnect or switch nodes; if a node shows "timeout", pick another.')],
     [tr('联系客服', 'Contact support'),
-     tr('发邮件到 mirrorspeed@mirrorquant.com，我们会尽快协助。',
-        'Email mirrorspeed@mirrorquant.com and we will help as soon as possible.')],
+     tr('点此前往网页帮助中心，通过 support 页面提交求助，我们会尽快协助。',
+        'Tap here to open our web Help Center and submit a request on the support page.'),
+     _kSupportUrl],
   ];
 
   @override
@@ -38,17 +43,30 @@ class HelpScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (final item in _faq) ...[
-            Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.05))),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(item[0], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                Text(item[1], style: TextStyle(fontSize: 12.5, height: 1.5, color: Colors.white.withOpacity(0.6))),
-              ]),
-            ),
+            Builder(builder: (_) {
+              final url = item.length > 2 ? item[2] : null;
+              final card = Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.05))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Text(item[0], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
+                    if (url != null)
+                      Icon(Icons.open_in_new_rounded, size: 16, color: kBrand.withOpacity(0.8)),
+                  ]),
+                  const SizedBox(height: 6),
+                  Text(item[1], style: TextStyle(fontSize: 12.5, height: 1.5, color: Colors.white.withOpacity(0.6))),
+                ]),
+              );
+              if (url == null) return card;
+              return InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+                child: card,
+              );
+            }),
           ],
         ]),
       ),
