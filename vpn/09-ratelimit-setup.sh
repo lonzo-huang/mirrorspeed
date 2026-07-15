@@ -6,7 +6,7 @@
 #   - 免费用户 IP → ipset ms_free → mangle 打 0x1 → tc 1:10（free_mbit）
 #   - 付费用户 IP → ipset ms_paid → mangle 打 0x2 → tc 1:20（paid_mbit）
 #   - 超级/未知（未打标）→ tc 默认 1:30（super_mbit；0=满速）
-#   - 限速值与用户分级由 Portal /api/vpn/ratelimit-sync 下发（凭本机 api_secret 反查）。
+#   - 限速值与用户分级由 Supabase RPC get_ratelimit_config 下发（本机用公开 anon key 直连，不经 Vercel）。
 #   - systemd timer 每 60s 同步一次（成员秒级、限速值改即生效）。
 #
 # 幂等：可重复运行；自动探测网卡，无需手填。
@@ -14,6 +14,9 @@ set -euo pipefail
 [[ $EUID -ne 0 ]] && { echo "ERROR: 必须以 root 执行"; exit 1; }
 
 API_BASE="${API_BASE:-https://www.mirrorspeed.com}"
+# 限速配置改为直连 Supabase RPC（get_ratelimit_config），不再走 Vercel。anon key 为公开 key。
+SUPABASE_URL="${SUPABASE_URL:-https://yqckjzfwibklwokialac.supabase.co}"
+SUPABASE_ANON="${SUPABASE_ANON:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxY2tqemZ3aWJrbHdva2lhbGFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxOTY1MzcsImV4cCI6MjA5NDc3MjUzN30.NDxrGI6mgVMjgJvBchTkOCcT_ldiEEWtpJkFOhFGYNA}"
 LINK_MBIT="${LINK_MBIT:-1000}"                 # 服务器出口总带宽（HTB 满速类 ceil）
 VPNAPI_ENV="/opt/mirrorspeed/vpn-api/.env"
 CONF_DIR="/etc/mirrorspeed"
@@ -39,6 +42,8 @@ echo "[4/6] 写入配置 ${CONF_DIR}/ratelimit.env..."
 mkdir -p "${CONF_DIR}"
 cat > "${CONF_DIR}/ratelimit.env" <<ENVEOF
 API_BASE=${API_BASE}
+SUPABASE_URL=${SUPABASE_URL}
+SUPABASE_ANON=${SUPABASE_ANON}
 VPN_API_SECRET=${VPN_API_SECRET}
 WG_IFACE=${WG_IFACE}
 LINK_MBIT=${LINK_MBIT}
@@ -59,8 +64,8 @@ with open('/etc/mirrorspeed/ratelimit.env') as f:
             k, v = line.split('=', 1)
             ENV[k] = v.strip().strip('"')
 
-API_BASE = ENV.get('API_BASE', 'https://www.mirrorspeed.com').rstrip('/')
-SECRET   = ENV.get('VPN_API_SECRET', '')
+SUPABASE_URL  = ENV.get('SUPABASE_URL', '').rstrip('/')
+SUPABASE_ANON = ENV.get('SUPABASE_ANON', '')
 IFACE    = ENV.get('WG_IFACE', 'awg0')
 LINK     = int(ENV.get('LINK_MBIT', '1000') or '1000')
 STATE    = '/run/ms-ratelimit.rates'
@@ -70,8 +75,18 @@ def sh(cmd):
                           stderr=subprocess.DEVNULL).returncode
 
 def fetch():
-    req = urllib.request.Request(f'{API_BASE}/api/vpn/ratelimit-sync',
-                                 headers={'X-API-Secret': SECRET})
+    # 直连 Supabase RPC（get_ratelimit_config），用公开 anon key。DB 内部算好三档，
+    # 只返回聚合 IP 列表，绕开 Vercel。
+    req = urllib.request.Request(
+        f'{SUPABASE_URL}/rest/v1/rpc/get_ratelimit_config',
+        data=b'{}',
+        headers={
+            'apikey':        SUPABASE_ANON,
+            'Authorization': f'Bearer {SUPABASE_ANON}',
+            'Content-Type':  'application/json',
+        },
+        method='POST',
+    )
     with urllib.request.urlopen(req, timeout=10) as r:
         return json.load(r)
 
@@ -142,7 +157,7 @@ def main():
     ensure_iptables()
     swap_ipset('ms_free', data.get('free_ips', []) if free > 0 else [])
     swap_ipset('ms_paid', data.get('paid_ips', []) if paid > 0 else [])
-    print(f"[ratelimit] {data.get('server')}: free={free} paid={paid} super={sup} "
+    print(f"[ratelimit] free={free} paid={paid} super={sup} "
           f"| free_ips={len(data.get('free_ips', []))} paid_ips={len(data.get('paid_ips', []))}")
 
 if __name__ == '__main__':
@@ -184,7 +199,7 @@ echo ""
 echo "限速部署完成："
 echo "  WG 接口:   ${WG_IFACE}（限下行）"
 echo "  出口带宽:  ${LINK_MBIT} Mbit"
-echo "  限速值/分级: 来自 Portal /api/vpn/ratelimit-sync（app_config 可改）"
+echo "  限速值/分级: 来自 Supabase RPC get_ratelimit_config（直连，不经 Vercel；app_config 可改）"
 echo "  同步频率:  每 60s（systemd: ms-ratelimit.timer）"
 echo ""
 echo "  查看状态:  systemctl status ms-ratelimit.timer"
