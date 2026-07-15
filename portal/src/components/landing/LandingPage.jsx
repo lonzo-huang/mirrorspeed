@@ -89,7 +89,7 @@ const Nav = () => {
     { href: "/#pricing", key: "nav_pricing" },
     { href: "/download", key: "ob_s1_t" },
     { href: "/#faq", key: "nav_faq" },
-    { href: "/blog", key: "nav_blog" },
+    { href: "https://blog.mirrorspeed.com/", key: "nav_blog" },
   ];
   const currentLang = SUPPORTED_LANGS.find((l) => l.code === lang);
 
@@ -740,7 +740,7 @@ const Footer = () => {
             <h4 className="font-mono text-[10px] uppercase tracking-widest text-app-muted mb-4">{t("ft_company")}</h4>
             <ul className="space-y-2.5 text-sm text-app-secondary">
               <li><a href="/servers" className="hover:text-app-primary">{t("ft_servers")}</a></li>
-              <li><a href="/blog" className="hover:text-app-primary">{L("博客", "Blog")}</a></li>
+              <li><a href="https://blog.mirrorspeed.com/" className="hover:text-app-primary">{L("博客", "Blog")}</a></li>
               <li><a href="/help" className="hover:text-app-primary">{L("帮助中心", "Help")}</a></li>
               {lang === "zh" && <li><a href="/tutorials" className="hover:text-app-primary">使用教程</a></li>}
               <li><a href="/support" className="hover:text-app-primary">{t("ft_support")}</a></li>
