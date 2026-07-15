@@ -23,10 +23,14 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # --- Config ------------------------------------------------------------------
+# Secrets come from environment variables - never hardcode them here.
+# Set before running (PowerShell profile or a local, gitignored script):
+#   $env:MS_SUPABASE_ANON = '<supabase anon key>'          # baked into the app build
+#   $env:MS_CRON_SECRET   = '<portal admin/cron secret>'   # PRIVATE - keep out of git
 $SUPABASE_URL  = 'https://yqckjzfwibklwokialac.supabase.co'
-$SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxY2tqemZ3aWJrbHdva2lhbGFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxOTY1MzcsImV4cCI6MjA5NDc3MjUzN30.NDxrGI6mgVMjgJvBchTkOCcT_ldiEEWtpJkFOhFGYNA'
+$SUPABASE_ANON = $env:MS_SUPABASE_ANON
 $API_BASE      = 'https://www.mirrorspeed.com'
-$CRON_SECRET   = 'lFCBNQtNmuEpIclLTTMhvfqgb2FDX9Pj'
+$CRON_SECRET   = $env:MS_CRON_SECRET
 $GITHUB_REPO   = 'lonzo-huang/mirrorspeed'
 $TAG           = "v$Version"
 
@@ -59,6 +63,9 @@ if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
     Fail "flutter not found. Install Flutter SDK first."
 }
 Ok "flutter found"
+
+if (-not $SUPABASE_ANON) { Fail "Set `$env:MS_SUPABASE_ANON before running (Supabase anon key for the build)." }
+Ok "build secrets present"
 
 if (-not $DryRun) {
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
@@ -369,136 +376,7 @@ if ((-not $SkipWindows) -and (Test-Path $WIN_DST)) {
     Ok "Windows ZIP uploaded"
 }
 
-# --- Upload to CN mirror (Vercel Blob CDN) -----------------------------------
-Step "Uploading to CN mirror (Vercel Blob)"
-
-# Prune old blobs first so we stay under the 1GB Hobby quota (keep only this version).
-try {
-    $pruneBody = @{ keep = $Version } | ConvertTo-Json
-    $pruneResp = Invoke-RestMethod -Uri "$API_BASE/api/admin/mirror-cleanup" -Method POST `
-        -Headers @{ 'x-upload-secret' = $CRON_SECRET } -ContentType 'application/json' -Body $pruneBody
-    Ok "Blob prune: deleted $($pruneResp.deleted) old file(s)"
-} catch {
-    Warn "Blob prune failed (continuing): $_"
-}
-
-function Upload-ToCnMirror {
-    param([string]$FilePath, [string]$Platform)
-
-    $filename = Split-Path $FilePath -Leaf
-    $mimeType = if ($Platform -eq 'android') {
-        'application/vnd.android.package-archive'
-    } else {
-        'application/zip'
-    }
-
-    try {
-        # Step 1: Request a client upload token from the portal
-        $tokenBody = @{
-            type    = "blob.generate-client-token"
-            payload = @{
-                pathname    = "apk/$filename"
-                callbackUrl = "$API_BASE/api/admin/mirror-token"
-                multipart   = $false
-            }
-        } | ConvertTo-Json -Depth 5
-
-        $tokenResp = Invoke-RestMethod `
-            -Uri "$API_BASE/api/admin/mirror-token" `
-            -Method POST `
-            -ContentType "application/json" `
-            -Headers @{ "x-upload-secret" = $CRON_SECRET } `
-            -Body $tokenBody
-
-        if (-not $tokenResp.clientToken) {
-            throw "No clientToken in response"
-        }
-
-        # Step 2: Upload directly to Vercel Blob CDN
-        # URL: https://blob.vercel-storage.com/{pathname}
-        $pathname  = "apk/$filename"
-        $uploadUrl = "https://blob.vercel-storage.com/$pathname"
-        $uploadHeaders = @{
-            "Authorization" = "Bearer $($tokenResp.clientToken)"
-            "Content-Type"  = $mimeType
-            "x-mimeType"    = $mimeType
-        }
-        $uploadResp = Invoke-RestMethod `
-            -Uri $uploadUrl `
-            -Method PUT `
-            -InFile $FilePath `
-            -Headers $uploadHeaders
-
-        $blobUrl = $uploadResp.url
-
-        # Step 3: Register URL with portal (backup in case onUploadCompleted callback failed)
-        $registerBody = @{
-            token    = $CRON_SECRET
-            platform = $Platform
-            version  = $Version
-            url      = $blobUrl
-        } | ConvertTo-Json
-        Invoke-RestMethod `
-            -Uri "$API_BASE/api/admin/mirror-register" `
-            -Method POST `
-            -ContentType "application/json" `
-            -Body $registerBody | Out-Null
-
-        return $blobUrl
-    } catch {
-        throw $_
-    }
-}
-
-# GitHub direct-download URLs used as a fallback when the Vercel Blob mirror is
-# unavailable (blocked / over the Hobby quota). Guarantees the CN download links
-# in app_config never point at a dead blob.
-$GH_APK = "https://github.com/$GITHUB_REPO/releases/download/$TAG/MirrorSpeed-$Version-android.apk"
-$GH_WIN = "https://github.com/$GITHUB_REPO/releases/download/$TAG/MirrorSpeed-$Version-windows.zip"
-
-function Register-CnUrl {
-    param([string]$Platform, [string]$Url)
-    $body = @{ token = $CRON_SECRET; platform = $Platform; url = $Url; version = $Version } | ConvertTo-Json
-    Invoke-RestMethod -Uri "$API_BASE/api/admin/mirror-register" -Method POST `
-        -ContentType 'application/json' -Body $body -ErrorAction Stop | Out-Null
-}
-
-if ((-not $SkipAndroid) -and (Test-Path $APK_DST)) {
-    $cnApkUrl = $null
-    try {
-        $cnApkUrl = Upload-ToCnMirror -FilePath $APK_DST -Platform "android"
-        Ok "APK -> CN mirror: $cnApkUrl"
-    } catch {
-        Warn "CN mirror upload failed: $_"
-    }
-    if (-not $cnApkUrl) {
-        # Blob blocked / over quota -> register GitHub direct link so CN download still works
-        try {
-            Register-CnUrl -Platform "android"    -Url $GH_APK
-            Register-CnUrl -Platform "android_cn" -Url $GH_APK
-            Ok "APK CN link -> GitHub fallback: $GH_APK"
-        } catch { Warn "GitHub fallback register failed: $_" }
-    } else {
-        # Mirror OK -> point the CN-flavor key at the same blob too
-        try { Register-CnUrl -Platform "android_cn" -Url $cnApkUrl } catch {}
-    }
-}
-
-if ((-not $SkipWindows) -and (Test-Path $WIN_DST)) {
-    $cnWinUrl = $null
-    try {
-        $cnWinUrl = Upload-ToCnMirror -FilePath $WIN_DST -Platform "windows"
-        Ok "Windows -> CN mirror: $cnWinUrl"
-    } catch {
-        Warn "CN mirror upload failed: $_"
-    }
-    if (-not $cnWinUrl) {
-        try {
-            Register-CnUrl -Platform "windows" -Url $GH_WIN
-            Ok "Windows CN link -> GitHub fallback: $GH_WIN"
-        } catch { Warn "GitHub fallback register failed: $_" }
-    }
-}
+# 国内下载已改为 GitHub Releases + ghproxy（见 /api/releases/latest），无需再传 Vercel Blob。
 
 # --- Trigger Vercel cache revalidation ---------------------------------------
 Step "Revalidating Vercel download page"
