@@ -32,7 +32,8 @@ BEGIN
   END;
 
   WITH devs AS (
-    SELECT split_part(vpn_ip, '/', 1) AS ip, user_id
+    -- vpn_ip 是 inet 类型：用 host() 取不带掩码的地址（等价于原 JS 的 split('/')[0]）
+    SELECT host(vpn_ip) AS ip, user_id
     FROM vpn_devices
     WHERE is_active = true AND vpn_ip IS NOT NULL
   ),
