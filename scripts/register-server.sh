@@ -241,19 +241,15 @@ else
 fi
 
 # ── 验证：触发一次 cron 同步 ─────────────────────────────────────────────────
-step "等待部署完成后验证服务器状态..."
-sleep 5
+step "等待状态同步..."
 
-APP_URL=$(grep '^NEXT_PUBLIC_APP_URL=' "${ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || echo "")
-CRON_SECRET_VAL=$(grep '^CRON_SECRET=' "${ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || echo "")
+# 状态同步已从 Vercel 迁到控制机 VM01-FRA-DE（systemd timer，每 60s 一次）。
+# 新节点最多 60 秒内会被自动同步进来，无需手动触发。
+APP_URL=$(grep '^NEXT_PUBLIC_APP_URL=' "${ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || echo "https://www.mirrorspeed.com")
 
-if [[ -n "${APP_URL}" && -n "${CRON_SECRET_VAL}" ]]; then
-    SYNC_RESULT=$(curl -s "${APP_URL}/api/cron/sync-servers" \
-        -H "Authorization: Bearer ${CRON_SECRET_VAL}" 2>/dev/null || echo "{}")
-    info "Cron 同步结果: ${SYNC_RESULT}"
-else
-    warn "未找到 APP_URL 或 CRON_SECRET，请手动触发: curl ${APP_URL:-https://your-portal}/api/cron/sync-servers"
-fi
+info "新节点将在 ≤60s 内由控制机（VM01-FRA-DE）的 ms-sync-servers 自动同步"
+info "想立刻同步：登录 VM01-FRA-DE 执行 systemctl start ms-sync-servers.service"
+info "验证：curl -s ${APP_URL}/api/servers | python3 -m json.tool"
 
 echo ""
 echo "════════════════════════════════════════════════════════"

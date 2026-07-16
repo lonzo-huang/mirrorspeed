@@ -779,9 +779,18 @@ curl -H "X-API-Secret: <VPN_API_SECRET>" https://<DOMAIN>/vpn-api/stats
 
 ## 9. Portal 后端配置
 
-Portal（Next.js）通过 Supabase 存储服务器列表，通过 Vercel Cron 同步服务器状态。
-> Vercel **Hobby 套餐仅允许每日一次 cron**，`sync-servers` 已降级为每日（`portal/vercel.json`）。
-> 需更高频请升级套餐或用外部定时器带 `CRON_SECRET` 调用。
+Portal（Next.js）通过 Supabase 存储服务器列表。**服务器状态同步已不在 Vercel**：
+
+> 📍 **同步任务跑在控制机 `VM01-FRA-DE`（🇩🇪 德国 法兰克福 01）上**，systemd timer 每 60s 一次。
+> - 安装：`SUPABASE_SERVICE_KEY='<service_role key>' bash vpn/11-sync-servers-setup.sh`（只装这一台）
+> - 日志：`journalctl -u ms-sync-servers.service -n 10 --no-pager`
+> - 手动跑：`systemctl start ms-sync-servers.service`
+>
+> 2026-07 从 Vercel 迁出：原来每分钟 1440 次/天、每次 ~2.4s CPU，是 Vercel 上最大的开销。
+> Vercel 上的 `/api/cron/sync-servers` 路由与 cron 条目均已删除。
+>
+> 同理，**限速同步**（`ms-ratelimit`，每台服务器都装）也已改为**直连 Supabase RPC**
+> `get_ratelimit_config()`，不再经过 Vercel（见 `09-ratelimit-setup.sh`）。
 
 ### 9.1 Supabase 数据库迁移
 
@@ -891,9 +900,9 @@ bash scripts/register-server.sh \
 # 查看所有服务器状态
 curl https://www.mirrorspeed.com/api/servers | python3 -m json.tool
 
-# 触发状态同步（等约 1 分钟也会自动同步）
-curl https://www.mirrorspeed.com/api/cron/sync-servers \
-  -H "Authorization: Bearer <CRON_SECRET>"
+# 触发状态同步：在控制机 VM01-FRA-DE 上执行（等约 1 分钟也会自动同步）
+systemctl start ms-sync-servers.service
+journalctl -u ms-sync-servers.service -n 5 --no-pager
 ```
 
 ---

@@ -156,7 +156,7 @@ UPDATE public.app_config SET value = '3600' WHERE key = 'free_daily_seconds'; --
 | `super_user_ids` | `[]` | 超级用户 user_id JSON 列表（预留） |
 
 - **机制**：`awg0` 上 tc(HTB) 三档静态类 + `ipset`(ms_free/ms_paid) 动态成员 + mangle `fwmark` 打标。超级/未知 → 默认满速类。
-- **数据流**：服务器 `ms-ratelimit-sync.py`（systemd timer，60s）凭 `api_secret` 调 Portal `GET /api/vpn/ratelimit-sync` → 反查本机 → 返回限速值 + free/paid IP → 刷 ipset/tc。
+- **数据流**：每台服务器的 `ms-ratelimit-sync.py`（systemd timer，60s）用**公开 anon key** 直连 Supabase RPC `get_ratelimit_config()` → 库内算好三档限速值 + free/paid IP 列表（仅返回聚合结果，无用户隐私）→ 刷 ipset/tc。**不经过 Vercel**（2026-07 迁移；原 `/api/vpn/ratelimit-sync` 已删除）。RPC 定义见 `portal/supabase/migrations/020_ratelimit_rpc.sql`。
 - **丝滑升级**：用户看广告/付费升级后 ≤60s 自动提速，**不掉线、不换 IP**。
 - **部署**：`vpn/09-ratelimit-setup.sh`（自动探测网卡；install.sh 第 8 步自动跑）。改限速值只需改 `app_config`，全机群自动生效。
 
@@ -173,18 +173,37 @@ App 连接时自动选择最优方式：
 
 切换后 App 主页显示橙色"WebSocket 中继"徽章。
 
-### 2.3 Cron 自动化
+### 2.3 定时任务（节点状态 / 流量 / 额度）
 
-Vercel Cron 调用 `/api/cron/sync-servers`，自动完成：
-- 同步每台服务器 CPU / 内存 / 带宽 / 延迟状态
+**跑在「控制机」上，不在 Vercel。** systemd timer 每 60 秒执行一次
+`/usr/local/bin/ms-sync-servers.py`，直连 Supabase 完成：
+- 并发探测每台服务器 `/stats` `/health` `/peers`：同步 CPU / 内存 / 带宽 / 延迟 / 状态
+- **隧道已死（`/health` 返回 `wg_status=down`）→ 标记该节点 offline**，App 选路立即避开
 - 更新每个 Peer 的今日已用流量（`awg show dump`）
-- 超额免费用户：自动暂停 Peer（断开连接）
-- 次日 UTC 0 点：自动恢复 Peer
+- 超额免费用户自动暂停 Peer；次日 UTC 0 点 / 用量回落 / 升级为付费 → 自动恢复
 
-> ⚠️ **频率限制**：Vercel **Hobby 套餐只允许每日一次 cron**，因此 `sync-servers`
-> 已降级为每日 `0 0 * * *`（见 `portal/vercel.json`）。如需更高频的状态/流量同步，
-> 需升级 Vercel 套餐后改回 `* * * * *`，或用外部定时器带 `CRON_SECRET` 调用该端点。
-> cron 内所有对服务器的调用均使用各服务器自己的 `api_secret`。
+> 📍 **控制机就是这台：`VM01-FRA-DE`（🇩🇪 德国 法兰克福 01）** —— 只需装这一台
+>
+> | | |
+> |---|---|
+> | 安装脚本 | `vpn/11-sync-servers-setup.sh` |
+> | 任务本体 | `vpn/sync-servers/ms-sync-servers.py` → `/usr/local/bin/` |
+> | 配置 | `/etc/mirrorspeed/sync-servers.env`（权限 600，含 Supabase **service_role** key） |
+> | 查看状态 | `systemctl status ms-sync-servers.timer` |
+> | 查看日志 | `journalctl -u ms-sync-servers.service -n 10 --no-pager` |
+> | 手动跑一次 | `systemctl start ms-sync-servers.service` |
+>
+> 正常日志形如：`[sync] ok=7 failed=0 | suspended=0 resumed=0`
+>
+> ⚠️ **单点**：这台挂了 → 节点状态会变陈旧、免费额度停止执行。排查先看上面的 timer。
+
+> **为什么不放 Vercel（2026-07 迁移）**：该任务每分钟跑一次 = 1440 次/天 ×
+> 探测 N 台 × 3 接口，实测每次约 **2.4s CPU（≈57 分钟 CPU/天）**，是 Vercel 上
+> 最大的一块 Active CPU / 函数调用 / Observability 开销。现已整体迁到控制机，
+> Vercel 上对应的路由与 cron 条目**均已删除**。
+> 同期，节点侧的限速同步也从 Vercel 改为**各服务器直连 Supabase RPC**
+> `get_ratelimit_config()`（见 §6.4）——两者都不再经过 Vercel。
+> 所有对服务器的调用仍使用各服务器自己的 `api_secret`。
 
 ---
 
@@ -416,7 +435,7 @@ Table Editor → `app_config`** 直接增改，或用下方 SQL（**SQL Editor**
 |-----|------|----------------|----------|
 | `announcement` | 全局公告（App 首页 banner） | 无 = 不显示 | 客户端拉取，~60s |
 | `min_supported_version` | **强制更新**下限，低于此版本弹不可关闭的更新窗 | 无 = 仅软提示 | 客户端启动/拉取 |
-| `free_daily_bytes` | 免费用户**每设备每日**流量上限（字节） | `524288000`（500MB） | `sync-servers` cron（每日）+ 手动触发 |
+| `free_daily_bytes` | 免费用户**每设备每日**流量上限（字节） | `524288000`（500MB） | 控制机 `ms-sync-servers` 每 60s |
 | `free_daily_seconds` | 免费用户每日时长额度（秒，时间制试用） | `3600`（1h） | 客户端拉取 |
 | `ratelimit_free_mbit` | 免费档下行限速（Mbit，下行=用户下载） | `4` | 各服务器 `ms-ratelimit` 每 60s |
 | `ratelimit_paid_mbit` | 付费档下行限速（Mbit） | `10` | 同上 |
@@ -466,8 +485,8 @@ delete from app_config where key = 'min_supported_version';
 ```sql
 update app_config set value = '53687091200' where key = 'free_daily_bytes';   -- 50GB/设备/天
 ```
-> 调高后，被封禁(0.0.0.0/32)的设备不必等到午夜——下次 `sync-servers` 即恢复。
-> 立即生效可手动触发：`curl -H "Authorization: Bearer <CRON_SECRET>" https://www.mirrorspeed.com/api/cron/sync-servers`
+> 调高后，被封禁(0.0.0.0/32)的设备不必等到午夜——下次 `ms-sync-servers` 即恢复（≤60s）。
+> 想立刻生效：在控制机 `VM01-FRA-DE` 上执行 `systemctl start ms-sync-servers.service`
 
 ### 6.4 调整分级限速值
 
@@ -514,9 +533,10 @@ bash /opt/mirrorspeed/vpn/08-port-hopping-setup.sh status
 ```
 
 ### 手动触发流量同步 / 额度检查
+在**控制机 `VM01-FRA-DE`（德国 法兰克福 01）**上执行（平时每 60s 自动跑一次）：
 ```bash
-curl -H "Authorization: Bearer <CRON_SECRET>" \
-  https://www.mirrorspeed.com/api/cron/sync-servers
+systemctl start ms-sync-servers.service
+journalctl -u ms-sync-servers.service -n 5 --no-pager   # [sync] ok=7 failed=0 | ...
 ```
 
 ### 添加 / 删除用户设备
