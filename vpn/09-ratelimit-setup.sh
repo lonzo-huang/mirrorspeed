@@ -53,7 +53,7 @@ chmod 600 "${CONF_DIR}/ratelimit.env"
 echo "[5/6] 安装同步脚本 ${SYNC_BIN}..."
 cat > "${SYNC_BIN}" <<'PYEOF'
 #!/usr/bin/env python3
-# ms-ratelimit-sync.py — 从 Portal 拉取限速值 + 各档 IP，应用 tc/ipset/iptables。
+# ms-ratelimit-sync.py — 从 Supabase RPC 拉取限速值 + 各档 IP，应用 tc/ipset/iptables。
 import json, os, subprocess, sys, urllib.request
 
 ENV = {}
