@@ -57,6 +57,9 @@ export async function GET(req: NextRequest) {
         if (!statsRes.ok) throw new Error(`stats HTTP ${statsRes.status}`)
 
         const stats = await statsRes.json()
+        // /health 会真正执行 `awg show`——这是唯一能发现「隧道已死」的信号。
+        const health: { wg_status?: string } | null =
+          healthRes.ok ? await healthRes.json().catch(() => null) : null
         const peers: Array<{
           peer_name:      string
           public_key:     string
@@ -69,12 +72,18 @@ export async function GET(req: NextRequest) {
           .from('vpn_servers').select('max_peers').eq('id', server.id).single()
         const maxPeers   = maxPeersRow?.max_peers ?? 200
         const loadPct    = Math.round((stats.active_peers / maxPeers) * 100)
+        // 状态判定只看「真实健康度」，与「Vercel 到节点的地理距离」无关：
+        //   1) CPU/内存过载 → degraded
+        //   2) WireGuard 接口已死 → offline（优先级最高：这台根本无法承载 VPN，
+        //      必须踢出选路。曾发生：内核升级后 AWG 模块丢失导致隧道全死，但
+        //      /stats 仍正常响应，面板只显示 degraded，故障 30+ 分钟无人察觉。）
+        // 不再用往返延迟判 degraded：那测的是跨洲距离而非节点健康——亚洲节点从
+        // 欧美 Vercel 探测天然就慢（连 1500ms 阈值也会被误报成 degraded，进而
+        // 让 App 的智能选路避开香港等主力节点）。latency_ms 仍照常记录供运维查看，
+        // 用户侧的真实延迟由 App 自行实测。
         let portalStatus = stats.status
-        // degraded 反映真实健康度，而非跨洲网络距离：
-        // - 海外节点到 Vercel 的正常往返就有 500-800ms，旧的 500ms 阈值几乎全误报
-        // - 真正的"降级"应看资源过载(CPU/内存)或极端延迟
         if (stats.cpu_percent > 90 || stats.mem_percent > 90) portalStatus = 'degraded'
-        else if (latencyMs > 1500) portalStatus = 'degraded'
+        if (health?.wg_status === 'down') portalStatus = 'offline'
 
         await admin.from('vpn_servers').update({
           status:          portalStatus,
