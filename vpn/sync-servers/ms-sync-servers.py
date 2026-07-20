@@ -45,7 +45,7 @@ if not SUPABASE_URL or not SERVICE_KEY:
     print('[sync] SUPABASE_URL / SUPABASE_SERVICE_KEY missing', file=sys.stderr)
     sys.exit(1)
 
-DEFAULT_FREE_DAILY_BYTES = 524288000   # 500MB，与原实现一致
+# 免费额度(free_daily_bytes)的读取与判定已下沉到 RPC get_quota_actions，此处不再需要
 
 
 def today_utc() -> str:
@@ -66,7 +66,8 @@ def sb(method: str, path_and_query: str, body=None, timeout: int = 15):
         'Authorization': f'Bearer {SERVICE_KEY}',
         'Content-Type':  'application/json',
     }
-    if method in ('PATCH', 'POST'):
+    # 写操作不要回传数据（省 egress）；但 RPC 调用必须拿到返回体
+    if method in ('PATCH', 'POST') and not path_and_query.startswith('rpc/'):
         headers['Prefer'] = 'return=minimal'
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -166,9 +167,19 @@ def sync_one(server: dict) -> dict:
 
 # ── 2) 同步单台服务器上各 peer 的今日流量 ───────────────────────────────────
 def sync_peer_usage(server_id: str, wg_peers: list) -> None:
+    """
+    只拉 WG 实际上报的那些 peer（用 in.() 过滤），而不是该服务器的全部 peer 行——
+    后者每 60s × 7 台是 Supabase egress 的大头之一。
+    """
     today = today_utc()
+    names = [wp.get('peer_name') for wp in wg_peers if wp.get('peer_name')]
+    if not names:
+        return
+    # peer_name 由服务端限定为 [A-Za-z0-9_-]，直接内联到 in.() 是安全的
+    name_filter = ','.join(f'"{n}"' for n in names)
     db_peers = sb('GET',
         f'vpn_device_peers?server_id=eq.{server_id}&is_active=eq.true'
+        f'&peer_name=in.({name_filter})'
         f'&select=id,peer_name,last_total_bytes,daily_bytes,daily_reset_at') or []
     if not db_peers:
         return
@@ -198,67 +209,35 @@ def sync_peer_usage(server_id: str, wg_peers: list) -> None:
 
 # ── 3) 额度评估：超额免费用户暂停，付费/次日/回落则恢复 ─────────────────────
 def enforce_quotas(servers: list) -> dict:
-    today = today_utc()
+    """
+    判定全部下沉到数据库（RPC get_quota_actions）：库内聚合当日用量 + 付费状态，
+    只回「需要变更状态的 peer」——绝大多数轮次是两个空数组。
 
-    cfg = sb('GET', 'app_config?key=eq.free_daily_bytes&select=value') or []
-    try:
-        quota_bytes = int(cfg[0]['value']) if cfg else DEFAULT_FREE_DAILY_BYTES
-    except (ValueError, KeyError, IndexError):
-        quota_bytes = DEFAULT_FREE_DAILY_BYTES
-
-    rows = sb('GET',
-        'vpn_device_peers?is_active=eq.true&device.is_active=eq.true'
-        '&select=id,peer_name,server_id,daily_bytes,daily_reset_at,is_suspended,'
-        'device:vpn_devices!inner(id,user_id,is_active)') or []
-    if not rows:
+    为什么这么做：原先每 60s 把 vpn_device_peers 全表（带 device join）拉回本地算，
+    约 100KB+/次 × 1440 次/天 ≈ 4GB/月，仅此一项就能吃光 Supabase 免费额度(5GB)。
+    """
+    actions = sb('POST', 'rpc/get_quota_actions', {}) or {}
+    to_resume  = actions.get('resume')  or []
+    to_suspend = actions.get('suspend') or []
+    if not to_resume and not to_suspend:
         return {'suspended': 0, 'resumed': 0}
-
-    # 按 device 聚合
-    devices = {}
-    for p in rows:
-        dev = p.get('device') or {}
-        if not dev.get('is_active'):
-            continue
-        d = devices.setdefault(dev['id'], {'user_id': dev.get('user_id'), 'total': 0, 'peers': []})
-        # 新的一天的旧计数不计入（syncPeerUsage 会重置）
-        d['total'] += (p.get('daily_bytes') or 0) if (p.get('daily_reset_at') or '') >= today else 0
-        d['peers'].append(p)
-
-    user_ids = list({d['user_id'] for d in devices.values() if d.get('user_id')})
-    paid = set()
-    if user_ids:
-        ids = ','.join(user_ids)
-        subs = sb('GET', f'subscriptions?status=eq.active&user_id=in.({ids})&select=user_id') or []
-        paid = {s['user_id'] for s in subs}
 
     api_of = {s['id']: {'url': (s.get('api_url') or '').rstrip('/'), 'secret': s.get('api_secret')}
               for s in servers}
 
-    suspended = resumed = 0
-    for d in devices.values():
-        is_paid  = d['user_id'] in paid
-        is_over  = (not is_paid) and d['total'] > quota_bytes
-        for p in d['peers']:
-            srv = api_of.get(p['server_id'])
+    def apply(items, active: bool) -> int:
+        n = 0
+        for p in items:
+            srv = api_of.get(p.get('server_id'))
             if not srv or not srv['secret']:
                 continue
-            is_new_day = (p.get('daily_reset_at') or '') < today
-            susp = bool(p.get('is_suspended'))
+            set_peer_active(srv['url'], p['peer_name'], active, srv['secret'])
+            sb('PATCH', f'vpn_device_peers?id=eq.{p["id"]}', {'is_suspended': not active})
+            n += 1
+        return n
 
-            if is_paid and susp:
-                set_peer_active(srv['url'], p['peer_name'], True, srv['secret'])
-                sb('PATCH', f'vpn_device_peers?id=eq.{p["id"]}', {'is_suspended': False}); resumed += 1
-            elif is_new_day and susp:
-                set_peer_active(srv['url'], p['peer_name'], True, srv['secret'])
-                sb('PATCH', f'vpn_device_peers?id=eq.{p["id"]}', {'is_suspended': False}); resumed += 1
-            elif (not is_over) and susp:
-                # 当天用量已回落到额度以下（或额度被上调）→ 立即恢复，不必等到午夜
-                set_peer_active(srv['url'], p['peer_name'], True, srv['secret'])
-                sb('PATCH', f'vpn_device_peers?id=eq.{p["id"]}', {'is_suspended': False}); resumed += 1
-            elif is_over and not susp:
-                set_peer_active(srv['url'], p['peer_name'], False, srv['secret'])
-                sb('PATCH', f'vpn_device_peers?id=eq.{p["id"]}', {'is_suspended': True}); suspended += 1
-
+    resumed   = apply(to_resume,  True)
+    suspended = apply(to_suspend, False)
     return {'suspended': suspended, 'resumed': resumed}
 
 
