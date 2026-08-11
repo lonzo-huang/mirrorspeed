@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application>
+        <!-- sing-box 隧道 VpnService（共享/免费节点用）。与 AmneziaWG 的 VpnService
+             各自独立声明；系统同一时刻只允许一条隧道活跃，切换由 Dart 侧 VpnProvider
+             保证先 stop 旧引擎再 start 新引擎。 -->
+        <service
+            android:name="com.mirrorspeed.singbox.SingboxVpnService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="VPN" />
+        </service>
+    </application>
+
+</manifest>

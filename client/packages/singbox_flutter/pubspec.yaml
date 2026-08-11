@@ -1,0 +1,20 @@
+name: singbox_flutter
+description: sing-box engine for MirrorSpeed (shared / free airport nodes). Thin
+  wrapper around libbox (JitPack com.github.singbox-android:libbox) + a VpnService.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.mirrorspeed.singbox
+        pluginClass: SingboxFlutterPlugin

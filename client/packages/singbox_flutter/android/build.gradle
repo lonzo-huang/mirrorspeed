@@ -1,0 +1,55 @@
+group 'com.mirrorspeed.singbox'
+version '0.0.1'
+
+buildscript {
+    ext.kotlin_version = '1.9.10'
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.1.0'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        // libbox（sing-box 安卓库）从 JitPack 拉取。
+        maven { url 'https://jitpack.io' }
+    }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    compileSdkVersion 34
+    namespace 'com.mirrorspeed.singbox'
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+    defaultConfig {
+        minSdkVersion 23
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+
+    // sing-box 安卓库(libbox.aar,含 tun 处理 + 全部代理协议)。
+    // 社区预编译版,跟上游 sing-box SDK 版本。正式发布前建议改为自编校验。
+    implementation 'com.github.singbox-android:libbox:1.13.18'
+}

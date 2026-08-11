@@ -17,6 +17,11 @@ dependencies:
   amneziawg_flutter:
     path: packages/amneziawg_flutter
 
+  # ── sing-box 引擎（共享/免费机场节点用）───────────────────────
+  # 自建原生插件，走 libbox；与 AmneziaWG 各自独立，同一时刻只跑一条隧道。
+  singbox_flutter:
+    path: packages/singbox_flutter
+
   # ── Supabase ─────────────────────────────────────────────────
   supabase_flutter: ^2.8.0
 
