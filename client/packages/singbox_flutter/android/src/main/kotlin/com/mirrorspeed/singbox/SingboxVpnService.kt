@@ -4,23 +4,36 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.LinkProperties
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import io.nekohasekai.libbox.BoxService
+import io.nekohasekai.libbox.CommandServer
+import io.nekohasekai.libbox.CommandServerHandler
+import io.nekohasekai.libbox.InterfaceUpdateListener
 import io.nekohasekai.libbox.Libbox
+import io.nekohasekai.libbox.Notification as LibboxNotification
+import io.nekohasekai.libbox.NetworkInterface as LibboxNetworkInterface
+import io.nekohasekai.libbox.NetworkInterfaceIterator
+import io.nekohasekai.libbox.OverrideOptions
 import io.nekohasekai.libbox.PlatformInterface
+import io.nekohasekai.libbox.SetupOptions
+import io.nekohasekai.libbox.StringIterator
+import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
+import io.nekohasekai.libbox.WIFIState
 
 /**
- * sing-box 隧道服务。用 libbox 运行完整 sing-box 配置（含 tun 入站），tun 的 fd 由本
- * VpnService 建立后交给 libbox。
- *
- * ⚠️ 实施说明（路 B 首版）：libbox 的 [PlatformInterface] 方法集/签名随 sing-box 版本
- * 变化。本文件按标准 libbox API 写就；首次 `flutter build apk` 的编译报错会精确列出
- * 需要实现/对齐的方法，据此补齐。start/stop/前台通知/tun 建立这些框架部分是稳的。
+ * sing-box 隧道服务。基于新版 libbox 的 CommandServer 架构（无独立 BoxService）：
+ *   Libbox.setup(SetupOptions) → CommandServer(handler, platform).start()
+ *   → startOrReloadService(config, OverrideOptions)
+ * 运行期 libbox 回调本类（PlatformInterface）：openTun 建隧道、autoDetectInterfaceControl
+ * 保护出站 socket、startDefaultInterfaceMonitor 感知底层网络。
  */
-class SingboxVpnService : VpnService(), PlatformInterface {
+class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler {
 
     companion object {
         const val ACTION_START = "com.mirrorspeed.singbox.START"
@@ -30,24 +43,27 @@ class SingboxVpnService : VpnService(), PlatformInterface {
         private const val CHANNEL_ID = "mirrorspeed_singbox"
         private const val NOTI_ID = 0x51B1
 
+        @Volatile private var didSetup = false
+
         @Volatile var currentStage: String = "disconnected"
             private set
 
-        // TODO: 用量计量。sing-box 的 rx/tx 需经 Clash API / CommandClient 读取，
-        // 首版先返回 [-1,-1]（不计量），跑通后再补。
+        // TODO: 用量计量需经 CommandClient 读 StatusMessage；首版不计量。
         fun transferRxTx(): List<Long> = listOf(-1L, -1L)
     }
 
-    private var box: BoxService? = null
+    private var server: CommandServer? = null
     private var tunFd: ParcelFileDescriptor? = null
+
+    // 默认网络监控
+    private var connectivity: ConnectivityManager? = null
+    private var netCallback: ConnectivityManager.NetworkCallback? = null
+    private var ifaceListener: InterfaceUpdateListener? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> { stopBox(); return START_NOT_STICKY }
-            ACTION_START -> {
-                val config = intent.getStringExtra(EXTRA_CONFIG)
-                if (config != null) startBox(config)
-            }
+            ACTION_START -> intent.getStringExtra(EXTRA_CONFIG)?.let { startBox(it) }
         }
         return START_STICKY
     }
@@ -61,22 +77,34 @@ class SingboxVpnService : VpnService(), PlatformInterface {
         setStage("connecting")
         startForeground(NOTI_ID, buildNotification())
         try {
-            val base = filesDir.absolutePath
-            Libbox.setup(base, "$base/work", "$base/temp", false)
-            box = Libbox.newService(config, this)
-            box!!.start()
+            if (!didSetup) {
+                val base = filesDir.absolutePath
+                Libbox.setup(SetupOptions().apply {
+                    basePath = base
+                    workingPath = "$base/work"
+                    tempPath = "$base/temp"
+                    fixAndroidStack = false
+                })
+                didSetup = true
+            }
+            val srv = CommandServer(this, this)
+            srv.start()
+            srv.startOrReloadService(config, OverrideOptions())
+            server = srv
             setStage("connected")
         } catch (e: Exception) {
+            android.util.Log.e("singbox", "start failed", e)
             setStage("disconnected")
-            Libbox.writeLogString?.let { /* no-op */ }
-            stopSelf()
+            stopBox()
         }
     }
 
     private fun stopBox() {
         setStage("disconnecting")
-        try { box?.close() } catch (_: Exception) {}
-        box = null
+        try { server?.closeService() } catch (_: Exception) {}
+        try { server?.close() } catch (_: Exception) {}
+        server = null
+        stopDefaultInterfaceMonitorInternal()
         try { tunFd?.close() } catch (_: Exception) {}
         tunFd = null
         setStage("disconnected")
@@ -84,58 +112,122 @@ class SingboxVpnService : VpnService(), PlatformInterface {
         stopSelf()
     }
 
-    override fun onDestroy() {
-        stopBox()
-        super.onDestroy()
-    }
+    override fun onDestroy() { stopBox(); super.onDestroy() }
+    override fun onRevoke() { stopBox(); super.onRevoke() }
 
-    override fun onRevoke() {        // 用户在系统里撤销 VPN 授权
-        stopBox()
-        super.onRevoke()
-    }
+    // ── CommandServerHandler ───────────────────────────────────────────────
+    override fun getSystemProxyStatus(): SystemProxyStatus =
+        SystemProxyStatus().apply { available = false; enabled = false }
+    override fun serviceReload() { /* 由 startOrReloadService 触发，交给 libbox 内部处理 */ }
+    override fun serviceStop() { stopBox() }
+    override fun setSystemProxyEnabled(isEnabled: Boolean) {}
+    override fun writeDebugMessage(message: String?) { message?.let { android.util.Log.d("singbox", it) } }
 
-    // ── libbox PlatformInterface ───────────────────────────────────────────
-    // 用 TunOptions 配置 VpnService.Builder，建立隧道，返回 fd 交给 libbox。
+    // ── PlatformInterface：建隧道 ──────────────────────────────────────────
     override fun openTun(options: TunOptions): Int {
-        val builder = Builder()
-            .setSession("MirrorSpeed")
-            .setMTU(options.mtu)
+        val builder = Builder().setSession("MirrorSpeed").setMtu(options.mtu)
 
-        // IPv4 地址
-        val addr = options.inet4Address
-        while (addr.hasNext()) {
-            val p = addr.next()
-            builder.addAddress(p.address, p.prefix)
-        }
-        // IPv4 路由
+        val a4 = options.inet4Address
+        while (a4.hasNext()) { val p = a4.next(); builder.addAddress(p.address(), p.prefix()) }
+        val a6 = options.inet6Address
+        while (a6.hasNext()) { val p = a6.next(); builder.addAddress(p.address(), p.prefix()) }
+
         if (options.autoRoute) {
-            val routes = options.inet4RouteAddress
-            if (routes.hasNext()) {
-                while (routes.hasNext()) { val r = routes.next(); builder.addRoute(r.address, r.prefix) }
-            } else {
-                builder.addRoute("0.0.0.0", 0)
-            }
-            // DNS
-            val dns = options.dnsServerAddress
-            if (dns.isNotEmpty()) builder.addDnsServer(dns)
+            val r4 = options.inet4RouteAddress
+            if (r4.hasNext()) { while (r4.hasNext()) { val r = r4.next(); builder.addRoute(r.address(), r.prefix()) } }
+            else builder.addRoute("0.0.0.0", 0)
+            val r6 = options.inet6RouteAddress
+            if (r6.hasNext()) { while (r6.hasNext()) { val r = r6.next(); builder.addRoute(r.address(), r.prefix()) } }
+
+            try {
+                val dns = options.dnsServerAddress?.value
+                if (!dns.isNullOrEmpty()) builder.addDnsServer(dns)
+            } catch (_: Exception) {}
         }
 
-        // 分应用（按包名白/黑名单）—— 供以后应用级分流用；首版不设。
         val fd = builder.establish() ?: throw IllegalStateException("VpnService.establish() 返回 null")
         tunFd = fd
         return fd.fd
     }
 
-    override fun writeLog(message: String?) { /* 可转发到 logcat */ }
+    // ── PlatformInterface：socket 保护 + 默认网络监控 ──────────────────────
+    override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
+    override fun autoDetectInterfaceControl(fd: Int) { protect(fd) }
 
-    // 以下为 PlatformInterface 的其余方法：首版给安全默认值。若 aar 版本的接口签名不同，
-    // 编译器会报错，据此调整。
+    override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {
+        ifaceListener = listener
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return
+        connectivity = cm
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) = pushDefault(network)
+            override fun onLinkPropertiesChanged(network: Network, lp: LinkProperties) = pushDefault(network, lp)
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = pushDefault(network, caps = caps)
+            override fun onLost(network: Network) {
+                ifaceListener?.updateDefaultInterface("", -1, false, false)
+            }
+        }
+        netCallback = cb
+        try { cm.registerDefaultNetworkCallback(cb) } catch (_: Exception) {}
+    }
+
+    override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {
+        stopDefaultInterfaceMonitorInternal()
+    }
+
+    private fun stopDefaultInterfaceMonitorInternal() {
+        val cb = netCallback ?: return
+        try { connectivity?.unregisterNetworkCallback(cb) } catch (_: Exception) {}
+        netCallback = null
+        ifaceListener = null
+    }
+
+    private fun pushDefault(
+        network: Network,
+        lp: LinkProperties? = null,
+        caps: NetworkCapabilities? = null,
+    ) {
+        val listener = ifaceListener ?: return
+        val cm = connectivity ?: return
+        val name = (lp ?: cm.getLinkProperties(network))?.interfaceName ?: return
+        val c = caps ?: cm.getNetworkCapabilities(network)
+        val metered = c?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == false
+        val index = try { java.net.NetworkInterface.getByName(name)?.index ?: 0 } catch (_: Exception) { 0 }
+        listener.updateDefaultInterface(name, index, metered, false)
+    }
+
+    // ── PlatformInterface：其余（安全默认 / 最小实现）──────────────────────
     override fun useProcFS(): Boolean = false
     override fun underNetworkExtension(): Boolean = false
     override fun includeAllNetworks(): Boolean = false
-    override fun autoDetectInterfaceControl(fd: Int) {}
-    override fun usePlatformDefaultInterfaceMonitor(): Boolean = false
-    override fun usePlatformInterfaceGetter(): Boolean = false
+    override fun clearDNSCache() {}
+    override fun readWIFIState(): WIFIState? = null
+    override fun localDNSTransport(): io.nekohasekai.libbox.LocalDNSTransport? = null
+    override fun systemCertificates(): StringIterator? = null
+    override fun sendNotification(notification: LibboxNotification?) {}
+    override fun findConnectionOwner(
+        ipProtocol: Int, sourceAddress: String?, sourcePort: Int,
+        destinationAddress: String?, destinationPort: Int,
+    ): io.nekohasekai.libbox.ConnectionOwner? = null
+
+    override fun getInterfaces(): NetworkInterfaceIterator {
+        val list = try {
+            java.net.NetworkInterface.getNetworkInterfaces().toList()
+        } catch (_: Exception) { emptyList() }
+        val boxed = list.map { ni ->
+            LibboxNetworkInterface().apply {
+                name = ni.name
+                index = try { ni.index } catch (_: Exception) { 0 }
+                mtu = try { ni.mtu } catch (_: Exception) { 0 }
+                addresses = StringArrayIterator(
+                    ni.inetAddresses.toList().mapNotNull { it.hostAddress })
+                flags = 0
+                type = 0
+                dnsServer = StringArrayIterator(emptyList())
+                metered = false
+            }
+        }
+        return NetworkInterfaceArrayIterator(boxed)
+    }
 
     // ── 前台通知 ───────────────────────────────────────────────────────────
     private fun buildNotification(): Notification {
@@ -153,4 +245,20 @@ class SingboxVpnService : VpnService(), PlatformInterface {
             .setOngoing(true)
             .build()
     }
+}
+
+/** libbox StringIterator 的简单实现（从 Kotlin List 提供）。 */
+private class StringArrayIterator(items: List<String>) : StringIterator {
+    private val it = items.iterator()
+    private val size = items.size
+    override fun hasNext(): Boolean = it.hasNext()
+    override fun next(): String = it.next()
+    override fun len(): Int = size
+}
+
+/** libbox NetworkInterfaceIterator 的简单实现。 */
+private class NetworkInterfaceArrayIterator(items: List<io.nekohasekai.libbox.NetworkInterface>) : NetworkInterfaceIterator {
+    private val it = items.iterator()
+    override fun hasNext(): Boolean = it.hasNext()
+    override fun next(): io.nekohasekai.libbox.NetworkInterface = it.next()
 }
