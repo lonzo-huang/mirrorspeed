@@ -6,7 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart'; // PlatformException + rootBundle
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:amneziawg_flutter/amneziawg_flutter.dart';
+import '../vpn/vpn_engine.dart';
+import '../vpn/amnezia_wg_engine.dart';
 import '../models/server_config.dart';
 import '../services/ws_relay_service.dart';
 import '../services/port_hopping.dart';
@@ -35,6 +36,9 @@ enum ConnMode { auto, direct, relay, cloudflare }
 enum RoutingMode  { global, smart }
 
 class VpnProvider extends ChangeNotifier {
+  // VPN 引擎(引擎无关抽象)。当前只有 AmneziaWG;sing-box 之后按节点 tier 切换。
+  final VpnEngine _engine = AmneziaWgEngine();
+
   VpnStatus     _status        = VpnStatus.disconnected;
   ServerConfig? _activeServer;
   /// 用户上次选择的是「智能分配」(true) 还是某台具体节点(false)。持久化。
@@ -177,24 +181,14 @@ class VpnProvider extends ChangeNotifier {
   }
 
   // ── 初始化（app 启动时调用一次）────────────────────────────
-  // 网络适配器对外显示的描述（Windows ipconfig / 网络连接里可见）。
-  // 中文环境显示「MirrorSpeed 加速隧道」，其它语言显示「MirrorSpeed VPN」，
-  // 绝不暴露 WireGuard 字样。
-  static String _adapterDescription() {
-    final locale = Platform.localeName.toLowerCase(); // e.g. zh_cn / en_us
-    return locale.startsWith('zh') ? 'MirrorSpeed 加速隧道' : 'MirrorSpeed VPN';
-  }
-
+  // 网络适配器的对外描述已移入 AmneziaWgEngine（属引擎实现细节）。
   Future<void> initialize() async {
     // 先加载试用状态（必须在任何 setTimeQuota/_rollTrialDayIfNeeded 之前完成，
     // 否则启动竞态会把奖励时长清零）。AmneziaWG.initialize() 是慢的原生调用，放后面。
     await _loadTrial();
     await _loadUsage();
-    await AmneziaWG.instance.initialize(
-      interfaceName: 'mirrorspeed',
-      description:    _adapterDescription(),
-    );
-    _stageSub = AmneziaWG.instance.vpnStageSnapshot.listen(_onStage);
+    await _engine.initialize();
+    _stageSub = _engine.stageStream.listen(_onStage);
 
     // 恢复上次选择的路由模式；首次无记录时：中文用户默认「智能」，其它默认「全局」。
     final prefs = await SharedPreferences.getInstance();
@@ -224,7 +218,7 @@ class VpnProvider extends ChangeNotifier {
 
   Future<void> _adoptRunningTunnel() async {
     try {
-      final st = await AmneziaWG.instance.stage();
+      final st = await _engine.stage();
       if (st == VpnStage.connected && _status != VpnStatus.connected) {
         _status        = VpnStatus.connected;
         _statsBaseline = null;
@@ -366,11 +360,11 @@ class VpnProvider extends ChangeNotifier {
 
       debugPrint('[VPN] 直连 AmneziaWG，端口=$effectivePort');
 
-      await AmneziaWG.instance.startVpn(
-        serverAddress:            '${server.endpoint}:$effectivePort',
-        wgQuickConfig:            wgConf,
-        providerBundleIdentifier: kProviderBundle,
-      );
+      await _engine.start(EngineStartParams(
+        serverAddress:  '${server.endpoint}:$effectivePort',
+        wgQuickConfig:  wgConf,
+        providerBundle: kProviderBundle,
+      ));
 
       // 直连兜底：到时仍未确认连通 → 切换 wstunnel 443 中继（层 2）。
       // 16s 给 _postConnectCheck 的多次探测（约 4+5+1+5s）留足时间，避免
@@ -394,13 +388,13 @@ class VpnProvider extends ChangeNotifier {
         _status = VpnStatus.disconnected;
       } else {
         // 启动失败：可能已部分建立适配器/路由，强制拆除避免残留路由黑洞。
-        try { await AmneziaWG.instance.stopVpn(); } catch (_) {}
+        try { await _engine.stop(); } catch (_) {}
         _error  = e.message ?? e.toString();
         _status = VpnStatus.error;
       }
       notifyListeners();
     } catch (e) {
-      try { await AmneziaWG.instance.stopVpn(); } catch (_) {}
+      try { await _engine.stop(); } catch (_) {}
       _error  = e.toString();
       _status = VpnStatus.error;
       notifyListeners();
@@ -459,7 +453,7 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
 
     // 停止正在进行的隧道
-    try { await AmneziaWG.instance.stopVpn(); } catch (_) {}
+    try { await _engine.stop(); } catch (_) {}
     await Future.delayed(const Duration(milliseconds: 600));
 
     // 解析服务器 IP，用于在 AllowedIPs 中排除（防止 WebSocket 中继回环）
@@ -484,11 +478,11 @@ class VpnProvider extends ChangeNotifier {
           '$relayBaseUrl/secure-tunnel', _awgInternalPort);
       final relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
 
-      await AmneziaWG.instance.startVpn(
-        serverAddress:            '127.0.0.1:$localPort',
-        wgQuickConfig:            relayConf,
-        providerBundleIdentifier: kProviderBundle,
-      );
+      await _engine.start(EngineStartParams(
+        serverAddress:  '127.0.0.1:$localPort',
+        wgQuickConfig:  relayConf,
+        providerBundle: kProviderBundle,
+      ));
 
       // 等 20 秒确认连通；超时则尝试下一层
       _fallbackTimer = Timer(const Duration(seconds: 20), () async {
@@ -759,7 +753,7 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
     // 关键：第一步就拆隧道（带超时，避免平台通道挂起导致永远断不开）。
     try {
-      await AmneziaWG.instance.stopVpn()
+      await _engine.stop()
           .timeout(const Duration(seconds: 6), onTimeout: () {});
     } catch (e) {
       debugPrint('[VPN] stopVpn error: $e');
@@ -863,7 +857,7 @@ class VpnProvider extends ChangeNotifier {
     // 未连接（状态栏 VPN 图标其实还在）。以原生为准纠正。
     if (!_switchingToRelay) {
       try {
-        final st = await AmneziaWG.instance.stage();
+        final st = await _engine.stage();
         final up = st == VpnStage.connected;
         if (up && _status != VpnStatus.connected) {
           _status = VpnStatus.connected;
@@ -969,7 +963,7 @@ class VpnProvider extends ChangeNotifier {
         // 中继也不通且无 Cloudflare 兜底：必须彻底拆除隧道，否则残留的路由表
         // 会把用户全部流量导入死隧道（黑洞），普通用户完全无法理解。
         // 错误态下也一定要清掉路由。
-        try { await AmneziaWG.instance.stopVpn(); } catch (_) {}
+        try { await _engine.stop(); } catch (_) {}
         try { await _relay.stop(); } catch (_) {}
         _protocol = VpnProtocol.direct;
         _error  = _isZh()
@@ -1150,7 +1144,7 @@ class VpnProvider extends ChangeNotifier {
 
   Future<void> _pollUsage() async {
     // 取 rx/tx 分项：rx=下行(收)、tx=上行(发)。隧道未起/平台不支持返回 [-1,-1]。
-    final rxtx = await AmneziaWG.instance.transferRxTx()
+    final rxtx = await _engine.transferRxTx()
         .timeout(const Duration(seconds: 3), onTimeout: () => const [-1, -1]);
     _rollDayIfNeeded();
     final rx = rxtx.isNotEmpty ? rxtx[0] : -1;
@@ -1296,7 +1290,7 @@ class VpnProvider extends ChangeNotifier {
     _trialTimer?.cancel();             // 已用尽，停止 1s 轮询
     _stopConnectedPing();
     try {
-      await AmneziaWG.instance.stopVpn().timeout(const Duration(seconds: 6), onTimeout: () {});
+      await _engine.stop().timeout(const Duration(seconds: 6), onTimeout: () {});
     } catch (_) {}
     try { await _relay.stop(); } catch (_) {}
     _protocol = VpnProtocol.direct;
