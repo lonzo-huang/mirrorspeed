@@ -5,6 +5,7 @@ import '../brand.dart';
 import '../theme.dart';
 import '../version.dart';
 import 'sub_page.dart';
+import 'singbox_test_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -31,6 +32,8 @@ class SettingsScreen extends StatelessWidget {
             _link(context, tr('使用帮助', 'Help'), onTap: () => context.push('/help')),
             _link(context, tr('隐私政策', 'Privacy Policy'), onTap: () => _open('https://www.mirrorspeed.com/privacy')),
             _link(context, tr('服务条款', 'Terms'), onTap: () => _open('https://www.mirrorspeed.com/terms')),
+            _link(context, '🧪 sing-box 测试', onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SingboxTestScreen()))),
             _row(tr('版本', 'Version'), 'v$kAppVersion'),
           ]),
         ]),

@@ -16,7 +16,7 @@ class ProxyCoreEngine implements VpnEngine {
 
   @override
   Future<void> initialize() async {
-    await _control.invokeMethod('initialize');
+    await _control.invokeMethod('init');
   }
 
   @override
