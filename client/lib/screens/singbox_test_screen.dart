@@ -58,6 +58,9 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
     setState(() => _busy = true);
     try {
       _add('拉取订阅…');
+      for (final line in await FreeNodeService.instance.diagnose(top: true)) {
+        _add(line);
+      }
       final nodes = await FreeNodeService.instance.fetch(top: true);
       setState(() {
         _nodes = nodes;

@@ -41,6 +41,32 @@ class FreeNodeService {
     return parseSubscription(body);
   }
 
+  /// 诊断：逐个 host 尝试并返回可读报告（测试用）。
+  Future<List<String>> diagnose({bool top = false}) async {
+    final path = top ? _pathTop : _pathAll;
+    final out = <String>[];
+    for (final host in _subHosts) {
+      final url = '$host$path';
+      try {
+        final sw = Stopwatch()..start();
+        final res = await http
+            .get(Uri.parse(url), headers: {'User-Agent': 'MirrorSpeed'})
+            .timeout(const Duration(seconds: 12));
+        sw.stop();
+        final bytes = res.bodyBytes.length;
+        if (res.statusCode == 200 && res.body.trim().isNotEmpty) {
+          final n = parseSubscription(res.body).length;
+          out.add('$host → 200, ${bytes}B, ${sw.elapsedMilliseconds}ms, 解析 $n 个');
+        } else {
+          out.add('$host → HTTP ${res.statusCode}, ${bytes}B (非200或空)');
+        }
+      } catch (e) {
+        out.add('$host → 异常: $e');
+      }
+    }
+    return out;
+  }
+
   // ── 解析 ──────────────────────────────────────────────────────────────────
 
   /// 整份订阅(base64 或明文多行)→ 去重后的节点列表。
