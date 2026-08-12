@@ -65,7 +65,8 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
             ACTION_STOP -> { stopBox(); return START_NOT_STICKY }
             ACTION_START -> intent.getStringExtra(EXTRA_CONFIG)?.let { startBox(it) }
         }
-        return START_STICKY
+        // 不用 START_STICKY：避免连接失败后系统把残留的 tun 服务拉活导致全局断网
+        return START_NOT_STICKY
     }
 
     private fun setStage(s: String) {
@@ -87,6 +88,8 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
                 })
                 didSetup = true
             }
+            // 先校验配置，schema/字段错误在这里就能拿到明确报错
+            Libbox.checkConfig(config)
             val srv = CommandServer(this, this)
             srv.start()
             srv.startOrReloadService(config, OverrideOptions())
@@ -94,6 +97,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
             setStage("connected")
         } catch (e: Exception) {
             android.util.Log.e("singbox", "start failed", e)
+            SingboxFlutterPlugin.emitStage("error: ${e.message}")
             setStage("disconnected")
             stopBox()
         }

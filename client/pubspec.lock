@@ -751,6 +751,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.1"
+  singbox_flutter:
+    dependency: "direct main"
+    description:
+      path: "packages/singbox_flutter"
+      relative: true
+    source: path
+    version: "0.0.1"
   sky_engine:
     dependency: transitive
     description: flutter

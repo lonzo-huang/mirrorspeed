@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/free_node.dart';
 import '../services/free_node_service.dart';
 import '../vpn/proxy_core_engine.dart';
@@ -21,22 +22,31 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
   List<FreeNode> _nodes = [];
   FreeNode? _selected;
   VpnStage _stage = VpnStage.disconnected;
-  StreamSubscription? _stageSub;
+  StreamSubscription? _rawSub;
   bool _busy = false;
+
+  // 直接订阅原生原始事件流（含 "error: ..." 报错细节）。
+  static const EventChannel _rawStage = EventChannel('mirrorspeed/singbox/stage');
 
   @override
   void initState() {
     super.initState();
-    _stageSub = _engine.stageStream.listen((s) {
-      setState(() => _stage = s);
-      _add('stage → $s');
+    _rawSub = _rawStage.receiveBroadcastStream().listen((e) {
+      final s = '$e';
+      _add('◆ $s');
+      switch (s) {
+        case 'connecting':    setState(() => _stage = VpnStage.connecting); break;
+        case 'connected':     setState(() => _stage = VpnStage.connected); break;
+        case 'disconnecting': setState(() => _stage = VpnStage.disconnecting); break;
+        case 'disconnected':  setState(() => _stage = VpnStage.disconnected); break;
+      }
     });
     _loadNodes();
   }
 
   @override
   void dispose() {
-    _stageSub?.cancel();
+    _rawSub?.cancel();
     super.dispose();
   }
 
