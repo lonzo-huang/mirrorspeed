@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -42,7 +43,10 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
       _add('◆ $s');
       switch (s) {
         case 'connecting':    setState(() => _stage = VpnStage.connecting); break;
-        case 'connected':     setState(() => _stage = VpnStage.connected); break;
+        case 'connected':
+          setState(() => _stage = VpnStage.connected);
+          _probeEgress();   // 连上后自动验证出口是否真的通
+          break;
         case 'disconnecting': setState(() => _stage = VpnStage.disconnecting); break;
         case 'disconnected':  setState(() => _stage = VpnStage.disconnected); break;
       }
@@ -108,6 +112,45 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
     });
     final alive = _latency.values.where((v) => v >= 0).length;
     _add('测速完成：$alive/${_nodes.length} 可达');
+  }
+
+  /// 连上后通过隧道验证出口：请 generate_204（应 204）+ 查出口 IP。
+  /// 这才是"节点真能翻墙"的证据；失败原因(DNS/连接/超时)直接打日志。
+  Future<void> _probeEgress() async {
+    _add('隧道已建立，验证出口…（等路由生效）');
+    await Future.delayed(const Duration(milliseconds: 1500));
+    // 1) 纯 IP 探测（不经 DNS）：只测代理握手/转发是否通
+    final ipOk = await _probe('https://1.1.1.1/cdn-cgi/trace', '纯IP(1.1.1.1)');
+    // 2) 域名探测：测 DNS + 代理
+    final domainOk = await _probe('https://www.gstatic.com/generate_204', '域名(gstatic)');
+
+    if (ipOk && domainOk) {
+      _add('结论：✅ 此节点可正常翻墙');
+    } else if (ipOk && !domainOk) {
+      _add('结论：⚠️ 代理通但 DNS 解析不通（DNS 配置问题，非节点问题）');
+    } else {
+      _add('结论：❌ 代理握手/转发失败（此节点不可用或协议参数不对）');
+    }
+  }
+
+  /// 返回是否连通。[label] 仅用于日志。
+  Future<bool> _probe(String url, String label) async {
+    final c = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    try {
+      final sw = Stopwatch()..start();
+      final req = await c.getUrl(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      final res = await req.close().timeout(const Duration(seconds: 10));
+      sw.stop();
+      await res.drain();
+      final ok = res.statusCode == 200 || res.statusCode == 204;
+      _add('${ok ? "✅" : "⚠️"} $label → HTTP ${res.statusCode} (${sw.elapsedMilliseconds}ms)');
+      return ok;
+    } catch (e) {
+      _add('❌ $label → $e');
+      return false;
+    } finally {
+      c.close(force: true);
+    }
   }
 
   Future<int> _ping(FreeNode n) async {
