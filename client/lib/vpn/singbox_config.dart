@@ -30,10 +30,12 @@ class SingboxConfig {
 
     final route = <String, dynamic>{
       'auto_detect_interface': true,
-      'final': adOnly ? 'direct' : (smart ? 'proxy' : 'proxy'),
+      'final': adOnly ? 'direct' : 'proxy',
       'rules': <Map<String, dynamic>>[
-        // DNS 劫持到 sing-box 的 DNS
-        {'protocol': 'dns', 'outbound': 'dns-out'},
+        // 域名嗅探(sing-box 1.12+ 用 route action，不再放 inbound)
+        {'action': 'sniff'},
+        // DNS 劫持(1.13 起 dns outbound 已移除，改用 hijack-dns action)
+        {'protocol': 'dns', 'action': 'hijack-dns'},
         // 局域网 / 私有地址直连
         {'ip_is_private': true, 'outbound': 'direct'},
       ],
@@ -71,18 +73,17 @@ class SingboxConfig {
           'type': 'tun',
           'tag': 'tun-in',
           'interface_name': 'mirrorspeed-sb',
-          'inet4_address': '172.19.0.1/30',
+          // 1.13：inet4_address 已改名 address(列表)
+          'address': ['172.19.0.1/30'],
           'auto_route': true,
           'strict_route': false,
           'stack': 'gvisor',
-          'sniff': true,          // 嗅探域名(域名规则分流的前提)
-          'sniff_override_destination': false,
         },
       ],
       'outbounds': [
         proxy,
         {'type': 'direct', 'tag': 'direct'},
-        {'type': 'dns', 'tag': 'dns-out'},
+        // dns outbound 已在 1.13 移除，DNS 劫持改由 route action hijack-dns 处理
       ],
       'route': route,
     };
