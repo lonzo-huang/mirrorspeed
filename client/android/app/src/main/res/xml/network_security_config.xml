@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 默认禁止明文（保持安全）；仅对订阅源域名放行 http。
+     订阅走原生 http:10611（https:10612 在部分运营商网络端口被挡/证书不匹配）。 -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">scanner.mirrorspeed.com</domain>
+        <domain includeSubdomains="true">msscanner.mirrorquant.com</domain>
+    </domain-config>
+</network-security-config>

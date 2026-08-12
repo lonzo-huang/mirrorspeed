@@ -12,9 +12,11 @@ class FreeNodeService {
   FreeNodeService._();
 
   // 订阅源(主/备,依次尝试)。以后加主机只改这里。
+  // 主：原生 http:10611（通用可达）。备：https:10612（部分网络端口被挡/证书问题）。
+  // http 明文已在 network_security_config.xml 对该域名单独放行。
   static const List<String> _subHosts = [
+    'http://scanner.mirrorspeed.com:10611',
     'https://scanner.mirrorspeed.com:10612',
-    'https://msscanner.mirrorquant.com:10612',
   ];
   // 清单路径：全量 / 精选(top50)。精选路径暂用同一个,你定好后改这里。
   static const String _pathAll    = '/7385e047b29180935b3686c5/subscribe2.txt';
