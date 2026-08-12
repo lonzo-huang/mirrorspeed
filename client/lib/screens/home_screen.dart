@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/portal_link.dart';
 import '../providers/auth_provider.dart';
+import 'singbox_test_screen.dart';
 import '../providers/vpn_provider.dart';
 import '../services/ad_service.dart';
 import '../models/server_config.dart';
@@ -95,6 +96,17 @@ class HomeScreen extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 8),
+
+                // ── 临时：sing-box 共享节点测试入口（验证后移除）──
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const SingboxTestScreen())),
+                    icon: const Text('🧪', style: TextStyle(fontSize: 16)),
+                    label: const Text('sing-box 共享节点测试'),
+                  ),
+                ),
 
                 // ── 中心连接按钮（光环）────────────────────────
                 _HeroConnect(
