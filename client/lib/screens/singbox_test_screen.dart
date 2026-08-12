@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/free_node.dart';
@@ -24,6 +25,11 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
   VpnStage _stage = VpnStage.disconnected;
   StreamSubscription? _rawSub;
   bool _busy = false;
+
+  // 测速：fingerprint → 延迟 ms（-1=不可达，缺省=未测）
+  final Map<String, int> _latency = {};
+  bool _testing = false;
+  int _tested = 0;
 
   // 直接订阅原生原始事件流（含 "error: ..." 报错细节）。
   static const EventChannel _rawStage = EventChannel('mirrorspeed/singbox/stage');
@@ -74,6 +80,50 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
     }
   }
 
+  /// TCP 连通测速：并发连 server:port，拿握手延迟。仅验证服务器在线+可达，
+  /// 不代表走代理能翻墙（那需 sing-box urltest）。测完按延迟排序、死的沉底。
+  Future<void> _testAll() async {
+    if (_nodes.isEmpty || _testing) return;
+    setState(() { _testing = true; _tested = 0; _latency.clear(); });
+    const concurrency = 40;
+    for (var i = 0; i < _nodes.length; i += concurrency) {
+      final batch = _nodes.skip(i).take(concurrency);
+      await Future.wait(batch.map((n) async {
+        final ms = await _ping(n);
+        if (!mounted) return;
+        setState(() { _latency[n.fingerprint] = ms; _tested++; });
+      }));
+      if (!mounted) return;
+    }
+    // 排序：可达按 ms 升序，不可达沉底
+    setState(() {
+      _nodes.sort((a, b) {
+        final la = _latency[a.fingerprint] ?? 999999;
+        final lb = _latency[b.fingerprint] ?? 999999;
+        final va = la < 0 ? 100000 : la;
+        final vb = lb < 0 ? 100000 : lb;
+        return va.compareTo(vb);
+      });
+      _testing = false;
+    });
+    final alive = _latency.values.where((v) => v >= 0).length;
+    _add('测速完成：$alive/${_nodes.length} 可达');
+  }
+
+  Future<int> _ping(FreeNode n) async {
+    final sw = Stopwatch()..start();
+    Socket? s;
+    try {
+      s = await Socket.connect(n.server, n.port,
+          timeout: const Duration(seconds: 3));
+      return sw.elapsedMilliseconds;
+    } catch (_) {
+      return -1;
+    } finally {
+      s?.destroy();
+    }
+  }
+
   Future<void> _connect() async {
     final node = _selected;
     if (node == null) return;
@@ -102,6 +152,13 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
     }
   }
 
+  Widget _latencyBadge(int? ms) {
+    if (ms == null) return const Text('—', style: TextStyle(color: Colors.grey, fontSize: 12));
+    if (ms < 0) return const Text('超时', style: TextStyle(color: Colors.red, fontSize: 12));
+    final color = ms < 300 ? Colors.green : (ms < 800 ? Colors.orange : Colors.red);
+    return Text('$ms ms', style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -117,21 +174,17 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
               IconButton(onPressed: _busy ? null : _loadNodes, icon: const Icon(Icons.refresh)),
             ]),
             const SizedBox(height: 8),
-            DropdownButton<FreeNode>(
-              isExpanded: true,
-              value: _selected,
-              hint: const Text('选择节点'),
-              items: _nodes
-                  .map((n) => DropdownMenuItem(
-                        value: n,
-                        child: Text('${n.name}  ·  ${n.protocol}',
-                            overflow: TextOverflow.ellipsis),
-                      ))
-                  .toList(),
-              onChanged: (n) => setState(() => _selected = n),
-            ),
-            const SizedBox(height: 8),
             Row(children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _testing || _nodes.isEmpty ? null : _testAll,
+                  icon: _testing
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.speed),
+                  label: Text(_testing ? '测速中 $_tested/${_nodes.length}' : '测速全部'),
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: _busy || _selected == null ? null : _connect,
@@ -140,24 +193,56 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _busy ? null : _disconnect,
-                  icon: const Icon(Icons.stop),
-                  label: const Text('断开'),
-                ),
+              OutlinedButton(
+                onPressed: _busy ? null : _disconnect,
+                child: const Text('断开'),
               ),
             ]),
-            const Divider(height: 24),
-            const Text('日志', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            // 节点列表（测速后按延迟排序、死的置灰）
             Expanded(
+              flex: 3,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: ListView.builder(
+                  itemCount: _nodes.length,
+                  itemBuilder: (_, i) {
+                    final n = _nodes[i];
+                    final ms = _latency[n.fingerprint];
+                    final dead = ms != null && ms < 0;
+                    final selected = identical(n, _selected);
+                    return ListTile(
+                      dense: true,
+                      selected: selected,
+                      selectedTileColor: Colors.blue.withOpacity(0.12),
+                      enabled: !dead,
+                      title: Text('${n.name}',
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 13, color: dead ? Colors.grey : null)),
+                      subtitle: Text('${n.protocol} · ${n.server}:${n.port}',
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11)),
+                      trailing: _latencyBadge(ms),
+                      onTap: () => setState(() => _selected = n),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text('日志', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            Expanded(
+              flex: 2,
               child: Container(
                 color: Colors.black.withOpacity(0.04),
                 child: ListView.builder(
                   itemCount: _log.length,
                   itemBuilder: (_, i) => Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    child: Text(_log[i], style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
+                    child: Text(_log[i], style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
                   ),
                 ),
               ),
