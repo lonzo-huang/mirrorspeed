@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/free_node.dart';
 import '../services/free_node_service.dart';
 import '../vpn/proxy_core_engine.dart';
@@ -26,6 +27,8 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
   VpnStage _stage = VpnStage.disconnected;
   StreamSubscription? _rawSub;
   bool _busy = false;
+
+  String? _logPath;
 
   // 测速：fingerprint → 延迟 ms（-1=不可达，缺省=未测）
   final Map<String, int> _latency = {};
@@ -129,7 +132,34 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
     } else if (ipOk && !domainOk) {
       _add('结论：⚠️ 代理通但 DNS 解析不通（DNS 配置问题，非节点问题）');
     } else {
-      _add('结论：❌ 代理握手/转发失败（此节点不可用或协议参数不对）');
+      _add('结论：❌ 代理握手/转发失败');
+      await _dumpBoxLog();   // 失败时把 sing-box 内部日志抓出来看原因
+    }
+  }
+
+  /// 读取 sing-box 写到私有文件的日志，挑出与出站/握手/错误相关的行显示。
+  Future<void> _dumpBoxLog() async {
+    final path = _logPath;
+    if (path == null) return;
+    try {
+      final f = File(path);
+      if (!await f.exists()) { _add('（无 box.log，日志未生成）'); return; }
+      final lines = await f.readAsLines();
+      final kw = ['outbound', 'inbound', 'dial', 'reality', 'tls', 'vless', 'trojan',
+        'shadowsocks', 'hysteria', 'vmess', 'dns', 'ERROR', 'WARN', 'FATAL',
+        'refused', 'timeout', 'reset', 'handshake', 'proxy'];
+      final hits = lines.where((l) {
+        final low = l.toLowerCase();
+        return kw.any((k) => low.contains(k.toLowerCase()));
+      }).toList();
+      final show = (hits.isNotEmpty ? hits : lines);
+      final tail = show.length > 25 ? show.sublist(show.length - 25) : show;
+      _add('—— sing-box 日志(末${tail.length}行) ——');
+      for (final l in tail) {
+        _add(l.length > 160 ? l.substring(0, 160) : l);
+      }
+    } catch (e) {
+      _add('读日志失败: $e');
     }
   }
 
@@ -173,7 +203,11 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
     setState(() => _busy = true);
     try {
       _add('连接 ${node.name} (${node.protocol} ${node.server}:${node.port})');
-      final cfg = SingboxConfig.build(node, smart: false);
+      // sing-box 日志写到私有文件，失败时读出来诊断
+      final dir = await getApplicationSupportDirectory();
+      _logPath = '${dir.path}/box.log';
+      try { final f = File(_logPath!); if (f.existsSync()) f.deleteSync(); } catch (_) {}
+      final cfg = SingboxConfig.build(node, smart: false, logPath: _logPath);
       await _engine.start(EngineStartParams(singboxConfig: cfg));
       _add('start 已下发(等系统 VPN 授权 & 隧道建立)');
     } catch (e) {

@@ -24,6 +24,7 @@ class SingboxConfig {
     FreeNode node, {
     bool smart = true,
     bool adOnly = false,
+    String? logPath,   // 非空则把 sing-box 日志(debug)写到该文件，供诊断
   }) {
     // 选中节点的 outbound(强制 tag=proxy)
     final proxy = Map<String, dynamic>.from(node.outbound)..['tag'] = 'proxy';
@@ -56,7 +57,9 @@ class SingboxConfig {
     // 全局模式:除上面的 dns/私网规则外,final=proxy 全走代理
 
     return {
-      'log': {'level': 'warn', 'timestamp': true},
+      'log': logPath != null
+          ? {'level': 'debug', 'output': logPath, 'timestamp': true}
+          : {'level': 'warn', 'timestamp': true},
       'dns': {
         'servers': [
           {'tag': 'remote', 'address': 'https://1.1.1.1/dns-query', 'detour': 'proxy'},
