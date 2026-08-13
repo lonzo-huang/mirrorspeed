@@ -8,6 +8,7 @@ import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -182,9 +183,19 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
             }
         }
         netCallback = cb
-        try { cm.registerDefaultNetworkCallback(cb) } catch (_: Exception) {}
-        // 立即推一次当前默认网络（回调可能不会马上触发）
-        try { cm.activeNetwork?.let { pushDefault(it) } } catch (_: Exception) {}
+        // 关键：只跟踪「有网 + 非 VPN」的底层网络，绝不把我们自己的 tun 当默认网卡喂给
+        // sing-box（否则出站绑到 tun → no available network interface / 自环）。
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            .build()
+        try {
+            val h = android.os.Handler(android.os.Looper.getMainLooper())
+            cm.registerBestMatchingNetworkCallback(request, cb, h)
+        } catch (_: Throwable) {
+            // 兜底：老 API
+            try { cm.registerNetworkCallback(request, cb) } catch (_: Exception) {}
+        }
     }
 
     override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {
