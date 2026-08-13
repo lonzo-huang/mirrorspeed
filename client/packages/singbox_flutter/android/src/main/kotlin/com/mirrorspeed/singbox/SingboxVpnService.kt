@@ -158,12 +158,25 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
     override fun autoDetectInterfaceControl(fd: Int) { protect(fd) }
 
-    // 默认网络监控：暂时置为 no-op。此前在 ConnectivityThread 回调里调用 libbox 的
-    // updateDefaultInterface(Java→Go) 触发 Go 侧 SIGABRT（进程硬崩）。出站 socket 已由
-    // protect(fd) 保护 + auto_detect_interface，先不推送接口更新，验证是否仍能连通；
-    // 若确需接口信息再实现安全版单次推送。
+    // 默认网络监控：sing-box 的 auto_detect_interface 依赖它，否则出站会报
+    // "no available network interface"（DNS/代理全失败）。之前疑似它崩溃，真凶是
+    // findConnectionOwner 返回 null（已修）；这里恢复正常实现。
     override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {
         ifaceListener = listener
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return
+        connectivity = cm
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) = pushDefault(network)
+            override fun onLinkPropertiesChanged(network: Network, lp: LinkProperties) = pushDefault(network, lp)
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = pushDefault(network, caps = caps)
+            override fun onLost(network: Network) {
+                try { ifaceListener?.updateDefaultInterface("", -1, false, false) } catch (_: Throwable) {}
+            }
+        }
+        netCallback = cb
+        try { cm.registerDefaultNetworkCallback(cb) } catch (_: Exception) {}
+        // 立即推一次当前默认网络（回调可能不会马上触发）
+        try { cm.activeNetwork?.let { pushDefault(it) } } catch (_: Exception) {}
     }
 
     override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {
@@ -175,6 +188,20 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         try { connectivity?.unregisterNetworkCallback(cb) } catch (_: Exception) {}
         netCallback = null
         ifaceListener = null
+    }
+
+    private fun pushDefault(
+        network: Network,
+        lp: LinkProperties? = null,
+        caps: NetworkCapabilities? = null,
+    ) {
+        val listener = ifaceListener ?: return
+        val cm = connectivity ?: return
+        val name = (lp ?: cm.getLinkProperties(network))?.interfaceName ?: return
+        val c = caps ?: cm.getNetworkCapabilities(network)
+        val metered = c?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == false
+        val index = try { java.net.NetworkInterface.getByName(name)?.index ?: 0 } catch (_: Exception) { 0 }
+        try { listener.updateDefaultInterface(name, index, metered, false) } catch (_: Throwable) {}
     }
 
     // ── PlatformInterface：其余（安全默认 / 最小实现）──────────────────────
