@@ -239,7 +239,25 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('sing-box 测试')),
+      appBar: AppBar(
+        title: const Text('sing-box 测试'),
+        actions: [
+          IconButton(
+            tooltip: '复制日志',
+            icon: const Icon(Icons.copy),
+            onPressed: () async {
+              // 日志是倒序存的，复制时正序，读起来顺
+              final text = _log.reversed.join('\n');
+              await Clipboard.setData(ClipboardData(text: text));
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('日志已复制，可粘贴发送'), duration: Duration(seconds: 2)),
+                );
+              }
+            },
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
