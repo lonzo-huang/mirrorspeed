@@ -43,6 +43,14 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         private const val CHANNEL_ID = "mirrorspeed_singbox"
         private const val NOTI_ID = 0x51B1
 
+        // Go net.Flags 位（sing-box linkFlags 按这些位解析）
+        private const val FLAG_UP = 1
+        private const val FLAG_BROADCAST = 2
+        private const val FLAG_LOOPBACK = 4
+        private const val FLAG_POINTTOPOINT = 8
+        private const val FLAG_MULTICAST = 16
+        private const val FLAG_RUNNING = 32
+
         @Volatile private var didSetup = false
 
         @Volatile var currentStage: String = "disconnected"
@@ -227,22 +235,37 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
             setAndroidPackageNames(StringArrayIterator(emptyList()))
         }
 
+    // sing-box(NetworkManager.UpdateInterfaces)会调此方法枚举网卡。addresses 必须是
+    // CIDR（如 10.0.2.15/24），裸 IP 会让 sing-box ParsePrefix 失败→nil deref 崩溃。
+    // flags 也要按 Go net.Flags 位给对，否则网卡被当成 down。
     override fun getInterfaces(): NetworkInterfaceIterator {
         val list = try {
-            java.net.NetworkInterface.getNetworkInterfaces().toList()
-        } catch (_: Exception) { emptyList() }
-        val boxed = list.map { ni ->
-            LibboxNetworkInterface().apply {
-                name = ni.name
-                index = try { ni.index } catch (_: Exception) { 0 }
-                mtu = try { ni.mtu } catch (_: Exception) { 0 }
-                addresses = StringArrayIterator(
-                    ni.inetAddresses.toList().mapNotNull { it.hostAddress })
-                flags = 0
-                type = 0
-                dnsServer = StringArrayIterator(emptyList())
-                metered = false
-            }
+            java.net.NetworkInterface.getNetworkInterfaces()?.toList() ?: emptyList()
+        } catch (_: Throwable) { emptyList() }
+        val boxed = ArrayList<LibboxNetworkInterface>()
+        for (ni in list) {
+            try {
+                val cidrs = ni.interfaceAddresses.mapNotNull { ia ->
+                    val a = ia.address ?: return@mapNotNull null
+                    val host = a.hostAddress?.substringBefore('%') ?: return@mapNotNull null
+                    "$host/${ia.networkPrefixLength}"
+                }
+                var f = 0
+                if (ni.isUp) f = f or FLAG_UP or FLAG_RUNNING
+                if (ni.isLoopback) f = f or FLAG_LOOPBACK else f = f or FLAG_BROADCAST
+                if (ni.isPointToPoint) f = f or FLAG_POINTTOPOINT
+                if (ni.supportsMulticast()) f = f or FLAG_MULTICAST
+                boxed.add(LibboxNetworkInterface().apply {
+                    name = ni.name
+                    index = try { ni.index } catch (_: Throwable) { 0 }
+                    mtu = try { ni.mtu } catch (_: Throwable) { 0 }
+                    addresses = StringArrayIterator(cidrs)
+                    flags = f
+                    type = 0
+                    dnsServer = StringArrayIterator(emptyList())
+                    metered = false
+                })
+            } catch (_: Throwable) { /* 跳过有问题的网卡 */ }
         }
         return NetworkInterfaceArrayIterator(boxed)
     }
