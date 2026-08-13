@@ -186,10 +186,19 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     override fun localDNSTransport(): io.nekohasekai.libbox.LocalDNSTransport? = null
     override fun systemCertificates(): StringIterator? = null
     override fun sendNotification(notification: LibboxNotification?) {}
+    // sing-box 每条连接 PreMatch 时会调此方法查进程归属。绝不能返回 null——
+    // libbox 的 Go 包装层会直接读 owner.UserId，null 会 nil deref 崩溃(service.go:218)。
+    // 我们不做按应用分流，返回 userId=-1 的空归属即可（表示未知，不影响路由）。
     override fun findConnectionOwner(
         ipProtocol: Int, sourceAddress: String?, sourcePort: Int,
         destinationAddress: String?, destinationPort: Int,
-    ): io.nekohasekai.libbox.ConnectionOwner? = null
+    ): io.nekohasekai.libbox.ConnectionOwner =
+        io.nekohasekai.libbox.ConnectionOwner().apply {
+            userId = -1
+            userName = ""
+            processPath = ""
+            setAndroidPackageNames(StringArrayIterator(emptyList()))
+        }
 
     override fun getInterfaces(): NetworkInterfaceIterator {
         val list = try {
