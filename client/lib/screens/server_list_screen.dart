@@ -94,10 +94,10 @@ class _ServerListScreenState extends State<ServerListScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Row(children: [
-              _TierChip(label: tr('优质节点','Premium'), selected: true, onTap: () {}),
+              _TierChip(label: tr('优质节点·固定IP','Premium·Static IP'), selected: true, onTap: () {}),
               const SizedBox(width: 8),
               _TierChip(
-                label: tr('共享节点·免费','Shared·Free'), selected: false,
+                label: tr('共享节点·定时刷新','Shared·Rotating'), selected: false,
                 onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SharedNodesScreen())),
               ),
