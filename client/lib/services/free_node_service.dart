@@ -289,18 +289,69 @@ class FreeNodeService {
   /// 解析 Clash 配置的 proxies 列表 → sing-box outbound。支持 ss/vmess/vless/trojan/
   /// hysteria2；含 tls/reality/utls 与 ws/grpc transport。不支持的类型跳过。
   static List<FreeNode> parseClashYaml(String text) {
-    dynamic doc;
-    try { doc = loadYaml(text); } catch (_) { return []; }
-    final proxies = (doc is Map) ? doc['proxies'] : null;
-    if (proxies is! List) return [];
+    // 快路径：整体解析(先把 name: 值安全加引号，避免个别未加引号的特殊字符名把整份
+    // 文档解析搞挂)。
     final out = <FreeNode>[];
     final seen = <String>{};
-    for (final p in proxies) {
-      if (p is! Map) continue;
-      final m = _deepMap(p);
-      final n = _fromClash(m);
-      if (n != null && seen.add(n.fingerprint)) out.add(n);
+    try {
+      final doc = loadYaml(_quoteNames(text));
+      final proxies = (doc is Map) ? doc['proxies'] : null;
+      if (proxies is List) {
+        for (final p in proxies) {
+          if (p is! Map) continue;
+          final n = _fromClash(_deepMap(p));
+          if (n != null && seen.add(n.fingerprint)) out.add(n);
+        }
+      }
+    } catch (_) { /* 落到宽松逐项解析 */ }
+    if (out.isNotEmpty) return out;
+    // 兜底：逐个节点独立解析，坏节点只丢自己。
+    return _parseClashLenient(text);
+  }
+
+  /// 把每行 `name: xxx` 的值强制单引号包裹(已带引号则跳过)，防止 emoji/特殊字符
+  /// 未加引号导致 YAML 解析失败。
+  static String _quoteNames(String text) {
+    final re = RegExp(r'^(\s*(?:-\s+)?name:\s*)(\S.*?)\s*$');
+    return text.split('\n').map((line) {
+      final m = re.firstMatch(line);
+      if (m == null) return line;
+      final v = m.group(2)!;
+      if ((v.startsWith("'") && v.endsWith("'")) ||
+          (v.startsWith('"') && v.endsWith('"'))) return line;
+      return "${m.group(1)}'${v.replaceAll("'", "''")}'";
+    }).join('\n');
+  }
+
+  /// 宽松解析：抽出 proxies 块，按 `- ` 边界切成单个节点，逐个 loadYaml，坏的跳过。
+  static List<FreeNode> _parseClashLenient(String text) {
+    final out = <FreeNode>[];
+    final seen = <String>{};
+    final lines = text.split('\n');
+    var i = 0;
+    while (i < lines.length && lines[i].trimRight() != 'proxies:') i++;
+    i++;
+    final buf = <String>[];
+    void flush() {
+      if (buf.isEmpty) return;
+      try {
+        final y = loadYaml(_quoteNames(buf.join('\n')));
+        if (y is Map) {
+          final n = _fromClash(_deepMap(y));
+          if (n != null && seen.add(n.fingerprint)) out.add(n);
+        }
+      } catch (_) {}
+      buf.clear();
     }
+    for (; i < lines.length; i++) {
+      final line = lines[i];
+      // 下一个顶层键(proxy-groups:/rules: 等)→ proxies 块结束
+      if (line.isNotEmpty && !line.startsWith(' ') && !line.startsWith('-')) break;
+      if (line.startsWith('- ')) { flush(); buf.add(line.substring(2)); }
+      else if (line.startsWith('  ')) buf.add(line.substring(2));
+      else if (line.trim().isEmpty) buf.add('');
+    }
+    flush();
     return out;
   }
 
