@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:yaml/yaml.dart';
 import '../models/free_node.dart';
 
 /// 共享节点订阅：拉取(主/备 host 依次尝试)→ base64 解码 → 解析成 sing-box outbound。
@@ -18,9 +19,9 @@ class FreeNodeService {
     'http://scanner.mirrorspeed.com:10611',
     'https://scanner.mirrorspeed.com:10612',
   ];
-  // 清单路径：全量 / 精选(top50)。精选路径暂用同一个,你定好后改这里。
+  // 清单路径：全量(base64 URI 列表) / 精选(Clash YAML，扫描程序做过健康检查的 top50)。
   static const String _pathAll    = '/7385e047b29180935b3686c5/subscribe2.txt';
-  static const String _pathTop    = '/7385e047b29180935b3686c5/subscribe2.txt';
+  static const String _pathTop    = '/7385e047b29180935b3686c5/clash_top50.yaml';
 
   /// 拉取并解析节点。[top]=true 取精选清单。失败(全部 host 都不通)返回空列表。
   Future<List<FreeNode>> fetch({bool top = false}) async {
@@ -40,6 +41,15 @@ class FreeNodeService {
       }
     }
     if (body == null) return [];
+    return _parseAny(body);
+  }
+
+  /// 按内容嗅探：Clash YAML(以 proxies: 开头) → parseClashYaml；否则当 base64/明文订阅。
+  static List<FreeNode> _parseAny(String body) {
+    final t = body.trimLeft();
+    if (t.startsWith('proxies:') || t.contains('\nproxies:')) {
+      return parseClashYaml(body);
+    }
     return parseSubscription(body);
   }
 
@@ -57,7 +67,7 @@ class FreeNodeService {
         sw.stop();
         final bytes = res.bodyBytes.length;
         if (res.statusCode == 200 && res.body.trim().isNotEmpty) {
-          final n = parseSubscription(res.body).length;
+          final n = _parseAny(res.body).length;
           out.add('$host → 200, ${bytes}B, ${sw.elapsedMilliseconds}ms, 解析 $n 个');
         } else {
           out.add('$host → HTTP ${res.statusCode}, ${bytes}B (非200或空)');
@@ -273,6 +283,132 @@ class FreeNodeService {
     };
     return FreeNode(fingerprint: _fp('hysteria2', p.host, p.port, p.userinfo), protocol: 'hysteria2',
         name: _name(p.frag, 'hysteria2'), server: p.host, port: p.port, outbound: ob);
+  }
+
+  // ── Clash YAML(精选清单 clash_top50.yaml)────────────────────────────────
+  /// 解析 Clash 配置的 proxies 列表 → sing-box outbound。支持 ss/vmess/vless/trojan/
+  /// hysteria2；含 tls/reality/utls 与 ws/grpc transport。不支持的类型跳过。
+  static List<FreeNode> parseClashYaml(String text) {
+    dynamic doc;
+    try { doc = loadYaml(text); } catch (_) { return []; }
+    final proxies = (doc is Map) ? doc['proxies'] : null;
+    if (proxies is! List) return [];
+    final out = <FreeNode>[];
+    final seen = <String>{};
+    for (final p in proxies) {
+      if (p is! Map) continue;
+      final m = _deepMap(p);
+      final n = _fromClash(m);
+      if (n != null && seen.add(n.fingerprint)) out.add(n);
+    }
+    return out;
+  }
+
+  /// YamlMap/YamlList → 普通 Dart Map/List(可 jsonEncode)。
+  static dynamic _deep(dynamic v) {
+    if (v is Map) return {for (final e in v.entries) e.key.toString(): _deep(e.value)};
+    if (v is List) return v.map(_deep).toList();
+    return v;
+  }
+  static Map<String, dynamic> _deepMap(Map m) => Map<String, dynamic>.from(_deep(m) as Map);
+
+  static FreeNode? _fromClash(Map<String, dynamic> m) {
+    final type = (m['type'] ?? '').toString().toLowerCase();
+    final server = (m['server'] ?? '').toString();
+    final port = int.tryParse('${m['port']}') ?? 0;
+    if (server.isEmpty || port == 0) return null;
+    final name = (m['name'] ?? type).toString();
+    Map<String, dynamic>? ob;
+    switch (type) {
+      case 'ss':
+      case 'shadowsocks':
+        ob = {
+          'type': 'shadowsocks', 'tag': 'proxy', 'server': server, 'server_port': port,
+          'method': (m['cipher'] ?? '').toString(), 'password': (m['password'] ?? '').toString(),
+        };
+        break;
+      case 'vmess':
+        ob = {
+          'type': 'vmess', 'tag': 'proxy', 'server': server, 'server_port': port,
+          'uuid': (m['uuid'] ?? '').toString(),
+          'security': (m['cipher'] ?? 'auto').toString(),
+          'alter_id': int.tryParse('${m['alterId'] ?? 0}') ?? 0,
+        };
+        _clashTls(ob, m);
+        _clashTransport(ob, m);
+        break;
+      case 'vless':
+        ob = {
+          'type': 'vless', 'tag': 'proxy', 'server': server, 'server_port': port,
+          'uuid': (m['uuid'] ?? '').toString(),
+        };
+        final flow = (m['flow'] ?? '').toString();
+        if (flow.isNotEmpty) ob['flow'] = flow;
+        _clashTls(ob, m);
+        _clashTransport(ob, m);
+        break;
+      case 'trojan':
+        ob = {
+          'type': 'trojan', 'tag': 'proxy', 'server': server, 'server_port': port,
+          'password': (m['password'] ?? '').toString(),
+        };
+        _clashTls(ob, m, forceTls: true);
+        _clashTransport(ob, m);
+        break;
+      case 'hysteria2':
+      case 'hy2':
+        ob = {
+          'type': 'hysteria2', 'tag': 'proxy', 'server': server, 'server_port': port,
+          'password': (m['password'] ?? '').toString(),
+        };
+        _clashTls(ob, m, forceTls: true);
+        break;
+      default:
+        return null; // 不支持的协议(如 ssr/tuic/wireguard)跳过
+    }
+    final secret = (m['uuid'] ?? m['password'] ?? '').toString();
+    return FreeNode(
+      fingerprint: _fp(type, server, port, secret), protocol: type,
+      name: name, server: server, port: port, outbound: ob,
+    );
+  }
+
+  static void _clashTls(Map<String, dynamic> ob, Map<String, dynamic> m, {bool forceTls = false}) {
+    final reality = m['reality-opts'];
+    final on = forceTls || m['tls'] == true || m['tls'] == 'true' || reality is Map;
+    if (!on) return;
+    final tls = <String, dynamic>{'enabled': true};
+    final sni = (m['servername'] ?? m['sni'] ?? '').toString();
+    if (sni.isNotEmpty) tls['server_name'] = sni;
+    final fp = (m['client-fingerprint'] ?? '').toString();
+    if (fp.isNotEmpty) tls['utls'] = {'enabled': true, 'fingerprint': fp};
+    if (reality is Map) {
+      tls['reality'] = {
+        'enabled': true,
+        'public_key': (reality['public-key'] ?? '').toString(),
+        'short_id': (reality['short-id'] ?? '').toString(),
+      };
+    }
+    if (m['skip-cert-verify'] == true) tls['insecure'] = true;
+    ob['tls'] = tls;
+  }
+
+  static void _clashTransport(Map<String, dynamic> ob, Map<String, dynamic> m) {
+    final net = (m['network'] ?? '').toString();
+    if (net == 'ws') {
+      final t = <String, dynamic>{'type': 'ws', 'path': '/'};
+      final w = m['ws-opts'];
+      if (w is Map) {
+        if (w['path'] != null) t['path'] = w['path'].toString();
+        final h = w['headers'];
+        if (h is Map && h['Host'] != null) t['headers'] = {'Host': h['Host'].toString()};
+      }
+      ob['transport'] = t;
+    } else if (net == 'grpc') {
+      final g = m['grpc-opts'];
+      final sn = (g is Map ? (g['grpc-service-name'] ?? '') : '').toString();
+      ob['transport'] = {'type': 'grpc', 'service_name': sn};
+    }
   }
 
   static FreeNode _anytls(String uri) {

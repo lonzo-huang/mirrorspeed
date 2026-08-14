@@ -31,6 +31,9 @@ class SingboxConfig {
 
     final route = <String, dynamic>{
       'auto_detect_interface': true,
+      // 节点服务器域名用本地直连 DNS 解析(bootstrap)，避免"要连节点先解析域名、
+      // 解析域名又要先连上节点"的死锁。
+      'default_domain_resolver': 'local',
       'final': adOnly ? 'direct' : 'proxy',
       'rules': <Map<String, dynamic>>[
         // 域名嗅探(sing-box 1.12+ 用 route action，不再放 inbound)
@@ -62,8 +65,12 @@ class SingboxConfig {
           : {'level': 'warn', 'timestamp': true},
       'dns': {
         'servers': [
-          {'tag': 'remote', 'address': 'https://1.1.1.1/dns-query', 'detour': 'proxy'},
+          // 代理侧解析(防污染)：主 Cloudflare DoH + 权威 Google DoH 兜底
+          {'tag': 'remote',      'address': 'https://1.1.1.1/dns-query', 'detour': 'proxy'},
+          {'tag': 'remote_auth', 'address': 'https://8.8.8.8/dns-query', 'detour': 'proxy'},
+          // 直连侧：本地公共 DNS + 系统 DNS 兜底(解析节点域名/直连域名)
           {'tag': 'local',  'address': '223.5.5.5', 'detour': 'direct'},
+          {'tag': 'system', 'address': 'local',     'detour': 'direct'},
         ],
         'rules': [
           if (smart && !adOnly) {'geoip': 'cn', 'server': 'local'},
