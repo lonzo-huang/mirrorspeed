@@ -8,6 +8,7 @@ import '../providers/vpn_provider.dart';
 import '../services/api_service.dart';
 import '../brand.dart';
 import '../theme.dart';
+import 'shared_nodes_screen.dart';
 
 class ServerListScreen extends StatefulWidget {
   const ServerListScreen({super.key});
@@ -88,6 +89,21 @@ class _ServerListScreenState extends State<ServerListScreen> {
             onPressed: () => vpn.measureLatencies(servers),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(46),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(children: [
+              _TierChip(label: tr('优质节点','Premium'), selected: true, onTap: () {}),
+              const SizedBox(width: 8),
+              _TierChip(
+                label: tr('共享节点·免费','Shared·Free'), selected: false,
+                onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SharedNodesScreen())),
+              ),
+            ]),
+          ),
+        ),
       ),
       body: servers.isEmpty
           ? Center(child: Text(tr('暂无可用节点','No nodes available'), style: const TextStyle(color: Colors.white54)))
@@ -203,6 +219,35 @@ Color _signalColor(int bars) {
 }
 
 // ── 信号格（4 格，高度递增）────────────────────────────────────────
+/// 优质/共享 分区切换胶囊。
+class _TierChip extends StatelessWidget {
+  final String label;
+  final bool   selected;
+  final VoidCallback onTap;
+  const _TierChip({required this.label, required this.selected, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? kBrand.withOpacity(0.18) : Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? kBrand : Colors.white.withOpacity(0.12)),
+        ),
+        child: Text(label,
+            style: TextStyle(
+              color: selected ? kBrand : Colors.white70,
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            )),
+      ),
+    );
+  }
+}
+
 class _SignalBars extends StatelessWidget {
   final int bars;   // 0–4
   const _SignalBars({required this.bars});

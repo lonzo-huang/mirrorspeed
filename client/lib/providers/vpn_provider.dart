@@ -39,6 +39,9 @@ class VpnProvider extends ChangeNotifier {
   // VPN 引擎(引擎无关抽象)。当前只有 AmneziaWG;sing-box 之后按节点 tier 切换。
   final VpnEngine _engine = AmneziaWgEngine();
 
+  /// 连接前需要停掉的另一条隧道（共享节点 sing-box）。由 app 层注入，实现系统级互斥。
+  Future<void> Function()? onBeforeConnect;
+
   VpnStatus     _status        = VpnStatus.disconnected;
   ServerConfig? _activeServer;
   /// 用户上次选择的是「智能分配」(true) 还是某台具体节点(false)。持久化。
@@ -307,6 +310,8 @@ class VpnProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    // 系统级只允许一条隧道：连 WireGuard 前先停掉共享节点(sing-box)。
+    try { await onBeforeConnect?.call(); } catch (_) {}
     _error            = null;
     _status           = VpnStatus.connecting;
     _activeServer     = server;

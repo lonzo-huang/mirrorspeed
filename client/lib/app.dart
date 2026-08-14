@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/vpn_provider.dart';
+import 'providers/shared_node_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
@@ -26,6 +27,7 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
     with WidgetsBindingObserver {
   late final AuthProvider _auth;
   late final VpnProvider  _vpn;
+  late final SharedNodeProvider _shared;
   late final GoRouter     _router;
 
   @override
@@ -34,6 +36,10 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
     WidgetsBinding.instance.addObserver(this);
     _auth = AuthProvider();
     _vpn  = VpnProvider()..initialize();
+    _shared = SharedNodeProvider();
+    // 两条隧道系统级互斥：连一条前先停另一条。
+    _shared.onNeedStopOther = _vpn.disconnect;
+    _vpn.onBeforeConnect    = _shared.disconnect;
     // 免费额度从服务器拉取：auth 配置变化时同步给 VpnProvider。
     // 时间试用(#3)为强制额度；流量值仅作展示。
     _auth.addListener(() {
@@ -123,6 +129,7 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
       providers: [
         ChangeNotifierProvider.value(value: _auth),
         ChangeNotifierProvider.value(value: _vpn),
+        ChangeNotifierProvider.value(value: _shared),
       ],
       child: MaterialApp.router(
         title:        Brand.appName,
