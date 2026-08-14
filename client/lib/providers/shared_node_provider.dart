@@ -118,12 +118,13 @@ class SharedNodeProvider extends ChangeNotifier {
     try {
       await _engine.stop();
     } catch (_) {}
-    // 等隧道真正拆除（最多 ~3s）。若不等，另一条隧道(WireGuard)会在本条 VpnService
-    // 还活着时建立第二个 tun → 冲突崩溃(用户报的 共享→优质 闪退)。
-    final deadline = DateTime.now().add(const Duration(seconds: 3));
+    // engine.stop() 现在同步停掉 sing-box。再等 stage 落到 disconnected + 一段落地时间，
+    // 让系统回收 VpnService，否则 WireGuard 建第二个 tun 会撞车崩溃(共享→优质闪退)。
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
     while (_stage != VpnStage.disconnected && DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
     }
+    await Future<void>.delayed(const Duration(milliseconds: 700));
     _active = null;
     notifyListeners();
   }

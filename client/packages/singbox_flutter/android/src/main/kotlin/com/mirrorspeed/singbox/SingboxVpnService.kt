@@ -57,9 +57,17 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         @Volatile var currentStage: String = "disconnected"
             private set
 
+        // 当前运行的服务实例，供插件直接同步停止（避免 startService 异步导致停不干净）。
+        @Volatile var instance: SingboxVpnService? = null
+
         // TODO: 用量计量需经 CommandClient 读 StatusMessage；首版不计量。
         fun transferRxTx(): List<Long> = listOf(-1L, -1L)
     }
+
+    override fun onCreate() { super.onCreate(); instance = this }
+
+    /// 供插件在主线程直接调用的同步停止。
+    fun stopNow() { stopBox() }
 
     private var server: CommandServer? = null
     private var tunFd: ParcelFileDescriptor? = null
@@ -112,20 +120,27 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         }
     }
 
+    @Volatile private var stopping = false
+
     private fun stopBox() {
+        if (stopping) return   // 幂等：避免 disconnect + onRevoke + onDestroy 多次触发导致 double-free 崩溃
+        stopping = true
         setStage("disconnecting")
-        try { server?.closeService() } catch (_: Exception) {}
-        try { server?.close() } catch (_: Exception) {}
-        server = null
+        // 先停默认网络监控(拆掉喂给 libbox 的回调)，再停 box，最后关 fd —— 顺序很重要，
+        // 反了会让 libbox 的 goroutine 碰到已关闭的 fd 而崩溃。
         stopDefaultInterfaceMonitorInternal()
-        try { tunFd?.close() } catch (_: Exception) {}
+        try { server?.closeService() } catch (_: Throwable) {}
+        try { server?.close() } catch (_: Throwable) {}
+        server = null
+        try { tunFd?.close() } catch (_: Throwable) {}
         tunFd = null
+        instance = null
         setStage("disconnected")
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
         stopSelf()
     }
 
-    override fun onDestroy() { stopBox(); super.onDestroy() }
+    override fun onDestroy() { instance = null; stopBox(); super.onDestroy() }
     override fun onRevoke() { stopBox(); super.onRevoke() }
 
     // ── CommandServerHandler ───────────────────────────────────────────────

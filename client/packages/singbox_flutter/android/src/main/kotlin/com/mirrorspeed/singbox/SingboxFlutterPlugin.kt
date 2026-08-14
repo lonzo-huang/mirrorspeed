@@ -91,8 +91,15 @@ class SingboxFlutterPlugin :
             }
 
             "stop" -> {
-                context.startService(Intent(context, SingboxVpnService::class.java)
-                    .setAction(SingboxVpnService.ACTION_STOP))
+                // 优先直接同步停(在主线程)，确保 sing-box 完全拆除后再返回——否则切到
+                // WireGuard 时 sing-box 还没停干净会撞车崩溃。拿不到实例才退回异步 Intent。
+                val svc = SingboxVpnService.instance
+                if (svc != null) {
+                    try { svc.stopNow() } catch (_: Throwable) {}
+                } else {
+                    context.startService(Intent(context, SingboxVpnService::class.java)
+                        .setAction(SingboxVpnService.ACTION_STOP))
+                }
                 result.success(null)
             }
 
