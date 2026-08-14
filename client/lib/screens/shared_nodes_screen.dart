@@ -107,15 +107,37 @@ class _SharedNodesScreenState extends State<SharedNodesScreen> {
             color: isActive && p.isConnected ? Colors.green : (dead ? Colors.grey : null),
             size: 22,
           ),
-          title: Text(n.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+          title: Text(_title(n), maxLines: 1, overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 14, color: dead ? Colors.grey : null)),
-          subtitle: Text('${n.protocol} · ${n.server}',
+          subtitle: Text('${n.protocol.toUpperCase()} · ${n.server}:${n.port}',
               maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
           trailing: _latencyBadge(ms),
           onTap: dead ? null : () => context.read<SharedNodeProvider>().connect(n),
         );
       },
     );
+  }
+
+  // 节点名多为脏字符串（含 emoji 旗帜/流量/备注）。格式化成「旗帜 国家 · 序号」，
+  // 从名字里抽出旗帜 emoji 推国家码；抽不到就用清理后的短名。
+  String _title(node) {
+    final name = node.name as String;
+    final runes = name.runes.toList();
+    // 找连续两个区域指示符（旗帜 emoji）
+    const base = 0x1F1E6;
+    for (var i = 0; i < runes.length - 1; i++) {
+      final a = runes[i] - base, b = runes[i + 1] - base;
+      if (a >= 0 && a <= 25 && b >= 0 && b <= 25) {
+        final flag = String.fromCharCodes([runes[i], runes[i + 1]]);
+        final iso = String.fromCharCode(65 + a) + String.fromCharCode(65 + b);
+        return '$flag $iso';
+      }
+    }
+    // 无旗帜：去掉常见噪声（速率/管道符），取前一段
+    var s = name.replaceAll(RegExp(r'\d+(\.\d+)?\s*[KMG]B/s'), '').trim();
+    s = s.split('|').first.split('·').first.trim();
+    if (s.length > 22) s = '${s.substring(0, 22)}…';
+    return s.isEmpty ? node.server as String : s;
   }
 
   Widget _latencyBadge(int? ms) {

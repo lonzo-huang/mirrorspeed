@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/portal_link.dart';
 import '../providers/auth_provider.dart';
-import 'shared_nodes_screen.dart';
 import '../providers/vpn_provider.dart';
 import '../services/ad_service.dart';
 import '../models/server_config.dart';
@@ -96,17 +95,6 @@ class HomeScreen extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 8),
-
-                // ── 共享节点（免费，走 sing-box）入口 ──
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const SharedNodesScreen())),
-                    icon: const Text('🌐', style: TextStyle(fontSize: 16)),
-                    label: const Text('共享节点（免费）'),
-                  ),
-                ),
 
                 // ── 中心连接按钮（光环）────────────────────────
                 _HeroConnect(

@@ -32,8 +32,10 @@ class FreeNodeService {
         final res = await http
             .get(Uri.parse('$host$path'), headers: {'User-Agent': 'MirrorSpeed'})
             .timeout(const Duration(seconds: 12));
-        if (res.statusCode == 200 && res.body.trim().isNotEmpty) {
-          body = res.body;
+        if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+          // 显式 UTF-8 解码：http 默认 latin1，会把 emoji/中文变乱码。
+          body = utf8.decode(res.bodyBytes, allowMalformed: true);
+          if (body.trim().isEmpty) { body = null; continue; }
           break;
         }
       } catch (_) {
@@ -66,8 +68,8 @@ class FreeNodeService {
             .timeout(const Duration(seconds: 12));
         sw.stop();
         final bytes = res.bodyBytes.length;
-        if (res.statusCode == 200 && res.body.trim().isNotEmpty) {
-          final n = _parseAny(res.body).length;
+        if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+          final n = _parseAny(utf8.decode(res.bodyBytes, allowMalformed: true)).length;
           out.add('$host → 200, ${bytes}B, ${sw.elapsedMilliseconds}ms, 解析 $n 个');
         } else {
           out.add('$host → HTTP ${res.statusCode}, ${bytes}B (非200或空)');
