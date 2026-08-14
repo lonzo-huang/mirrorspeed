@@ -127,13 +127,15 @@ class _SingboxTestScreenState extends State<SingboxTestScreen> {
     // 2) 域名探测：测 DNS + 代理
     final domainOk = await _probe('https://www.gstatic.com/generate_204', '域名(gstatic)');
 
-    if (ipOk && domainOk) {
-      _add('结论：✅ 此节点可正常翻墙');
-    } else if (ipOk && !domainOk) {
-      _add('结论：⚠️ 代理通但 DNS 解析不通（DNS 配置问题，非节点问题）');
+    // 以真实域名访问为准（部分可用节点会屏蔽 1.1.1.1，纯IP 探测不可靠）。
+    if (domainOk) {
+      _add('结论：✅ 此节点可正常翻墙${ipOk ? "" : "（纯IP被屏蔽但域名正常，可用）"}');
+    } else if (ipOk) {
+      _add('结论：⚠️ 代理通但 DNS/域名不通');
+      await _dumpBoxLog();
     } else {
-      _add('结论：❌ 代理握手/转发失败');
-      await _dumpBoxLog();   // 失败时把 sing-box 内部日志抓出来看原因
+      _add('结论：❌ 代理握手/转发失败（此节点已失效或是假代理）');
+      await _dumpBoxLog();
     }
   }
 

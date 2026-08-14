@@ -65,9 +65,10 @@ class SingboxConfig {
           : {'level': 'warn', 'timestamp': true},
       'dns': {
         'servers': [
-          // 代理侧解析(防污染)：主 Cloudflare DoH + 权威 Google DoH 兜底
-          {'tag': 'remote',      'address': 'https://1.1.1.1/dns-query', 'detour': 'proxy'},
-          {'tag': 'remote_auth', 'address': 'https://8.8.8.8/dns-query', 'detour': 'proxy'},
+          // 代理侧解析：用 TCP plain DNS(而非 DoH)——坏节点常对 DoH 回 403/证书错，
+          // TCP DNS 只需代理能转发 TCP，皮实很多。主 Cloudflare + 权威 Google 兜底。
+          {'tag': 'remote',      'address': 'tcp://1.1.1.1', 'detour': 'proxy'},
+          {'tag': 'remote_auth', 'address': 'tcp://8.8.8.8', 'detour': 'proxy'},
           // 直连侧：本地公共 DNS + 系统 DNS 兜底(解析节点域名/直连域名)
           {'tag': 'local',  'address': '223.5.5.5', 'detour': 'direct'},
           {'tag': 'system', 'address': 'local',     'detour': 'direct'},
