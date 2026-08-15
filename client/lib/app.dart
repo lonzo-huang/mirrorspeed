@@ -39,7 +39,10 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
     _shared = SharedNodeProvider();
     // 两条隧道系统级互斥：连一条前先停另一条。
     _shared.onNeedStopOther = _vpn.disconnect;
-    _vpn.onBeforeConnect    = _shared.disconnect;
+    _vpn.onBeforeConnect    = () async {
+      _shared.clearPreferShared();   // 用户改连优质节点 → 切回优质档
+      await _shared.disconnect();
+    };
     // 免费额度从服务器拉取：auth 配置变化时同步给 VpnProvider。
     // 时间试用(#3)为强制额度；流量值仅作展示。
     _auth.addListener(() {

@@ -18,6 +18,8 @@ class SharedNodeProvider extends ChangeNotifier {
   List<FreeNode> _nodes = [];
   final Map<String, int> _latency = {};   // fingerprint → ms（-1=不可达）
   FreeNode? _active;
+  FreeNode? _selected;   // 最近选择的共享节点（断开后保留，供首屏统一入口再连）
+  bool _preferShared = false;   // 用户当前偏好档位：true=共享，false=优质
   VpnStage  _stage = VpnStage.disconnected;
   bool      _loading = false;
   bool      _testing = false;
@@ -26,6 +28,8 @@ class SharedNodeProvider extends ChangeNotifier {
 
   List<FreeNode> get nodes => _nodes;
   FreeNode?      get active => _active;
+  FreeNode?      get selected => _selected;
+  bool           get preferShared => _preferShared;
   VpnStage       get stage => _stage;
   bool           get loading => _loading;
   bool           get testing => _testing;
@@ -96,9 +100,14 @@ class SharedNodeProvider extends ChangeNotifier {
     }
   }
 
+  /// 由 VpnProvider.connect 调用：用户改连优质节点时清掉共享偏好。
+  void clearPreferShared() { _preferShared = false; }
+
   /// 连接某个共享节点。先停 WireGuard（系统级只允许一条隧道）。
   Future<void> connect(FreeNode node) async {
     _error = null;
+    _selected = node;
+    _preferShared = true;
     try {
       await onNeedStopOther?.call();
     } catch (_) {}

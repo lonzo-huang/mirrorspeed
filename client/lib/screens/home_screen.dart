@@ -8,6 +8,9 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/portal_link.dart';
 import '../providers/auth_provider.dart';
+import '../providers/shared_node_provider.dart';
+import '../models/free_node.dart';
+import 'shared_nodes_screen.dart';
 import '../providers/vpn_provider.dart';
 import '../services/ad_service.dart';
 import '../models/server_config.dart';
@@ -34,6 +37,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final vpn  = context.watch<VpnProvider>();
+    final shared = context.watch<SharedNodeProvider>();
 
     // 在线版本提示：强制更新(min_version)→不可关闭的拦截弹窗；普通新版本→可稍后的提示。
     if (auth.forceUpdate || (auth.updateAvailable && !_updateDialogShown)) {
@@ -49,9 +53,27 @@ class HomeScreen extends StatelessWidget {
             ? realServers.first
             : (auth.displayServers.isNotEmpty ? auth.displayServers.first : null));
 
-    final connecting = vpn.isBusy && !vpn.isConnected;
+    // #7 首屏统一入口：当前处于哪个档位（共享=sing-box / 优质=WireGuard）。
+    // 共享已连/连接中，或用户偏好共享且优质未连 → 首屏由共享档接管。
+    final vpnBusy = vpn.isBusy && !vpn.isConnected;
+    final showShared = shared.isConnected || shared.isConnecting ||
+        (shared.preferShared && !vpn.isConnected && !vpnBusy);
+
+    final connected  = showShared ? shared.isConnected  : vpn.isConnected;
+    final connecting = showShared ? shared.isConnecting : vpnBusy;
 
     Future<void> onConnect() async {
+      if (showShared) {
+        // 共享档：连/断 sing-box（连的是最近选择的共享节点）。
+        if (shared.isConnected || shared.isConnecting) {
+          await shared.disconnect();
+        } else if (shared.selected != null) {
+          await shared.connect(shared.selected!);
+        } else {
+          context.go('/servers');   // 还没选过共享节点 → 去列表选
+        }
+        return;
+      }
       if (vpn.isConnected) {
         await vpn.disconnect();
       } else if (!auth.isLoggedIn) {
@@ -98,9 +120,9 @@ class HomeScreen extends StatelessWidget {
 
                 // ── 中心连接按钮（光环）────────────────────────
                 _HeroConnect(
-                  connected:  vpn.isConnected,
+                  connected:  connected,
                   connecting: connecting,
-                  onTap:      vpn.isBusy ? null : onConnect,
+                  onTap:      connecting ? null : onConnect,
                 ),
 
                 const SizedBox(height: 10),
@@ -108,12 +130,16 @@ class HomeScreen extends StatelessWidget {
                 // ── 状态副标题 ─────────────────────────────────
                 Center(
                   child: Text(
-                    vpn.isConnected
-                        ? '${vpn.statusLine}${server != null ? ' · ${server.displayLabel(Brand.isZh)}' : ''}'
-                        : (connecting ? vpn.statusLine : tr('未连接', 'Disconnected')).toUpperCase(),
+                    showShared
+                        ? (connected
+                            ? '${tr('已连接', 'Connected')} · ${tr('共享节点', 'Shared')}'
+                            : (connecting ? tr('连接中', 'Connecting') : tr('未连接', 'Disconnected')).toUpperCase())
+                        : (vpn.isConnected
+                            ? '${vpn.statusLine}${server != null ? ' · ${server.displayLabel(Brand.isZh)}' : ''}'
+                            : (connecting ? vpn.statusLine : tr('未连接', 'Disconnected')).toUpperCase()),
                     style: TextStyle(
                       fontSize: 11, letterSpacing: 3, fontWeight: FontWeight.w600,
-                      color: vpn.isConnected ? kAccentOn : Colors.white.withOpacity(0.35),
+                      color: connected ? kAccentOn : Colors.white.withOpacity(0.35),
                     ),
                   ),
                 ),
@@ -135,8 +161,8 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
 
-                // ── 智能 / 全局 切换（仅中文版）────────────────
-                if (Brand.showSmartRouting) ...[
+                // ── 智能 / 全局 切换（仅中文版；共享档不适用，隐藏）──
+                if (Brand.showSmartRouting && !showShared) ...[
                   const SizedBox(height: 14),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -148,7 +174,27 @@ class HomeScreen extends StatelessWidget {
                 ],
 
                 // ── 当前节点卡片 ───────────────────────────────
-                if (server != null) ...[
+                if (showShared) ...[
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 6),
+                        child: Text(
+                          '${tr('当前节点', 'Current')}：${tr('共享节点·定时刷新', 'Shared·Rotating')}',
+                          style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55)),
+                        ),
+                      ),
+                      _SharedNodeCard(
+                        node: shared.active ?? shared.selected,
+                        onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const SharedNodesScreen())),
+                      ),
+                    ]),
+                  ),
+                ]
+                else if (server != null) ...[
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -170,7 +216,8 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ],
 
-                // ── 超额升级 / 免费试用 + 看广告 ───────────────
+                // ── 超额升级 / 免费试用 + 看广告（共享档为免费，隐藏优质试用相关）──
+                if (!showShared)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(children: [
@@ -178,9 +225,13 @@ class HomeScreen extends StatelessWidget {
                       const SizedBox(height: 14),
                       _UpgradeButton(),
                       // 广告仅 Android/iOS；Windows/桌面额度用尽只引导升级(方案 A)。
+                      // #5：把「免费时长已用完」与「看广告解锁」合并成一句。
                       if (_adsSupported) ...[
                         const SizedBox(height: 10),
-                        const _AdExtendButton(),
+                        _AdExtendButton(
+                          label: tr('优质节点今日免费时长已用完，看广告 +$kAdRewardMinutes 分钟',
+                              'Premium free time used up — watch ad +$kAdRewardMinutes min'),
+                        ),
                       ],
                     ] else if (vpn.isFreeTrial) ...[
                       const SizedBox(height: 14),
@@ -448,6 +499,58 @@ class _NodeCard extends StatelessWidget {
 }
 
 
+// ── 当前共享节点卡片 ─────────────────────────────────────────────────
+class _SharedNodeCard extends StatelessWidget {
+  final FreeNode? node;
+  final VoidCallback onTap;
+  const _SharedNodeCard({required this.node, required this.onTap});
+
+  // 从脏节点名里抽旗帜+国家码；抽不到用清理后的短名。
+  String _title(FreeNode n) {
+    final runes = n.name.runes.toList();
+    const base = 0x1F1E6;
+    for (var i = 0; i < runes.length - 1; i++) {
+      final a = runes[i] - base, b = runes[i + 1] - base;
+      if (a >= 0 && a <= 25 && b >= 0 && b <= 25) {
+        final flag = String.fromCharCodes([runes[i], runes[i + 1]]);
+        return '$flag ${String.fromCharCode(65 + a)}${String.fromCharCode(65 + b)}';
+      }
+    }
+    var s = n.name.replaceAll(RegExp(r'\d+(\.\d+)?\s*[KMG]B/s'), '').split('|').first.trim();
+    if (s.length > 20) s = '${s.substring(0, 20)}…';
+    return s.isEmpty ? n.server : s;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = node;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.05))),
+        child: Row(children: [
+          Container(width: 42, height: 42, alignment: Alignment.center,
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+            child: const Icon(Icons.public_rounded, color: kBrand, size: 22)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(n == null ? tr('未选择', 'Not selected') : _title(n),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(n == null ? tr('点击选择共享节点', 'Tap to choose') : '${n.protocol.toUpperCase()} · ${n.server}',
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.45))),
+          ])),
+          Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.35)),
+        ]),
+      ),
+    );
+  }
+}
+
 // ── 免费试用倒计时条（按时间）────────────────────────────────────────────────
 class _TrialBar extends StatelessWidget {
   final int  remainingSec;
@@ -500,7 +603,8 @@ class _TrialBar extends StatelessWidget {
 // ── 看广告延长时长按钮（激励视频，仅 Android/iOS）──────────────────────────────
 class _AdExtendButton extends StatefulWidget {
   final bool compact;
-  const _AdExtendButton({ this.compact = false });
+  final String? label;   // 自定义文案（如「今日免费时长已用完，看广告 +30 分钟」）
+  const _AdExtendButton({ this.compact = false, this.label });
   @override State<_AdExtendButton> createState() => _AdExtendButtonState();
 }
 
@@ -541,7 +645,7 @@ class _AdExtendButtonState extends State<_AdExtendButton> {
 
   @override
   Widget build(BuildContext context) {
-    final label = tr('看广告解锁 +$kAdRewardMinutes 分钟', 'Watch ad +$kAdRewardMinutes min');
+    final label = widget.label ?? tr('看广告解锁 +$kAdRewardMinutes 分钟', 'Watch ad +$kAdRewardMinutes min');
     if (widget.compact) {
       return Align(
         alignment: Alignment.center,
