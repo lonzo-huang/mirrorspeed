@@ -39,6 +39,9 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         const val ACTION_START = "com.mirrorspeed.singbox.START"
         const val ACTION_STOP  = "com.mirrorspeed.singbox.STOP"
         const val EXTRA_CONFIG = "config"
+        // 跨进程：服务(:singbox 进程)→ 插件(主进程)的状态广播。
+        const val ACTION_STAGE = "com.mirrorspeed.singbox.STAGE"
+        const val EXTRA_STAGE  = "stage"
 
         private const val CHANNEL_ID = "mirrorspeed_singbox"
         private const val NOTI_ID = 0x51B1
@@ -91,7 +94,10 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
 
     private fun setStage(s: String) {
         currentStage = s
-        SingboxFlutterPlugin.emitStage(s)
+        // 跨进程广播给主进程的插件（本服务在 :singbox 独立进程，静态变量共享不到主进程）。
+        try {
+            sendBroadcast(Intent(ACTION_STAGE).putExtra(EXTRA_STAGE, s).setPackage(packageName))
+        } catch (_: Throwable) {}
     }
 
     private fun startBox(config: String) {
@@ -117,7 +123,9 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
             setStage("connected")
         } catch (e: Exception) {
             android.util.Log.e("singbox", "start failed", e)
-            SingboxFlutterPlugin.emitStage("error: ${e.message}")
+            try {
+                sendBroadcast(Intent(ACTION_STAGE).putExtra(EXTRA_STAGE, "error: ${e.message}").setPackage(packageName))
+            } catch (_: Throwable) {}
             setStage("disconnected")
             stopBox()
         }

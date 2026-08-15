@@ -1,9 +1,12 @@
 package com.mirrorspeed.singbox
 
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.VpnService
+import android.os.Build
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -13,11 +16,10 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.PluginRegistry
 
 /**
- * sing-box 引擎插件。对应 Dart 侧 ProxyCoreEngine：
- *   MethodChannel  'mirrorspeed/singbox'        —— init / start / stop / stage / transferRxTx
- *   EventChannel   'mirrorspeed/singbox/stage'  —— 隧道阶段事件
- *
- * start 前需系统 VPN 授权（VpnService.prepare）；首次会弹系统对话框。
+ * sing-box 引擎插件（主进程）。SingboxVpnService 跑在 :singbox 独立进程，两者靠：
+ *   命令(主→服务)：startService/ACTION_START|STOP Intent
+ *   状态(服务→主)：ACTION_STAGE 广播 → 这里的 BroadcastReceiver → EventChannel
+ * 独立进程隔离了 libbox 与 wireguard-go 两个 Go 运行时，切换引擎不再撞车。
  */
 class SingboxFlutterPlugin :
     FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler,
@@ -28,18 +30,20 @@ class SingboxFlutterPlugin :
     private lateinit var stageEvents: EventChannel
     private var activity: Activity? = null
 
+    private var stageSink: EventChannel.EventSink? = null
+    @Volatile private var lastStage: String = "disconnected"
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
     // 待授权后继续 start 的配置
     private var pendingConfig: String? = null
     private var pendingResult: MethodChannel.Result? = null
 
-    companion object {
-        private const val REQ_VPN = 0x51B0
-        // 服务把阶段事件推到这里
-        @Volatile var stageSink: EventChannel.EventSink? = null
-        private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        fun emitStage(stage: String) {
-            // EventSink 必须在主线程调用（拆除在后台线程跑，这里切回主线程）。
-            mainHandler.post { stageSink?.success(stage) }
+    // 接收 :singbox 进程广播来的状态
+    private val stageReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, intent: Intent?) {
+            val s = intent?.getStringExtra(SingboxVpnService.EXTRA_STAGE) ?: return
+            lastStage = s
+            mainHandler.post { stageSink?.success(s) }
         }
     }
 
@@ -50,11 +54,19 @@ class SingboxFlutterPlugin :
         control.setMethodCallHandler(this)
         stageEvents = EventChannel(binding.binaryMessenger, "mirrorspeed/singbox/stage")
         stageEvents.setStreamHandler(this)
+        val filter = IntentFilter(SingboxVpnService.ACTION_STAGE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(stageReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            context.registerReceiver(stageReceiver, filter)
+        }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         control.setMethodCallHandler(null)
         stageEvents.setStreamHandler(null)
+        try { context.unregisterReceiver(stageReceiver) } catch (_: Throwable) {}
     }
 
     // ── ActivityAware（VpnService.prepare 需要 Activity）───────────────────
@@ -78,7 +90,6 @@ class SingboxFlutterPlugin :
             "start" -> {
                 val config = call.argument<String>("config")
                 if (config == null) { result.error("no_config", "config missing", null); return }
-                // 需要 VPN 授权？
                 val prepare = VpnService.prepare(context)
                 if (prepare != null) {
                     val act = activity
@@ -93,21 +104,16 @@ class SingboxFlutterPlugin :
             }
 
             "stop" -> {
-                // 优先直接同步停(在主线程)，确保 sing-box 完全拆除后再返回——否则切到
-                // WireGuard 时 sing-box 还没停干净会撞车崩溃。拿不到实例才退回异步 Intent。
-                val svc = SingboxVpnService.instance
-                if (svc != null) {
-                    try { svc.stopNow() } catch (_: Throwable) {}
-                } else {
-                    context.startService(Intent(context, SingboxVpnService::class.java)
-                        .setAction(SingboxVpnService.ACTION_STOP))
-                }
+                // 跨进程：发 Intent 给 :singbox 服务停止。阻塞的拆除发生在那个进程，
+                // 不影响主进程 UI/WireGuard。
+                context.startService(Intent(context, SingboxVpnService::class.java)
+                    .setAction(SingboxVpnService.ACTION_STOP))
                 result.success(null)
             }
 
-            "stage" -> result.success(SingboxVpnService.currentStage)
+            "stage" -> result.success(lastStage)
 
-            "transferRxTx" -> result.success(SingboxVpnService.transferRxTx())
+            "transferRxTx" -> result.success(listOf(-1L, -1L))
 
             else -> result.notImplemented()
         }
@@ -131,5 +137,9 @@ class SingboxFlutterPlugin :
             res?.error("permission_denied", "用户拒绝了 VPN 授权", null)
         }
         return true
+    }
+
+    companion object {
+        private const val REQ_VPN = 0x51B0
     }
 }
