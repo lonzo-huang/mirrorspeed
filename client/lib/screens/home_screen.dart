@@ -202,7 +202,7 @@ class HomeScreen extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(left: 4, bottom: 6),
                         child: Text(
-                          '${tr('当前节点', 'Current')}：${tr('优质节点', 'Premium')} · '
+                          '${tr('当前节点', 'Current')}：${tr('优质节点', 'Premium')} - '
                           '${vpn.routingMode == RoutingMode.smart ? tr('智能模式', 'Smart') : tr('全局模式', 'Global')}',
                           style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55)),
                         ),
@@ -225,13 +225,9 @@ class HomeScreen extends StatelessWidget {
                       const SizedBox(height: 14),
                       _UpgradeButton(),
                       // 广告仅 Android/iOS；Windows/桌面额度用尽只引导升级(方案 A)。
-                      // #5：把「免费时长已用完」与「看广告解锁」合并成一句。
                       if (_adsSupported) ...[
                         const SizedBox(height: 10),
-                        _AdExtendButton(
-                          label: tr('优质节点今日免费时长已用完，看广告 +$kAdRewardMinutes 分钟',
-                              'Premium free time used up — watch ad +$kAdRewardMinutes min'),
-                        ),
+                        const _AdExtendButton(),
                       ],
                     ] else if (vpn.isFreeTrial) ...[
                       const SizedBox(height: 14),
@@ -845,26 +841,26 @@ class _RoutingModeToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 44,
       decoration: BoxDecoration(
         color:        kCard,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border:       Border.all(color: Colors.white.withOpacity(0.08)),
       ),
+      padding: const EdgeInsets.all(4),
       child: Row(children: [
         _ToggleItem(
           label:    '智能模式',
-          icon:     Icons.psychology_rounded,
+          subtitle: '按规则代理',
+          icon:     Icons.bolt_rounded,
           selected: mode == RoutingMode.smart,
           onTap:    () => onChanged(RoutingMode.smart),
-          tooltip:  '中国IP直连，境外走VPN',
         ),
         _ToggleItem(
           label:    '全局模式',
+          subtitle: '所有流量代理',
           icon:     Icons.public_rounded,
           selected: mode == RoutingMode.global,
           onTap:    () => onChanged(RoutingMode.global),
-          tooltip:  '所有流量走VPN',
         ),
       ]),
     );
@@ -873,46 +869,49 @@ class _RoutingModeToggle extends StatelessWidget {
 
 class _ToggleItem extends StatelessWidget {
   final String       label;
+  final String       subtitle;
   final IconData     icon;
   final bool         selected;
   final VoidCallback onTap;
-  final String       tooltip;
   const _ToggleItem({
-    required this.label, required this.icon, required this.selected,
-    required this.onTap, required this.tooltip,
+    required this.label, required this.subtitle, required this.icon,
+    required this.selected, required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final activeColor = selected ? kBrand : Colors.white.withOpacity(0.4);
     return Expanded(
-      child: Tooltip(
-        message: tooltip,
-        child: GestureDetector(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            margin:       const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color:        selected ? kBrand.withOpacity(0.2) : Colors.transparent,
-              borderRadius: BorderRadius.circular(9),
-              border:       selected
-                  ? Border.all(color: kBrand.withOpacity(0.5))
-                  : Border.all(color: Colors.transparent),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 14,
-                  color: selected ? kBrand : Colors.white.withOpacity(0.4)),
-                const SizedBox(width: 5),
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            color:        selected ? kBrand.withOpacity(0.18) : Colors.transparent,
+            borderRadius: BorderRadius.circular(11),
+            border:       Border.all(color: selected ? kBrand.withOpacity(0.5) : Colors.transparent),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(icon, size: 16, color: activeColor),
+                const SizedBox(width: 6),
                 Text(label,
                   style: TextStyle(
-                    fontSize:   13,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                    color:      selected ? kBrand : Colors.white.withOpacity(0.4),
+                    fontSize:   14,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color:      selected ? Colors.white : Colors.white.withOpacity(0.55),
                   )),
-              ],
-            ),
+              ]),
+              const SizedBox(height: 4),
+              Text(subtitle,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: selected ? kBrand.withOpacity(0.9) : Colors.white.withOpacity(0.35),
+                )),
+            ],
           ),
         ),
       ),
