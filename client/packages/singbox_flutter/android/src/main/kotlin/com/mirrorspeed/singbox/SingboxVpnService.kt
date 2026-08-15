@@ -11,7 +11,6 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.VpnService
 import android.os.Build
-import android.os.ParcelFileDescriptor
 import io.nekohasekai.libbox.CommandServer
 import io.nekohasekai.libbox.CommandServerHandler
 import io.nekohasekai.libbox.InterfaceUpdateListener
@@ -70,7 +69,6 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     fun stopNow() { stopBox() }
 
     private var server: CommandServer? = null
-    private var tunFd: ParcelFileDescriptor? = null
 
     // 默认网络监控
     private var connectivity: ConnectivityManager? = null
@@ -132,8 +130,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         try { server?.closeService() } catch (_: Throwable) {}
         try { server?.close() } catch (_: Throwable) {}
         server = null
-        try { tunFd?.close() } catch (_: Throwable) {}
-        tunFd = null
+        // 不再手动关 tun fd —— 所有权已在 openTun 用 detachFd 交给 libbox，重复关会误伤。
         instance = null
         setStage("disconnected")
         try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
@@ -173,9 +170,11 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
             } catch (_: Exception) {}
         }
 
-        val fd = builder.establish() ?: throw IllegalStateException("VpnService.establish() 返回 null")
-        tunFd = fd
-        return fd.fd
+        val pfd = builder.establish() ?: throw IllegalStateException("VpnService.establish() 返回 null")
+        // 用 detachFd 把 fd 所有权交给 libbox：我们不再持有/关闭它。否则停止时我们 close
+        // 一次、libbox 也 close 一次 = double-close；释放出的 fd 号被 WireGuard 复用后，
+        // 我们这次多余的 close 会关掉 WireGuard 的 tun → 共享→优质切换时 WG 崩溃。
+        return pfd.detachFd()
     }
 
     // ── PlatformInterface：socket 保护 + 默认网络监控 ──────────────────────
