@@ -73,6 +73,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     }
 
     private var server: CommandServer? = null
+    private var tunFd: android.os.ParcelFileDescriptor? = null
 
     // 默认网络监控
     private var connectivity: ConnectivityManager? = null
@@ -134,7 +135,9 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         try { server?.closeService() } catch (_: Throwable) {}
         try { server?.close() } catch (_: Throwable) {}
         server = null
-        // 不再手动关 tun fd —— 所有权已在 openTun 用 detachFd 交给 libbox，重复关会误伤。
+        // 关掉 tun fd → 真正拆除 tun 接口(否则系统一直显示 VPN 连接、流量进死 box 网络锁死)。
+        try { tunFd?.close() } catch (_: Throwable) {}
+        tunFd = null
         instance = null
         setStage("disconnected")
         // stopForeground/stopSelf 回主线程执行（服务生命周期操作）。
@@ -178,10 +181,8 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         }
 
         val pfd = builder.establish() ?: throw IllegalStateException("VpnService.establish() 返回 null")
-        // 用 detachFd 把 fd 所有权交给 libbox：我们不再持有/关闭它。否则停止时我们 close
-        // 一次、libbox 也 close 一次 = double-close；释放出的 fd 号被 WireGuard 复用后，
-        // 我们这次多余的 close 会关掉 WireGuard 的 tun → 共享→优质切换时 WG 崩溃。
-        return pfd.detachFd()
+        tunFd = pfd    // 持有；停止时主动 close 以真正拆掉 tun 接口(否则 VPN 一直挂着、网络死锁)
+        return pfd.fd
     }
 
     // ── PlatformInterface：socket 保护 + 默认网络监控 ──────────────────────
