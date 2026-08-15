@@ -152,11 +152,21 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: _NodeCard(
-                      server:   server,
-                      auto:     vpn.autoSelect,
-                      onTap:    () => context.go('/servers'),
-                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 6),
+                        child: Text(
+                          '${tr('当前节点', 'Current')}：${tr('优质节点', 'Premium')} · '
+                          '${vpn.routingMode == RoutingMode.smart ? tr('智能模式', 'Smart') : tr('全局模式', 'Global')}',
+                          style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55)),
+                        ),
+                      ),
+                      _NodeCard(
+                        server:   server,
+                        auto:     vpn.autoSelect,
+                        onTap:    () => context.go('/servers'),
+                      ),
+                    ]),
                   ),
                 ],
 

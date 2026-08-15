@@ -263,13 +263,15 @@ class VpnProvider extends ChangeNotifier {
         // 隧道接口已 UP，但流量未必通。一律先保持「连接中」，等连通性验证
         // 通过后再由 _postConnectCheck / _postRelayCheck 置为 connected（#5）。
         if (_userInitiatedDisconnect) break;  // 用户已断开，忽略迟到的 connected
+        // #3 乐观连接：隧道接口 UP 即显示「已连接」（秒连体验），后台仍验证真实流量；
+        // 验证失败再由 _postConnectCheck/_postRelayCheck 回退中继或断开。
         if (_switchingToRelay) {
           _fallbackTimer?.cancel();
           _switchingToRelay = false;
-          _status = VpnStatus.connecting;
+          _status = VpnStatus.connected;
           _postRelayCheck(_activeServer);   // 5 秒后验证中继流量
         } else {
-          _status = VpnStatus.connecting;
+          _status = VpnStatus.connected;
           _postConnectCheck(_activeServer); // 4 秒后验证直连流量
         }
       case VpnStage.connecting:
