@@ -36,8 +36,10 @@ class SingboxFlutterPlugin :
         private const val REQ_VPN = 0x51B0
         // 服务把阶段事件推到这里
         @Volatile var stageSink: EventChannel.EventSink? = null
+        private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
         fun emitStage(stage: String) {
-            stageSink?.success(stage)
+            // EventSink 必须在主线程调用（拆除在后台线程跑，这里切回主线程）。
+            mainHandler.post { stageSink?.success(stage) }
         }
     }
 

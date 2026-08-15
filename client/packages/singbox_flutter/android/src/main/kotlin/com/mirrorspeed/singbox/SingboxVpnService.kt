@@ -65,8 +65,12 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
 
     override fun onCreate() { super.onCreate(); instance = this }
 
-    /// 供插件在主线程直接调用的同步停止。
-    fun stopNow() { stopBox() }
+    /// 供插件调用：在后台线程拆除，绝不阻塞主线程。主线程一旦被 libbox 拆除阻塞，
+    /// 系统在引擎切换时无法派发 VPN 接口变更广播 → "can't deliver broadcast" → 强杀 App。
+    fun stopNow() {
+        if (stopping) return
+        Thread { stopBox() }.start()
+    }
 
     private var server: CommandServer? = null
 
@@ -77,7 +81,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_STOP -> { stopBox(); return START_NOT_STICKY }
+            ACTION_STOP -> { stopNow(); return START_NOT_STICKY }
             ACTION_START -> intent.getStringExtra(EXTRA_CONFIG)?.let { startBox(it) }
         }
         // 不用 START_STICKY：避免连接失败后系统把残留的 tun 服务拉活导致全局断网
@@ -133,12 +137,15 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         // 不再手动关 tun fd —— 所有权已在 openTun 用 detachFd 交给 libbox，重复关会误伤。
         instance = null
         setStage("disconnected")
-        try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
-        stopSelf()
+        // stopForeground/stopSelf 回主线程执行（服务生命周期操作）。
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
+            try { stopSelf() } catch (_: Throwable) {}
+        }
     }
 
     override fun onDestroy() { instance = null; stopBox(); super.onDestroy() }
-    override fun onRevoke() { stopBox(); super.onRevoke() }
+    override fun onRevoke() { instance = null; Thread { stopBox() }.start(); super.onRevoke() }
 
     // ── CommandServerHandler ───────────────────────────────────────────────
     override fun getSystemProxyStatus(): SystemProxyStatus =
