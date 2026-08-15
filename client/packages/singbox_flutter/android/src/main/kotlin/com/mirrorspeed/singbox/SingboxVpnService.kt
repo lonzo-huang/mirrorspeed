@@ -139,15 +139,22 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         try { tunFd?.close() } catch (_: Throwable) {}
         tunFd = null
         instance = null
-        setStage("disconnected")
-        // stopForeground/stopSelf 回主线程执行（服务生命周期操作）。
+        setStage("disconnecting")
+        // stopForeground/stopSelf 回主线程执行（服务生命周期操作）。真正的 "disconnected"
+        // 信号在 onDestroy 发出——那才代表系统已完全释放 VPN，此时启动 WireGuard 才不会
+        // 和系统的 VPN 拆除回调在主线程上撞车(can't deliver broadcast → 强杀)。
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
             try { stopSelf() } catch (_: Throwable) {}
         }
     }
 
-    override fun onDestroy() { instance = null; stopBox(); super.onDestroy() }
+    override fun onDestroy() {
+        instance = null
+        if (!stopping) Thread { stopBox() }.start()
+        setStage("disconnected")   // 服务真正销毁 = 系统已释放 VPN，Dart 侧据此再启另一条隧道
+        super.onDestroy()
+    }
     override fun onRevoke() { instance = null; Thread { stopBox() }.start(); super.onRevoke() }
 
     // ── CommandServerHandler ───────────────────────────────────────────────
