@@ -171,19 +171,21 @@ class HomeScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _StatsRow(
-                    connected: vpn.isConnected,
+                    connected: connected,
                     // 已连接：显示每 30s 刷新的优化延迟（首测前回退到节点延迟）；
-                    // 未连接：显示所选节点的校正延迟。
-                    pingMs:    vpn.isConnected
-                        ? (vpn.connectedPingMs ?? server?.displayLatencyMs)
-                        : server?.displayLatencyMs,
+                    // 未连接：显示所选节点的校正延迟。共享档显示共享节点测速延迟。
+                    pingMs:    showShared
+                        ? _sharedPing(shared)
+                        : (vpn.isConnected
+                            ? (vpn.connectedPingMs ?? server?.displayLatencyMs)
+                            : server?.displayLatencyMs),
                     upStr:     vpn.isConnected ? vpn.uploadSpeedStr   : '0 B/s',
                     downStr:   vpn.isConnected ? vpn.downloadSpeedStr : '0 B/s',
                   ),
                 ),
 
-                // ── 智能 / 全局 切换（仅中文版；共享档不适用，隐藏）──
-                if (Brand.showSmartRouting && !showShared) ...[
+                // ── 智能 / 全局 切换（仅中文版）────────────────
+                if (Brand.showSmartRouting) ...[
                   const SizedBox(height: 14),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -194,8 +196,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ],
 
-                // ── 超额升级 / 免费试用 + 看广告（共享档为免费，隐藏优质试用相关）──
-                if (!showShared)
+                // ── 超额升级 / 免费试用 + 看广告 ───────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(children: [
@@ -490,6 +491,14 @@ class _NodeCard extends StatelessWidget {
   }
 }
 
+
+// 共享节点当前测速延迟（无有效样本返回 null）。
+int? _sharedPing(SharedNodeProvider s) {
+  final n = s.active ?? s.selected;
+  if (n == null) return null;
+  final l = s.latencyOf(n);
+  return (l != null && l >= 0) ? l : null;
+}
 
 // 从脏共享节点名抽「旗帜 国家」；抽不到用清理后的短名。
 String _sharedNodeTitle(FreeNode n) {

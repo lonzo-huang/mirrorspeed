@@ -43,6 +43,11 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
       _shared.clearPreferShared();   // 用户改连优质节点 → 切回优质档
       await _shared.disconnect();
     };
+    // 广告加载不到（国内直连被墙）时，经随机共享节点把广告请求代理出去。
+    AdService.instance.onNeedProxyForAds = () async {
+      if (_vpn.isConnected) return;   // 已有优质隧道就不折腾
+      await _shared.connectRandomForAd();
+    };
     // 免费额度从服务器拉取：auth 配置变化时同步给 VpnProvider。
     // 时间试用(#3)为强制额度；流量值仅作展示。
     _auth.addListener(() {

@@ -123,6 +123,29 @@ class SharedNodeProvider extends ChangeNotifier {
     }
   }
 
+  /// 为加载广告临时连一个随机共享节点（国内直连加载不了广告时用）。
+  /// 已有共享连接则直接复用；否则拉取+测速后挑一个低延迟可达节点连上并等待就绪。
+  Future<void> connectRandomForAd() async {
+    if (isConnected) return;
+    if (_nodes.isEmpty) await load();
+    if (_nodes.isEmpty) return;
+    if (_latency.values.where((v) => v >= 0).isEmpty) await testAll();
+    final alive = _nodes.where((n) {
+      final l = _latency[n.fingerprint];
+      return l != null && l >= 0;
+    }).toList();
+    final pool = alive.isNotEmpty ? alive : _nodes;
+    // 低延迟前若干个里随机挑一个（分散负载）。
+    final head = pool.take(pool.length < 8 ? pool.length : 8).toList()..shuffle();
+    await connect(head.first);
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (!isConnected && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    // 隧道建好后给路由/DNS 一点稳定时间，广告 SDK 才能连出去。
+    await Future<void>.delayed(const Duration(milliseconds: 800));
+  }
+
   Future<void> disconnect() async {
     try {
       await _engine.stop();
