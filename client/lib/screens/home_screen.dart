@@ -116,6 +116,27 @@ class HomeScreen extends StatelessWidget {
                   ]),
                 ),
 
+                const SizedBox(height: 12),
+
+                // ── 当前节点卡片（顶部，截图样式）───────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _CurrentNodeCard(
+                    label: showShared
+                        ? '${tr('当前节点', 'Current')}：${tr('共享节点·定时刷新', 'Shared·Rotating')}'
+                        : '${tr('当前节点', 'Current')}：${tr('优质节点', 'Premium')} - ${vpn.routingMode == RoutingMode.smart ? tr('智能模式', 'Smart') : tr('全局模式', 'Global')}',
+                    title: showShared
+                        ? ((shared.active ?? shared.selected) != null
+                            ? _sharedNodeTitle((shared.active ?? shared.selected)!)
+                            : tr('未选择', 'Not selected'))
+                        : (server != null ? '${server.flagEmoji} ${server.displayLabel(Brand.isZh)}' : tr('未选择', 'Not selected')),
+                    latency: showShared ? null : (server?.displayLatencyMs != null ? '${server!.displayLatencyMs}ms' : null),
+                    onTap: showShared
+                        ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SharedNodesScreen()))
+                        : () => context.go('/servers'),
+                  ),
+                ),
+
                 const SizedBox(height: 8),
 
                 // ── 中心连接按钮（光环）────────────────────────
@@ -170,49 +191,6 @@ class HomeScreen extends StatelessWidget {
                       mode:      vpn.routingMode,
                       onChanged: (m) => vpn.setRoutingMode(m),
                     ),
-                  ),
-                ],
-
-                // ── 当前节点卡片 ───────────────────────────────
-                if (showShared) ...[
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 6),
-                        child: Text(
-                          '${tr('当前节点', 'Current')}：${tr('共享节点·定时刷新', 'Shared·Rotating')}',
-                          style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55)),
-                        ),
-                      ),
-                      _SharedNodeCard(
-                        node: shared.active ?? shared.selected,
-                        onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const SharedNodesScreen())),
-                      ),
-                    ]),
-                  ),
-                ]
-                else if (server != null) ...[
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 6),
-                        child: Text(
-                          '${tr('当前节点', 'Current')}：${tr('优质节点', 'Premium')} - '
-                          '${vpn.routingMode == RoutingMode.smart ? tr('智能模式', 'Smart') : tr('全局模式', 'Global')}',
-                          style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55)),
-                        ),
-                      ),
-                      _NodeCard(
-                        server:   server,
-                        auto:     vpn.autoSelect,
-                        onTap:    () => context.go('/servers'),
-                      ),
-                    ]),
                   ),
                 ],
 
@@ -351,6 +329,24 @@ class _Header extends StatelessWidget {
           Text(Brand.appName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           Text('MIRROR SPEED', style: TextStyle(fontSize: 9, letterSpacing: 2, color: Colors.white.withOpacity(0.35))),
         ])),
+        // 会员中心（金色胶囊）
+        GestureDetector(
+          onTap: () => context.go('/vip'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8B44A).withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE8B44A).withOpacity(0.45)),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.workspace_premium_rounded, color: Color(0xFFE8B44A), size: 15),
+              const SizedBox(width: 5),
+              Text(tr('会员中心', 'Premium'),
+                style: const TextStyle(color: Color(0xFFE8B44A), fontSize: 12, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
       ]),
     );
   }
@@ -494,6 +490,60 @@ class _NodeCard extends StatelessWidget {
   }
 }
 
+
+// 从脏共享节点名抽「旗帜 国家」；抽不到用清理后的短名。
+String _sharedNodeTitle(FreeNode n) {
+  final runes = n.name.runes.toList();
+  const base = 0x1F1E6;
+  for (var i = 0; i < runes.length - 1; i++) {
+    final a = runes[i] - base, b = runes[i + 1] - base;
+    if (a >= 0 && a <= 25 && b >= 0 && b <= 25) {
+      final flag = String.fromCharCodes([runes[i], runes[i + 1]]);
+      return '$flag ${String.fromCharCode(65 + a)}${String.fromCharCode(65 + b)}';
+    }
+  }
+  var s = n.name.replaceAll(RegExp(r'\d+(\.\d+)?\s*[KMG]B/s'), '').split('|').first.trim();
+  if (s.length > 20) s = '${s.substring(0, 20)}…';
+  return s.isEmpty ? n.server : s;
+}
+
+// ── 顶部「当前节点」卡片（截图样式：图标 | 小标签+节点名 | 延迟 | ›）────────
+class _CurrentNodeCard extends StatelessWidget {
+  final String label;       // 「当前节点：优质节点 - 智能模式」
+  final String title;       // 「🇪🇸 西班牙 01」
+  final String? latency;    // 「90ms」/ null
+  final VoidCallback onTap;
+  const _CurrentNodeCard({required this.label, required this.title, this.latency, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.06))),
+        child: Row(children: [
+          Container(width: 40, height: 40, alignment: Alignment.center,
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(11)),
+            child: Icon(Icons.public_rounded, color: Colors.white.withOpacity(0.7), size: 20)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.45))),
+            const SizedBox(height: 3),
+            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+          ])),
+          if (latency != null) ...[
+            Text(latency!, style: const TextStyle(fontSize: 13, color: kAccentOn, fontWeight: FontWeight.w600)),
+            const SizedBox(width: 6),
+          ],
+          Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.35)),
+        ]),
+      ),
+    );
+  }
+}
 
 // ── 当前共享节点卡片 ─────────────────────────────────────────────────
 class _SharedNodeCard extends StatelessWidget {
@@ -653,59 +703,81 @@ class _AdExtendButtonState extends State<_AdExtendButton> {
         ),
       );
     }
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: _busy ? null : _watch,
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: kBrand.withOpacity(0.5)),
-          foregroundColor: kBrand,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(vertical: 13),
+    return _PromoCard(
+      icon: Icons.card_giftcard_rounded, iconColor: kBrand,
+      title: label,
+      subtitle: tr('每日可用', 'Available daily'),
+      onTap: _busy ? null : _watch,
+    );
+  }
+}
+
+// ── 统一促销卡（图标圈 | 标题+副标题 | ›）──────────────────────────────
+class _PromoCard extends StatelessWidget {
+  final IconData icon;
+  final Color    iconColor;
+  final String   title;
+  final String   subtitle;
+  final VoidCallback? onTap;
+  final bool purple;   // 升级会员用紫色渐变
+  const _PromoCard({
+    required this.icon, required this.iconColor, required this.title,
+    required this.subtitle, this.onTap, this.purple = false,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final titleColor = purple ? Colors.white : Colors.white.withOpacity(0.92);
+    final subColor   = purple ? Colors.white.withOpacity(0.8) : Colors.white.withOpacity(0.45);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          gradient: purple
+              ? const LinearGradient(colors: [Color(0xFF7C5CF0), Color(0xFF5B45C8)])
+              : null,
+          color: purple ? null : kPanel,
+          borderRadius: BorderRadius.circular(16),
+          border: purple ? null : Border.all(color: Colors.white.withOpacity(0.06)),
         ),
-        icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
-        label: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        child: Row(children: [
+          Container(width: 40, height: 40, alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: purple ? Colors.white.withOpacity(0.18) : iconColor.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(11)),
+            child: Icon(icon, color: purple ? Colors.white : iconColor, size: 20)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: titleColor)),
+            const SizedBox(height: 3),
+            Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: subColor)),
+          ])),
+          Icon(Icons.chevron_right_rounded, color: (purple ? Colors.white : Colors.white).withOpacity(purple ? 0.85 : 0.35)),
+        ]),
       ),
     );
   }
 }
 
-// ── 超额升级按钮 ──────────────────────────────────────────────────────────────
+// ── 超额升级：免费时长已用完卡 + 升级会员卡（截图样式）──────────────────
 class _UpgradeButton extends StatelessWidget {
   const _UpgradeButton();
 
   @override
   Widget build(BuildContext context) => Column(children: [
-    Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      margin:  const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color:         kDanger.withOpacity(0.1),
-        borderRadius:  BorderRadius.circular(12),
-        border:        Border.all(color: kDanger.withOpacity(0.3)),
-      ),
-      child: Row(children: [
-        const Icon(Icons.block_rounded, color: kDanger, size: 16),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(tr('今日免费时长已用完，明日自动恢复', "Today's free time is used up. Resets tomorrow."),
-            style: const TextStyle(color: kDanger, fontSize: 12)),
-        ),
-      ]),
+    _PromoCard(
+      icon: Icons.shield_outlined, iconColor: kAccentOn,
+      title: tr('免费时长已用完', 'Free time used up'),
+      subtitle: tr('明日自动恢复', 'Resets tomorrow'),
     ),
-    SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: () => openPortal('/pricing'),
-        style: FilledButton.styleFrom(
-          backgroundColor: kBrand,
-          shape:   RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-        ),
-        icon:  const Icon(Icons.workspace_premium_rounded, size: 20),
-        label: Text(tr('升级会员 · 无限时长', 'Upgrade · Unlimited'),
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-      ),
+    _PromoCard(
+      icon: Icons.workspace_premium_rounded, iconColor: Colors.white, purple: true,
+      title: tr('升级会员 · 无限时长', 'Upgrade · Unlimited'),
+      subtitle: tr('畅享高速全球网络', 'Enjoy fast global network'),
+      onTap: () => openPortal('/pricing'),
     ),
   ]);
 }
