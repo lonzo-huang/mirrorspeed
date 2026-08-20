@@ -48,6 +48,9 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
       if (_vpn.isConnected) return;   // 已有优质隧道就不折腾
       await _shared.connectRandomForAd();
     };
+    // #5 冷启动清理：停掉上次未正常退出而残留的 sing-box 隧道，避免死 tun 黑洞
+    // 导致拉不到配置、一直卡在加载。冷启动 = 本 initState 只执行一次。
+    _shared.disconnect();
     // 免费额度从服务器拉取：auth 配置变化时同步给 VpnProvider。
     // 时间试用(#3)为强制额度；流量值仅作展示。
     _auth.addListener(() {

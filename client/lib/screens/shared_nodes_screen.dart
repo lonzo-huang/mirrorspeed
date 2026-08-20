@@ -1,6 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/shared_node_provider.dart';
+import '../brand.dart';
+
+// 分组表头（旗帜 + 本地化国家名 + 数量）。
+class _Header {
+  final String flag, name;
+  final int count;
+  _Header(this.flag, this.name, this.count);
+}
+
+// 从节点名里的旗帜 emoji 抽 ISO 国家码；无旗帜返回 ''。
+String _isoOf(String name) {
+  final runes = name.runes.toList();
+  const base = 0x1F1E6;
+  for (var i = 0; i < runes.length - 1; i++) {
+    final a = runes[i] - base, b = runes[i + 1] - base;
+    if (a >= 0 && a <= 25 && b >= 0 && b <= 25) {
+      return String.fromCharCode(65 + a) + String.fromCharCode(65 + b);
+    }
+  }
+  return '';
+}
+
+String _countryFlag(String iso) {
+  if (iso.length != 2) return '';
+  const base = 0x1F1E6;
+  return String.fromCharCodes([base + (iso.codeUnitAt(0) - 65), base + (iso.codeUnitAt(1) - 65)]);
+}
+
+// ISO → 本地化国家名（按语言）。未收录回退 ISO 码。
+String _countryName(String iso, bool zh) {
+  if (iso.isEmpty) return zh ? '其他' : 'Other';
+  final n = _kCountryNames[iso];
+  if (n == null) return iso;
+  return zh ? n[0] : n[1];
+}
+
+const Map<String, List<String>> _kCountryNames = {
+  'HK': ['香港', 'Hong Kong'], 'TW': ['台湾', 'Taiwan'], 'JP': ['日本', 'Japan'],
+  'KR': ['韩国', 'South Korea'], 'SG': ['新加坡', 'Singapore'], 'US': ['美国', 'United States'],
+  'CA': ['加拿大', 'Canada'], 'GB': ['英国', 'United Kingdom'], 'DE': ['德国', 'Germany'],
+  'FR': ['法国', 'France'], 'NL': ['荷兰', 'Netherlands'], 'RU': ['俄罗斯', 'Russia'],
+  'IN': ['印度', 'India'], 'AU': ['澳大利亚', 'Australia'], 'BR': ['巴西', 'Brazil'],
+  'IT': ['意大利', 'Italy'], 'ES': ['西班牙', 'Spain'], 'SE': ['瑞典', 'Sweden'],
+  'CH': ['瑞士', 'Switzerland'], 'PL': ['波兰', 'Poland'], 'FI': ['芬兰', 'Finland'],
+  'NO': ['挪威', 'Norway'], 'IE': ['爱尔兰', 'Ireland'], 'AT': ['奥地利', 'Austria'],
+  'TR': ['土耳其', 'Turkey'], 'UA': ['乌克兰', 'Ukraine'], 'CZ': ['捷克', 'Czechia'],
+  'RO': ['罗马尼亚', 'Romania'], 'VN': ['越南', 'Vietnam'], 'TH': ['泰国', 'Thailand'],
+  'MY': ['马来西亚', 'Malaysia'], 'ID': ['印尼', 'Indonesia'], 'PH': ['菲律宾', 'Philippines'],
+  'AE': ['阿联酋', 'UAE'], 'IL': ['以色列', 'Israel'], 'ZA': ['南非', 'South Africa'],
+  'MX': ['墨西哥', 'Mexico'], 'AR': ['阿根廷', 'Argentina'], 'CL': ['智利', 'Chile'],
+  'KZ': ['哈萨克斯坦', 'Kazakhstan'], 'CO': ['哥伦比亚', 'Colombia'], 'CN': ['中国', 'China'],
+  'MO': ['澳门', 'Macau'], 'PT': ['葡萄牙', 'Portugal'], 'GR': ['希腊', 'Greece'],
+  'HU': ['匈牙利', 'Hungary'], 'BE': ['比利时', 'Belgium'], 'DK': ['丹麦', 'Denmark'],
+};
 
 /// 「共享节点」页：免费机场节点(sing-box)。列表 + 测速 + 连接/断开。
 /// 与 WireGuard「优质节点」互斥(连这个会自动断开那个)。
@@ -90,11 +144,41 @@ class _SharedNodesScreenState extends State<SharedNodesScreen> {
     if (p.nodes.isEmpty && !p.loading) {
       return const Center(child: Text('暂无节点，下拉刷新'));
     }
-    return ListView.separated(
-      itemCount: p.nodes.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+    // 按国家分组（节点已按延迟排序，组内保持该顺序）。
+    final groups = <String, List<dynamic>>{};
+    for (final n in p.nodes) {
+      groups.putIfAbsent(_isoOf(n.name as String), () => []).add(n);
+    }
+    final zh = Brand.isZh;
+    final keys = groups.keys.toList()
+      ..sort((a, b) {
+        if (a == '') return 1;
+        if (b == '') return -1;
+        return _countryName(a, zh).compareTo(_countryName(b, zh));
+      });
+    final rows = <dynamic>[];
+    for (final k in keys) {
+      rows.add(_Header(_countryFlag(k), _countryName(k, zh), groups[k]!.length));
+      rows.addAll(groups[k]!);
+    }
+
+    return ListView.builder(
+      itemCount: rows.length,
       itemBuilder: (_, i) {
-        final n = p.nodes[i];
+        final row = rows[i];
+        if (row is _Header) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: Row(children: [
+              Text(row.flag.isEmpty ? '🌐' : row.flag, style: const TextStyle(fontSize: 15)),
+              const SizedBox(width: 6),
+              Text(row.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              const SizedBox(width: 6),
+              Text('${row.count}', style: TextStyle(fontSize: 11, color: Colors.grey.withOpacity(0.7))),
+            ]),
+          );
+        }
+        final n = row;
         final ms = p.latencyOf(n);
         final dead = ms != null && ms < 0;
         final isActive = identical(n, p.active);
@@ -105,11 +189,12 @@ class _SharedNodesScreenState extends State<SharedNodesScreen> {
           leading: Icon(
             isActive && p.isConnected ? Icons.check_circle : Icons.public,
             color: isActive && p.isConnected ? Colors.green : (dead ? Colors.grey : null),
-            size: 22,
+            size: 20,
           ),
-          title: Text(_title(n), maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 14, color: dead ? Colors.grey : null)),
-          subtitle: Text('${n.protocol.toUpperCase()} · ${n.server}:${n.port}',
+          title: Text(_lineName(n.name as String, n.server as String),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 13, color: dead ? Colors.grey : null)),
+          subtitle: Text(n.server as String,
               maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
           trailing: _latencyBadge(ms),
           onTap: dead ? null : () => context.read<SharedNodeProvider>().connect(n),
@@ -118,26 +203,14 @@ class _SharedNodesScreenState extends State<SharedNodesScreen> {
     );
   }
 
-  // 节点名多为脏字符串（含 emoji 旗帜/流量/备注）。格式化成「旗帜 国家 · 序号」，
-  // 从名字里抽出旗帜 emoji 推国家码；抽不到就用清理后的短名。
-  String _title(node) {
-    final name = node.name as String;
-    final runes = name.runes.toList();
-    // 找连续两个区域指示符（旗帜 emoji）
-    const base = 0x1F1E6;
-    for (var i = 0; i < runes.length - 1; i++) {
-      final a = runes[i] - base, b = runes[i + 1] - base;
-      if (a >= 0 && a <= 25 && b >= 0 && b <= 25) {
-        final flag = String.fromCharCodes([runes[i], runes[i + 1]]);
-        final iso = String.fromCharCode(65 + a) + String.fromCharCode(65 + b);
-        return '$flag $iso';
-      }
-    }
-    // 无旗帜：去掉常见噪声（速率/管道符），取前一段
-    var s = name.replaceAll(RegExp(r'\d+(\.\d+)?\s*[KMG]B/s'), '').trim();
+  // 单条线路的展示名：去掉旗帜/协议/速率噪声，取一段可读文字；空则回退 IP。
+  String _lineName(String name, String server) {
+    var s = name.replaceAll(RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true), '');
+    s = s.replaceAll(RegExp(r'\d+(\.\d+)?\s*[KMG]B/s'), '');
     s = s.split('|').first.split('·').first.trim();
-    if (s.length > 22) s = '${s.substring(0, 22)}…';
-    return s.isEmpty ? node.server as String : s;
+    s = s.replaceAll(RegExp(r'^\W+'), '').trim();
+    if (s.length > 24) s = '${s.substring(0, 24)}…';
+    return s.isEmpty ? server : s;
   }
 
   Widget _latencyBadge(int? ms) {

@@ -76,8 +76,6 @@ class AdService {
     if (ad == null) { loadAppOpen(); return; }
     _appOpenAd = null;
     _showingFullScreen = true;
-    // 展示后 4 分钟内不再弹开屏，降低频率（减少撞上无关闭按钮的坏素材，#4）。
-    _suppressAppOpenUntil = DateTime.now().add(const Duration(minutes: 4));
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (a) {
         a.dispose(); _showingFullScreen = false; loadAppOpen();

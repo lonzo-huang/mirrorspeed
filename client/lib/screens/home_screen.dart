@@ -59,8 +59,8 @@ class HomeScreen extends StatelessWidget {
     final showShared = shared.isConnected || shared.isConnecting ||
         (shared.preferShared && !vpn.isConnected && !vpnBusy);
 
-    final connected  = showShared ? shared.isConnected  : vpn.isConnected;
-    final connecting = showShared ? shared.isConnecting : vpnBusy;
+    final connected  = showShared ? shared.isConnected : vpn.isConnected;
+    final connecting = showShared ? shared.isBusy      : vpnBusy;
 
     Future<void> onConnect() async {
       if (showShared) {
@@ -210,15 +210,27 @@ class HomeScreen extends StatelessWidget {
                       ],
                     ] else if (vpn.isFreeTrial) ...[
                       const SizedBox(height: 14),
-                      _TrialBar(
-                        remainingSec: vpn.trialRemainingSec,
-                        totalSec:     vpn.trialTotalSec,
-                        exceeded:     vpn.quotaExceeded,
+                      // #3 免费时长进度条 + 看广告合并为一张卡片
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: kPanel,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.white.withOpacity(0.06)),
+                        ),
+                        child: Column(children: [
+                          _TrialBar(
+                            remainingSec: vpn.trialRemainingSec,
+                            totalSec:     vpn.trialTotalSec,
+                            exceeded:     vpn.quotaExceeded,
+                            boxed:        false,
+                          ),
+                          if (_adsSupported) ...[
+                            Divider(height: 18, color: Colors.white.withOpacity(0.08)),
+                            const _AdExtendButton(compact: true),
+                          ],
+                        ]),
                       ),
-                      if (_adsSupported) ...[
-                        const SizedBox(height: 6),
-                        const _AdExtendButton(compact: true),
-                      ],
                     ],
                   ]),
                 ),
@@ -611,7 +623,8 @@ class _TrialBar extends StatelessWidget {
   final int  remainingSec;
   final int  totalSec;
   final bool exceeded;
-  const _TrialBar({ required this.remainingSec, required this.totalSec, required this.exceeded });
+  final bool boxed;   // false=去掉自身边框/底色，用于嵌入合并卡片
+  const _TrialBar({ required this.remainingSec, required this.totalSec, required this.exceeded, this.boxed = true });
 
   String _fmt(int s) {
     final m = s ~/ 60, sec = s % 60;
@@ -623,12 +636,16 @@ class _TrialBar extends StatelessWidget {
     final ratio = totalSec > 0 ? (remainingSec / totalSec).clamp(0.0, 1.0) : 0.0;
     final color = exceeded ? kDanger : (ratio < 0.2 ? Colors.amber : kSuccess);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
+      padding: boxed
+          ? const EdgeInsets.symmetric(horizontal: 14, vertical: 10)
+          : EdgeInsets.zero,
+      decoration: boxed
+          ? BoxDecoration(
+              color: color.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withOpacity(0.2)),
+            )
+          : null,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(Icons.timer_outlined, size: 13, color: color),
@@ -700,7 +717,7 @@ class _AdExtendButtonState extends State<_AdExtendButton> {
 
   @override
   Widget build(BuildContext context) {
-    final label = widget.label ?? tr('看广告解锁 +$kAdRewardMinutes 分钟', 'Watch ad +$kAdRewardMinutes min');
+    final label = widget.label ?? tr('看广告增加$kAdRewardMinutes分钟优质节点时长', 'Watch ad · +$kAdRewardMinutes min Premium time');
     if (widget.compact) {
       return Align(
         alignment: Alignment.center,

@@ -37,6 +37,7 @@ class SharedNodeProvider extends ChangeNotifier {
   String?        get error => _error;
   bool get isConnected  => _stage == VpnStage.connected;
   bool get isConnecting => _stage == VpnStage.connecting;
+  bool get isBusy       => _stage == VpnStage.connecting || _stage == VpnStage.disconnecting;
   int? latencyOf(FreeNode n) => _latency[n.fingerprint];
 
   StreamSubscription? _stageSub;
@@ -147,6 +148,9 @@ class SharedNodeProvider extends ChangeNotifier {
   }
 
   Future<void> disconnect() async {
+    // 立即反映「断开中」，避免拆除等待期间点了没反应。
+    _stage = VpnStage.disconnecting;
+    notifyListeners();
     try {
       await _engine.stop();
     } catch (_) {}
