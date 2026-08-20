@@ -695,9 +695,18 @@ class _AdExtendButtonState extends State<_AdExtendButton> {
     setState(() => _busy = true);
     final vpn = context.read<VpnProvider>();
     final messenger = ScaffoldMessenger.of(context);
+    // #3 广告未就绪（可能国内直连加载不了）→ 提示正在经共享节点加载，请稍候。
+    if (!AdService.instance.rewardedReady) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(tr('广告加载中，国内将自动通过共享节点加速加载，请稍候…',
+            'Loading ad — using a shared node in China, please wait…')),
+        duration: const Duration(seconds: 20),
+      ));
+    }
     // 看**一条** Rewarded 激励广告，看完(到达奖励点)立即发放 +30 分钟。
     await AdService.instance.showRewardedForReward(
       onEarned: () async {
+        messenger.hideCurrentSnackBar();
         await vpn.addAdBonusMinutes(kAdRewardMinutes);
         if (!mounted) return;
         setState(() => _busy = false);
@@ -708,6 +717,7 @@ class _AdExtendButtonState extends State<_AdExtendButton> {
       onUnavailable: () {
         if (!mounted) return;
         setState(() => _busy = false);
+        messenger.hideCurrentSnackBar();
         messenger.showSnackBar(SnackBar(
           content: Text(tr('当前网络无法加载广告，可稍后重试或升级会员', 'Ads can\'t load on the current network — try again later or go Premium')),
           backgroundColor: kDanger, duration: const Duration(seconds: 3)));

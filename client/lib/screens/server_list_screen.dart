@@ -6,9 +6,10 @@ import '../models/server_config.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
 import '../services/api_service.dart';
+import '../providers/shared_node_provider.dart';
+import '../models/free_node.dart';
 import '../brand.dart';
 import '../theme.dart';
-import 'shared_nodes_screen.dart';
 
 class ServerListScreen extends StatefulWidget {
   const ServerListScreen({super.key});
@@ -17,6 +18,7 @@ class ServerListScreen extends StatefulWidget {
 
 class _ServerListScreenState extends State<ServerListScreen> {
   Timer? _refreshTimer;
+  String _tier = 'premium';   // premium=优质(WireGuard) / shared=共享(sing-box)
 
   @override
   void initState() {
@@ -69,6 +71,68 @@ class _ServerListScreenState extends State<ServerListScreen> {
     return rows;
   }
 
+  // ── 共享节点列表（与优质列表同款样式；按国家分组）──────────────────
+  Widget _buildSharedBody(BuildContext context) {
+    final p = context.watch<SharedNodeProvider>();
+    if (p.nodes.isEmpty) {
+      return Center(child: p.loading
+          ? const CircularProgressIndicator()
+          : Text(tr('暂无共享节点，点右上角刷新', 'No shared nodes — tap refresh'),
+              style: const TextStyle(color: Colors.white54)));
+    }
+    final zh = Brand.isZh;
+    final groups = <String, List<FreeNode>>{};
+    for (final n in p.nodes) {
+      groups.putIfAbsent(_freeIso(n.name), () => []).add(n);
+    }
+    final keys = groups.keys.toList()
+      ..sort((a, b) {
+        if (a == '') return 1;
+        if (b == '') return -1;
+        return _freeCountryName(a, zh).compareTo(_freeCountryName(b, zh));
+      });
+    final rows = <dynamic>[];
+    for (final k in keys) { rows.add(k); rows.addAll(groups[k]!); }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+      itemCount: rows.length,
+      itemBuilder: (_, i) {
+        final row = rows[i];
+        if (row is String) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
+            child: Row(children: [
+              Text(_freeFlag(row).isEmpty ? '🌐' : _freeFlag(row), style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 7),
+              Text(_freeCountryName(row, zh),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white70)),
+              const SizedBox(width: 6),
+              Text('${(groups[row]!).length}',
+                style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.35))),
+            ]),
+          );
+        }
+        final n = row as FreeNode;
+        final ms = p.latencyOf(n);
+        final dead = ms != null && ms < 0;
+        final active = identical(n, p.active);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _SharedTile(
+            name: _freeLineName(n.name, n.server),
+            latency: ms, dead: dead,
+            connected: active && p.isConnected, active: active,
+            onTap: dead ? null : () {
+              context.go('/home');
+              context.read<SharedNodeProvider>().connect(n);
+            },
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth    = context.watch<AuthProvider>();
@@ -86,7 +150,14 @@ class _ServerListScreenState extends State<ServerListScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: tr('刷新延迟','Refresh latency'),
-            onPressed: () => vpn.measureLatencies(servers),
+            onPressed: () {
+              if (_tier == 'shared') {
+                final p = context.read<SharedNodeProvider>();
+                p.load().then((_) => p.testAll());
+              } else {
+                vpn.measureLatencies(servers);
+              }
+            },
           ),
         ],
         bottom: PreferredSize(
@@ -94,18 +165,24 @@ class _ServerListScreenState extends State<ServerListScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Row(children: [
-              _TierChip(label: tr('优质节点·固定IP','Premium·Static IP'), selected: true, onTap: () {}),
+              _TierChip(label: tr('优质节点·固定IP','Premium·Static IP'), selected: _tier == 'premium',
+                onTap: () => setState(() => _tier = 'premium')),
               const SizedBox(width: 8),
               _TierChip(
-                label: tr('共享节点·定时刷新','Shared·Rotating'), selected: false,
-                onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SharedNodesScreen())),
+                label: tr('共享节点·定时刷新','Shared·Rotating'), selected: _tier == 'shared',
+                onTap: () {
+                  setState(() => _tier = 'shared');
+                  final p = context.read<SharedNodeProvider>();
+                  if (p.nodes.isEmpty && !p.loading) p.load().then((_) => p.testAll());
+                },
               ),
             ]),
           ),
         ),
       ),
-      body: servers.isEmpty
+      body: _tier == 'shared'
+          ? _buildSharedBody(context)
+          : servers.isEmpty
           ? Center(child: Text(tr('暂无可用节点','No nodes available'), style: const TextStyle(color: Colors.white54)))
           : ListView.separated(
               // 底部留白避开悬浮底部导航栏（extendBody），否则最后几项被遮住、滚不到底。
@@ -377,3 +454,99 @@ class _ServerTile extends StatelessWidget {
     );
   }
 }
+
+// ── 共享节点 tile（与 _ServerTile 同款样式）────────────────────────────
+class _SharedTile extends StatelessWidget {
+  final String name;
+  final int?   latency;   // ms（-1=超时，null=未测）
+  final bool   dead, connected, active;
+  final VoidCallback? onTap;
+  const _SharedTile({
+    required this.name, required this.latency, required this.dead,
+    required this.connected, required this.active, required this.onTap,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: (active && connected) ? kBrand.withOpacity(0.18) : kCard,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(children: [
+            Icon(connected ? Icons.check_circle_rounded : Icons.public_rounded,
+              color: connected ? kBrand : Colors.white.withOpacity(dead ? 0.25 : 0.55), size: 24),
+            const SizedBox(width: 14),
+            Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15,
+                color: dead ? Colors.white.withOpacity(0.35) : null))),
+            _sharedLatencyBadge(latency),
+            const SizedBox(width: 12),
+            if (active && connected)
+              const Icon(Icons.check_circle_rounded, color: kBrand, size: 20)
+            else
+              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.3)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+Widget _sharedLatencyBadge(int? ms) {
+  if (ms == null) return const SizedBox.shrink();
+  if (ms < 0) return const Text('超时', style: TextStyle(color: kDanger, fontSize: 12));
+  final c = ms < 300 ? kSuccess : (ms < 800 ? Colors.amber : kDanger);
+  return Text('$ms ms', style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w600));
+}
+
+// 共享节点：ISO / 旗帜 / 本地化国家名 / 单条线路名。
+String _freeIso(String name) {
+  final runes = name.runes.toList();
+  const base = 0x1F1E6;
+  for (var i = 0; i < runes.length - 1; i++) {
+    final a = runes[i] - base, b = runes[i + 1] - base;
+    if (a >= 0 && a <= 25 && b >= 0 && b <= 25) {
+      return String.fromCharCode(65 + a) + String.fromCharCode(65 + b);
+    }
+  }
+  return '';
+}
+String _freeFlag(String iso) {
+  if (iso.length != 2) return '';
+  const base = 0x1F1E6;
+  return String.fromCharCodes([base + (iso.codeUnitAt(0) - 65), base + (iso.codeUnitAt(1) - 65)]);
+}
+String _freeCountryName(String iso, bool zh) {
+  if (iso.isEmpty) return zh ? '其他' : 'Other';
+  final n = _kFreeCountry[iso];
+  return n == null ? iso : (zh ? n[0] : n[1]);
+}
+String _freeLineName(String name, String server) {
+  var s = name.replaceAll(RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true), '');
+  s = s.replaceAll(RegExp(r'\d+(\.\d+)?\s*[KMG]B/s'), '');
+  s = s.split('|').first.split('·').first.trim();
+  s = s.replaceAll(RegExp(r'^\W+'), '').trim();
+  if (s.length > 26) s = '${s.substring(0, 26)}…';
+  return s.isEmpty ? server : s;
+}
+const Map<String, List<String>> _kFreeCountry = {
+  'HK': ['香港', 'Hong Kong'], 'TW': ['台湾', 'Taiwan'], 'JP': ['日本', 'Japan'],
+  'KR': ['韩国', 'South Korea'], 'SG': ['新加坡', 'Singapore'], 'US': ['美国', 'United States'],
+  'CA': ['加拿大', 'Canada'], 'GB': ['英国', 'United Kingdom'], 'DE': ['德国', 'Germany'],
+  'FR': ['法国', 'France'], 'NL': ['荷兰', 'Netherlands'], 'RU': ['俄罗斯', 'Russia'],
+  'IN': ['印度', 'India'], 'AU': ['澳大利亚', 'Australia'], 'BR': ['巴西', 'Brazil'],
+  'IT': ['意大利', 'Italy'], 'ES': ['西班牙', 'Spain'], 'SE': ['瑞典', 'Sweden'],
+  'CH': ['瑞士', 'Switzerland'], 'PL': ['波兰', 'Poland'], 'FI': ['芬兰', 'Finland'],
+  'NO': ['挪威', 'Norway'], 'IE': ['爱尔兰', 'Ireland'], 'AT': ['奥地利', 'Austria'],
+  'TR': ['土耳其', 'Turkey'], 'UA': ['乌克兰', 'Ukraine'], 'CZ': ['捷克', 'Czechia'],
+  'RO': ['罗马尼亚', 'Romania'], 'VN': ['越南', 'Vietnam'], 'TH': ['泰国', 'Thailand'],
+  'MY': ['马来西亚', 'Malaysia'], 'ID': ['印尼', 'Indonesia'], 'PH': ['菲律宾', 'Philippines'],
+  'AE': ['阿联酋', 'UAE'], 'IL': ['以色列', 'Israel'], 'ZA': ['南非', 'South Africa'],
+  'MX': ['墨西哥', 'Mexico'], 'AR': ['阿根廷', 'Argentina'], 'CL': ['智利', 'Chile'],
+  'KZ': ['哈萨克斯坦', 'Kazakhstan'], 'CO': ['哥伦比亚', 'Colombia'], 'CN': ['中国', 'China'],
+  'MO': ['澳门', 'Macau'], 'PT': ['葡萄牙', 'Portugal'], 'GR': ['希腊', 'Greece'],
+  'HU': ['匈牙利', 'Hungary'], 'BE': ['比利时', 'Belgium'], 'DK': ['丹麦', 'Denmark'],
+};

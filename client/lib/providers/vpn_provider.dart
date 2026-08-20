@@ -143,7 +143,10 @@ class VpnProvider extends ChangeNotifier {
     return r > 0 ? r : 0;
   }
   /// 试用是否已用尽（免费用户额度耗尽 → 禁连，可看广告或次日恢复）。
-  bool get quotaExceeded  => _trialExceeded;
+  /// 实时按墙钟计算：不依赖只在连接时运行的 1s 定时器，断开状态下时长归零也能正确判定。
+  bool get quotaExceeded =>
+      _trialExceeded ||
+      (_timeLimitSec != null && _trialStartMs != null && trialRemainingSec <= 0);
 
   static String _utcDay() => DateTime.now().toUtc().toIso8601String().substring(0, 10);
 
@@ -304,7 +307,8 @@ class VpnProvider extends ChangeNotifier {
   //
   Future<void> connect(ServerConfig server) async {
     // 免费时长已用尽：禁止任何新连接（不管从主页还是节点列表点的）。#1
-    if (_trialExceeded) {
+    if (quotaExceeded) {
+      _trialExceeded = true;   // 同步缓存标志
       _error  = _isZh()
           ? '免费时长已用完，看广告或升级后再连接'
           : 'Free time used up. Watch an ad or upgrade to connect.';

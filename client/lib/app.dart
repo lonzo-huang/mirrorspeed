@@ -51,13 +51,25 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
     // #5 冷启动清理：停掉上次未正常退出而残留的 sing-box 隧道，避免死 tun 黑洞
     // 导致拉不到配置、一直卡在加载。冷启动 = 本 initState 只执行一次。
     _shared.disconnect();
+    // #4 启动即后台预热共享节点（拉清单 + 测速），用户点进去就已就绪，不显慢。
+    Future(() async {
+      await _shared.load();
+      await _shared.testAll();
+    });
     // 免费额度从服务器拉取：auth 配置变化时同步给 VpnProvider。
     // 时间试用(#3)为强制额度；流量值仅作展示。
+    var _premiumWarmed = false;
     _auth.addListener(() {
       _vpn.setDailyQuota(_auth.dailyQuotaBytes);
       _vpn.setTimeQuota(_auth.dailyQuotaSeconds);
       // 冷启动采纳已运行隧道后，把 activeServer 绑回上次节点。
       _vpn.bindActiveServer(_auth.displayServers);
+      // #4 配置就绪后后台预测一次优质节点延迟（只做一次），进列表即有数据。
+      final servers = _auth.displayServers;
+      if (!_premiumWarmed && servers.isNotEmpty) {
+        _premiumWarmed = true;
+        _vpn.measureLatencies(servers, rounds: 1);
+      }
     });
 
     _router = GoRouter(
