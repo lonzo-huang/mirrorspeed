@@ -78,10 +78,16 @@ class AdService {
     _showingFullScreen = true;
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (a) {
-        a.dispose(); _showingFullScreen = false; loadAppOpen();
+        a.dispose(); _showingFullScreen = false;
+        // 关闭开屏会立刻触发 App「resumed」→ 若不抑制会马上再弹一个，连播多个。
+        // 抑制 3 秒打断这个循环，保证一次切屏只播一次。
+        _suppressAppOpenUntil = DateTime.now().add(const Duration(seconds: 3));
+        loadAppOpen();
       },
       onAdFailedToShowFullScreenContent: (a, e) {
-        a.dispose(); _showingFullScreen = false; loadAppOpen();
+        a.dispose(); _showingFullScreen = false;
+        _suppressAppOpenUntil = DateTime.now().add(const Duration(seconds: 3));
+        loadAppOpen();
       },
     );
     ad.show();

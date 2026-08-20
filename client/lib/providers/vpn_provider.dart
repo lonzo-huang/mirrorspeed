@@ -220,6 +220,16 @@ class VpnProvider extends ChangeNotifier {
     // 直接显示「已连接」，避免用户再点连接而叠加第二条隧道；试用沿用已持久化
     // 的开始时间继续倒计时（不会重置回 30 分钟）。
     await _adoptRunningTunnel();
+
+    // 常驻倒计时：一旦试用开始(_trialStartMs 有值)，无论是否连接都按墙钟持续走，
+    // UI 每秒刷新、归零即触发禁连。修复「切到别的页/连共享节点后时长显示不动、
+    // 归零却仍能连优质」。
+    _ensureTrialTicker();
+  }
+
+  /// 确保倒计时定时器在运行（幂等）。付费用户 _recomputeTrial 内部会自动 no-op。
+  void _ensureTrialTicker() {
+    _trialTimer ??= Timer.periodic(const Duration(seconds: 1), (_) => _recomputeTrial());
   }
 
   Future<void> _adoptRunningTunnel() async {
@@ -1263,6 +1273,7 @@ class VpnProvider extends ChangeNotifier {
   void setTimeQuota(int? seconds) {
     _timeLimitSec = seconds;
     _rollTrialDayIfNeeded();
+    _ensureTrialTicker();   // 额度到位后确保倒计时在跑
     _recomputeTrial();
     notifyListeners();
   }
