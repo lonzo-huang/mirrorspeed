@@ -10,7 +10,6 @@ import '../utils/portal_link.dart';
 import '../providers/auth_provider.dart';
 import '../providers/shared_node_provider.dart';
 import '../models/free_node.dart';
-import 'shared_nodes_screen.dart';
 import '../providers/vpn_provider.dart';
 import '../services/ad_service.dart';
 import '../models/server_config.dart';
@@ -131,9 +130,7 @@ class HomeScreen extends StatelessWidget {
                             : tr('未选择', 'Not selected'))
                         : (server != null ? '${server.flagEmoji} ${server.displayLabel(Brand.isZh)}' : tr('未选择', 'Not selected')),
                     latency: showShared ? null : (server?.displayLatencyMs != null ? '${server!.displayLatencyMs}ms' : null),
-                    onTap: showShared
-                        ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SharedNodesScreen()))
-                        : () => context.go('/servers'),
+                    onTap: () => context.go('/servers'),   // 统一进服务器页（按偏好自动落到共享/优质 tab）
                   ),
                 ),
 

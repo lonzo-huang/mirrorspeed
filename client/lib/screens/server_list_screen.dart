@@ -18,11 +18,17 @@ class ServerListScreen extends StatefulWidget {
 
 class _ServerListScreenState extends State<ServerListScreen> {
   Timer? _refreshTimer;
-  String _tier = 'premium';   // premium=优质(WireGuard) / shared=共享(sing-box)
+  late String _tier;   // premium=优质(WireGuard) / shared=共享(sing-box)
 
   @override
   void initState() {
     super.initState();
+    // 按当前偏好落到对应 tab：共享连着/偏好共享 → 直接进共享 tab，与主页当前节点卡一致。
+    _tier = context.read<SharedNodeProvider>().preferShared ? 'shared' : 'premium';
+    if (_tier == 'shared') {
+      final p = context.read<SharedNodeProvider>();
+      if (p.nodes.isEmpty && !p.loading) p.load().then((_) => p.testAll());
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth    = context.read<AuthProvider>();
       final servers = auth.displayServers;
@@ -83,13 +89,13 @@ class _ServerListScreenState extends State<ServerListScreen> {
     final zh = Brand.isZh;
     final groups = <String, List<FreeNode>>{};
     for (final n in p.nodes) {
-      groups.putIfAbsent(_freeIso(n.name), () => []).add(n);
+      groups.putIfAbsent(_freeCountryKey(n.name), () => []).add(n);
     }
     final keys = groups.keys.toList()
       ..sort((a, b) {
         if (a == '') return 1;
         if (b == '') return -1;
-        return _freeCountryName(a, zh).compareTo(_freeCountryName(b, zh));
+        return _freeGroupLabel(a, zh).compareTo(_freeGroupLabel(b, zh));
       });
     final rows = <dynamic>[];
     for (final k in keys) { rows.add(k); rows.addAll(groups[k]!); }
@@ -103,9 +109,9 @@ class _ServerListScreenState extends State<ServerListScreen> {
           return Padding(
             padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
             child: Row(children: [
-              Text(_freeFlag(row).isEmpty ? '🌐' : _freeFlag(row), style: const TextStyle(fontSize: 16)),
+              Text(_freeGroupFlag(row).isEmpty ? '🌐' : _freeGroupFlag(row), style: const TextStyle(fontSize: 16)),
               const SizedBox(width: 7),
-              Text(_freeCountryName(row, zh),
+              Text(_freeGroupLabel(row, zh),
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white70)),
               const SizedBox(width: 6),
               Text('${(groups[row]!).length}',
@@ -502,8 +508,17 @@ Widget _sharedLatencyBadge(int? ms) {
   return Text('$ms ms', style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w600));
 }
 
-// 共享节点：ISO / 旗帜 / 本地化国家名 / 单条线路名。
-String _freeIso(String name) {
+// 共享节点分组：新版名字为「英文国家名 - IP」；兼容旧版旗帜 emoji。
+// 分组 key：英文国家名 或 ISO 码（旗帜）或 ''。
+String _freeCountryKey(String name) {
+  final idx = name.indexOf(' - ');
+  if (idx > 0) {
+    final c = name.substring(0, idx).trim();
+    if (c.isNotEmpty) return c;
+  }
+  return _freeIsoFromFlag(name);   // 旧版兼容
+}
+String _freeIsoFromFlag(String name) {
   final runes = name.runes.toList();
   const base = 0x1F1E6;
   for (var i = 0; i < runes.length - 1; i++) {
@@ -519,12 +534,28 @@ String _freeFlag(String iso) {
   const base = 0x1F1E6;
   return String.fromCharCodes([base + (iso.codeUnitAt(0) - 65), base + (iso.codeUnitAt(1) - 65)]);
 }
-String _freeCountryName(String iso, bool zh) {
-  if (iso.isEmpty) return zh ? '其他' : 'Other';
-  final n = _kFreeCountry[iso];
-  return n == null ? iso : (zh ? n[0] : n[1]);
+// 分组表头本地化名（key 可能是英文国家名或 ISO 码）。
+String _freeGroupLabel(String key, bool zh) {
+  if (key.isEmpty) return zh ? '其他' : 'Other';
+  final byName = _kCountryByName[key];
+  if (byName != null) return zh ? byName[0] : key;   // 英文国家名
+  final byIso = _kFreeCountry[key];
+  if (byIso != null) return zh ? byIso[0] : byIso[1]; // ISO
+  return key;
 }
+String _freeGroupFlag(String key) {
+  final byName = _kCountryByName[key];
+  if (byName != null) return _freeFlag(byName[1]);
+  if (key.length == 2) return _freeFlag(key);
+  return '';
+}
+// 单条线路名：「Country - IP」→ 显示 IP；否则清理后的名。
 String _freeLineName(String name, String server) {
+  final idx = name.indexOf(' - ');
+  if (idx > 0) {
+    final rest = name.substring(idx + 3).trim();
+    return rest.isEmpty ? server : rest;
+  }
   var s = name.replaceAll(RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true), '');
   s = s.replaceAll(RegExp(r'\d+(\.\d+)?\s*[KMG]B/s'), '');
   s = s.split('|').first.split('·').first.trim();
@@ -532,6 +563,10 @@ String _freeLineName(String name, String server) {
   if (s.length > 26) s = '${s.substring(0, 26)}…';
   return s.isEmpty ? server : s;
 }
+// 英文国家名 → [中文名, ISO]（由 _kFreeCountry 反转得到）。
+final Map<String, List<String>> _kCountryByName = {
+  for (final e in _kFreeCountry.entries) e.value[1]: [e.value[0], e.key],
+};
 const Map<String, List<String>> _kFreeCountry = {
   'HK': ['香港', 'Hong Kong'], 'TW': ['台湾', 'Taiwan'], 'JP': ['日本', 'Japan'],
   'KR': ['韩国', 'South Korea'], 'SG': ['新加坡', 'Singapore'], 'US': ['美国', 'United States'],
