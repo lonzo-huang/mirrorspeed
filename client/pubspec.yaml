@@ -63,6 +63,9 @@ dependencies:
   # ── 系统分享（邀请好友：复制/微信/WhatsApp 等）──
   share_plus: ^10.1.2
 
+  # ── 分应用代理（智能模式黑白名单：枚举已安装 App）──
+  installed_apps: ^1.4.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

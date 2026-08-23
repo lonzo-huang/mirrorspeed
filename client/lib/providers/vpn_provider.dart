@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../vpn/vpn_engine.dart';
 import '../vpn/amnezia_wg_engine.dart';
+import '../services/app_proxy_store.dart';
 import '../models/server_config.dart';
 import '../services/ws_relay_service.dart';
 import '../services/port_hopping.dart';
@@ -378,6 +379,7 @@ class VpnProvider extends ChangeNotifier {
           : server.wgConf;
       wgConf = PortHoppingService.instance
           .rewriteEndpointPort(wgConf, effectivePort);
+      wgConf = await _applyAppProxy(wgConf);   // #7 智能模式分应用黑白名单
 
       debugPrint('[VPN] 直连 AmneziaWG，端口=$effectivePort');
 
@@ -585,6 +587,30 @@ class VpnProvider extends ChangeNotifier {
   }
 
   // ── 智能路由：将 AWG 配置的 AllowedIPs 改为非中国IP段 ────────────────────
+  // #7 分应用代理：仅智能模式生效。把选中的包名注入 [Interface]，
+  // 白名单→IncludedApplications(只这些走 VPN)；黑名单→ExcludedApplications(这些直连)。
+  // AmneziaWG 插件会解析这两个键调 addAllowed/DisallowedApplication。
+  Future<String> _applyAppProxy(String wgConf) async {
+    if (_routingMode != RoutingMode.smart) return wgConf;
+    if (!await AppProxyStore.loadEnabled()) return wgConf;
+    final pkgs = await AppProxyStore.loadPkgs();
+    if (pkgs.isEmpty) return wgConf;   // 名单空则不做分应用限制，避免死隧道
+    final mode = await AppProxyStore.loadMode();
+    final key  = mode == 'white' ? 'IncludedApplications' : 'ExcludedApplications';
+    final line = '$key = ${pkgs.join(', ')}';
+    final lines = wgConf.split('\n');
+    final out = <String>[];
+    var inserted = false;
+    for (final l in lines) {
+      out.add(l);
+      if (!inserted && l.trim().toLowerCase() == '[interface]') {
+        out.add(line);
+        inserted = true;
+      }
+    }
+    return inserted ? out.join('\n') : wgConf;
+  }
+
   Future<String> _applySmartRouting(String wgConf, {required String? excludeIp}) async {
     final routes = await _getSmartRoutes(excludeIp: excludeIp);
     return wgConf.replaceAll(
