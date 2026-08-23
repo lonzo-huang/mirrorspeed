@@ -499,7 +499,8 @@ class VpnProvider extends ChangeNotifier {
       // server.port 是对外暴露端口（可能经 iptables DNAT），不适合此处。
       final localPort = await _relay.start(
           '$relayBaseUrl/secure-tunnel', _awgInternalPort);
-      final relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
+      var relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
+      relayConf = await _applyAppProxy(relayConf);   // #7 分应用代理(中继也生效)
 
       await _engine.start(EngineStartParams(
         serverAddress:  '127.0.0.1:$localPort',
@@ -587,11 +588,10 @@ class VpnProvider extends ChangeNotifier {
   }
 
   // ── 智能路由：将 AWG 配置的 AllowedIPs 改为非中国IP段 ────────────────────
-  // #7 分应用代理：仅智能模式生效。把选中的包名注入 [Interface]，
+  // #7 分应用代理：智能/全局模式都生效（分应用与 CN 直连路由是两回事）。
   // 白名单→IncludedApplications(只这些走 VPN)；黑名单→ExcludedApplications(这些直连)。
   // AmneziaWG 插件会解析这两个键调 addAllowed/DisallowedApplication。
   Future<String> _applyAppProxy(String wgConf) async {
-    if (_routingMode != RoutingMode.smart) return wgConf;
     if (!await AppProxyStore.loadEnabled()) return wgConf;
     final pkgs = await AppProxyStore.loadPkgs();
     if (pkgs.isEmpty) return wgConf;   // 名单空则不做分应用限制，避免死隧道
