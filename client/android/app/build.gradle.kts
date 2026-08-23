@@ -58,10 +58,11 @@ android {
         }
     }
 
-    // 16KB 分页设备要求：jniLibs 以非压缩、页对齐方式打包（配合 16KB 对齐的 .so）。
+    // .so 以压缩方式打包，显著减小下载包体积(尤其 60MB 的 libbox)；安装时解压。
+    // 16KB 兼容取决于 .so 自身 ELF 对齐，与是否压缩无关。
     packaging {
         jniLibs {
-            useLegacyPackaging = false
+            useLegacyPackaging = true
         }
     }
 }

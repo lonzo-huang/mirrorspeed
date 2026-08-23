@@ -962,7 +962,7 @@ class _RoutingModeToggle extends StatelessWidget {
       child: Row(children: [
         _ToggleItem(
           label:    '智能模式',
-          subtitle: '按规则代理',
+          subtitle: '按黑/白名单规则代理',
           icon:     Icons.bolt_rounded,
           selected: mode == RoutingMode.smart,
           onTap:    () => onChanged(RoutingMode.smart),

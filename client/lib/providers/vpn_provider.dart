@@ -200,14 +200,11 @@ class VpnProvider extends ChangeNotifier {
     // 恢复上次选择的路由模式；首次无记录时：中文用户默认「智能」，其它默认「全局」。
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('routing_mode');
-    if (saved == RoutingMode.smart.name) {
-      _routingMode = RoutingMode.smart;
-      notifyListeners();
-    } else if (saved == RoutingMode.global.name) {
+    if (saved == RoutingMode.global.name) {
       _routingMode = RoutingMode.global;
       notifyListeners();
-    } else if (Brand.isZh) {
-      _routingMode = RoutingMode.smart;   // 中文首次默认智能
+    } else {
+      _routingMode = RoutingMode.smart;   // 默认智能模式（首次安装即智能）
       notifyListeners();
     }
     // 恢复「智能分配 / 手动选择」偏好（默认智能）
