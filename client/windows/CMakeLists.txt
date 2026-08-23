@@ -106,3 +106,17 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# ── sing-box 免费节点引擎（桌面）─────────────────────────────────────────
+# 把 windows/singbox/ 里的 sing-box.exe + wintun.dll 复制到应用 exe 同目录，
+# SingboxWindowsRunner 以子进程方式运行它（tun 由 sing-box 自行管理）。
+# 二进制需自行放入 windows/singbox/（见该目录 README.md），不入库。
+set(SINGBOX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/singbox")
+if(EXISTS "${SINGBOX_DIR}/sing-box.exe")
+  install(FILES "${SINGBOX_DIR}/sing-box.exe"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}" COMPONENT Runtime)
+endif()
+if(EXISTS "${SINGBOX_DIR}/wintun.dll")
+  install(FILES "${SINGBOX_DIR}/wintun.dll"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}" COMPONENT Runtime)
+endif()

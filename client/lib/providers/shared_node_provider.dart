@@ -188,8 +188,9 @@ class SharedNodeProvider extends ChangeNotifier {
     notifyListeners();
     try {
       // 分应用黑白名单也对免费节点生效（sing-box tun include/exclude_package）。
+      // 仅 Android：include_package 是 Android 专属字段，桌面 sing-box 不支持。
       List<String>? inc, exc;
-      if (applyAppProxy && await AppProxyStore.loadEnabled()) {
+      if (applyAppProxy && Platform.isAndroid && await AppProxyStore.loadEnabled()) {
         final pkgs = (await AppProxyStore.loadPkgs()).toList();
         if (pkgs.isNotEmpty) {
           if (await AppProxyStore.loadMode() == 'white') { inc = pkgs; } else { exc = pkgs; }

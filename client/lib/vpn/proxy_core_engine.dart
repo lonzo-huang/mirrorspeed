@@ -1,30 +1,42 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'vpn_engine.dart';
+import 'singbox_windows_runner.dart';
 
-/// sing-box 引擎:用于「共享节点」(免费机场)。通过 method/event channel 调用原生
-/// singbox_flutter 插件(libbox + VpnService / NEPacketTunnelProvider)。
-///
-/// 原生侧尚未接入(需 libbox.aar);Dart 侧接口已就绪,原生一到位即可跑通。
-/// 启动参数走 [EngineStartParams.singboxConfig](完整 sing-box 配置,见 SingboxConfig)。
+/// sing-box 引擎:用于「共享节点」(免费机场)。
+/// - Android / iOS：原生插件(libbox + VpnService / NEPacketTunnelProvider)，
+///   经 MethodChannel 'mirrorspeed/singbox' + EventChannel 调用。
+/// - Windows / macOS 桌面：官方 sing-box.exe / sing-box 子进程 + wintun/utun。
+/// 启动参数走 [EngineStartParams.singboxConfig]（完整 sing-box 配置，见 SingboxConfig）。
 class ProxyCoreEngine implements VpnEngine {
   static const MethodChannel _control = MethodChannel('mirrorspeed/singbox');
   static const EventChannel  _stage   = EventChannel('mirrorspeed/singbox/stage');
+
+  // 桌面（Windows）用子进程运行器。
+  static final bool _useDesktopRunner =
+      !kIsWeb && Platform.isWindows;
+  final SingboxWindowsRunner? _win =
+      (!kIsWeb && Platform.isWindows) ? SingboxWindowsRunner() : null;
 
   @override
   EngineKind get kind => EngineKind.singbox;
 
   @override
   Future<void> initialize() async {
+    if (_useDesktopRunner) return;   // 桌面无需初始化
     await _control.invokeMethod('init');
   }
 
   @override
-  Stream<VpnStage> get stageStream =>
-      _stage.receiveBroadcastStream().map(_mapStage);
+  Stream<VpnStage> get stageStream => _useDesktopRunner
+      ? _win!.stageStream
+      : _stage.receiveBroadcastStream().map(_mapStage);
 
   @override
   Future<VpnStage> stage() async {
+    if (_useDesktopRunner) return _win!.stage;
     final s = await _control.invokeMethod<String>('stage');
     return _mapStageName(s ?? 'disconnected');
   }
@@ -35,23 +47,28 @@ class ProxyCoreEngine implements VpnEngine {
     if (cfg == null) {
       throw ArgumentError('ProxyCoreEngine.start 需要 singboxConfig');
     }
-    // 原生侧接收完整 sing-box 配置 JSON 字符串,建立 VpnService 并交给 libbox。
-    await _control.invokeMethod('start', {'config': jsonEncode(cfg)});
+    final json = jsonEncode(cfg);
+    if (_useDesktopRunner) {
+      await _win!.start(json);
+      return;
+    }
+    await _control.invokeMethod('start', {'config': json});
   }
 
   @override
   Future<void> stop() async {
+    if (_useDesktopRunner) { await _win!.stop(); return; }
     await _control.invokeMethod('stop');
   }
 
   @override
   Future<List<int>> transferRxTx() async {
+    if (_useDesktopRunner) return const [-1, -1];
     final r = await _control.invokeMethod<List<dynamic>>('transferRxTx');
     if (r == null || r.length < 2) return const [-1, -1];
     return [(r[0] as num).toInt(), (r[1] as num).toInt()];
   }
 
-  // 原生 stage 事件(String)→ VpnStage
   VpnStage _mapStage(dynamic e) => _mapStageName('$e');
 
   VpnStage _mapStageName(String s) {
