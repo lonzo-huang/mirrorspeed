@@ -195,6 +195,22 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
             } catch (_: Exception) {}
         }
 
+        // 分应用（黑白名单）：sing-box 把 config 的 include_package/exclude_package
+        // 通过 TunOptions 传进来，由我们在这里落到 VpnService.Builder。之前漏了这段，
+        // 导致免费节点的黑白名单不生效。未安装的包会抛异常，逐个 try/catch 跳过。
+        try {
+            val inc = options.includePackage
+            while (inc.hasNext()) {
+                try { builder.addAllowedApplication(inc.next()) } catch (_: Throwable) {}
+            }
+        } catch (_: Throwable) {}
+        try {
+            val exc = options.excludePackage
+            while (exc.hasNext()) {
+                try { builder.addDisallowedApplication(exc.next()) } catch (_: Throwable) {}
+            }
+        } catch (_: Throwable) {}
+
         val pfd = builder.establish() ?: throw IllegalStateException("VpnService.establish() 返回 null")
         tunFd = pfd    // 持有；停止时主动 close 以真正拆掉 tun 接口(否则 VPN 一直挂着、网络死锁)
         return pfd.fd
