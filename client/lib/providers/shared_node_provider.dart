@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import '../brand.dart';
 import '../models/free_node.dart';
 import '../services/free_node_service.dart';
 import '../vpn/proxy_core_engine.dart';
@@ -189,8 +190,11 @@ class SharedNodeProvider extends ChangeNotifier {
     try {
       // 分应用黑白名单也对免费节点生效（sing-box tun include/exclude_package）。
       // 仅 Android：include_package 是 Android 专属字段，桌面 sing-box 不支持。
+      // 仅中文壳：分应用/智能分流是中国市场特性（Brand.showSmartRouting=isZh）；海外
+      // 用户看不到相关开关，若默认白名单只放 26 个 App 会「连上但应用没走 VPN」，
+      // 故非中文一律全隧道（不注入 include_package）。
       List<String>? inc, exc;
-      if (applyAppProxy && Platform.isAndroid && await AppProxyStore.loadEnabled()) {
+      if (applyAppProxy && Brand.isZh && Platform.isAndroid && await AppProxyStore.loadEnabled()) {
         final pkgs = (await AppProxyStore.loadPkgs()).toList();
         if (pkgs.isNotEmpty) {
           if (await AppProxyStore.loadMode() == 'white') { inc = pkgs; } else { exc = pkgs; }

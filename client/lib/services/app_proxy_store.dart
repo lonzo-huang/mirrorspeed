@@ -40,6 +40,7 @@ class AppProxyStore {
     'com.medium.reader',
     'org.mozilla.firefox',
     'com.brave.browser',
+    'com.android.chrome',                  // Chrome：海外浏览常用，默认走 VPN
   ];
 
   static Future<bool> loadEnabled() async =>

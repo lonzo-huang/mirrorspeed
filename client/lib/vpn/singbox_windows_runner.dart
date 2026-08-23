@@ -44,9 +44,15 @@ class SingboxWindowsRunner {
         throw StateError('sing-box.exe 未找到：$exe');
       }
       // -D 指定工作目录（缓存/geo 资源），--disable-color 便于解析日志。
+      // ENABLE_DEPRECATED_LEGACY_DNS_SERVERS：sing-box 1.12+ 把旧版 DNS 服务器格式
+      //（{tag,address,detour}，SingboxConfig 目前用的就是这种）标为 FATAL，缺此变量
+      // sing-box.exe 会在解析配置时直接退出 → Windows 免费节点“全部连不上”。
+      // Android 的 libbox 构建不强制该检查，故仅桌面需要。（1.14 将彻底移除旧格式，
+      // 届时需把 SingboxConfig 的 dns.servers 迁移到新格式。）
       _proc = await Process.start(
         exe,
         ['run', '-c', cfgPath, '-D', support.path, '--disable-color'],
+        environment: {'ENABLE_DEPRECATED_LEGACY_DNS_SERVERS': 'true'},
         mode: ProcessStartMode.normal,
       );
       _proc!.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {

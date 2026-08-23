@@ -202,11 +202,16 @@ class VpnProvider extends ChangeNotifier {
     final saved = prefs.getString('routing_mode');
     if (saved == RoutingMode.global.name) {
       _routingMode = RoutingMode.global;
-      notifyListeners();
+    } else if (saved == RoutingMode.smart.name) {
+      _routingMode = RoutingMode.smart;
     } else {
-      _routingMode = RoutingMode.smart;   // 默认智能模式（首次安装即智能）
-      notifyListeners();
+      // 首次安装、无记录：中文用户默认「智能」（境内直连/境外走 VPN + 分应用白名单）；
+      // 非中文用户默认「全局」——他们看不到智能/全局切换(Brand.showSmartRouting=isZh)，
+      // 若默认智能+白名单会导致「只有名单内 26 个 App 走 VPN、Chrome 等全部绕过」，
+      // 表现为「连上了但应用没走 VPN」。全局=所有流量进隧道，才是海外用户预期。
+      _routingMode = _isZh() ? RoutingMode.smart : RoutingMode.global;
     }
+    notifyListeners();
     // 恢复「智能分配 / 手动选择」偏好（默认智能）
     _autoSelect = prefs.getBool('auto_select') ?? true;
     // 恢复「连接模式」偏好（默认自动）
