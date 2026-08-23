@@ -6,6 +6,7 @@ import '../services/free_node_service.dart';
 import '../vpn/proxy_core_engine.dart';
 import '../vpn/singbox_config.dart';
 import '../vpn/vpn_engine.dart';
+import '../services/app_proxy_store.dart';
 
 /// 「共享节点」(免费机场，走 sing-box)状态管理，与 WireGuard 的 [VpnProvider] 平行。
 /// 两条隧道系统级互斥：连接共享节点前先停 WireGuard（[onNeedStopOther]）。
@@ -174,7 +175,9 @@ class SharedNodeProvider extends ChangeNotifier {
   }
 
   /// 连接某个共享节点。先停 WireGuard（系统级只允许一条隧道）。
-  Future<void> connect(FreeNode node) async {
+  /// [applyAppProxy]=false 时走全隧道(不分应用)——广告加载专用，确保本 App 的广告
+  /// 请求也经隧道出去(否则白名单没包含本 App 会导致广告仍加载不了)。
+  Future<void> connect(FreeNode node, {bool applyAppProxy = true}) async {
     _error = null;
     _selected = node;
     _preferShared = true;
@@ -184,7 +187,16 @@ class SharedNodeProvider extends ChangeNotifier {
     _active = node;
     notifyListeners();
     try {
-      final cfg = SingboxConfig.build(node, smart: false);
+      // 分应用黑白名单也对免费节点生效（sing-box tun include/exclude_package）。
+      List<String>? inc, exc;
+      if (applyAppProxy && await AppProxyStore.loadEnabled()) {
+        final pkgs = (await AppProxyStore.loadPkgs()).toList();
+        if (pkgs.isNotEmpty) {
+          if (await AppProxyStore.loadMode() == 'white') { inc = pkgs; } else { exc = pkgs; }
+        }
+      }
+      final cfg = SingboxConfig.build(node, smart: false,
+          includePackages: inc, excludePackages: exc);
       await _engine.start(EngineStartParams(singboxConfig: cfg));
     } catch (e) {
       _error = '$e';
@@ -207,7 +219,7 @@ class SharedNodeProvider extends ChangeNotifier {
     final pool = alive.isNotEmpty ? alive : _nodes;
     // 低延迟前若干个里随机挑一个（分散负载）。
     final head = pool.take(pool.length < 8 ? pool.length : 8).toList()..shuffle();
-    await connect(head.first);
+    await connect(head.first, applyAppProxy: false);   // 广告全隧道
     final deadline = DateTime.now().add(const Duration(seconds: 10));
     while (!isConnected && DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(milliseconds: 200));

@@ -521,10 +521,12 @@ class _SharedTile extends StatelessWidget {
   }
 }
 
+// 免费节点状态：参考优质节点用信号强度显示；超时(不可达)显示「爆满」。
 Widget _sharedLatencyBadge(int? ms) {
   if (ms == null) return const SizedBox.shrink();
-  if (ms < 0) return const Text('超时', style: TextStyle(color: kDanger, fontSize: 12));
-  final c = ms < 300 ? kSuccess : (ms < 800 ? Colors.amber : kDanger);
-  return Text('$ms ms', style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w600));
+  if (ms < 0) return Text(tr('爆满', 'Full'),
+      style: const TextStyle(color: kDanger, fontSize: 13, fontWeight: FontWeight.w600));
+  final bars = ms < 100 ? 4 : (ms < 200 ? 3 : (ms < 300 ? 2 : 1));
+  return _SignalBars(bars: bars);
 }
 

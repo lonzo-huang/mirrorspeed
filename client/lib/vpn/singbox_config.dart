@@ -25,6 +25,8 @@ class SingboxConfig {
     bool smart = true,
     bool adOnly = false,
     String? logPath,   // 非空则把 sing-box 日志(debug)写到该文件，供诊断
+    List<String>? includePackages,   // 分应用：只有这些 App 进隧道(白名单)
+    List<String>? excludePackages,   // 分应用：这些 App 绕过隧道(黑名单)
   }) {
     // 选中节点的 outbound(强制 tag=proxy)
     final proxy = Map<String, dynamic>.from(node.outbound)..['tag'] = 'proxy';
@@ -89,6 +91,11 @@ class SingboxConfig {
           'auto_route': true,
           'strict_route': false,
           'stack': 'gvisor',
+          // 分应用：白名单只放这些 App 进隧道；黑名单让这些 App 绕过。
+          if (includePackages != null && includePackages.isNotEmpty)
+            'include_package': includePackages,
+          if (excludePackages != null && excludePackages.isNotEmpty)
+            'exclude_package': excludePackages,
         },
       ],
       'outbounds': [
