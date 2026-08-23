@@ -32,7 +32,8 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     _mode     = await AppProxyStore.loadMode();
     _selected = await AppProxyStore.loadPkgs();
     try {
-      final apps = await InstalledApps.getInstalledApps(true, true);   // 排除系统 App，带图标
+      // 包含系统 App（Chrome/系统浏览器/YouTube 等常是系统预装，排除会导致选不到）。
+      final apps = await InstalledApps.getInstalledApps(false, true);
       apps.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       _apps = apps;
     } catch (_) {}
@@ -43,10 +44,20 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _query.isEmpty
-        ? _apps
-        : _apps.where((a) => a.name.toLowerCase().contains(_query.toLowerCase()) ||
-            a.packageName.toLowerCase().contains(_query.toLowerCase())).toList();
+    final q = _query.toLowerCase();
+    bool match(AppInfo a) => q.isEmpty ||
+        a.name.toLowerCase().contains(q) || a.packageName.toLowerCase().contains(q);
+    final chosen  = _apps.where((a) => _selected.contains(a.packageName) && match(a)).toList();
+    final rest    = _apps.where((a) => !_selected.contains(a.packageName) && match(a)).toList();
+
+    // 分两栏：已选中 / 未选中。用 header 字符串 + AppInfo 混合成行列表。
+    final rows = <dynamic>[];
+    rows.add(tr('已选中（${chosen.length}）', 'Selected (${chosen.length})'));
+    if (chosen.isEmpty) rows.add('__empty__');
+    rows.addAll(chosen);
+    rows.add(tr('未选中', 'Not selected'));
+    rows.addAll(rest);
+
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
@@ -59,9 +70,25 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
               _header(),
               const Divider(height: 1),
               Expanded(child: ListView.builder(
-                itemCount: filtered.length,
+                itemCount: rows.length,
                 itemBuilder: (_, i) {
-                  final a = filtered[i];
+                  final row = rows[i];
+                  if (row == '__empty__') {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(tr('暂无，勾选下方应用加入', 'None yet — check apps below'),
+                          style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.35))),
+                    );
+                  }
+                  if (row is String) {
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                      child: Text(row, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                          color: Colors.white.withOpacity(0.5))),
+                    );
+                  }
+                  final a = row as AppInfo;
                   final on = _selected.contains(a.packageName);
                   return CheckboxListTile(
                     dense: true,
