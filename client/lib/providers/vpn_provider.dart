@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../vpn/vpn_engine.dart';
 import '../vpn/amnezia_wg_engine.dart';
+import '../services/app_proxy_store.dart';
 import '../models/server_config.dart';
 import '../services/ws_relay_service.dart';
 import '../services/port_hopping.dart';
@@ -38,6 +39,9 @@ enum RoutingMode  { global, smart }
 class VpnProvider extends ChangeNotifier {
   // VPN 引擎(引擎无关抽象)。当前只有 AmneziaWG;sing-box 之后按节点 tier 切换。
   final VpnEngine _engine = AmneziaWgEngine();
+
+  /// 连接前需要停掉的另一条隧道（共享节点 sing-box）。由 app 层注入，实现系统级互斥。
+  Future<void> Function()? onBeforeConnect;
 
   VpnStatus     _status        = VpnStatus.disconnected;
   ServerConfig? _activeServer;
@@ -140,7 +144,10 @@ class VpnProvider extends ChangeNotifier {
     return r > 0 ? r : 0;
   }
   /// 试用是否已用尽（免费用户额度耗尽 → 禁连，可看广告或次日恢复）。
-  bool get quotaExceeded  => _trialExceeded;
+  /// 实时按墙钟计算：不依赖只在连接时运行的 1s 定时器，断开状态下时长归零也能正确判定。
+  bool get quotaExceeded =>
+      _trialExceeded ||
+      (_timeLimitSec != null && _trialStartMs != null && trialRemainingSec <= 0);
 
   static String _utcDay() => DateTime.now().toUtc().toIso8601String().substring(0, 10);
 
@@ -193,14 +200,11 @@ class VpnProvider extends ChangeNotifier {
     // 恢复上次选择的路由模式；首次无记录时：中文用户默认「智能」，其它默认「全局」。
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('routing_mode');
-    if (saved == RoutingMode.smart.name) {
-      _routingMode = RoutingMode.smart;
-      notifyListeners();
-    } else if (saved == RoutingMode.global.name) {
+    if (saved == RoutingMode.global.name) {
       _routingMode = RoutingMode.global;
       notifyListeners();
-    } else if (Brand.isZh) {
-      _routingMode = RoutingMode.smart;   // 中文首次默认智能
+    } else {
+      _routingMode = RoutingMode.smart;   // 默认智能模式（首次安装即智能）
       notifyListeners();
     }
     // 恢复「智能分配 / 手动选择」偏好（默认智能）
@@ -214,6 +218,16 @@ class VpnProvider extends ChangeNotifier {
     // 直接显示「已连接」，避免用户再点连接而叠加第二条隧道；试用沿用已持久化
     // 的开始时间继续倒计时（不会重置回 30 分钟）。
     await _adoptRunningTunnel();
+
+    // 常驻倒计时：一旦试用开始(_trialStartMs 有值)，无论是否连接都按墙钟持续走，
+    // UI 每秒刷新、归零即触发禁连。修复「切到别的页/连共享节点后时长显示不动、
+    // 归零却仍能连优质」。
+    _ensureTrialTicker();
+  }
+
+  /// 确保倒计时定时器在运行（幂等）。付费用户 _recomputeTrial 内部会自动 no-op。
+  void _ensureTrialTicker() {
+    _trialTimer ??= Timer.periodic(const Duration(seconds: 1), (_) => _recomputeTrial());
   }
 
   Future<void> _adoptRunningTunnel() async {
@@ -260,13 +274,15 @@ class VpnProvider extends ChangeNotifier {
         // 隧道接口已 UP，但流量未必通。一律先保持「连接中」，等连通性验证
         // 通过后再由 _postConnectCheck / _postRelayCheck 置为 connected（#5）。
         if (_userInitiatedDisconnect) break;  // 用户已断开，忽略迟到的 connected
+        // #3 乐观连接：隧道接口 UP 即显示「已连接」（秒连体验），后台仍验证真实流量；
+        // 验证失败再由 _postConnectCheck/_postRelayCheck 回退中继或断开。
         if (_switchingToRelay) {
           _fallbackTimer?.cancel();
           _switchingToRelay = false;
-          _status = VpnStatus.connecting;
+          _status = VpnStatus.connected;
           _postRelayCheck(_activeServer);   // 5 秒后验证中继流量
         } else {
-          _status = VpnStatus.connecting;
+          _status = VpnStatus.connected;
           _postConnectCheck(_activeServer); // 4 秒后验证直连流量
         }
       case VpnStage.connecting:
@@ -299,7 +315,8 @@ class VpnProvider extends ChangeNotifier {
   //
   Future<void> connect(ServerConfig server) async {
     // 免费时长已用尽：禁止任何新连接（不管从主页还是节点列表点的）。#1
-    if (_trialExceeded) {
+    if (quotaExceeded) {
+      _trialExceeded = true;   // 同步缓存标志
       _error  = _isZh()
           ? '免费时长已用完，看广告或升级后再连接'
           : 'Free time used up. Watch an ad or upgrade to connect.';
@@ -307,6 +324,8 @@ class VpnProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    // 系统级只允许一条隧道：连 WireGuard 前先停掉共享节点(sing-box)。
+    try { await onBeforeConnect?.call(); } catch (_) {}
     _error            = null;
     _status           = VpnStatus.connecting;
     _activeServer     = server;
@@ -357,6 +376,7 @@ class VpnProvider extends ChangeNotifier {
           : server.wgConf;
       wgConf = PortHoppingService.instance
           .rewriteEndpointPort(wgConf, effectivePort);
+      wgConf = await _applyAppProxy(wgConf);   // #7 智能模式分应用黑白名单
 
       debugPrint('[VPN] 直连 AmneziaWG，端口=$effectivePort');
 
@@ -476,7 +496,8 @@ class VpnProvider extends ChangeNotifier {
       // server.port 是对外暴露端口（可能经 iptables DNAT），不适合此处。
       final localPort = await _relay.start(
           '$relayBaseUrl/secure-tunnel', _awgInternalPort);
-      final relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
+      var relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
+      relayConf = await _applyAppProxy(relayConf);   // #7 分应用代理(智能模式)
 
       await _engine.start(EngineStartParams(
         serverAddress:  '127.0.0.1:$localPort',
@@ -564,6 +585,31 @@ class VpnProvider extends ChangeNotifier {
   }
 
   // ── 智能路由：将 AWG 配置的 AllowedIPs 改为非中国IP段 ────────────────────
+  // #7 分应用代理：仅智能模式生效（全局模式=所有流量走隧道，不做分应用过滤）。
+  // 白名单→IncludedApplications(只这些走 VPN)；黑名单→ExcludedApplications(这些直连)。
+  // AmneziaWG 插件解析这两个键调 addAllowed/DisallowedApplication。
+  Future<String> _applyAppProxy(String wgConf) async {
+    if (_routingMode != RoutingMode.smart) return wgConf;
+    if (!await AppProxyStore.loadEnabled()) return wgConf;
+    final pkgs = await AppProxyStore.loadPkgs();
+    if (pkgs.isEmpty) return wgConf;   // 名单空则不做分应用限制，避免死隧道
+    final mode = await AppProxyStore.loadMode();
+    final key  = mode == 'white' ? 'IncludedApplications' : 'ExcludedApplications';
+    final line = '$key = ${pkgs.join(', ')}';
+    final lines = wgConf.split('\n');
+    final out = <String>[];
+    var inserted = false;
+    for (final l in lines) {
+      out.add(l);
+      if (!inserted && l.trim().toLowerCase() == '[interface]') {
+        out.add(line);
+        inserted = true;
+      }
+    }
+    debugPrint('[APPPROXY] mode=$mode enabled inject=$inserted pkgs=${pkgs.length} → $line');
+    return inserted ? out.join('\n') : wgConf;
+  }
+
   Future<String> _applySmartRouting(String wgConf, {required String? excludeIp}) async {
     final routes = await _getSmartRoutes(excludeIp: excludeIp);
     return wgConf.replaceAll(
@@ -1252,6 +1298,7 @@ class VpnProvider extends ChangeNotifier {
   void setTimeQuota(int? seconds) {
     _timeLimitSec = seconds;
     _rollTrialDayIfNeeded();
+    _ensureTrialTicker();   // 额度到位后确保倒计时在跑
     _recomputeTrial();
     notifyListeners();
   }

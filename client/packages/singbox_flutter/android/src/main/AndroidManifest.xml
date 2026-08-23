@@ -13,6 +13,7 @@
         <service
             android:name="com.mirrorspeed.singbox.SingboxVpnService"
             android:exported="false"
+            android:process=":singbox"
             android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>

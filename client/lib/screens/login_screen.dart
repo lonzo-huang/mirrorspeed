@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../brand.dart';
 import '../theme.dart';
@@ -135,7 +136,16 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 20),
+              // 返回主页（登录是可选入口，不是墙；未登录也能回主页用共享节点等）。
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  onPressed: () => context.go('/home'),
+                ),
+              ),
+              const SizedBox(height: 8),
               // ── Logo ────────────────────────────────────────────
               Center(
                 child: Container(

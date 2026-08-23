@@ -11,7 +11,6 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.VpnService
 import android.os.Build
-import android.os.ParcelFileDescriptor
 import io.nekohasekai.libbox.CommandServer
 import io.nekohasekai.libbox.CommandServerHandler
 import io.nekohasekai.libbox.InterfaceUpdateListener
@@ -40,6 +39,9 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         const val ACTION_START = "com.mirrorspeed.singbox.START"
         const val ACTION_STOP  = "com.mirrorspeed.singbox.STOP"
         const val EXTRA_CONFIG = "config"
+        // 跨进程：服务(:singbox 进程)→ 插件(主进程)的状态广播。
+        const val ACTION_STAGE = "com.mirrorspeed.singbox.STAGE"
+        const val EXTRA_STAGE  = "stage"
 
         private const val CHANNEL_ID = "mirrorspeed_singbox"
         private const val NOTI_ID = 0x51B1
@@ -57,12 +59,24 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         @Volatile var currentStage: String = "disconnected"
             private set
 
+        // 当前运行的服务实例，供插件直接同步停止（避免 startService 异步导致停不干净）。
+        @Volatile var instance: SingboxVpnService? = null
+
         // TODO: 用量计量需经 CommandClient 读 StatusMessage；首版不计量。
         fun transferRxTx(): List<Long> = listOf(-1L, -1L)
     }
 
+    override fun onCreate() { super.onCreate(); instance = this }
+
+    /// 供插件调用：在后台线程拆除，绝不阻塞主线程。主线程一旦被 libbox 拆除阻塞，
+    /// 系统在引擎切换时无法派发 VPN 接口变更广播 → "can't deliver broadcast" → 强杀 App。
+    fun stopNow() {
+        if (stopping) return
+        Thread { stopBox() }.start()
+    }
+
     private var server: CommandServer? = null
-    private var tunFd: ParcelFileDescriptor? = null
+    private var tunFd: android.os.ParcelFileDescriptor? = null
 
     // 默认网络监控
     private var connectivity: ConnectivityManager? = null
@@ -71,7 +85,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_STOP -> { stopBox(); return START_NOT_STICKY }
+            ACTION_STOP -> { stopNow(); return START_NOT_STICKY }
             ACTION_START -> intent.getStringExtra(EXTRA_CONFIG)?.let { startBox(it) }
         }
         // 不用 START_STICKY：避免连接失败后系统把残留的 tun 服务拉活导致全局断网
@@ -80,7 +94,10 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
 
     private fun setStage(s: String) {
         currentStage = s
-        SingboxFlutterPlugin.emitStage(s)
+        // 跨进程广播给主进程的插件（本服务在 :singbox 独立进程，静态变量共享不到主进程）。
+        try {
+            sendBroadcast(Intent(ACTION_STAGE).putExtra(EXTRA_STAGE, s).setPackage(packageName))
+        } catch (_: Throwable) {}
     }
 
     private fun startBox(config: String) {
@@ -106,27 +123,47 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
             setStage("connected")
         } catch (e: Exception) {
             android.util.Log.e("singbox", "start failed", e)
-            SingboxFlutterPlugin.emitStage("error: ${e.message}")
+            try {
+                sendBroadcast(Intent(ACTION_STAGE).putExtra(EXTRA_STAGE, "error: ${e.message}").setPackage(packageName))
+            } catch (_: Throwable) {}
             setStage("disconnected")
             stopBox()
         }
     }
 
+    @Volatile private var stopping = false
+
     private fun stopBox() {
+        if (stopping) return   // 幂等：避免 disconnect + onRevoke + onDestroy 多次触发导致 double-free 崩溃
+        stopping = true
         setStage("disconnecting")
-        try { server?.closeService() } catch (_: Exception) {}
-        try { server?.close() } catch (_: Exception) {}
-        server = null
+        // 先停默认网络监控(拆掉喂给 libbox 的回调)，再停 box，最后关 fd —— 顺序很重要，
+        // 反了会让 libbox 的 goroutine 碰到已关闭的 fd 而崩溃。
         stopDefaultInterfaceMonitorInternal()
-        try { tunFd?.close() } catch (_: Exception) {}
+        try { server?.closeService() } catch (_: Throwable) {}
+        try { server?.close() } catch (_: Throwable) {}
+        server = null
+        // 关掉 tun fd → 真正拆除 tun 接口(否则系统一直显示 VPN 连接、流量进死 box 网络锁死)。
+        try { tunFd?.close() } catch (_: Throwable) {}
         tunFd = null
-        setStage("disconnected")
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        instance = null
+        setStage("disconnecting")
+        // stopForeground/stopSelf 回主线程执行（服务生命周期操作）。真正的 "disconnected"
+        // 信号在 onDestroy 发出——那才代表系统已完全释放 VPN，此时启动 WireGuard 才不会
+        // 和系统的 VPN 拆除回调在主线程上撞车(can't deliver broadcast → 强杀)。
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
+            try { stopSelf() } catch (_: Throwable) {}
+        }
     }
 
-    override fun onDestroy() { stopBox(); super.onDestroy() }
-    override fun onRevoke() { stopBox(); super.onRevoke() }
+    override fun onDestroy() {
+        instance = null
+        if (!stopping) Thread { stopBox() }.start()
+        setStage("disconnected")   // 服务真正销毁 = 系统已释放 VPN，Dart 侧据此再启另一条隧道
+        super.onDestroy()
+    }
+    override fun onRevoke() { instance = null; Thread { stopBox() }.start(); super.onRevoke() }
 
     // ── CommandServerHandler ───────────────────────────────────────────────
     override fun getSystemProxyStatus(): SystemProxyStatus =
@@ -158,9 +195,25 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
             } catch (_: Exception) {}
         }
 
-        val fd = builder.establish() ?: throw IllegalStateException("VpnService.establish() 返回 null")
-        tunFd = fd
-        return fd.fd
+        // 分应用（黑白名单）：sing-box 把 config 的 include_package/exclude_package
+        // 通过 TunOptions 传进来，由我们在这里落到 VpnService.Builder。之前漏了这段，
+        // 导致免费节点的黑白名单不生效。未安装的包会抛异常，逐个 try/catch 跳过。
+        try {
+            val inc = options.includePackage
+            while (inc.hasNext()) {
+                try { builder.addAllowedApplication(inc.next()) } catch (_: Throwable) {}
+            }
+        } catch (_: Throwable) {}
+        try {
+            val exc = options.excludePackage
+            while (exc.hasNext()) {
+                try { builder.addDisallowedApplication(exc.next()) } catch (_: Throwable) {}
+            }
+        } catch (_: Throwable) {}
+
+        val pfd = builder.establish() ?: throw IllegalStateException("VpnService.establish() 返回 null")
+        tunFd = pfd    // 持有；停止时主动 close 以真正拆掉 tun 接口(否则 VPN 一直挂着、网络死锁)
+        return pfd.fd
     }
 
     // ── PlatformInterface：socket 保护 + 默认网络监控 ──────────────────────

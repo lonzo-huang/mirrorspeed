@@ -28,6 +28,10 @@ class AdService {
     }
   }
 
+  /// 广告加载不到时（大概率国内直连被墙）回调此钩子：连一个随机共享节点(sing-box)
+  /// 把广告请求经代理发出，再重试加载。由 app 层注入（见 app.dart）。
+  Future<void> Function()? onNeedProxyForAds;
+
   bool _initialized = false;
   Future<void> initialize({bool enabled = true}) async {
     _enabled = enabled;
@@ -74,10 +78,16 @@ class AdService {
     _showingFullScreen = true;
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (a) {
-        a.dispose(); _showingFullScreen = false; loadAppOpen();
+        a.dispose(); _showingFullScreen = false;
+        // 关闭开屏会立刻触发 App「resumed」→ 若不抑制会马上再弹一个，连播多个。
+        // 抑制 3 秒打断这个循环，保证一次切屏只播一次。
+        _suppressAppOpenUntil = DateTime.now().add(const Duration(seconds: 3));
+        loadAppOpen();
       },
       onAdFailedToShowFullScreenContent: (a, e) {
-        a.dispose(); _showingFullScreen = false; loadAppOpen();
+        a.dispose(); _showingFullScreen = false;
+        _suppressAppOpenUntil = DateTime.now().add(const Duration(seconds: 3));
+        loadAppOpen();
       },
     );
     ad.show();
@@ -172,7 +182,13 @@ class AdService {
   }) async {
     if (!_supported) { onUnavailable(); return; }
     if (_rewardedPool.isEmpty) {
-      final ok = await _waitRewardedReady(const Duration(seconds: 8));
+      var ok = await _waitRewardedReady(const Duration(seconds: 8));
+      // 直连加载不到（国内被墙）→ 经共享节点重试
+      if (!ok && onNeedProxyForAds != null) {
+        try { await onNeedProxyForAds!(); } catch (_) {}
+        loadRewarded();
+        ok = await _waitRewardedReady(const Duration(seconds: 15));
+      }
       if (!ok) { onUnavailable(); return; }
     }
     final res = await _showOne();

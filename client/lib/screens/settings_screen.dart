@@ -5,7 +5,8 @@ import '../brand.dart';
 import '../theme.dart';
 import '../version.dart';
 import 'sub_page.dart';
-import 'singbox_test_screen.dart';
+import 'invite_screen.dart';
+import 'app_proxy_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -27,13 +28,18 @@ class SettingsScreen extends StatelessWidget {
             _row(tr('加密', 'Encryption'), 'ChaCha20', locked: true),
             _row(tr('流量混淆', 'Obfuscation'), tr('已开启', 'Enabled'), locked: true),
           ]),
+          _group(tr('智能模式', 'Smart mode'), [
+            _link(context, tr('分应用代理（黑白名单）', 'Per-app proxy'),
+                onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AppProxyScreen()))),
+          ]),
           _group(tr('通用', 'General'), [
+            _link(context, tr('邀请好友', 'Invite friends'), onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const InviteScreen()))),
             _row(tr('语言', 'Language'), tr('跟随系统', 'System'), locked: true),
             _link(context, tr('使用帮助', 'Help'), onTap: () => context.push('/help')),
             _link(context, tr('隐私政策', 'Privacy Policy'), onTap: () => _open('https://www.mirrorspeed.com/privacy')),
             _link(context, tr('服务条款', 'Terms'), onTap: () => _open('https://www.mirrorspeed.com/terms')),
-            _link(context, '🧪 sing-box 测试', onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SingboxTestScreen()))),
             _row(tr('版本', 'Version'), 'v$kAppVersion'),
           ]),
         ]),

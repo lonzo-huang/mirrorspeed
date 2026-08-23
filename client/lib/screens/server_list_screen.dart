@@ -6,6 +6,9 @@ import '../models/server_config.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
 import '../services/api_service.dart';
+import '../providers/shared_node_provider.dart';
+import '../models/free_node.dart';
+import '../utils/free_country.dart';
 import '../brand.dart';
 import '../theme.dart';
 
@@ -16,10 +19,17 @@ class ServerListScreen extends StatefulWidget {
 
 class _ServerListScreenState extends State<ServerListScreen> {
   Timer? _refreshTimer;
+  late String _tier;   // premium=优质(WireGuard) / shared=共享(sing-box)
 
   @override
   void initState() {
     super.initState();
+    // 按当前偏好落到对应 tab：共享连着/偏好共享 → 直接进共享 tab，与主页当前节点卡一致。
+    _tier = context.read<SharedNodeProvider>().preferShared ? 'shared' : 'premium';
+    if (_tier == 'shared') {
+      final p = context.read<SharedNodeProvider>();
+      if (p.nodes.isEmpty && !p.loading) p.load().then((_) => p.testAll());
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth    = context.read<AuthProvider>();
       final servers = auth.displayServers;
@@ -68,6 +78,84 @@ class _ServerListScreenState extends State<ServerListScreen> {
     return rows;
   }
 
+  // ── 共享节点列表（与优质列表同款样式；按国家分组）──────────────────
+  Widget _buildSharedBody(BuildContext context) {
+    final p = context.watch<SharedNodeProvider>();
+    if (p.nodes.isEmpty) {
+      return Center(child: p.loading
+          ? const CircularProgressIndicator()
+          : Text(tr('暂无共享节点，点右上角刷新', 'No shared nodes — tap refresh'),
+              style: const TextStyle(color: Colors.white54)));
+    }
+    final zh = Brand.isZh;
+    final groups = <String, List<FreeNode>>{};
+    for (final n in p.nodes) {
+      groups.putIfAbsent(freeCountryKey(n.name), () => []).add(n);
+    }
+    final keys = groups.keys.toList()
+      ..sort((a, b) {
+        if (a == '') return 1;
+        if (b == '') return -1;
+        return freeCountryLabel(a, zh).compareTo(freeCountryLabel(b, zh));
+      });
+    final rows = <dynamic>['__auto__'];   // 首项：智能选择
+    for (final k in keys) { rows.add(k); rows.addAll(groups[k]!); }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+      itemCount: rows.length,
+      itemBuilder: (_, i) {
+        final row = rows[i];
+        if (row == '__auto__') {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _SharedTile(
+              name: p.autoTrying
+                  ? tr('智能选择中…${p.tryingName ?? ''}', 'Auto-selecting… ${p.tryingName ?? ''}')
+                  : tr('智能选择 · 自动挑选可用免费节点', 'Auto · pick a working free node'),
+              latency: null, dead: false, connected: false, active: false,
+              leadingIcon: Icons.bolt_rounded,
+              onTap: p.autoTrying ? null : () {
+                context.go('/home');
+                context.read<SharedNodeProvider>().connectBest();
+              },
+            ),
+          );
+        }
+        if (row is String) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
+            child: Row(children: [
+              Text(freeCountryFlag(row).isEmpty ? '🌐' : freeCountryFlag(row), style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 7),
+              Text(freeCountryLabel(row, zh),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white70)),
+              const SizedBox(width: 6),
+              Text('${(groups[row]!).length}',
+                style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.35))),
+            ]),
+          );
+        }
+        final n = row as FreeNode;
+        final ms = p.latencyOf(n);
+        final dead = ms != null && ms < 0;
+        final active = identical(n, p.active);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _SharedTile(
+            name: freeLineName(n.name, n.server),
+            latency: ms, dead: dead,
+            connected: active && p.isConnected, active: active,
+            onTap: dead ? null : () {
+              context.go('/home');
+              context.read<SharedNodeProvider>().connectSmart(n);
+            },
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth    = context.watch<AuthProvider>();
@@ -85,11 +173,39 @@ class _ServerListScreenState extends State<ServerListScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: tr('刷新延迟','Refresh latency'),
-            onPressed: () => vpn.measureLatencies(servers),
+            onPressed: () {
+              if (_tier == 'shared') {
+                final p = context.read<SharedNodeProvider>();
+                p.load().then((_) => p.testAll());
+              } else {
+                vpn.measureLatencies(servers);
+              }
+            },
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(46),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(children: [
+              _TierChip(label: tr('优质节点·固定IP','Premium·Static IP'), selected: _tier == 'premium',
+                onTap: () => setState(() => _tier = 'premium')),
+              const SizedBox(width: 8),
+              _TierChip(
+                label: tr('免费节点·动态刷新','Free·Dynamic'), selected: _tier == 'shared',
+                onTap: () {
+                  setState(() => _tier = 'shared');
+                  final p = context.read<SharedNodeProvider>();
+                  if (p.nodes.isEmpty && !p.loading) p.load().then((_) => p.testAll());
+                },
+              ),
+            ]),
+          ),
+        ),
       ),
-      body: servers.isEmpty
+      body: _tier == 'shared'
+          ? _buildSharedBody(context)
+          : servers.isEmpty
           ? Center(child: Text(tr('暂无可用节点','No nodes available'), style: const TextStyle(color: Colors.white54)))
           : ListView.separated(
               // 底部留白避开悬浮底部导航栏（extendBody），否则最后几项被遮住、滚不到底。
@@ -203,6 +319,35 @@ Color _signalColor(int bars) {
 }
 
 // ── 信号格（4 格，高度递增）────────────────────────────────────────
+/// 优质/共享 分区切换胶囊。
+class _TierChip extends StatelessWidget {
+  final String label;
+  final bool   selected;
+  final VoidCallback onTap;
+  const _TierChip({required this.label, required this.selected, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? kBrand.withOpacity(0.18) : Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? kBrand : Colors.white.withOpacity(0.12)),
+        ),
+        child: Text(label,
+            style: TextStyle(
+              color: selected ? kBrand : Colors.white70,
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            )),
+      ),
+    );
+  }
+}
+
 class _SignalBars extends StatelessWidget {
   final int bars;   // 0–4
   const _SignalBars({required this.bars});
@@ -332,3 +477,56 @@ class _ServerTile extends StatelessWidget {
     );
   }
 }
+
+// ── 共享节点 tile（与 _ServerTile 同款样式）────────────────────────────
+class _SharedTile extends StatelessWidget {
+  final String name;
+  final int?   latency;   // ms（-1=超时，null=未测）
+  final bool   dead, connected, active;
+  final VoidCallback? onTap;
+  final IconData? leadingIcon;   // 自定义左侧图标（智能选择用）
+  const _SharedTile({
+    required this.name, required this.latency, required this.dead,
+    required this.connected, required this.active, required this.onTap,
+    this.leadingIcon,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: (active && connected) ? kBrand.withOpacity(0.18) : kCard,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(children: [
+            Icon(leadingIcon ?? (connected ? Icons.check_circle_rounded : Icons.public_rounded),
+              color: (leadingIcon != null) ? kBrand
+                  : (connected ? kBrand : Colors.white.withOpacity(dead ? 0.25 : 0.55)), size: 24),
+            const SizedBox(width: 14),
+            Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15,
+                color: dead ? Colors.white.withOpacity(0.35) : null))),
+            _sharedLatencyBadge(latency),
+            const SizedBox(width: 12),
+            if (active && connected)
+              const Icon(Icons.check_circle_rounded, color: kBrand, size: 20)
+            else
+              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.3)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// 免费节点状态：参考优质节点用信号强度显示；超时(不可达)显示「爆满」。
+Widget _sharedLatencyBadge(int? ms) {
+  if (ms == null) return const SizedBox.shrink();
+  if (ms < 0) return Text(tr('爆满', 'Full'),
+      style: const TextStyle(color: kDanger, fontSize: 13, fontWeight: FontWeight.w600));
+  final bars = ms < 100 ? 4 : (ms < 200 ? 3 : (ms < 300 ? 2 : 1));
+  return _SignalBars(bars: bars);
+}
+

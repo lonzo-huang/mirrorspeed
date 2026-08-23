@@ -25,12 +25,17 @@ class SingboxConfig {
     bool smart = true,
     bool adOnly = false,
     String? logPath,   // 非空则把 sing-box 日志(debug)写到该文件，供诊断
+    List<String>? includePackages,   // 分应用：只有这些 App 进隧道(白名单)
+    List<String>? excludePackages,   // 分应用：这些 App 绕过隧道(黑名单)
   }) {
     // 选中节点的 outbound(强制 tag=proxy)
     final proxy = Map<String, dynamic>.from(node.outbound)..['tag'] = 'proxy';
 
     final route = <String, dynamic>{
       'auto_detect_interface': true,
+      // 节点服务器域名用本地直连 DNS 解析(bootstrap)，避免"要连节点先解析域名、
+      // 解析域名又要先连上节点"的死锁。
+      'default_domain_resolver': 'local',
       'final': adOnly ? 'direct' : 'proxy',
       'rules': <Map<String, dynamic>>[
         // 域名嗅探(sing-box 1.12+ 用 route action，不再放 inbound)
@@ -62,8 +67,13 @@ class SingboxConfig {
           : {'level': 'warn', 'timestamp': true},
       'dns': {
         'servers': [
-          {'tag': 'remote', 'address': 'https://1.1.1.1/dns-query', 'detour': 'proxy'},
+          // 代理侧解析：用 TCP plain DNS(而非 DoH)——坏节点常对 DoH 回 403/证书错，
+          // TCP DNS 只需代理能转发 TCP，皮实很多。主 Cloudflare + 权威 Google 兜底。
+          {'tag': 'remote',      'address': 'tcp://1.1.1.1', 'detour': 'proxy'},
+          {'tag': 'remote_auth', 'address': 'tcp://8.8.8.8', 'detour': 'proxy'},
+          // 直连侧：本地公共 DNS + 系统 DNS 兜底(解析节点域名/直连域名)
           {'tag': 'local',  'address': '223.5.5.5', 'detour': 'direct'},
+          {'tag': 'system', 'address': 'local',     'detour': 'direct'},
         ],
         'rules': [
           if (smart && !adOnly) {'geoip': 'cn', 'server': 'local'},
@@ -81,6 +91,11 @@ class SingboxConfig {
           'auto_route': true,
           'strict_route': false,
           'stack': 'gvisor',
+          // 分应用：白名单只放这些 App 进隧道；黑名单让这些 App 绕过。
+          if (includePackages != null && includePackages.isNotEmpty)
+            'include_package': includePackages,
+          if (excludePackages != null && excludePackages.isNotEmpty)
+            'exclude_package': excludePackages,
         },
       ],
       'outbounds': [
