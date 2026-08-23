@@ -195,6 +195,7 @@ class SharedNodeProvider extends ChangeNotifier {
           if (await AppProxyStore.loadMode() == 'white') { inc = pkgs; } else { exc = pkgs; }
         }
       }
+      debugPrint('[APPPROXY-SB] applyAppProxy=$applyAppProxy inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}');
       final cfg = SingboxConfig.build(node, smart: false,
           includePackages: inc, excludePackages: exc);
       await _engine.start(EngineStartParams(singboxConfig: cfg));
