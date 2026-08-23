@@ -98,7 +98,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
         if (b == '') return -1;
         return freeCountryLabel(a, zh).compareTo(freeCountryLabel(b, zh));
       });
-    final rows = <dynamic>[];
+    final rows = <dynamic>['__auto__'];   // 首项：智能选择
     for (final k in keys) { rows.add(k); rows.addAll(groups[k]!); }
 
     return ListView.builder(
@@ -106,6 +106,22 @@ class _ServerListScreenState extends State<ServerListScreen> {
       itemCount: rows.length,
       itemBuilder: (_, i) {
         final row = rows[i];
+        if (row == '__auto__') {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _SharedTile(
+              name: p.autoTrying
+                  ? tr('智能选择中…${p.tryingName ?? ''}', 'Auto-selecting… ${p.tryingName ?? ''}')
+                  : tr('智能选择 · 自动挑选可用免费节点', 'Auto · pick a working free node'),
+              latency: null, dead: false, connected: false, active: false,
+              leadingIcon: Icons.bolt_rounded,
+              onTap: p.autoTrying ? null : () {
+                context.go('/home');
+                context.read<SharedNodeProvider>().connectBest();
+              },
+            ),
+          );
+        }
         if (row is String) {
           return Padding(
             padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
@@ -132,7 +148,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
             connected: active && p.isConnected, active: active,
             onTap: dead ? null : () {
               context.go('/home');
-              context.read<SharedNodeProvider>().connect(n);
+              context.read<SharedNodeProvider>().connectSmart(n);
             },
           ),
         );
@@ -176,7 +192,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
                 onTap: () => setState(() => _tier = 'premium')),
               const SizedBox(width: 8),
               _TierChip(
-                label: tr('共享节点·定时刷新','Shared·Rotating'), selected: _tier == 'shared',
+                label: tr('免费节点·动态刷新','Free·Dynamic'), selected: _tier == 'shared',
                 onTap: () {
                   setState(() => _tier = 'shared');
                   final p = context.read<SharedNodeProvider>();
@@ -468,9 +484,11 @@ class _SharedTile extends StatelessWidget {
   final int?   latency;   // ms（-1=超时，null=未测）
   final bool   dead, connected, active;
   final VoidCallback? onTap;
+  final IconData? leadingIcon;   // 自定义左侧图标（智能选择用）
   const _SharedTile({
     required this.name, required this.latency, required this.dead,
     required this.connected, required this.active, required this.onTap,
+    this.leadingIcon,
   });
   @override
   Widget build(BuildContext context) {
@@ -483,8 +501,9 @@ class _SharedTile extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(children: [
-            Icon(connected ? Icons.check_circle_rounded : Icons.public_rounded,
-              color: connected ? kBrand : Colors.white.withOpacity(dead ? 0.25 : 0.55), size: 24),
+            Icon(leadingIcon ?? (connected ? Icons.check_circle_rounded : Icons.public_rounded),
+              color: (leadingIcon != null) ? kBrand
+                  : (connected ? kBrand : Colors.white.withOpacity(dead ? 0.25 : 0.55)), size: 24),
             const SizedBox(width: 14),
             Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15,

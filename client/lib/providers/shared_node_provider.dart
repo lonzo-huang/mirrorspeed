@@ -104,6 +104,75 @@ class SharedNodeProvider extends ChangeNotifier {
   /// 由 VpnProvider.connect 调用：用户改连优质节点时清掉共享偏好。
   void clearPreferShared() { _preferShared = false; }
 
+  // ── 验证式连接：连上后经隧道实测出口，不通则自动换下一个候选（#1 兜底）──────
+  bool _autoTrying = false;
+  String? _tryingName;
+  bool get autoTrying => _autoTrying;
+  String? get tryingName => _tryingName;
+
+  /// 智能连接：从 [start] 开始，连上后实测能否访问外网(gstatic 204)，不通就按延迟
+  /// 依次换下一个节点，直到找到能真正翻墙的。这是对"清单里混坏节点"的客户端兜底。
+  Future<void> connectSmart(FreeNode start) async {
+    final others = _nodes
+        .where((n) => !identical(n, start) && (_latency[n.fingerprint] ?? -1) >= 0)
+        .toList()
+      ..sort((a, b) => (_latency[a.fingerprint] ?? 999999).compareTo(_latency[b.fingerprint] ?? 999999));
+    final queue = [start, ...others].take(6).toList();
+
+    _autoTrying = true; _error = null; notifyListeners();
+    for (final cand in queue) {
+      _tryingName = cand.name; notifyListeners();
+      await connect(cand);
+      final up = await _waitStage(VpnStage.connected, const Duration(seconds: 9));
+      if (up && await _probeEgress()) {
+        _autoTrying = false; _tryingName = null; notifyListeners();
+        return;   // 找到能用的
+      }
+      await disconnect();   // 不通 → 停掉换下一个
+    }
+    _autoTrying = false; _tryingName = null;
+    _error = '该区域暂无可真正访问外网的免费节点，请刷新或换一个';
+    notifyListeners();
+  }
+
+  /// 智能选择：挑延迟最低的可达节点，走验证式连接。
+  Future<void> connectBest() async {
+    if (_nodes.isEmpty) await load();
+    if (_latency.values.where((v) => v >= 0).isEmpty) await testAll();
+    final alive = _nodes.where((n) => (_latency[n.fingerprint] ?? -1) >= 0).toList()
+      ..sort((a, b) => (_latency[a.fingerprint] ?? 999999).compareTo(_latency[b.fingerprint] ?? 999999));
+    if (alive.isEmpty) {
+      _error = '暂无可达免费节点，请刷新'; notifyListeners(); return;
+    }
+    await connectSmart(alive.first);
+  }
+
+  Future<bool> _waitStage(VpnStage want, Duration timeout) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      if (_stage == want) return true;
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    return _stage == want;
+  }
+
+  /// 经隧道实测外网可达性（gstatic generate_204）。
+  Future<bool> _probeEgress() async {
+    await Future<void>.delayed(const Duration(milliseconds: 1200)); // 等路由/DNS 稳定
+    final c = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    try {
+      final req = await c.getUrl(Uri.parse('https://www.gstatic.com/generate_204'))
+          .timeout(const Duration(seconds: 9));
+      final res = await req.close().timeout(const Duration(seconds: 9));
+      await res.drain();
+      return res.statusCode == 204 || res.statusCode == 200;
+    } catch (_) {
+      return false;
+    } finally {
+      c.close(force: true);
+    }
+  }
+
   /// 连接某个共享节点。先停 WireGuard（系统级只允许一条隧道）。
   Future<void> connect(FreeNode node) async {
     _error = null;

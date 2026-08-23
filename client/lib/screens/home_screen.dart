@@ -60,7 +60,7 @@ class HomeScreen extends StatelessWidget {
         (shared.preferShared && !vpn.isConnected && !vpnBusy);
 
     final connected  = showShared ? shared.isConnected : vpn.isConnected;
-    final connecting = showShared ? shared.isBusy      : vpnBusy;
+    final connecting = showShared ? (shared.isBusy || shared.autoTrying) : vpnBusy;
 
     Future<void> onConnect() async {
       if (showShared) {
@@ -68,7 +68,7 @@ class HomeScreen extends StatelessWidget {
         if (shared.isConnected || shared.isConnecting) {
           await shared.disconnect();
         } else if (shared.selected != null) {
-          await shared.connect(shared.selected!);
+          await shared.connectSmart(shared.selected!);
         } else {
           context.go('/servers');   // 还没选过共享节点 → 去列表选
         }
@@ -123,7 +123,7 @@ class HomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _CurrentNodeCard(
                     label: showShared
-                        ? '${tr('当前节点', 'Current')}：${tr('共享节点·定时刷新', 'Shared·Rotating')}'
+                        ? '${tr('当前节点', 'Current')}：${tr('免费节点·动态刷新', 'Free·Dynamic')}'
                         : '${tr('当前节点', 'Current')}：${tr('优质节点', 'Premium')} - ${vpn.routingMode == RoutingMode.smart ? tr('智能模式', 'Smart') : tr('全局模式', 'Global')}',
                     title: showShared
                         ? ((shared.active ?? shared.selected) != null
@@ -187,9 +187,21 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 14),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: _RoutingModeToggle(
-                      mode:      vpn.routingMode,
-                      onChanged: (m) => vpn.setRoutingMode(m),
+                    // #6 路由模式仅在连接时应用到隧道，连接中切换不生效 → 连接后禁用切换。
+                    child: Opacity(
+                      opacity: (connected || connecting) ? 0.45 : 1.0,
+                      child: _RoutingModeToggle(
+                        mode:      vpn.routingMode,
+                        onChanged: (m) {
+                          if (connected || connecting) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(tr('请先断开连接再切换模式', 'Disconnect first to switch mode')),
+                              duration: const Duration(seconds: 2)));
+                            return;
+                          }
+                          vpn.setRoutingMode(m);
+                        },
+                      ),
                     ),
                   ),
                 ],

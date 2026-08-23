@@ -19,16 +19,19 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  // 会话级缓存：邀请状态整个 App 运行期只拉一次，避免每次进「我的」都重新请求拖慢。
+  // 用户手动点刷新时才重新拉。
+  static Future<Map<String, dynamic>>? _cachedReferral;
   late Future<Map<String, dynamic>> _referralFuture;
 
   @override
   void initState() {
     super.initState();
-    _referralFuture = ApiService.instance.fetchReferralInfo();
+    _referralFuture = _cachedReferral ??= ApiService.instance.fetchReferralInfo();
   }
 
   void _refreshReferral() => setState(() {
-    _referralFuture = ApiService.instance.fetchReferralInfo();
+    _referralFuture = _cachedReferral = ApiService.instance.fetchReferralInfo();
   });
 
   @override

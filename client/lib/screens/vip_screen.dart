@@ -166,20 +166,25 @@ class _VipScreenState extends State<VipScreen> {
   }
 
   // ── Tab 3：私人定制 ──────────────────────────────────────────────
+  static const String _kSupportUrl = 'https://www.mirrorspeed.com/support';
+  void _openSupport() => launchUrl(Uri.parse(_kSupportUrl), mode: LaunchMode.externalApplication);
+
   List<Widget> _customTab() => [
     _customCard(Icons.data_usage_rounded, tr('流量套餐', 'Data plan'),
-      tr('按流量计费，适合轻量使用', 'Pay-as-you-go data'), tr('¥120 起', 'from ¥120')),
+      tr('按流量计费，适合轻量使用', 'Pay-as-you-go data'), tr('¥120 起', 'from ¥120'),
+      onTap: _openSupport),
     const SizedBox(height: 10),
     _customCard(Icons.speed_rounded, tr('普通带宽', 'Standard bandwidth'),
-      tr('共享高速带宽，性价比之选', 'Shared high-speed bandwidth'), tr('¥400 起', 'from ¥400')),
+      tr('共享高速带宽，性价比之选', 'Shared high-speed bandwidth'), tr('¥400 起', 'from ¥400'),
+      onTap: _openSupport),
     const SizedBox(height: 10),
     _customCard(Icons.rocket_launch_rounded, tr('专线带宽', 'Dedicated line'),
-      tr('独享专线，稳定低延迟', 'Dedicated line, low latency'), tr('¥1200 起', 'from ¥1200')),
+      tr('独享专线，稳定低延迟', 'Dedicated line, low latency'), tr('¥1200 起', 'from ¥1200'),
+      onTap: _openSupport),
     const SizedBox(height: 10),
-    _customCard(Icons.mail_outline_rounded, tr('其他定制', 'Other'),
-      tr('有特殊需求？邮件联系我们', 'Custom needs? Email us'), tr('邮件联系', 'Email us'),
-      onTap: () => launchUrl(Uri.parse(
-        'mailto:mirrorspeed@mirrorquant.com?subject=${Uri.encodeComponent(tr('私人定制咨询','Custom plan inquiry'))}'))),
+    _customCard(Icons.support_agent_rounded, tr('其他定制', 'Other'),
+      tr('有特殊需求？联系我们', 'Custom needs? Contact us'), tr('联系客服', 'Contact'),
+      onTap: _openSupport),
     const SizedBox(height: 12),
     Center(child: Text(tr('定制方案由客服1对1对接', 'Custom plans handled 1:1 by support'),
       style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)))),
