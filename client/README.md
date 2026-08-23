@@ -1,8 +1,10 @@
 # MirrorSpeed VPN — Flutter 客户端
 
-> **平台**：Android / Windows / iOS（短期）  
-> **当前版本**：**v2.3.6**（Windows DNS 自动应用 + 单实例 + 系统托盘 + 固定窗口 + 在线/强制更新提示；多设备指纹）  
-> **技术栈**：Flutter 3.22+ · 自研混淆 UDP 隧道（AmneziaWG 内核）· HMAC 端口跳变 · WebSocket 中继（wstunnel）· Supabase · Provider · AdMob · in_app_purchase（规划中）
+> **平台**：Android（已发布）/ Windows（免费节点已支持，待打包二进制）/ iOS · macOS（代码骨架，待 Mac 编译）  
+> **当前版本**：**v2.4.8**（**双引擎**：优质节点 AmneziaWG + 共享/免费节点 sing-box；分应用黑白名单双引擎生效；Android 双进程隔离；APK 瘦身 93→42MB；Windows 免费节点子进程引擎；iOS/macOS NetworkExtension 骨架）  
+> **技术栈**：Flutter 3.22+ · 自研混淆 UDP 隧道（AmneziaWG 内核）· **sing-box/libbox（共享节点）** · HMAC 端口跳变 · WebSocket 中继（wstunnel）· Supabase · Provider · AdMob · in_app_purchase（规划中）
+
+> 🧩 **双引擎架构**：`优质节点`走 AmneziaWG（固定 IP、UDP 直连+中继回退）；`共享节点/免费节点`走 sing-box（社区机场清单，动态刷新）。二者系统级互斥、同一时刻只跑一条隧道。详见 [docs/DEV-LOG-singbox-multiplatform.md](docs/DEV-LOG-singbox-multiplatform.md)。
 
 > ⚠️ **对外命名约定**：面向用户的服务名、目录、日志、二进制统一使用 **MirrorSpeed**，
 > 不出现 `awg` / `amneziawg` 字样（隧道接口名为 `mirrorspeed`，Windows 服务为 `mirrorspeed_svc.exe`）。
@@ -26,6 +28,9 @@
 
 | 功能 | 说明 |
 |------|------|
+| 双引擎节点（v2.4） | **优质节点**（AmneziaWG，固定 IP）+ **共享/免费节点**（sing-box/libbox，社区机场动态刷新）；系统级互斥、切换时先停另一条隧道 |
+| 免费节点智能兜底（v2.4） | 连上后经隧道实测出口（gstatic 204），不通自动按延迟换下一个节点（最多 6 个），解决「TCP 通但代理不通」 |
+| 分应用黑白名单（v2.4） | 智能模式下按 App 分流，**双引擎均生效**（AmneziaWG `IncludedApplications` / sing-box `include_package`）；全新安装默认把海外常用 App 加入白名单；仅 Android |
 | 混淆 UDP 隧道 | 对抗 DPI 检测（Jc/Jmin/Jmax/S1/S2/H1-H4 参数）；v2.0.0 起 Windows 也支持 UDP 直连 |
 | HMAC 端口跳变 | `port = 30000 + HMAC-SHA256(portSecret, UTC_hour) % 20000`，每小时变动，GFW 无法封锁固定端口；服务器开放 ±3 共 7 个端口窗口 |
 | 会话端口锁定 | 仅在连接时计算端口，连上后不再随时间切换；前台恢复/网络变化由 `onAppResumed()` 自动重连 |
@@ -396,6 +401,7 @@ const String kProviderBundle = 'com.mirrorspeed.vpn.network';  // iOS Network Ex
 
 | 版本 | 变更 |
 |------|------|
+| **2.4.8** | **双引擎 + 多平台铺开**。① 集成 **sing-box（共享/免费节点）** 第二引擎（`packages/singbox_flutter` libbox + `SingboxVpnService`），与 AmneziaWG 平行；`SharedNodeProvider` 管理，首屏统一入口切换。② **Android 双进程隔离**（`android:process=":singbox"`）修「优质↔共享切换时两个 Go 运行时同进程崩溃」。③ **分应用黑白名单双引擎生效**：sing-box 侧修 `openTun` 未读 `include/exclude_package` 的 bug；AmneziaWG 侧注入 `IncludedApplications`；仅智能模式、仅 Android。④ **免费节点客户端兜底**：`connectSmart` 连上后实测 gstatic 204，不通自动换节点。⑤ 首屏/节点页按设计稿重做：当前节点卡、免费节点按国家分组（`utils/free_country.dart`）、信号强度徽标、爆满标记、Excel 式双 sheet 列表。⑥ 全新安装默认海外 App 入白名单（`AppProxyStore.defaultOverseas`）、默认智能模式。⑦ **APK 瘦身 93→42MB**（`useLegacyPackaging=true` 压缩 .so）。⑧ **Windows 免费节点**：`SingboxWindowsRunner` 子进程跑 `sing-box.exe`+wintun（`ProxyCoreEngine` 平台感知）。⑨ **iOS/macOS NetworkExtension 骨架**（`packages/singbox_flutter/ios` 插件 + `ios_macos_native/PacketTunnelProvider.swift` libbox 集成，待 Mac 编译）。邀请好友移至设置子页、会员私人定制跳 support 页。 |
 | **2.3.0** | **UI 全新设计（参考设计师稿）**：开屏旋转光环；主页大圆环连接按钮（同心旋转光环）+ 延迟/时长/负载三栏 + 智能/全局切换 + 节点卡（智能/手动徽标）+ 快捷宫格；毛玻璃悬浮底部导航；新增**会员 / 设置 / 使用帮助**页面（`vip_screen` / `settings_screen` / `help_screen` / `sub_page`）；**「我的」页保留旧设计**。新增主题令牌 `kPanel/kAccentOn/kGold`。设计稿在 `D:\tmp\mirrorspeed ui`（React 代码，需 Flutter 重写）。**节点页/登录页完整还原待做**。 |
 | **2.2.x** | **双模式节点选择**：智能分配（`pickAutoServer` 延迟70%+负载30%）+ 手动列表（`ServerConfig.addLatencySample` 10 秒滚动平均、>300ms 截断、`loadTier` 三档色块）；`/api/mobile/configs` 下发 `active_peers/load_percent`。**额度用尽禁止连接**（`connect()` 守卫 `_trialExceeded`）。**延迟测量修复**：改 ping `relayHost`（非 endpoint，修西班牙节点永久转圈）+ 持久 `http.Client` keep-alive + 预热丢首样本（修 30ms→250ms 虚高）。**广告连播**：`AdService` 预加载 3 条广告池 + `showRewardedChain` 一次点击连播满 50 秒。**三种登录**：加 `signInWithPassword/signUpWithPassword` + 三标签登录页。**品牌图标**：`flutter_launcher_icons` 替换 Flutter 默认图标为青绿盾牌（`assets/icon/`）。 |
 | **2.1.x** | **三星修复**：额度归零时 `_forceStopOnQuota()` 无条件停原生隧道 + 中继（修「app 已断、系统 VPN 仍连」）；看广告需累计满秒数（`addAdWatch` 累加）才发放。**试用强杀不丢**：`_trialLoaded` 守卫修复启动竞态（`_rollTrialDayIfNeeded` 在 `_loadTrial` 前清零的 bug）+ 双写持久化（SharedPreferences + `path_provider` 文件 flush）。APK 改 `--split-per-abi` 单架构（修「软件包解析失败」）。 |
