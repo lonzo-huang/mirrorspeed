@@ -10,6 +10,7 @@ import '../utils/portal_link.dart';
 import '../providers/auth_provider.dart';
 import '../providers/shared_node_provider.dart';
 import '../models/free_node.dart';
+import '../utils/free_country.dart';
 import '../providers/vpn_provider.dart';
 import '../services/ad_service.dart';
 import '../models/server_config.dart';
@@ -509,20 +510,14 @@ int? _sharedPing(SharedNodeProvider s) {
   return (l != null && l >= 0) ? l : null;
 }
 
-// 从脏共享节点名抽「旗帜 国家」；抽不到用清理后的短名。
+// 主页当前共享节点标题：「旗帜 本地化国家 · IP」。
 String _sharedNodeTitle(FreeNode n) {
-  final runes = n.name.runes.toList();
-  const base = 0x1F1E6;
-  for (var i = 0; i < runes.length - 1; i++) {
-    final a = runes[i] - base, b = runes[i + 1] - base;
-    if (a >= 0 && a <= 25 && b >= 0 && b <= 25) {
-      final flag = String.fromCharCodes([runes[i], runes[i + 1]]);
-      return '$flag ${String.fromCharCode(65 + a)}${String.fromCharCode(65 + b)}';
-    }
-  }
-  var s = n.name.replaceAll(RegExp(r'\d+(\.\d+)?\s*[KMG]B/s'), '').split('|').first.trim();
-  if (s.length > 20) s = '${s.substring(0, 20)}…';
-  return s.isEmpty ? n.server : s;
+  final key = freeCountryKey(n.name);
+  final flag = freeCountryFlag(key);
+  final country = freeCountryLabel(key, Brand.isZh);
+  final ip = freeLineName(n.name, n.server);
+  final head = flag.isEmpty ? country : '$flag $country';
+  return key.isEmpty ? ip : '$head · $ip';
 }
 
 // ── 顶部「当前节点」卡片（截图样式：图标 | 小标签+节点名 | 延迟 | ›）────────

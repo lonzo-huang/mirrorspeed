@@ -8,6 +8,7 @@ import '../providers/vpn_provider.dart';
 import '../services/api_service.dart';
 import '../providers/shared_node_provider.dart';
 import '../models/free_node.dart';
+import '../utils/free_country.dart';
 import '../brand.dart';
 import '../theme.dart';
 
@@ -89,13 +90,13 @@ class _ServerListScreenState extends State<ServerListScreen> {
     final zh = Brand.isZh;
     final groups = <String, List<FreeNode>>{};
     for (final n in p.nodes) {
-      groups.putIfAbsent(_freeCountryKey(n.name), () => []).add(n);
+      groups.putIfAbsent(freeCountryKey(n.name), () => []).add(n);
     }
     final keys = groups.keys.toList()
       ..sort((a, b) {
         if (a == '') return 1;
         if (b == '') return -1;
-        return _freeGroupLabel(a, zh).compareTo(_freeGroupLabel(b, zh));
+        return freeCountryLabel(a, zh).compareTo(freeCountryLabel(b, zh));
       });
     final rows = <dynamic>[];
     for (final k in keys) { rows.add(k); rows.addAll(groups[k]!); }
@@ -109,9 +110,9 @@ class _ServerListScreenState extends State<ServerListScreen> {
           return Padding(
             padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
             child: Row(children: [
-              Text(_freeGroupFlag(row).isEmpty ? '🌐' : _freeGroupFlag(row), style: const TextStyle(fontSize: 16)),
+              Text(freeCountryFlag(row).isEmpty ? '🌐' : freeCountryFlag(row), style: const TextStyle(fontSize: 16)),
               const SizedBox(width: 7),
-              Text(_freeGroupLabel(row, zh),
+              Text(freeCountryLabel(row, zh),
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white70)),
               const SizedBox(width: 6),
               Text('${(groups[row]!).length}',
@@ -126,7 +127,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: _SharedTile(
-            name: _freeLineName(n.name, n.server),
+            name: freeLineName(n.name, n.server),
             latency: ms, dead: dead,
             connected: active && p.isConnected, active: active,
             onTap: dead ? null : () {
@@ -508,80 +509,3 @@ Widget _sharedLatencyBadge(int? ms) {
   return Text('$ms ms', style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w600));
 }
 
-// 共享节点分组：新版名字为「英文国家名 - IP」；兼容旧版旗帜 emoji。
-// 分组 key：英文国家名 或 ISO 码（旗帜）或 ''。
-String _freeCountryKey(String name) {
-  final idx = name.indexOf(' - ');
-  if (idx > 0) {
-    final c = name.substring(0, idx).trim();
-    if (c.isNotEmpty) return c;
-  }
-  return _freeIsoFromFlag(name);   // 旧版兼容
-}
-String _freeIsoFromFlag(String name) {
-  final runes = name.runes.toList();
-  const base = 0x1F1E6;
-  for (var i = 0; i < runes.length - 1; i++) {
-    final a = runes[i] - base, b = runes[i + 1] - base;
-    if (a >= 0 && a <= 25 && b >= 0 && b <= 25) {
-      return String.fromCharCode(65 + a) + String.fromCharCode(65 + b);
-    }
-  }
-  return '';
-}
-String _freeFlag(String iso) {
-  if (iso.length != 2) return '';
-  const base = 0x1F1E6;
-  return String.fromCharCodes([base + (iso.codeUnitAt(0) - 65), base + (iso.codeUnitAt(1) - 65)]);
-}
-// 分组表头本地化名（key 可能是英文国家名或 ISO 码）。
-String _freeGroupLabel(String key, bool zh) {
-  if (key.isEmpty) return zh ? '其他' : 'Other';
-  final byName = _kCountryByName[key];
-  if (byName != null) return zh ? byName[0] : key;   // 英文国家名
-  final byIso = _kFreeCountry[key];
-  if (byIso != null) return zh ? byIso[0] : byIso[1]; // ISO
-  return key;
-}
-String _freeGroupFlag(String key) {
-  final byName = _kCountryByName[key];
-  if (byName != null) return _freeFlag(byName[1]);
-  if (key.length == 2) return _freeFlag(key);
-  return '';
-}
-// 单条线路名：「Country - IP」→ 显示 IP；否则清理后的名。
-String _freeLineName(String name, String server) {
-  final idx = name.indexOf(' - ');
-  if (idx > 0) {
-    final rest = name.substring(idx + 3).trim();
-    return rest.isEmpty ? server : rest;
-  }
-  var s = name.replaceAll(RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true), '');
-  s = s.replaceAll(RegExp(r'\d+(\.\d+)?\s*[KMG]B/s'), '');
-  s = s.split('|').first.split('·').first.trim();
-  s = s.replaceAll(RegExp(r'^\W+'), '').trim();
-  if (s.length > 26) s = '${s.substring(0, 26)}…';
-  return s.isEmpty ? server : s;
-}
-// 英文国家名 → [中文名, ISO]（由 _kFreeCountry 反转得到）。
-final Map<String, List<String>> _kCountryByName = {
-  for (final e in _kFreeCountry.entries) e.value[1]: [e.value[0], e.key],
-};
-const Map<String, List<String>> _kFreeCountry = {
-  'HK': ['香港', 'Hong Kong'], 'TW': ['台湾', 'Taiwan'], 'JP': ['日本', 'Japan'],
-  'KR': ['韩国', 'South Korea'], 'SG': ['新加坡', 'Singapore'], 'US': ['美国', 'United States'],
-  'CA': ['加拿大', 'Canada'], 'GB': ['英国', 'United Kingdom'], 'DE': ['德国', 'Germany'],
-  'FR': ['法国', 'France'], 'NL': ['荷兰', 'Netherlands'], 'RU': ['俄罗斯', 'Russia'],
-  'IN': ['印度', 'India'], 'AU': ['澳大利亚', 'Australia'], 'BR': ['巴西', 'Brazil'],
-  'IT': ['意大利', 'Italy'], 'ES': ['西班牙', 'Spain'], 'SE': ['瑞典', 'Sweden'],
-  'CH': ['瑞士', 'Switzerland'], 'PL': ['波兰', 'Poland'], 'FI': ['芬兰', 'Finland'],
-  'NO': ['挪威', 'Norway'], 'IE': ['爱尔兰', 'Ireland'], 'AT': ['奥地利', 'Austria'],
-  'TR': ['土耳其', 'Turkey'], 'UA': ['乌克兰', 'Ukraine'], 'CZ': ['捷克', 'Czechia'],
-  'RO': ['罗马尼亚', 'Romania'], 'VN': ['越南', 'Vietnam'], 'TH': ['泰国', 'Thailand'],
-  'MY': ['马来西亚', 'Malaysia'], 'ID': ['印尼', 'Indonesia'], 'PH': ['菲律宾', 'Philippines'],
-  'AE': ['阿联酋', 'UAE'], 'IL': ['以色列', 'Israel'], 'ZA': ['南非', 'South Africa'],
-  'MX': ['墨西哥', 'Mexico'], 'AR': ['阿根廷', 'Argentina'], 'CL': ['智利', 'Chile'],
-  'KZ': ['哈萨克斯坦', 'Kazakhstan'], 'CO': ['哥伦比亚', 'Colombia'], 'CN': ['中国', 'China'],
-  'MO': ['澳门', 'Macau'], 'PT': ['葡萄牙', 'Portugal'], 'GR': ['希腊', 'Greece'],
-  'HU': ['匈牙利', 'Hungary'], 'BE': ['比利时', 'Belgium'], 'DK': ['丹麦', 'Denmark'],
-};
