@@ -18,3 +18,7 @@ flutter:
       android:
         package: com.mirrorspeed.singbox
         pluginClass: SingboxFlutterPlugin
+      ios:
+        pluginClass: SingboxFlutterPlugin
+      macos:
+        pluginClass: SingboxFlutterPlugin

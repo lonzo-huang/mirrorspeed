@@ -1,0 +1,18 @@
+<!-- 把以下键并入 host app（Runner）现有的 Runner.entitlements。
+     iOS: ios/Runner/Runner.entitlements
+     macOS: macos/Runner/*.entitlements（DebugProfile 与 Release 都要）-->
+<!--
+  <key>com.apple.developer.networking.networkextension</key>
+  <array>
+    <string>packet-tunnel-provider</string>
+  </array>
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.com.mirrorspeed.app</string>
+  </array>
+
+  macOS 额外（沙盒）：
+  <key>com.apple.security.app-sandbox</key><true/>
+  <key>com.apple.security.network.client</key><true/>
+  <key>com.apple.security.network.server</key><true/>
+-->

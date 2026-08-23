@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- PacketTunnel 扩展 target 的 entitlements（iOS 与 macOS 同款；macOS 另需 App Sandbox 见 README）-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.developer.networking.networkextension</key>
+  <array>
+    <string>packet-tunnel-provider</string>
+  </array>
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.com.mirrorspeed.app</string>
+  </array>
+</dict>
+</plist>
