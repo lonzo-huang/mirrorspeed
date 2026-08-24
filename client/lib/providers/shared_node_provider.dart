@@ -137,6 +137,33 @@ class SharedNodeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  static bool _isZh() => Platform.localeName.toLowerCase().startsWith('zh');
+
+  /// 手动点选专用：只连**指定**节点并验证真实出口，**绝不自动跳转到其它节点**。
+  /// 返回 true=连上且能访问外网；false=没连上、或连上但不通外网（此时已断开并置 [error]）。
+  /// 与 [connectSmart]（智能选择用，失败会依延迟换下一个）相对——用户明确点了某个
+  /// 节点时，期望就是这个节点，不该被悄悄换掉。
+  Future<bool> connectVerified(FreeNode node) async {
+    _error = null; notifyListeners();
+    await connect(node);
+    final up = await _waitStage(VpnStage.connected, const Duration(seconds: 9));
+    if (up && await _probeEgress()) {
+      _error = null; notifyListeners();
+      return true;   // 连上且真能翻墙
+    }
+    // 连上但不通外网 / 根本没连上 → 断开并提示，不跳别的节点。
+    final wasUp = up;
+    await disconnect();
+    final zh = _isZh();
+    _error = wasUp
+        ? (zh ? '该节点已连接，但无法访问外网。请换一个节点或用「智能选择」。'
+              : 'Connected, but no internet through this node. Try another, or use Auto-select.')
+        : (zh ? '该节点连接失败。请换一个节点或用「智能选择」。'
+              : 'Could not connect to this node. Try another, or use Auto-select.');
+    notifyListeners();
+    return false;
+  }
+
   /// 智能选择：挑延迟最低的可达节点，走验证式连接。
   Future<void> connectBest() async {
     if (_nodes.isEmpty) await load();

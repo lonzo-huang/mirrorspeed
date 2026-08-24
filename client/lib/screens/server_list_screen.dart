@@ -11,6 +11,7 @@ import '../models/free_node.dart';
 import '../utils/free_country.dart';
 import '../brand.dart';
 import '../theme.dart';
+import '../app.dart' show rootMessengerKey;
 
 class ServerListScreen extends StatefulWidget {
   const ServerListScreen({super.key});
@@ -147,8 +148,19 @@ class _ServerListScreenState extends State<ServerListScreen> {
             latency: ms, dead: dead,
             connected: active && p.isConnected, active: active,
             onTap: dead ? null : () {
+              // 手动点选：只连该节点、不自动跳转（跳转是「智能选择」的行为）。
+              final shared = context.read<SharedNodeProvider>();
               context.go('/home');
-              context.read<SharedNodeProvider>().connectSmart(n);
+              shared.connectVerified(n).then((ok) {
+                if (!ok) {
+                  rootMessengerKey.currentState?.showSnackBar(SnackBar(
+                    content: Text(shared.error ??
+                        tr('连接失败，请换一个节点', 'Connection failed, try another node')),
+                    backgroundColor: kDanger,
+                    duration: const Duration(seconds: 4),
+                  ));
+                }
+              });
             },
           ),
         );

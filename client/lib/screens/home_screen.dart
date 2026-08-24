@@ -17,6 +17,7 @@ import '../models/server_config.dart';
 import '../brand.dart';
 import '../env.dart';
 import '../theme.dart';
+import '../app.dart' show rootMessengerKey;
 
 // 广告仅在 Android/iOS 可用（AdMob 不支持 Windows/桌面）。
 bool get _adsSupported => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
@@ -68,7 +69,16 @@ class HomeScreen extends StatelessWidget {
         if (shared.isConnected || shared.isConnecting) {
           await shared.disconnect();
         } else if (shared.selected != null) {
-          await shared.connectSmart(shared.selected!);
+          // 重连上次选择的具体节点：只连它、不自动跳转。
+          final ok = await shared.connectVerified(shared.selected!);
+          if (!ok) {
+            rootMessengerKey.currentState?.showSnackBar(SnackBar(
+              content: Text(shared.error ??
+                  tr('连接失败，请换一个节点', 'Connection failed, try another node')),
+              backgroundColor: kDanger,
+              duration: const Duration(seconds: 4),
+            ));
+          }
         } else {
           context.go('/servers');   // 还没选过共享节点 → 去列表选
         }

@@ -18,6 +18,11 @@ import 'theme.dart';
 import 'brand.dart';
 import 'services/ad_service.dart';
 
+/// 全局 ScaffoldMessenger：用于在导航切换后仍能可靠弹出提示（如免费节点
+/// 「连上但不通外网」），不依赖某个已卸载页面的 context。
+final GlobalKey<ScaffoldMessengerState> rootMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
 class MirrorSpeedApp extends StatefulWidget {
   const MirrorSpeedApp({super.key});
   @override State<MirrorSpeedApp> createState() => _MirrorSpeedAppState();
@@ -155,9 +160,10 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
         ChangeNotifierProvider.value(value: _shared),
       ],
       child: MaterialApp.router(
-        title:        Brand.appName,
-        theme:        buildTheme(),
-        routerConfig: _router,
+        title:                Brand.appName,
+        theme:                buildTheme(),
+        routerConfig:         _router,
+        scaffoldMessengerKey: rootMessengerKey,
         debugShowCheckedModeBanner: false,
       ),
     );
