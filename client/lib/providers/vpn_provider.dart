@@ -114,6 +114,7 @@ class VpnProvider extends ChangeNotifier {
   bool get isConnected => _status == VpnStatus.connected;
   bool get isBusy      => _status == VpnStatus.connecting ||
                           _status == VpnStatus.disconnecting;
+  bool get isDisconnecting => _status == VpnStatus.disconnecting;
 
   // ── 本地用量/试用对外接口 ────────────────────────────────────
   int   get dailyUsed     => _dailyUsed;
@@ -206,9 +207,9 @@ class VpnProvider extends ChangeNotifier {
       _routingMode = RoutingMode.smart;
     } else {
       // 首次安装、无记录：中文用户默认「智能」（境内直连/境外走 VPN + 分应用白名单）；
-      // 非中文用户默认「全局」——他们看不到智能/全局切换(Brand.showSmartRouting=isZh)，
-      // 若默认智能+白名单会导致「只有名单内 26 个 App 走 VPN、Chrome 等全部绕过」，
-      // 表现为「连上了但应用没走 VPN」。全局=所有流量进隧道，才是海外用户预期。
+      // 非中文用户默认「全局」（所有流量进隧道，海外用户预期）。智能/全局切换现已
+      // 国内外都显示，用户可自行切换；但分应用白名单仍仅中文壳生效（见 _applyAppProxy
+      // 的 isZh 门控），故非中文即使切到智能也是全隧道、不会只放 26 个 App。
       _routingMode = _isZh() ? RoutingMode.smart : RoutingMode.global;
     }
     notifyListeners();
@@ -396,6 +397,15 @@ class VpnProvider extends ChangeNotifier {
         wgQuickConfig:  wgConf,
         providerBundle: kProviderBundle,
       ));
+
+      // #2 前台乐观连接：start() 返回即显示「已连接」，获得与免费节点一致的秒连体验，
+      // 不必等 WireGuard 首次握手上报 VpnStage.connected（那正是优质节点慢几秒的原因）。
+      // 真实流量仍由 stage.connected→_postConnectCheck（4s 多探测）与下面 16s 兜底继续
+      // 验证，不通则自动降级中继/断开，故乐观显示不会掩盖真实故障。
+      if (!_userInitiatedDisconnect && _status == VpnStatus.connecting) {
+        _status = VpnStatus.connected;
+        notifyListeners();
+      }
 
       // 直连兜底：到时仍未确认连通 → 切换 wstunnel 443 中继（层 2）。
       // 16s 给 _postConnectCheck 的多次探测（约 4+5+1+5s）留足时间，避免
@@ -601,6 +611,10 @@ class VpnProvider extends ChangeNotifier {
   // AmneziaWG 插件解析这两个键调 addAllowed/DisallowedApplication。
   Future<String> _applyAppProxy(String wgConf) async {
     if (_routingMode != RoutingMode.smart) return wgConf;
+    // 分应用白/黑名单是中国市场特性：非中文用户即使切到智能模式也走全隧道，
+    // 不注入 Included/ExcludedApplications——否则默认白名单只放 26 个 App，会出现
+    // 「连上但只有名单内应用走 VPN」。（与共享节点 sing-box 侧的门控保持一致。）
+    if (!_isZh()) return wgConf;
     if (!await AppProxyStore.loadEnabled()) return wgConf;
     final pkgs = await AppProxyStore.loadPkgs();
     if (pkgs.isEmpty) return wgConf;   // 名单空则不做分应用限制，避免死隧道

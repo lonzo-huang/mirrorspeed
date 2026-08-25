@@ -25,8 +25,10 @@ class Brand {
   /// 合规：中文壳不显示 "VPN" 字样。
   static bool get hideVpnWording => isZh;
 
-  /// 是否展示「智能/全局」路由切换（中文壳特性）。
-  static bool get showSmartRouting => isZh;
+  /// 是否展示「智能/全局」路由切换。国内外都适用：智能=按地区/规则分流（境内直连、
+  /// 境外走 VPN），全局=所有流量走 VPN。故两壳都展示。
+  /// 注：分应用黑白名单仍仅中文壳生效（见 vpn/shared 里的 isZh 门控）。
+  static bool get showSmartRouting => true;
 }
 
 /// 轻量本地化：中文设备返回中文，其它一律英文（合规：非中文环境纯英语）。

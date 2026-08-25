@@ -40,6 +40,7 @@ class SharedNodeProvider extends ChangeNotifier {
   bool get isConnected  => _stage == VpnStage.connected;
   bool get isConnecting => _stage == VpnStage.connecting;
   bool get isBusy       => _stage == VpnStage.connecting || _stage == VpnStage.disconnecting;
+  bool get isDisconnecting => _stage == VpnStage.disconnecting;
   int? latencyOf(FreeNode n) => _latency[n.fingerprint];
 
   StreamSubscription? _stageSub;
@@ -236,9 +237,9 @@ class SharedNodeProvider extends ChangeNotifier {
     try {
       // 分应用黑白名单也对免费节点生效（sing-box tun include/exclude_package）。
       // 仅 Android：include_package 是 Android 专属字段，桌面 sing-box 不支持。
-      // 仅中文壳：分应用/智能分流是中国市场特性（Brand.showSmartRouting=isZh）；海外
-      // 用户看不到相关开关，若默认白名单只放 26 个 App 会「连上但应用没走 VPN」，
-      // 故非中文一律全隧道（不注入 include_package）。
+      // 仅中文壳：分应用黑白名单是中国市场特性（智能/全局切换现已国内外都显示，
+      // 但分应用名单仍仅中文壳生效）；否则默认白名单只放 26 个 App 会「连上但应用
+      // 没走 VPN」，故非中文一律全隧道（不注入 include_package）。
       List<String>? inc, exc;
       if (applyAppProxy && Brand.isZh && Platform.isAndroid && await AppProxyStore.loadEnabled()) {
         final pkgs = (await AppProxyStore.loadPkgs()).toList();

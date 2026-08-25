@@ -60,8 +60,11 @@ class HomeScreen extends StatelessWidget {
     final showShared = shared.isConnected || shared.isConnecting ||
         (shared.preferShared && !vpn.isConnected && !vpnBusy);
 
-    final connected  = showShared ? shared.isConnected : vpn.isConnected;
-    final connecting = showShared ? (shared.isBusy || shared.autoTrying) : vpnBusy;
+    final connected     = showShared ? shared.isConnected : vpn.isConnected;
+    final disconnecting = showShared ? shared.isDisconnecting : vpn.isDisconnecting;
+    // 「连接中」不含「断开中」：断开时单独显示「断开中」而非「连接中」。
+    final connecting = (showShared ? (shared.isBusy || shared.autoTrying) : vpnBusy)
+        && !disconnecting;
 
     Future<void> onConnect() async {
       if (showShared) {
@@ -149,9 +152,10 @@ class HomeScreen extends StatelessWidget {
 
                 // ── 中心连接按钮（光环）────────────────────────
                 _HeroConnect(
-                  connected:  connected,
-                  connecting: connecting,
-                  onTap:      connecting ? null : onConnect,
+                  connected:     connected,
+                  connecting:    connecting,
+                  disconnecting: disconnecting,
+                  onTap:         (connecting || disconnecting) ? null : onConnect,
                 ),
 
                 const SizedBox(height: 10),
@@ -162,10 +166,14 @@ class HomeScreen extends StatelessWidget {
                     showShared
                         ? (connected
                             ? '${tr('已连接', 'Connected')} · ${tr('共享节点', 'Shared')}'
-                            : (connecting ? tr('连接中', 'Connecting') : tr('未连接', 'Disconnected')).toUpperCase())
+                            : (disconnecting ? tr('断开中', 'Disconnecting')
+                               : connecting ? tr('连接中', 'Connecting')
+                               : tr('未连接', 'Disconnected')).toUpperCase())
                         : (vpn.isConnected
                             ? '${vpn.statusLine}${server != null ? ' · ${server.displayLabel(Brand.isZh)}' : ''}'
-                            : (connecting ? vpn.statusLine : tr('未连接', 'Disconnected')).toUpperCase()),
+                            : (disconnecting ? tr('断开中', 'Disconnecting')
+                               : connecting ? vpn.statusLine
+                               : tr('未连接', 'Disconnected')).toUpperCase()),
                     style: TextStyle(
                       fontSize: 11, letterSpacing: 3, fontWeight: FontWeight.w600,
                       color: connected ? kAccentOn : Colors.white.withOpacity(0.35),
@@ -389,8 +397,10 @@ class _Header extends StatelessWidget {
 class _HeroConnect extends StatefulWidget {
   final bool connected;
   final bool connecting;
+  final bool disconnecting;
   final VoidCallback? onTap;
-  const _HeroConnect({required this.connected, required this.connecting, this.onTap});
+  const _HeroConnect({required this.connected, required this.connecting,
+      this.disconnecting = false, this.onTap});
   @override State<_HeroConnect> createState() => _HeroConnectState();
 }
 
@@ -402,8 +412,9 @@ class _HeroConnectState extends State<_HeroConnect> with SingleTickerProviderSta
   @override
   Widget build(BuildContext context) {
     final active = widget.connected;
+    final busy = widget.connecting || widget.disconnecting;   // 转圈：连接中 or 断开中
     final c = active ? kAccentOn : kBrand;
-    final spin = widget.connected || widget.connecting;
+    final spin = widget.connected || busy;
     Widget ringW(double size, double op, double mul) => AnimatedBuilder(
       animation: _ring,
       builder: (_, __) => Transform.rotate(
@@ -429,12 +440,13 @@ class _HeroConnectState extends State<_HeroConnect> with SingleTickerProviderSta
               boxShadow: [BoxShadow(color: c.withOpacity(active ? 0.45 : 0.30), blurRadius: active ? 50 : 34, spreadRadius: -8)],
             ),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              widget.connecting
+              busy
                   ? SizedBox(width: 34, height: 34, child: CircularProgressIndicator(strokeWidth: 3, color: c))
                   : Icon(Icons.power_settings_new_rounded, size: 38, color: active ? kAccentOn : Colors.white),
               const SizedBox(height: 6),
               Text(
                 active ? tr('已连接', 'Connected')
+                       : widget.disconnecting ? tr('断开中', 'Disconnecting')
                        : widget.connecting ? tr('连接中', 'Connecting') : tr('点击连接', 'Tap to connect'),
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: active ? kAccentOn : Colors.white)),
             ]),
