@@ -111,10 +111,14 @@ class SharedNodeProvider extends ChangeNotifier {
   String? _tryingName;
   bool get autoTrying => _autoTrying;
   String? get tryingName => _tryingName;
+  // 用户在「智能连接/验证连接」进行中点了断开 → 置位让进行中的循环立即收手，
+  // 否则会与用户的 disconnect 抢连接，出现「系统已连/界面连接中」的错位卡死。
+  bool _abort = false;
 
   /// 智能连接：从 [start] 开始，连上后实测能否访问外网(gstatic 204)，不通就按延迟
   /// 依次换下一个节点，直到找到能真正翻墙的。这是对"清单里混坏节点"的客户端兜底。
   Future<void> connectSmart(FreeNode start) async {
+    _abort = false;
     final others = _nodes
         .where((n) => !identical(n, start) && (_latency[n.fingerprint] ?? -1) >= 0)
         .toList()
@@ -123,18 +127,23 @@ class SharedNodeProvider extends ChangeNotifier {
 
     _autoTrying = true; _error = null; notifyListeners();
     for (final cand in queue) {
+      if (_abort) break;
       _tryingName = cand.name; notifyListeners();
       await connect(cand);
       final up = await _waitStage(VpnStage.connected, const Duration(seconds: 9));
+      if (_abort) break;
       if (up && await _probeEgress()) {
         _autoTrying = false; _tryingName = null; notifyListeners();
         return;   // 找到能用的
       }
-      await disconnect();   // 不通 → 停掉换下一个
+      await _teardown();   // 不通 → 停掉换下一个（内部拆除，不打断本循环）
     }
     _autoTrying = false; _tryingName = null;
-    _error = '该区域暂无可真正访问外网的免费节点，请刷新或换一个';
-    notifyListeners();
+    // 被用户打断则不覆盖状态（disconnect 会把它带到 disconnected）。
+    if (!_abort) {
+      _error = '该区域暂无可真正访问外网的免费节点，请刷新或换一个';
+      notifyListeners();
+    }
   }
 
   static bool _isZh() => Platform.localeName.toLowerCase().startsWith('zh');
@@ -144,9 +153,11 @@ class SharedNodeProvider extends ChangeNotifier {
   /// 与 [connectSmart]（智能选择用，失败会依延迟换下一个）相对——用户明确点了某个
   /// 节点时，期望就是这个节点，不该被悄悄换掉。
   Future<bool> connectVerified(FreeNode node) async {
+    _abort = false;
     _error = null; notifyListeners();
     await connect(node);
     final up = await _waitStage(VpnStage.connected, const Duration(seconds: 9));
+    if (_abort) return false;   // 用户中途断开
     if (up && await _probeEgress()) {
       _error = null; notifyListeners();
       return true;   // 连上且真能翻墙
@@ -179,6 +190,7 @@ class SharedNodeProvider extends ChangeNotifier {
   Future<bool> _waitStage(VpnStage want, Duration timeout) async {
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
+      if (_abort) return _stage == want;   // 用户已请求断开，别再空等
       if (_stage == want) return true;
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
@@ -261,14 +273,23 @@ class SharedNodeProvider extends ChangeNotifier {
     await Future<void>.delayed(const Duration(milliseconds: 800));
   }
 
+  /// 用户主动断开：打断进行中的智能/验证连接，再拆隧道。
   Future<void> disconnect() async {
+    _abort = true;                  // 让 connectSmart/connectVerified 立即收手
+    _autoTrying = false; _tryingName = null;
+    await _teardown();
+  }
+
+  /// 拆除当前隧道并把状态确定性地带到 disconnected。connectSmart 换节点时内部复用
+  /// （不置 _abort，故不会打断自身循环）。
+  Future<void> _teardown() async {
     // 立即反映「断开中」，避免拆除等待期间点了没反应。
     _stage = VpnStage.disconnecting;
     notifyListeners();
     try {
       await _engine.stop();
     } catch (_) {}
-    // "disconnected" 事件现在由原生 onDestroy 发出 = sing-box 的 VpnService 已被系统
+    // "disconnected" 事件正常由原生 onDestroy 发出 = sing-box 的 VpnService 已被系统
     // 完全销毁、VPN 已释放。必须等到这个信号再返回（VpnProvider.connect 据此才启动
     // WireGuard），否则 WG 会和系统的 VPN 拆除回调在主线程撞车 → App 被强杀。
     final deadline = DateTime.now().add(const Duration(seconds: 6));
@@ -276,6 +297,10 @@ class SharedNodeProvider extends ChangeNotifier {
       await Future<void>.delayed(const Duration(milliseconds: 80));
     }
     await Future<void>.delayed(const Duration(milliseconds: 300));
+    // 兜底：即便始终没收到原生 disconnected 事件（跨进程 :singbox 广播在连续
+    // start/stop 后可能丢失），也强制把状态归位到 disconnected——否则 UI 会永远卡在
+    // 「连接中/断开中」busy 态，既不能断也不能重连（本次修复的正是这个卡死）。
+    _stage  = VpnStage.disconnected;
     _active = null;
     notifyListeners();
   }
