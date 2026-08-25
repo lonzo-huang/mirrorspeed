@@ -221,9 +221,16 @@ class SharedNodeProvider extends ChangeNotifier {
     _error = null;
     _selected = node;
     _preferShared = true;
-    try {
-      await onNeedStopOther?.call();
-    } catch (_) {}
+    // 兜底：进入连接前先断开系统上的所有本 App VPN——
+    // ① 停掉另一条引擎（优质 WireGuard），系统级只允许一条隧道；
+    // ② 若本引擎(sing-box)上一次还有残留隧道，先彻底拆掉再起新的，
+    //    防止「残留连接」和与其它客户端的相互干扰/冲突。
+    // 注：Android/桌面只能停「本 App 自己」的 VPN；但在 Android 上建立新隧道会由系统
+    //    自动顶替掉任何其它 App 的现有 VPN（系统同时只允许一条），故也能避免外部冲突。
+    try { await onNeedStopOther?.call(); } catch (_) {}
+    if (_stage != VpnStage.disconnected) {
+      try { await _teardown(); } catch (_) {}
+    }
     _active = node;
     notifyListeners();
     try {

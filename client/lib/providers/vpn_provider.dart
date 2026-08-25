@@ -329,8 +329,14 @@ class VpnProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    // 系统级只允许一条隧道：连 WireGuard 前先停掉共享节点(sing-box)。
+    // 兜底：进入连接前先断开系统上所有本 App VPN——
+    // ① 停掉另一条引擎(共享 sing-box)，系统级只允许一条隧道；
+    // ② 若本引擎(WireGuard)上一次还有残留隧道，先停掉再起新的，防止残留连接与
+    //    其它客户端相互干扰。Android 上建立新隧道也会自动顶替其它 App 的现有 VPN。
     try { await onBeforeConnect?.call(); } catch (_) {}
+    if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
+      try { await _engine.stop(); } catch (_) {}
+    }
     _error            = null;
     _status           = VpnStatus.connecting;
     _activeServer     = server;
