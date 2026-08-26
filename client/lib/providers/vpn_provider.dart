@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../vpn/vpn_engine.dart';
 import '../vpn/amnezia_wg_engine.dart';
 import '../services/app_proxy_store.dart';
+import '../services/free_node_service.dart';
 import '../models/server_config.dart';
 import '../services/ws_relay_service.dart';
 import '../services/port_hopping.dart';
@@ -639,11 +640,12 @@ class VpnProvider extends ChangeNotifier {
   }
 
   Future<String> _applySmartRouting(String wgConf, {required String? excludeIp}) async {
-    // Windows：WireGuard 用超大 AllowedIPs（非中国 IP 段互补集，数千条 CIDR）会让
-    // wintun 服务加载配置/建路由失败 → 优质节点智能模式「怎么都连不上」。暂时复用
-    // 全隧道（保持 AllowedIPs=0.0.0.0/0）确保能连上；中国 IP 走路由表放行属未来优化
-    // （TODO：桌面按路由表做 CN 直连分流；境外 IP 目前同样复用全隧道）。
-    if (Platform.isWindows) return wgConf;
+    // 智能模式按「裸 IP」归属地决定：
+    //  - 境内裸 IP：路由表分流（AllowedIPs=非中国 IP 段互补集，中国直连、境外走 VPN）；
+    //  - 境外裸 IP / 无法识别：暂全隧道（AllowedIPs 保持 0.0.0.0/0）——占位，确保能连上；
+    //    将来再做境外的智能分流优化（TODO）。
+    final inCn = await FreeNodeService.instance.egressInChina();
+    if (inCn != true) return wgConf;
     final routes = await _getSmartRoutes(excludeIp: excludeIp);
     return wgConf.replaceAll(
       RegExp(r'AllowedIPs\s*=\s*[^\n]+'),

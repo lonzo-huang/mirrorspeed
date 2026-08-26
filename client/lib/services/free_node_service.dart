@@ -34,7 +34,8 @@ class FreeNodeService {
   /// 判定「裸 IP」（未经本 App VPN 的真实出口）是否在中国境内。
   /// true=境内，false=境外，null=无法识别。用 Cloudflare trace（境内一般可达），
   /// 解析 `loc=` 国家码。整个会话缓存一次；无法识别不缓存，下次可重试。
-  Future<bool?> _egressInChina() async {
+  /// 公开：优质节点智能模式也据此决定是否用路由表分流（见 VpnProvider._applySmartRouting）。
+  Future<bool?> egressInChina() async {
     if (_egressResolved) return _egressIsCn;
     try {
       final res = await http
@@ -77,7 +78,7 @@ class FreeNodeService {
   /// 按裸 IP 归属地选择订阅源：境内 → 国内源；境外 → 土耳其源（失败再兜底回国内源）；
   /// 无法识别 → 国内/兜底源。全部失败返回空列表。
   Future<List<FreeNode>> fetch({bool top = false}) async {
-    final inCn = await _egressInChina();
+    final inCn = await egressInChina();
     String? body;
     if (inCn == false) {
       // 境外：优先土耳其源；万一不通，兜底回国内源，保证总能拿到点。
@@ -102,7 +103,7 @@ class FreeNodeService {
 
   /// 诊断：判定归属地后逐个 host 尝试并返回可读报告（测试用）。
   Future<List<String>> diagnose({bool top = false}) async {
-    final inCn = await _egressInChina();
+    final inCn = await egressInChina();
     final region = inCn == null ? '无法识别' : (inCn ? '境内' : '境外');
     final os = inCn == false;
     final hosts = os ? _osHosts : _cnHosts;
