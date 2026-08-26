@@ -44,20 +44,29 @@ class AppProxyStore {
     'com.android.chrome',                  // Chrome：海外浏览常用，默认走 VPN
   ];
 
+  /// 启用状态。Android 默认开；桌面默认**关**（opt-in）——桌面分应用是新功能，
+  /// 且默认名单为空，若误开白名单会导致「只有名单内进程走 VPN」，默认关最安全。
   static Future<bool> loadEnabled() async =>
-      (await SharedPreferences.getInstance()).getBool(_kEnabled) ?? true;
+      (await SharedPreferences.getInstance()).getBool(_kEnabled) ?? Platform.isAndroid;
 
   static Future<String> loadMode() async =>
       (await SharedPreferences.getInstance()).getString(_kMode) ?? 'white';
 
+  /// 桌面进程名判定：形如 xxx.exe（不含安卓包名的点号命名，如 com.google.xxx）。
+  static bool _isExe(String s) => s.toLowerCase().endsWith('.exe');
+
   /// 已选名单。Android 存包名、桌面存进程名(如 chrome.exe)。
   /// 首次(未初始化)：Android 返回默认海外白名单；桌面返回空(opt-in，用户自行添加进程)。
+  /// 桌面额外过滤：只保留 .exe 进程名，剔除历史遗留的安卓包名——否则白名单里混入
+  /// 安卓包名会让 sing-box 白名单永不匹配任何进程 → final=direct → VPN 变摆设。
   static Future<Set<String>> loadPkgs() async {
     final p = await SharedPreferences.getInstance();
     if (!(p.getBool(_kInit) ?? false)) {
       return Platform.isAndroid ? defaultOverseas.toSet() : <String>{};
     }
-    return (p.getStringList(_kPkgs) ?? const <String>[]).toSet();
+    final list = p.getStringList(_kPkgs) ?? const <String>[];
+    if (!Platform.isAndroid) return list.where(_isExe).toSet();
+    return list.toSet();
   }
 
   static Future<void> save({required bool enabled, required String mode, required Set<String> pkgs}) async {

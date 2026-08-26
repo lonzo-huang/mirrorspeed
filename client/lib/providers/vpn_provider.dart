@@ -610,6 +610,9 @@ class VpnProvider extends ChangeNotifier {
   // 白名单→IncludedApplications(只这些走 VPN)；黑名单→ExcludedApplications(这些直连)。
   // AmneziaWG 插件解析这两个键调 addAllowed/DisallowedApplication。
   Future<String> _applyAppProxy(String wgConf) async {
+    // 分应用(IncludedApplications)仅 Android WireGuard 支持；桌面注入会让 Windows
+    // AWG 解析异常/无效，且优质节点 Windows 分应用需 WFP 驱动（暂不支持）。
+    if (!Platform.isAndroid) return wgConf;
     if (_routingMode != RoutingMode.smart) return wgConf;
     // 分应用白/黑名单是中国市场特性：非中文用户即使切到智能模式也走全隧道，
     // 不注入 Included/ExcludedApplications——否则默认白名单只放 26 个 App，会出现
@@ -636,6 +639,11 @@ class VpnProvider extends ChangeNotifier {
   }
 
   Future<String> _applySmartRouting(String wgConf, {required String? excludeIp}) async {
+    // Windows：WireGuard 用超大 AllowedIPs（非中国 IP 段互补集，数千条 CIDR）会让
+    // wintun 服务加载配置/建路由失败 → 优质节点智能模式「怎么都连不上」。暂时复用
+    // 全隧道（保持 AllowedIPs=0.0.0.0/0）确保能连上；中国 IP 走路由表放行属未来优化
+    // （TODO：桌面按路由表做 CN 直连分流；境外 IP 目前同样复用全隧道）。
+    if (Platform.isWindows) return wgConf;
     final routes = await _getSmartRoutes(excludeIp: excludeIp);
     return wgConf.replaceAll(
       RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
