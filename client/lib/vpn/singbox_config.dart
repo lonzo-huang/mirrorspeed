@@ -1,5 +1,9 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import '../models/free_node.dart';
+
+/// 桌面(Windows/macOS)：sing-box.exe 自管 tun，需要 strict_route 堵漏。
+final bool _kIsDesktop = Platform.isWindows || Platform.isMacOS;
 
 /// 把单个免费节点的 outbound 组装成一份完整、可直接交给 sing-box(libbox)运行的
 /// 配置 JSON。含 tun 入站 + 路由规则 + DNS。
@@ -100,10 +104,13 @@ class SingboxConfig {
           'type': 'tun',
           'tag': 'tun-in',
           'interface_name': 'mirrorspeed-sb',
-          // 1.13：inet4_address 已改名 address(列表)
-          'address': ['172.19.0.1/30'],
+          // 1.13：inet4_address 已改名 address(列表)。
+          // 必须同时给 IPv4 + IPv6 地址：否则 auto_route 只张 0.0.0.0/0、不张 ::/0，
+          // 双栈网络下 IPv6 流量会绕过隧道直连（"连上了但流量没走 VPN" 的元凶）。
+          'address': ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
           'auto_route': true,
-          'strict_route': false,
+          // 桌面(Windows)开 strict_route：强制所有流量(含 IPv6)进隧道、堵住泄漏。
+          'strict_route': _kIsDesktop,
           'stack': 'gvisor',
           // 分应用：白名单只放这些 App 进隧道；黑名单让这些 App 绕过。
           if (includePackages != null && includePackages.isNotEmpty)
