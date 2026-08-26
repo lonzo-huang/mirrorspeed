@@ -235,21 +235,29 @@ class SharedNodeProvider extends ChangeNotifier {
     _active = node;
     notifyListeners();
     try {
-      // 分应用黑白名单也对免费节点生效（sing-box tun include/exclude_package）。
-      // 仅 Android：include_package 是 Android 专属字段，桌面 sing-box 不支持。
-      // 仅中文壳：分应用黑白名单是中国市场特性（智能/全局切换现已国内外都显示，
-      // 但分应用名单仍仅中文壳生效）；否则默认白名单只放 26 个 App 会「连上但应用
-      // 没走 VPN」，故非中文一律全隧道（不注入 include_package）。
-      List<String>? inc, exc;
-      if (applyAppProxy && Brand.isZh && Platform.isAndroid && await AppProxyStore.loadEnabled()) {
+      // 分应用黑白名单对免费节点生效：
+      // - Android：sing-box tun include/exclude_package（Android 专属字段）。仅中文壳
+      //   注入——分应用是中国市场特性，否则默认白名单只放 26 个 App 会「连上但应用没走
+      //   VPN」，故非中文一律全隧道。
+      // - Windows/桌面：用 sing-box process_name 路由规则(按进程名)，存的是 exe 名；
+      //   opt-in(默认空)，不受 isZh 限制。
+      List<String>? inc, exc, incProc, excProc;
+      if (applyAppProxy && await AppProxyStore.loadEnabled()) {
         final pkgs = (await AppProxyStore.loadPkgs()).toList();
         if (pkgs.isNotEmpty) {
-          if (await AppProxyStore.loadMode() == 'white') { inc = pkgs; } else { exc = pkgs; }
+          final white = await AppProxyStore.loadMode() == 'white';
+          if (Platform.isAndroid && Brand.isZh) {
+            if (white) { inc = pkgs; } else { exc = pkgs; }
+          } else if (Platform.isWindows) {
+            if (white) { incProc = pkgs; } else { excProc = pkgs; }
+          }
         }
       }
-      debugPrint('[APPPROXY-SB] applyAppProxy=$applyAppProxy inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}');
+      debugPrint('[APPPROXY-SB] inc=${inc?.length ?? 0} exc=${exc?.length ?? 0} '
+          'incProc=${incProc?.length ?? 0} excProc=${excProc?.length ?? 0}');
       final cfg = SingboxConfig.build(node, smart: false,
-          includePackages: inc, excludePackages: exc);
+          includePackages: inc, excludePackages: exc,
+          includeProcesses: incProc, excludeProcesses: excProc);
       await _engine.start(EngineStartParams(singboxConfig: cfg));
     } catch (e) {
       _error = '$e';

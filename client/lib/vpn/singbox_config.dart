@@ -25,11 +25,16 @@ class SingboxConfig {
     bool smart = true,
     bool adOnly = false,
     String? logPath,   // 非空则把 sing-box 日志(debug)写到该文件，供诊断
-    List<String>? includePackages,   // 分应用：只有这些 App 进隧道(白名单)
-    List<String>? excludePackages,   // 分应用：这些 App 绕过隧道(黑名单)
+    List<String>? includePackages,   // 分应用(Android)：只有这些 App 进隧道(白名单)
+    List<String>? excludePackages,   // 分应用(Android)：这些 App 绕过隧道(黑名单)
+    List<String>? includeProcesses,  // 分应用(桌面)：只有这些进程走代理(白名单，process_name)
+    List<String>? excludeProcesses,  // 分应用(桌面)：这些进程直连(黑名单，process_name)
   }) {
     // 选中节点的 outbound(强制 tag=proxy)
     final proxy = Map<String, dynamic>.from(node.outbound)..['tag'] = 'proxy';
+
+    final hasWhiteProc = includeProcesses != null && includeProcesses.isNotEmpty;
+    final hasBlackProc = excludeProcesses != null && excludeProcesses.isNotEmpty;
 
     final route = <String, dynamic>{
       'auto_detect_interface': true,
@@ -47,12 +52,21 @@ class SingboxConfig {
       ],
     };
 
+    // 桌面分应用(process_name)：黑名单进程直连，放在最前，优先于地区/最终规则。
+    if (hasBlackProc) {
+      route['rules'].add({'process_name': excludeProcesses, 'outbound': 'direct'});
+    }
+
     if (adOnly) {
       // 广告模式:只有广告域名走代理,其余全直连
       route['rules'].add({
         'domain_suffix': _adDomains,
         'outbound': 'proxy',
       });
+      route['final'] = 'direct';
+    } else if (hasWhiteProc) {
+      // 桌面白名单：仅名单内进程走代理，其余一律直连（覆盖 smart/global 的 final）。
+      route['rules'].add({'process_name': includeProcesses, 'outbound': 'proxy'});
       route['final'] = 'direct';
     } else if (smart) {
       // 智能模式:中国大陆 geoip 直连,其余走代理(final=proxy)

@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 分应用代理配置（智能模式黑白名单）。
@@ -49,10 +50,13 @@ class AppProxyStore {
   static Future<String> loadMode() async =>
       (await SharedPreferences.getInstance()).getString(_kMode) ?? 'white';
 
-  /// 已选包名。首次(未初始化)返回默认海外白名单。
+  /// 已选名单。Android 存包名、桌面存进程名(如 chrome.exe)。
+  /// 首次(未初始化)：Android 返回默认海外白名单；桌面返回空(opt-in，用户自行添加进程)。
   static Future<Set<String>> loadPkgs() async {
     final p = await SharedPreferences.getInstance();
-    if (!(p.getBool(_kInit) ?? false)) return defaultOverseas.toSet();
+    if (!(p.getBool(_kInit) ?? false)) {
+      return Platform.isAndroid ? defaultOverseas.toSet() : <String>{};
+    }
     return (p.getStringList(_kPkgs) ?? const <String>[]).toSet();
   }
 
