@@ -137,24 +137,29 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         if (stopping) return   // 幂等：避免 disconnect + onRevoke + onDestroy 多次触发导致 double-free 崩溃
         stopping = true
         setStage("disconnecting")
-        // 先停默认网络监控(拆掉喂给 libbox 的回调)，再停 box，最后关 fd —— 顺序很重要，
-        // 反了会让 libbox 的 goroutine 碰到已关闭的 fd 而崩溃。
+        // 1) 先停默认网络监控，切断喂给 libbox 的回调（顺序很重要，反了会让 libbox 的
+        //    goroutine 碰到已关闭的 fd 而崩溃）。
         stopDefaultInterfaceMonitorInternal()
-        try { server?.closeService() } catch (_: Throwable) {}
-        try { server?.close() } catch (_: Throwable) {}
-        server = null
-        // 关掉 tun fd → 真正拆除 tun 接口(否则系统一直显示 VPN 连接、流量进死 box 网络锁死)。
+        // 2) 立刻关掉 tun fd —— libbox 用的就是这个 fd（openTun 直接返回 pfd.fd，未 dup）。
+        //    关掉它系统会马上拆除 tun 接口、状态栏 VPN 图标随即消失；libbox 的 tun 读协程
+        //    也会因 fd 关闭而返回，从而更快收尾。放在 closeService/close 之前，是为了不必
+        //    先等 libbox 优雅关闭（在 gvisor 上可能耗时数秒 → 图标“过数秒才消失”的元凶）。
         try { tunFd?.close() } catch (_: Throwable) {}
         tunFd = null
         instance = null
-        setStage("disconnecting")
-        // stopForeground/stopSelf 回主线程执行（服务生命周期操作）。真正的 "disconnected"
-        // 信号在 onDestroy 发出——那才代表系统已完全释放 VPN，此时启动 WireGuard 才不会
-        // 和系统的 VPN 拆除回调在主线程上撞车(can't deliver broadcast → 强杀)。
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
-            try { stopSelf() } catch (_: Throwable) {}
-        }
+        // 3) 在后台线程优雅关闭 libbox，随后停服务；不阻塞主线程/服务生命周期。
+        //    真正的 "disconnected" 仍在 onDestroy 发出——那才代表系统已完全释放 VPN，
+        //    此时 Dart 侧再启另一条隧道(WireGuard)才不会和 VPN 拆除回调在主线程撞车。
+        val srv = server
+        server = null
+        Thread {
+            try { srv?.closeService() } catch (_: Throwable) {}
+            try { srv?.close() } catch (_: Throwable) {}
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
+                try { stopSelf() } catch (_: Throwable) {}
+            }
+        }.start()
     }
 
     override fun onDestroy() {
