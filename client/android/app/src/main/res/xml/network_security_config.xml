@@ -5,5 +5,7 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">scanner.mirrorspeed.com</domain>
         <domain includeSubdomains="true">msscanner.mirrorquant.com</domain>
+        <!-- 海外免费节点订阅源（土耳其，裸 IP，面向境外用户） -->
+        <domain includeSubdomains="false">185.93.70.165</domain>
     </domain-config>
 </network-security-config>

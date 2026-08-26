@@ -12,35 +12,80 @@ class FreeNodeService {
   static final FreeNodeService instance = FreeNodeService._();
   FreeNodeService._();
 
-  // 订阅源(主/备,依次尝试)。以后加主机只改这里。
-  // 主：原生 http:10611（通用可达）。备：https:10612（部分网络端口被挡/证书问题）。
-  // http 明文已在 network_security_config.xml 对该域名单独放行。
-  static const List<String> _subHosts = [
+  // ── 订阅源（按裸 IP 归属地选择）───────────────────────────────────────────
+  // 国内 / 兜底源（scanner.mirrorspeed.com）。主：http:10611（通用可达）；
+  // 备：https:10612（部分运营商端口被挡/证书问题）。http 明文已在
+  // network_security_config.xml 放行。
+  static const List<String> _cnHosts = [
     'http://scanner.mirrorspeed.com:10611',
     'https://scanner.mirrorspeed.com:10612',
   ];
-  // 清单路径：全量(base64 URI 列表) / 精选(Clash YAML，扫描程序做过健康检查的 top50)。
-  static const String _pathAll    = '/7385e047b29180935b3686c5/subscribe2.txt';
-  static const String _pathTop    = '/7385e047b29180935b3686c5/clash_top50.yaml';
+  static const String _cnToken = '7385e047b29180935b3686c5';
+  // 海外源（土耳其 185.93.70.165，面向境外用户；裸 IP，http 明文已放行）。
+  static const List<String> _osHosts = [
+    'http://185.93.70.165:10611',
+  ];
+  static const String _osToken = 'e1f4663359f4f29095d1f393';
 
-  /// 拉取并解析节点。[top]=true 取精选清单。失败(全部 host 都不通)返回空列表。
-  Future<List<FreeNode>> fetch({bool top = false}) async {
-    final path = top ? _pathTop : _pathAll;
-    String? body;
-    for (final host in _subHosts) {
+  // 裸 IP 归属地判定结果缓存（会话内只判定一次）。null=未判定/无法识别。
+  bool? _egressIsCn;
+  bool  _egressResolved = false;
+
+  /// 判定「裸 IP」（未经本 App VPN 的真实出口）是否在中国境内。
+  /// true=境内，false=境外，null=无法识别。用 Cloudflare trace（境内一般可达），
+  /// 解析 `loc=` 国家码。整个会话缓存一次；无法识别不缓存，下次可重试。
+  Future<bool?> _egressInChina() async {
+    if (_egressResolved) return _egressIsCn;
+    try {
+      final res = await http
+          .get(Uri.parse('https://www.cloudflare.com/cdn-cgi/trace'))
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final loc = RegExp(r'loc=([A-Z]{2})').firstMatch(res.body)?.group(1);
+        if (loc != null && loc.isNotEmpty) {
+          _egressIsCn = (loc == 'CN');
+          _egressResolved = true;
+          return _egressIsCn;
+        }
+      }
+    } catch (_) {/* 网络异常 → 无法识别 */}
+    return null;   // 无法识别：按需求退回国内/兜底源
+  }
+
+  String _listPath(String token, bool top) =>
+      '/$token/${top ? 'clash_top50.yaml' : 'subscribe2.txt'}';
+
+  /// 依次尝试给定 host（同一 token），返回首个非空响应体；全失败返回 null。
+  Future<String?> _download(List<String> hosts, String token, bool top) async {
+    for (final host in hosts) {
       try {
         final res = await http
-            .get(Uri.parse('$host$path'), headers: {'User-Agent': 'MirrorSpeed'})
+            .get(Uri.parse('$host${_listPath(token, top)}'),
+                headers: {'User-Agent': 'MirrorSpeed'})
             .timeout(const Duration(seconds: 12));
         if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
           // 显式 UTF-8 解码：http 默认 latin1，会把 emoji/中文变乱码。
-          body = utf8.decode(res.bodyBytes, allowMalformed: true);
-          if (body.trim().isEmpty) { body = null; continue; }
-          break;
+          final body = utf8.decode(res.bodyBytes, allowMalformed: true);
+          if (body.trim().isNotEmpty) return body;
         }
-      } catch (_) {
-        // 试下一个 host
-      }
+      } catch (_) {/* 试下一个 host */}
+    }
+    return null;
+  }
+
+  /// 拉取并解析节点。[top]=true 取精选清单。
+  /// 按裸 IP 归属地选择订阅源：境内 → 国内源；境外 → 土耳其源（失败再兜底回国内源）；
+  /// 无法识别 → 国内/兜底源。全部失败返回空列表。
+  Future<List<FreeNode>> fetch({bool top = false}) async {
+    final inCn = await _egressInChina();
+    String? body;
+    if (inCn == false) {
+      // 境外：优先土耳其源；万一不通，兜底回国内源，保证总能拿到点。
+      body = await _download(_osHosts, _osToken, top)
+          ?? await _download(_cnHosts, _cnToken, top);
+    } else {
+      // 境内 or 无法识别：国内/兜底源。
+      body = await _download(_cnHosts, _cnToken, top);
     }
     if (body == null) return [];
     return _parseAny(body);
@@ -55,12 +100,16 @@ class FreeNodeService {
     return parseSubscription(body);
   }
 
-  /// 诊断：逐个 host 尝试并返回可读报告（测试用）。
+  /// 诊断：判定归属地后逐个 host 尝试并返回可读报告（测试用）。
   Future<List<String>> diagnose({bool top = false}) async {
-    final path = top ? _pathTop : _pathAll;
-    final out = <String>[];
-    for (final host in _subHosts) {
-      final url = '$host$path';
+    final inCn = await _egressInChina();
+    final region = inCn == null ? '无法识别' : (inCn ? '境内' : '境外');
+    final os = inCn == false;
+    final hosts = os ? _osHosts : _cnHosts;
+    final token = os ? _osToken : _cnToken;
+    final out = <String>['裸IP归属=$region → 源=${os ? '土耳其' : '国内/兜底'}'];
+    for (final host in hosts) {
+      final url = '$host${_listPath(token, top)}';
       try {
         final sw = Stopwatch()..start();
         final res = await http
