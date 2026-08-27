@@ -149,6 +149,22 @@ class SharedNodeProvider extends ChangeNotifier {
 
   static bool _isZh() => Platform.localeName.toLowerCase().startsWith('zh');
 
+  /// 系统是否有可用的全局 IPv6（非链路本地/回环）。用于决定 sing-box tun 是否加 v6 地址：
+  /// 无可用 IPv6 的机器（IPv6 被禁用，企业 Windows 常见）加 v6 地址会 FATAL。
+  /// Android 保持纯 IPv4 tun（已验证），只在桌面探测。
+  Future<bool> _hasGlobalIpv6() async {
+    if (Platform.isAndroid) return false;
+    try {
+      final ifaces = await NetworkInterface.list(
+          type: InternetAddressType.IPv6,
+          includeLinkLocal: false, includeLoopback: false);
+      for (final i in ifaces) {
+        if (i.addresses.any((a) => !a.isLoopback && !a.isLinkLocal)) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   /// 手动点选专用：只连**指定**节点并验证真实出口，**绝不自动跳转到其它节点**。
   /// 返回 true=连上且能访问外网；false=没连上、或连上但不通外网（此时已断开并置 [error]）。
   /// 与 [connectSmart]（智能选择用，失败会依延迟换下一个）相对——用户明确点了某个
@@ -255,9 +271,13 @@ class SharedNodeProvider extends ChangeNotifier {
       }
       debugPrint('[APPPROXY-SB] inc=${inc?.length ?? 0} exc=${exc?.length ?? 0} '
           'incProc=${incProc?.length ?? 0} excProc=${excProc?.length ?? 0}');
+      // 仅当系统确有可用 IPv6 时才给 tun 加 v6 地址：IPv6 被禁用的机器上设 v6 地址会让
+      // sing-box FATAL、整个隧道起不来（企业 Windows 常见）。桌面探测，Android 保持纯 IPv4。
+      final ipv6 = await _hasGlobalIpv6();
       final cfg = SingboxConfig.build(node, smart: false,
           includePackages: inc, excludePackages: exc,
-          includeProcesses: incProc, excludeProcesses: excProc);
+          includeProcesses: incProc, excludeProcesses: excProc,
+          ipv6: ipv6);
       await _engine.start(EngineStartParams(singboxConfig: cfg));
     } catch (e) {
       _error = '$e';

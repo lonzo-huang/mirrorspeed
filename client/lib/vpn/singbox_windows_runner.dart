@@ -44,11 +44,38 @@ class SingboxWindowsRunner {
     try { _logSink?.writeln(line); } catch (_) {}
   }
 
+  bool _retriedNoV6 = false;
+
+  /// 去掉 tun inbound 里的 IPv6 地址（含 ':' 的条目），返回新 JSON。
+  /// 用于「设 v6 地址 FATAL」时降级为纯 IPv4 重试。
+  String _stripIpv6(String configJson) {
+    try {
+      final cfg = jsonDecode(configJson) as Map<String, dynamic>;
+      final inbounds = cfg['inbounds'];
+      if (inbounds is List) {
+        for (final ib in inbounds) {
+          if (ib is Map && ib['address'] is List) {
+            ib['address'] = (ib['address'] as List)
+                .where((a) => !a.toString().contains(':')).toList();
+          }
+        }
+      }
+      return jsonEncode(cfg);
+    } catch (_) {
+      return configJson;
+    }
+  }
+
   Future<void> start(String configJson) async {
     await stop();
     _userStopping = false;
+    _retriedNoV6 = false;
     lastError = null;
     _tail.clear();
+    await _launch(configJson);
+  }
+
+  Future<void> _launch(String configJson) async {
     _setStage(VpnStage.connecting);
     try {
       final support = await getApplicationSupportDirectory();
@@ -96,6 +123,17 @@ class SingboxWindowsRunner {
         try { _logSink?.writeln('=== exit code=$code after ${ranMs}ms ==='); } catch (_) {}
         try { _logSink?.flush(); _logSink?.close(); } catch (_) {}
         _logSink = null;
+        // IPv6 被禁用的机器上设 v6 地址会 FATAL；自动降级为纯 IPv4 重试一次，保证能连上。
+        final tailStr = _tail.join('\n').toLowerCase();
+        final ipv6Fatal = tailStr.contains('ipv6 address') ||
+            (tailStr.contains('tun') && tailStr.contains('element not found'));
+        if (!_userStopping && ipv6Fatal && !_retriedNoV6) {
+          _retriedNoV6 = true;
+          _tail.clear();
+          // 重新起：去掉 v6 地址。
+          _launch(_stripIpv6(configJson));
+          return;
+        }
         // 非用户主动停止、且很快就退出的 = 启动失败。记录日志尾供上层提示。
         if (!_userStopping) {
           lastError = 'sing-box 已退出(code=$code)。日志：$logPath\n'

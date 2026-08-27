@@ -33,6 +33,7 @@ class SingboxConfig {
     List<String>? excludePackages,   // 分应用(Android)：这些 App 绕过隧道(黑名单)
     List<String>? includeProcesses,  // 分应用(桌面)：只有这些进程走代理(白名单，process_name)
     List<String>? excludeProcesses,  // 分应用(桌面)：这些进程直连(黑名单，process_name)
+    bool ipv6 = false,               // 仅当系统确有可用 IPv6 时给 tun 加 v6 地址（见下）
   }) {
     // 选中节点的 outbound(强制 tag=proxy)
     final proxy = Map<String, dynamic>.from(node.outbound)..['tag'] = 'proxy';
@@ -105,11 +106,13 @@ class SingboxConfig {
           'tag': 'tun-in',
           'interface_name': 'mirrorspeed-sb',
           // 1.13：inet4_address 已改名 address(列表)。
-          // 必须同时给 IPv4 + IPv6 地址：否则 auto_route 只张 0.0.0.0/0、不张 ::/0，
-          // 双栈网络下 IPv6 流量会绕过隧道直连（"连上了但流量没走 VPN" 的元凶）。
-          'address': ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
+          // IPv6：仅当系统确有可用 IPv6 时才给 tun 加 v6 地址，让 auto_route 也张 ::/0、
+          // 堵住 IPv6 泄漏（双栈网络下 IPv6 流量会绕过隧道）。但在 **IPv6 被禁用** 的机器上
+          // （很多企业 Windows），sing-box 设 v6 地址会 FATAL「set ipv6 address: Element not
+          // found」→ 整个隧道起不来。故由上层探测后用 [ipv6] 控制，无 v6 环境退回纯 IPv4。
+          'address': ipv6 ? ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'] : ['172.19.0.1/30'],
           'auto_route': true,
-          // 桌面(Windows)开 strict_route：强制所有流量(含 IPv6)进隧道、堵住泄漏。
+          // 桌面(Windows)开 strict_route：强制所有流量进隧道、堵住泄漏。
           'strict_route': _kIsDesktop,
           'stack': 'gvisor',
           // 分应用：白名单只放这些 App 进隧道；黑名单让这些 App 绕过。
