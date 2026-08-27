@@ -273,6 +273,15 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('routing_mode', mode.name);
+    // Windows：智能模式 ↔ 分应用VPN 联动——切到智能自动使能分应用（用户随后直接选
+    // 应用即可，无需再去手动开一遍）；切到全局自动关闭（全局=所有流量走 VPN）。
+    if (Platform.isWindows) {
+      await AppProxyStore.save(
+        enabled: mode == RoutingMode.smart,
+        mode:    await AppProxyStore.loadMode(),
+        pkgs:    await AppProxyStore.loadPkgs(),
+      );
+    }
   }
 
   void _onStage(VpnStage stage) {
