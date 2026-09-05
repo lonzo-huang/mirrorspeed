@@ -274,8 +274,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ms = context.ms;
-    final theme = context.read<ThemeController>();
-    final locale = context.read<LocaleController>();
+    final theme = context.watch<ThemeController>();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
       child: Row(children: [
@@ -288,17 +287,6 @@ class _Header extends StatelessWidget {
           Text(Brand.appName, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: ms.textPrimary)),
           Text('MIRROR SPEED', style: TextStyle(fontSize: 9, letterSpacing: 2.5, color: ms.textMuted)),
         ])),
-        // 语言胶囊
-        _PillButton(
-          onTap: () => locale.toggle(),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.translate_rounded, size: 15, color: ms.textSecondary),
-            const SizedBox(width: 5),
-            Text(Brand.isZh ? 'ZH' : 'EN',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ms.textSecondary)),
-          ]),
-        ),
-        const SizedBox(width: 8),
         // 明暗切换
         _PillButton(
           circle: true,
@@ -619,11 +607,7 @@ class _FreeTimeCardState extends State<_FreeTimeCard> {
               style: TextStyle(color: ms.textSecondary, fontSize: 13, fontFamily: 'monospace')),
         ]),
         if (usedUp) ...[
-          const SizedBox(height: 8),
-          Text(
-            tr('观看 1 分钟广告，即可继续使用 30 分钟优质服务器；也可以直接使用免费服务器。',
-               'Watch a 1-min ad to get 30 min of Premium servers, or use a free server directly.'),
-            style: TextStyle(color: ms.textSecondary, fontSize: 12.5, height: 1.45)),
+          // 说明文字省略（与下方两个按钮语义重复）。
         ] else ...[
           const SizedBox(height: 9),
           ClipRRect(borderRadius: BorderRadius.circular(4),

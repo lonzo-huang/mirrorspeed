@@ -162,15 +162,15 @@ ThemeData buildTheme() => buildDarkTheme();
 /// 主题模式控制器：手动明/暗切换 + 持久化（不跟随系统）。
 class ThemeController extends ChangeNotifier {
   static const _kKey = 'theme_mode';   // 'light' | 'dark'
-  ThemeMode _mode = ThemeMode.dark;
+  ThemeMode _mode = ThemeMode.light;   // 默认浅色
   ThemeMode get mode => _mode;
   bool get isDark => _mode == ThemeMode.dark;
 
   Future<void> load() async {
     try {
       final v = (await SharedPreferences.getInstance()).getString(_kKey);
-      if (v == 'light') _mode = ThemeMode.light;
-      else if (v == 'dark') _mode = ThemeMode.dark;
+      if (v == 'dark') _mode = ThemeMode.dark;
+      else _mode = ThemeMode.light;   // 无记录/light → 浅色
     } catch (_) {}
     notifyListeners();
   }

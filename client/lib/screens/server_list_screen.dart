@@ -183,8 +183,6 @@ class _ServerListScreenState extends State<ServerListScreen> {
         backgroundColor: msNow.bg,
         surfaceTintColor: Colors.transparent,
         actions: [
-          const MsTopControls(),
-          const SizedBox(width: 6),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: tr('刷新延迟','Refresh latency'),
@@ -197,6 +195,9 @@ class _ServerListScreenState extends State<ServerListScreen> {
               }
             },
           ),
+          const SizedBox(width: 2),
+          const MsTopControls(),
+          const SizedBox(width: 12),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(46),

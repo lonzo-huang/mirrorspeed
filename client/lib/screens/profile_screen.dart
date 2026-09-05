@@ -143,7 +143,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _InfoRow(icon: Icons.lock_outline,       label: tr('加密', 'Encryption'),   value: 'ChaCha20'),
                 _InfoRow(icon: Icons.blur_on_rounded,    label: tr('流量混淆', 'Obfuscation'), value: tr('已开启', 'On')),
                 _InfoRow(icon: Icons.block_rounded,      label: tr('断网保护', 'Kill switch'), value: 'ON'),
-                const _LangRow(),
                 const _AppearanceRow(),
               ]),
 
@@ -496,28 +495,6 @@ class _ConnModeRow extends StatelessWidget {
           style: TextStyle(color: msNow.textSecondary, fontSize: 14)),
         const Spacer(),
         Text(vpn.connModeLabel(vpn.connMode, Brand.isZh),
-          style: TextStyle(color: msNow.brand, fontSize: 14, fontWeight: FontWeight.w600)),
-        const SizedBox(width: 4),
-        Icon(Icons.chevron_right_rounded, size: 18, color: msNow.textSecondary.withOpacity(0.3)),
-      ]),
-    ),
-  );
-}
-
-// ── 语言行（点击切换 中/英，与顶部语言胶囊同源）─────────────────
-class _LangRow extends StatelessWidget {
-  const _LangRow();
-  @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: () => context.read<LocaleController>().toggle(),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      child: Row(children: [
-        Icon(Icons.language_rounded, size: 17, color: msNow.textMuted),
-        const SizedBox(width: 12),
-        Text(tr('语言', 'Language'), style: TextStyle(color: msNow.textSecondary, fontSize: 14)),
-        const Spacer(),
-        Text(Brand.isZh ? '简体中文' : 'English',
           style: TextStyle(color: msNow.brand, fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(width: 4),
         Icon(Icons.chevron_right_rounded, size: 18, color: msNow.textSecondary.withOpacity(0.3)),
