@@ -1,4 +1,30 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// 语言覆盖：用户在首页语言胶囊手动切换 zh/en（不跟随系统）；未设置则跟随设备。
+/// 切换后 App 顶层 Consumer 重建 → 全局 tr()/Brand 重新求值。
+class LocaleController extends ChangeNotifier {
+  static const _kKey = 'lang_override';   // 'zh' | 'en' | null(跟随系统)
+  static String? _override;               // 供 Brand.isZh 同步读取
+  String? get override => _override;
+
+  Future<void> load() async {
+    try {
+      _override = (await SharedPreferences.getInstance()).getString(_kKey);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  /// 在 中文 ↔ 英文 间切换（以当前生效语言为准）。
+  Future<void> toggle() async {
+    _override = Brand.isZh ? 'en' : 'zh';
+    notifyListeners();
+    try {
+      await (await SharedPreferences.getInstance()).setString(_kKey, _override!);
+    } catch (_) {}
+  }
+}
 
 /// 双壳品牌抽象（单 App，运行时按设备语言切壳）。
 ///
@@ -15,9 +41,13 @@ import 'dart:ui';
 class Brand {
   Brand._();
 
-  /// 设备语言是否中文。
-  static bool get isZh =>
-      PlatformDispatcher.instance.locale.languageCode.toLowerCase() == 'zh';
+  /// 当前是否中文：优先用户手动覆盖（LocaleController），否则跟随设备语言。
+  static bool get isZh {
+    final o = LocaleController._override;
+    if (o == 'zh') return true;
+    if (o == 'en') return false;
+    return PlatformDispatcher.instance.locale.languageCode.toLowerCase() == 'zh';
+  }
 
   /// App 内显示的产品名称。
   static String get appName => isZh ? '镜速加速器' : 'MirrorSpeed VPN';

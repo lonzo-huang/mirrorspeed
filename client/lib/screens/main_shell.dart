@@ -18,8 +18,9 @@ class MainShell extends StatelessWidget {
                         : location.startsWith('/profile') ? 3
                         : 0;
 
+    final ms = context.ms;
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: ms.bg,
       body: child,
       extendBody: true,
       bottomNavigationBar: ClipRect(
@@ -27,8 +28,8 @@ class MainShell extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
             decoration: BoxDecoration(
-              color: kBg.withOpacity(0.82),
-              border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08))),
+              color: ms.navBg.withOpacity(0.88),
+              border: Border(top: BorderSide(color: ms.divider)),
             ),
             child: SafeArea(
               top: false,
@@ -89,7 +90,8 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? kBrand : Colors.white.withOpacity(0.4);
+    final ms = context.ms;
+    final color = selected ? ms.brand : ms.textMuted;
     return Expanded(
       child: InkWell(
         onTap: onTap,

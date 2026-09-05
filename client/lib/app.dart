@@ -33,12 +33,16 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
   late final AuthProvider _auth;
   late final VpnProvider  _vpn;
   late final SharedNodeProvider _shared;
+  late final ThemeController _theme;
+  late final LocaleController _locale;
   late final GoRouter     _router;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _theme = ThemeController()..load();
+    _locale = LocaleController()..load();
     _auth = AuthProvider();
     _vpn  = VpnProvider()..initialize();
     _shared = SharedNodeProvider();
@@ -158,13 +162,19 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
         ChangeNotifierProvider.value(value: _auth),
         ChangeNotifierProvider.value(value: _vpn),
         ChangeNotifierProvider.value(value: _shared),
+        ChangeNotifierProvider.value(value: _theme),
+        ChangeNotifierProvider.value(value: _locale),
       ],
-      child: MaterialApp.router(
-        title:                Brand.appName,
-        theme:                buildTheme(),
-        routerConfig:         _router,
-        scaffoldMessengerKey: rootMessengerKey,
-        debugShowCheckedModeBanner: false,
+      child: Consumer2<ThemeController, LocaleController>(
+        builder: (_, theme, __, ___) => MaterialApp.router(
+          title:                Brand.appName,
+          theme:                buildLightTheme(),
+          darkTheme:            buildDarkTheme(),
+          themeMode:            theme.mode,
+          routerConfig:         _router,
+          scaffoldMessengerKey: rootMessengerKey,
+          debugShowCheckedModeBanner: false,
+        ),
       ),
     );
   }
