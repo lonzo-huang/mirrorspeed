@@ -7,7 +7,8 @@ class SubPage extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget child;
-  const SubPage({super.key, required this.title, this.subtitle, required this.child});
+  final Widget? trailing;   // 头部右侧（如语言/主题切换）
+  const SubPage({super.key, required this.title, this.subtitle, required this.child, this.trailing});
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +35,8 @@ class SubPage extends StatelessWidget {
                   if (subtitle != null)
                     Text(subtitle!, style: TextStyle(fontSize: 12, color: msNow.textSecondary.withOpacity(0.4))),
                 ])),
+                if (trailing != null) trailing!,
+                const SizedBox(width: 4),
               ]),
             ),
             Expanded(child: SingleChildScrollView(child: child)),

@@ -12,6 +12,7 @@ import '../utils/free_country.dart';
 import '../brand.dart';
 import '../theme.dart';
 import '../app.dart' show rootMessengerKey;
+import '../widgets/ms_top_controls.dart';
 
 class ServerListScreen extends StatefulWidget {
   const ServerListScreen({super.key});
@@ -182,6 +183,8 @@ class _ServerListScreenState extends State<ServerListScreen> {
         backgroundColor: msNow.bg,
         surfaceTintColor: Colors.transparent,
         actions: [
+          const MsTopControls(),
+          const SizedBox(width: 6),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: tr('刷新延迟','Refresh latency'),

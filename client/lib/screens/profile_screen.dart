@@ -12,6 +12,7 @@ import '../providers/vpn_provider.dart';
 import '../services/api_service.dart';
 import '../brand.dart';
 import '../theme.dart';
+import '../widgets/ms_top_controls.dart';
 import '../version.dart';
 import '../utils/portal_link.dart';
 
@@ -90,7 +91,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         elevation: 0,
         title: Text(tr('我的','Me'),
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-        centerTitle: true,
+        centerTitle: false,
+        actions: const [Padding(padding: EdgeInsets.only(right: 16), child: MsTopControls())],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -141,7 +143,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _InfoRow(icon: Icons.lock_outline,       label: tr('加密', 'Encryption'),   value: 'ChaCha20'),
                 _InfoRow(icon: Icons.blur_on_rounded,    label: tr('流量混淆', 'Obfuscation'), value: tr('已开启', 'On')),
                 _InfoRow(icon: Icons.block_rounded,      label: tr('断网保护', 'Kill switch'), value: 'ON'),
-                _InfoRow(icon: Icons.language_rounded,   label: tr('语言', 'Language'),     value: tr('跟随系统', 'System')),
+                const _LangRow(),
+                const _AppearanceRow(),
               ]),
 
               const SizedBox(height: 16),
@@ -499,6 +502,66 @@ class _ConnModeRow extends StatelessWidget {
       ]),
     ),
   );
+}
+
+// ── 语言行（点击切换 中/英，与顶部语言胶囊同源）─────────────────
+class _LangRow extends StatelessWidget {
+  const _LangRow();
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: () => context.read<LocaleController>().toggle(),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      child: Row(children: [
+        Icon(Icons.language_rounded, size: 17, color: msNow.textMuted),
+        const SizedBox(width: 12),
+        Text(tr('语言', 'Language'), style: TextStyle(color: msNow.textSecondary, fontSize: 14)),
+        const Spacer(),
+        Text(Brand.isZh ? '简体中文' : 'English',
+          style: TextStyle(color: msNow.brand, fontSize: 14, fontWeight: FontWeight.w600)),
+        const SizedBox(width: 4),
+        Icon(Icons.chevron_right_rounded, size: 18, color: msNow.textSecondary.withOpacity(0.3)),
+      ]),
+    ),
+  );
+}
+
+// ── 外观行（浅色/深色 分段切换，与顶部主题按钮同源）──────────────
+class _AppearanceRow extends StatelessWidget {
+  const _AppearanceRow();
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<ThemeController>();
+    Widget seg(String label, bool selected, VoidCallback onTap) => GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? msNow.brand : Colors.transparent,
+          borderRadius: BorderRadius.circular(20)),
+        child: Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
+          color: selected ? (theme.isDark ? Colors.black : Colors.white) : msNow.textSecondary)),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      child: Row(children: [
+        Icon(Icons.light_mode_outlined, size: 17, color: msNow.textMuted),
+        const SizedBox(width: 12),
+        Text(tr('外观', 'Appearance'), style: TextStyle(color: msNow.textSecondary, fontSize: 14)),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(color: msNow.bg, borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: msNow.cardBorder)),
+          child: Row(children: [
+            seg(tr('浅色', 'Light'), !theme.isDark, () { if (theme.isDark) theme.toggle(); }),
+            seg(tr('深色', 'Dark'),  theme.isDark,  () { if (!theme.isDark) theme.toggle(); }),
+          ]),
+        ),
+      ]),
+    );
+  }
 }
 
 // ── 操作行 ────────────────────────────────────────────────────

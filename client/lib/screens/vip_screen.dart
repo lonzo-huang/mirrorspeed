@@ -4,6 +4,7 @@ import '../brand.dart';
 import '../theme.dart';
 import '../utils/portal_link.dart';
 import 'sub_page.dart';
+import '../widgets/ms_top_controls.dart';
 
 class VipScreen extends StatefulWidget {
   const VipScreen({super.key});
@@ -44,6 +45,7 @@ class _VipScreenState extends State<VipScreen> {
   Widget build(BuildContext context) {
     return SubPage(
       title: tr('开通会员', 'Go Premium'),
+      trailing: const MsTopControls(),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -64,10 +66,8 @@ class _VipScreenState extends State<VipScreen> {
     padding: const EdgeInsets.all(22),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(24),
-      gradient: const LinearGradient(
-        colors: [Color(0xFF1A1530), Color(0xFF0F0B22)],
-        begin: Alignment.topLeft, end: Alignment.bottomRight),
-      border: Border.all(color: msNow.textSecondary.withOpacity(0.08)),
+      color: msNow.goldBannerBg,
+      border: Border.all(color: msNow.gold.withOpacity(0.4)),
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
@@ -77,10 +77,10 @@ class _VipScreenState extends State<VipScreen> {
       ]),
       const SizedBox(height: 12),
       Text(tr('解锁全部速度与节点', 'Unlock full speed & all nodes'),
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.2)),
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.2, color: msNow.gold)),
       const SizedBox(height: 8),
       Text(tr('无广告 · 无限时长 · 4 台设备 · 全部高速节点', 'No ads · Unlimited · 4 devices · All premium nodes'),
-        style: TextStyle(fontSize: 12, color: msNow.textSecondary.withOpacity(0.7))),
+        style: TextStyle(fontSize: 12, color: msNow.gold.withOpacity(0.85))),
     ]),
   );
 
