@@ -23,10 +23,11 @@ import AppKit
 /// `startTunnel` 里把它交给 libbox。
 public class SingboxFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
-  // App Group：改成你的（需与扩展、entitlements 一致）。用于共享统计文件等。
-  static let kAppGroup = "group.com.mirrorspeed.app"
+  // App Group：需与扩展、Runner 的 entitlements 一致。用于共享统计文件等。
+  // 与 flutter create 生成的 App bundle id(com.mirrorspeed.mirrorspeedVpn)对齐。
+  static let kAppGroup = "group.com.mirrorspeed.mirrorspeedVpn"
   // 扩展 bundle id：必须与 PacketTunnel target 的 bundle id 一致。
-  static let kTunnelBundleId = "com.mirrorspeed.app.PacketTunnel"
+  static let kTunnelBundleId = "com.mirrorspeed.mirrorspeedVpn.PacketTunnel"
 
   private var eventSink: FlutterEventSink?
   private var manager: NETunnelProviderManager?

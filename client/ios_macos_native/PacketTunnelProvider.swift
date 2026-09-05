@@ -20,7 +20,7 @@ import os
 class PacketTunnelProvider: NEPacketTunnelProvider {
 
   private var boxService: LibboxBoxService?
-  private let log = OSLog(subsystem: "com.mirrorspeed.app.PacketTunnel", category: "tunnel")
+  private let log = OSLog(subsystem: "com.mirrorspeed.mirrorspeedVpn.PacketTunnel", category: "tunnel")
 
   // MARK: - 生命周期
 
@@ -37,7 +37,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     // libbox 基础路径（缓存 / geo 资源）。用 App Group 容器便于与主 App 共享。
     let base = FileManager.default
-      .containerURL(forSecurityApplicationGroupIdentifier: "group.com.mirrorspeed.app")?
+      .containerURL(forSecurityApplicationGroupIdentifier: "group.com.mirrorspeed.mirrorspeedVpn")?
       .path ?? NSTemporaryDirectory()
 
     var setupErr: NSError?

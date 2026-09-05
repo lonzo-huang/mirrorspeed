@@ -38,7 +38,7 @@ git checkout v1.13.x
 ## 二、新建 NetworkExtension 扩展 target
 
 1. Xcode → File → New → Target → **Network Extension**（iOS）/ 同名（macOS）。
-   - Bundle id：`com.mirrorspeed.app.PacketTunnel`（须与
+   - Bundle id：`com.mirrorspeed.mirrorspeedVpn.PacketTunnel`（须与
      `SingboxFlutterPlugin.kTunnelBundleId` 一致）。
    - Provider 类型：Packet Tunnel。
 2. 删掉模板生成的 `PacketTunnelProvider.swift`，改为把本目录的
@@ -51,7 +51,7 @@ git checkout v1.13.x
 
 对 **Runner** 与 **PacketTunnel** 两个 target 都要开：
 - **Network Extensions** → Packet Tunnel
-- **App Groups** → `group.com.mirrorspeed.app`
+- **App Groups** → `group.com.mirrorspeed.mirrorspeedVpn`
 
 把 `PacketTunnel.entitlements` 用作扩展 target 的 entitlements；
 把 `Runner.entitlements.additions` 里的键并入 Runner 现有 entitlements。

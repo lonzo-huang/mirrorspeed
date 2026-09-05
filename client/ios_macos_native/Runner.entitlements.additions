@@ -8,7 +8,7 @@
   </array>
   <key>com.apple.security.application-groups</key>
   <array>
-    <string>group.com.mirrorspeed.app</string>
+    <string>group.com.mirrorspeed.mirrorspeedVpn</string>
   </array>
 
   macOS 额外（沙盒）：
