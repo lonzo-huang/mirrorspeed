@@ -154,15 +154,27 @@ def sync_one(server: dict) -> dict:
         return {'server': name, 'ok': True, 'status': status}
 
     except Exception as e:
+        # 探测失败要区分两种情况，避免把「能用的节点」误标 offline 踢出选路：
+        #   · 节点真的挂了（连无鉴权的 /health 都不通）         → offline
+        #   · 只是带鉴权的 /stats 探不到（api_secret 过时/错、
+        #     控制机侧限流等），但 /health 仍报 wg=up            → degraded（保留可用）
+        # 后者常见于「节点重装换了密钥但数据库 vpn_servers.api_secret 没更新」。
+        fallback = 'offline'
+        try:
+            h = api_get(f'{api_url}/health') if api_url else None
+            if h and h.get('wg_status') == 'up':
+                fallback = 'degraded'
+        except Exception:
+            pass
         try:
             sb('PATCH', f'vpn_servers?id=eq.{sid}', {
-                'status':          'offline',
+                'status':          fallback,
                 'latency_ms':      None,
                 'last_checked_at': now_iso(),
             })
         except Exception:
             pass
-        return {'server': name, 'ok': False, 'error': str(e)}
+        return {'server': name, 'ok': False, 'status': fallback, 'error': str(e)}
 
 
 # ── 2) 同步单台服务器上各 peer 的今日流量 ───────────────────────────────────
