@@ -155,9 +155,6 @@ class _VipScreenState extends State<VipScreen> {
     _payButton(
       label: tr('微信支付', 'WeChat Pay'), color: const Color(0xFF07c160), recommend: false,
       onTap: () => _payWeb('wechat_pay')),
-    const SizedBox(height: 10),
-    Center(child: Text(tr('金额与官网一致 · 复用登录，无需重复登录', 'Same as website · uses your login'),
-      style: TextStyle(fontSize: 10, color: msNow.textSecondary.withOpacity(0.4)))),
   ];
 
   // 复用 App 登录态跳转官网完成人民币支付（openPortal 走 /auth/app-bridge 免重复登录）。

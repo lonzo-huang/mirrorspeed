@@ -177,6 +177,11 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
           routerConfig:         _router,
           scaffoldMessengerKey: rootMessengerKey,
           debugShowCheckedModeBanner: false,
+          // 切主题/语言时，用 key 强制整棵路由树重建——否则用 msNow(非响应式)取色的
+          // const 子组件不会重建，出现「切一半」。key 变化即全量重刷配色/文案。
+          builder: (context, child) => KeyedSubtree(
+            key: ValueKey('${theme.mode}_${Brand.isZh}'),
+            child: child ?? const SizedBox.shrink()),
           );
         },
       ),

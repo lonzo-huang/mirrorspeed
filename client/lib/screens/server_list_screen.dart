@@ -202,19 +202,26 @@ class _ServerListScreenState extends State<ServerListScreen> {
           preferredSize: const Size.fromHeight(46),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Row(children: [
-              _TierChip(label: tr('优质节点·固定IP','Premium·Static IP'), selected: _tier == 'premium',
-                onTap: () => setState(() => _tier = 'premium')),
-              const SizedBox(width: 8),
-              _TierChip(
-                label: tr('免费节点·动态刷新','Free·Dynamic'), selected: _tier == 'shared',
-                onTap: () {
-                  setState(() => _tier = 'shared');
-                  final p = context.read<SharedNodeProvider>();
-                  if (p.nodes.isEmpty && !p.loading) p.load().then((_) => p.testAll());
-                },
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: msNow.card,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: msNow.cardBorder),
               ),
-            ]),
+              child: Row(children: [
+                _TierChip(label: tr('优质节点·固定IP','Premium·Static IP'), selected: _tier == 'premium',
+                  onTap: () => setState(() => _tier = 'premium')),
+                _TierChip(
+                  label: tr('免费节点·动态刷新','Free·Dynamic'), selected: _tier == 'shared',
+                  onTap: () {
+                    setState(() => _tier = 'shared');
+                    final p = context.read<SharedNodeProvider>();
+                    if (p.nodes.isEmpty && !p.loading) p.load().then((_) => p.testAll());
+                  },
+                ),
+              ]),
+            ),
           ),
         ),
       ),
@@ -342,24 +349,26 @@ class _TierChip extends StatelessWidget {
   const _TierChip({required this.label, required this.selected, required this.onTap});
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    final onBrand = Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white;
+    return Expanded(child: GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? msNow.brand.withOpacity(0.18) : msNow.textSecondary.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? msNow.brand : msNow.textSecondary.withOpacity(0.12)),
+          color: selected ? msNow.brand : Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Text(label,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: selected ? msNow.brand : msNow.textSecondary,
+              color: selected ? onBrand : msNow.textSecondary,
               fontSize: 13,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             )),
       ),
-    );
+    ));
   }
 }
 
