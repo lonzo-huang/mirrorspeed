@@ -118,6 +118,10 @@ extension MsColorsX on BuildContext {
   MsColors get ms => Theme.of(this).extension<MsColors>() ?? MsColors.dark;
 }
 
+/// 全局当前配色：App 顶层在每次构建时同步（见 app.dart）。供无 context 的
+/// helper 方法/静态构造直接取色（`msNow.textPrimary`）。有 context 时优先用 `context.ms`。
+MsColors msNow = MsColors.dark;
+
 ThemeData _base(Brightness b, MsColors ms) {
   final base = b == Brightness.dark ? ThemeData.dark() : ThemeData.light();
   return base.copyWith(

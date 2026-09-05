@@ -29,10 +29,10 @@ class _InviteScreenState extends State<InviteScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: msNow.bg,
       appBar: AppBar(
         title: Text(tr('邀请好友', 'Invite friends')),
-        backgroundColor: kBg,
+        backgroundColor: msNow.bg,
         surfaceTintColor: Colors.transparent,
       ),
       body: SingleChildScrollView(
@@ -45,7 +45,7 @@ class _InviteScreenState extends State<InviteScreen> {
             }
             if (snap.hasError || !snap.hasData) {
               return Center(child: Text(tr('加载失败，下拉重试', 'Failed to load'),
-                  style: const TextStyle(color: Colors.white54)));
+                  style: TextStyle(color: msNow.textMuted)));
             }
             return _InviteCard(
               data:        snap.data!,
@@ -63,7 +63,7 @@ class _InviteScreenState extends State<InviteScreen> {
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: kCard,
+        backgroundColor: msNow.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(tr('输入邀请码', 'Enter referral code')),
         content: TextField(
@@ -72,14 +72,14 @@ class _InviteScreenState extends State<InviteScreen> {
           textCapitalization: TextCapitalization.characters,
           decoration: InputDecoration(
             hintText: tr('例如：MX7K9P', 'e.g. MX7K9P'),
-            hintStyle: const TextStyle(color: Colors.white38),
+            hintStyle: TextStyle(color: msNow.textMuted),
           ),
           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(tr('取消', 'Cancel'), style: const TextStyle(color: Colors.white54)),
+            child: Text(tr('取消', 'Cancel'), style: TextStyle(color: msNow.textMuted)),
           ),
           FilledButton(
             onPressed: () async {
@@ -152,7 +152,7 @@ class _InviteCard extends StatelessWidget {
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFFA78BFA))),
             const Spacer(),
             GestureDetector(onTap: onRefresh,
-              child: Icon(Icons.refresh_rounded, color: Colors.white.withOpacity(0.35), size: 18)),
+              child: Icon(Icons.refresh_rounded, color: msNow.textSecondary.withOpacity(0.35), size: 18)),
           ]),
         ),
         Padding(
@@ -173,7 +173,7 @@ class _InviteCard extends StatelessWidget {
           child: Row(children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(tr('你的邀请码', 'Your invite code'),
-                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+                style: TextStyle(color: msNow.textSecondary.withOpacity(0.5), fontSize: 11)),
               const SizedBox(height: 4),
               Text(_code, style: const TextStyle(
                 fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 6,
@@ -199,7 +199,7 @@ class _InviteCard extends StatelessWidget {
           child: Text(
             tr('好友首次付款后，你将获得对应时长：1个月→3天 · 1季度→10天 · 1年→30天',
                'When a friend first pays, you get bonus time: 1 mo → 3 d · 1 qtr → 10 d · 1 yr → 30 d'),
-            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
+            style: TextStyle(color: msNow.textSecondary.withOpacity(0.4), fontSize: 11)),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
@@ -208,14 +208,14 @@ class _InviteCard extends StatelessWidget {
                   Icon(Icons.check_circle_rounded, size: 14, color: kSuccess.withOpacity(0.7)),
                   const SizedBox(width: 6),
                   Text(tr('已绑定邀请码：$_referredBy', 'Referred by: $_referredBy'),
-                    style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
+                    style: TextStyle(color: msNow.textSecondary.withOpacity(0.4), fontSize: 12)),
                 ])
               : GestureDetector(onTap: onApplyCode, child: Row(children: [
-                  Icon(Icons.link_rounded, size: 14, color: Colors.white.withOpacity(0.4)),
+                  Icon(Icons.link_rounded, size: 14, color: msNow.textSecondary.withOpacity(0.4)),
                   const SizedBox(width: 6),
                   Text(tr('输入他人邀请码', 'Enter a referral code'),
-                    style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12,
-                      decoration: TextDecoration.underline, decorationColor: Colors.white.withOpacity(0.3))),
+                    style: TextStyle(color: msNow.textSecondary.withOpacity(0.45), fontSize: 12,
+                      decoration: TextDecoration.underline, decorationColor: msNow.textSecondary.withOpacity(0.3))),
                 ])),
         ),
       ]),
@@ -230,11 +230,11 @@ class _StatChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(color: Colors.white.withOpacity(0.07), borderRadius: BorderRadius.circular(8)),
+    decoration: BoxDecoration(color: msNow.textSecondary.withOpacity(0.07), borderRadius: BorderRadius.circular(8)),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 10)),
+      Text(label, style: TextStyle(color: msNow.textSecondary.withOpacity(0.45), fontSize: 10)),
       const SizedBox(height: 2),
-      Text(value, style: TextStyle(color: accent ? kSuccess : Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+      Text(value, style: TextStyle(color: accent ? kSuccess : msNow.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
     ]),
   );
 }
@@ -249,8 +249,8 @@ class _IconBtn extends StatelessWidget {
     onTap: onTap,
     child: Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
-      child: Icon(icon, size: 18, color: Colors.white.withOpacity(0.7)),
+      decoration: BoxDecoration(color: msNow.textSecondary.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
+      child: Icon(icon, size: 18, color: msNow.textSecondary.withOpacity(0.7)),
     ),
   ));
 }
@@ -260,7 +260,7 @@ class _InviteCardSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     height: 140,
-    decoration: BoxDecoration(color: kCard, borderRadius: BorderRadius.circular(16)),
+    decoration: BoxDecoration(color: msNow.card, borderRadius: BorderRadius.circular(16)),
     child: const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
   );
 }

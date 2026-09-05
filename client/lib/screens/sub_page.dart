@@ -12,7 +12,7 @@ class SubPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: msNow.bg,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -21,18 +21,18 @@ class SubPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.fromLTRB(8, 8, 16, 12),
               decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.06))),
+                border: Border(bottom: BorderSide(color: msNow.textSecondary.withOpacity(0.06))),
               ),
               child: Row(children: [
                 IconButton(
                   onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
                   icon: const Icon(Icons.chevron_left_rounded),
-                  color: Colors.white70,
+                  color: msNow.textSecondary,
                 ),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   if (subtitle != null)
-                    Text(subtitle!, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4))),
+                    Text(subtitle!, style: TextStyle(fontSize: 12, color: msNow.textSecondary.withOpacity(0.4))),
                 ])),
               ]),
             ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../brand.dart';
+import '../theme.dart';
 import '../utils/portal_link.dart';
 
 class NoSubscriptionScreen extends StatelessWidget {
@@ -16,14 +17,14 @@ class NoSubscriptionScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.lock_outline_rounded, size: 72, color: Colors.white38),
+              Icon(Icons.lock_outline_rounded, size: 72, color: msNow.textMuted),
               const SizedBox(height: 24),
               Text(tr('尚未开通服务', 'No active subscription'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Text(tr('请前往 ${Brand.appName} 官网订阅后再使用客户端',
                       'Please subscribe on the ${Brand.appName} website to continue'),
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white.withOpacity(0.5), height: 1.6)),
+                style: TextStyle(color: msNow.textSecondary.withOpacity(0.5), height: 1.6)),
               const SizedBox(height: 32),
               ElevatedButton.icon(
                 icon: const Icon(Icons.open_in_new_rounded, size: 18),
@@ -40,7 +41,7 @@ class NoSubscriptionScreen extends StatelessWidget {
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => context.read<AuthProvider>().signOut(),
-                child: Text(tr('退出登录', 'Sign out'), style: TextStyle(color: Colors.white.withOpacity(0.4))),
+                child: Text(tr('退出登录', 'Sign out'), style: TextStyle(color: msNow.textSecondary.withOpacity(0.4))),
               ),
             ],
           ),

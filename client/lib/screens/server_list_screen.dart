@@ -86,7 +86,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
       return Center(child: p.loading
           ? const CircularProgressIndicator()
           : Text(tr('暂无共享节点，点右上角刷新', 'No shared nodes — tap refresh'),
-              style: const TextStyle(color: Colors.white54)));
+              style: TextStyle(color: msNow.textMuted)));
     }
     final zh = Brand.isZh;
     final groups = <String, List<FreeNode>>{};
@@ -130,10 +130,10 @@ class _ServerListScreenState extends State<ServerListScreen> {
               Text(freeCountryFlag(row).isEmpty ? '🌐' : freeCountryFlag(row), style: const TextStyle(fontSize: 16)),
               const SizedBox(width: 7),
               Text(freeCountryLabel(row, zh),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white70)),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: msNow.textSecondary)),
               const SizedBox(width: 6),
               Text('${(groups[row]!).length}',
-                style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.35))),
+                style: TextStyle(fontSize: 11, color: msNow.textSecondary.withOpacity(0.35))),
             ]),
           );
         }
@@ -179,7 +179,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
       appBar: AppBar(
         title: Text(tr('服务器','Servers'), style: const TextStyle(fontWeight: FontWeight.bold)),
         automaticallyImplyLeading: false,
-        backgroundColor: kBg,
+        backgroundColor: msNow.bg,
         surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
@@ -218,7 +218,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
       body: _tier == 'shared'
           ? _buildSharedBody(context)
           : servers.isEmpty
-          ? Center(child: Text(tr('暂无可用节点','No nodes available'), style: const TextStyle(color: Colors.white54)))
+          ? Center(child: Text(tr('暂无可用节点','No nodes available'), style: TextStyle(color: msNow.textMuted)))
           : ListView.separated(
               // 底部留白避开悬浮底部导航栏（extendBody），否则最后几项被遮住、滚不到底。
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
@@ -305,7 +305,7 @@ class _ContinentHeader extends StatelessWidget {
         continentLabel(code, Brand.isZh).toUpperCase(),
         style: TextStyle(
           fontSize: 11, letterSpacing: 2, fontWeight: FontWeight.w700,
-          color: Colors.white.withOpacity(0.45)),
+          color: msNow.textSecondary.withOpacity(0.45)),
       ),
     );
   }
@@ -326,7 +326,7 @@ Color _signalColor(int bars) {
     case 3: return Colors.lightGreen;
     case 2: return Colors.amber;
     case 1: return kDanger;
-    default: return Colors.white24;
+    default: return msNow.textMuted;
   }
 }
 
@@ -345,13 +345,13 @@ class _TierChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? kBrand.withOpacity(0.18) : Colors.white.withOpacity(0.06),
+          color: selected ? msNow.brand.withOpacity(0.18) : msNow.textSecondary.withOpacity(0.06),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? kBrand : Colors.white.withOpacity(0.12)),
+          border: Border.all(color: selected ? msNow.brand : msNow.textSecondary.withOpacity(0.12)),
         ),
         child: Text(label,
             style: TextStyle(
-              color: selected ? kBrand : Colors.white70,
+              color: selected ? msNow.brand : msNow.textSecondary,
               fontSize: 13,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             )),
@@ -376,7 +376,7 @@ class _SignalBars extends StatelessWidget {
             width: 3.5,
             height: heights[i],
             decoration: BoxDecoration(
-              color: (i < bars) ? color : Colors.white.withOpacity(0.12),
+              color: (i < bars) ? color : msNow.textSecondary.withOpacity(0.12),
               borderRadius: BorderRadius.circular(1.5),
             ),
           ),
@@ -396,7 +396,7 @@ class _AutoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: isActive ? kBrand.withOpacity(0.18) : kCard,
+      color: isActive ? msNow.brand.withOpacity(0.18) : msNow.card,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -404,18 +404,18 @@ class _AutoTile extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(children: [
-            const Icon(Icons.auto_awesome_rounded, color: kBrand, size: 26),
+            Icon(Icons.auto_awesome_rounded, color: msNow.brand, size: 26),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(tr('智能选择','Auto select'),
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
               Text(tr('自动接入延迟最低、最空闲的节点','Picks the fastest, least busy node'),
-                style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+                style: TextStyle(color: msNow.textSecondary.withOpacity(0.45), fontSize: 12)),
             ])),
             if (isActive)
-              const Icon(Icons.check_circle_rounded, color: kBrand, size: 20)
+              Icon(Icons.check_circle_rounded, color: msNow.brand, size: 20)
             else
-              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.3)),
+              Icon(Icons.chevron_right_rounded, color: msNow.textSecondary.withOpacity(0.3)),
           ]),
         ),
       ),
@@ -446,14 +446,14 @@ class _ServerTile extends StatelessWidget {
           style: const TextStyle(color: kDanger, fontSize: 13, fontWeight: FontWeight.w600));
     } else if (!server.latencyMeasured) {
       statusW = SizedBox(width: 12, height: 12,
-          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white.withOpacity(0.3)));
+          child: CircularProgressIndicator(strokeWidth: 2, color: msNow.textSecondary.withOpacity(0.3)));
     } else if (dispLat == null) {
       statusW = _SignalBars(bars: server.status == 'degraded' ? 2 : 3);
     } else {
       statusW = _SignalBars(bars: bars);
     }
     return Material(
-      color: isActive ? kBrand.withOpacity(0.18) : kCard,
+      color: isActive ? msNow.brand.withOpacity(0.18) : msNow.card,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -473,16 +473,16 @@ class _ServerTile extends StatelessWidget {
                   color: _loadColor(tier), borderRadius: BorderRadius.circular(2))),
                 const SizedBox(width: 5),
                 Text(_loadLabel(tier),
-                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                  style: TextStyle(color: msNow.textSecondary.withOpacity(0.5), fontSize: 12)),
               ]),
             ])),
             // 状态指示（信号格 / 离线 / 测量中），逻辑见上方 statusW。
             statusW,
             const SizedBox(width: 12),
             if (isActive)
-              const Icon(Icons.check_circle_rounded, color: kBrand, size: 20)
+              Icon(Icons.check_circle_rounded, color: msNow.brand, size: 20)
             else
-              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.3)),
+              Icon(Icons.chevron_right_rounded, color: msNow.textSecondary.withOpacity(0.3)),
           ]),
         ),
       ),
@@ -505,7 +505,7 @@ class _SharedTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: (active && connected) ? kBrand.withOpacity(0.18) : kCard,
+      color: (active && connected) ? msNow.brand.withOpacity(0.18) : msNow.card,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -514,18 +514,18 @@ class _SharedTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(children: [
             Icon(leadingIcon ?? (connected ? Icons.check_circle_rounded : Icons.public_rounded),
-              color: (leadingIcon != null) ? kBrand
-                  : (connected ? kBrand : Colors.white.withOpacity(dead ? 0.25 : 0.55)), size: 24),
+              color: (leadingIcon != null) ? msNow.brand
+                  : (connected ? msNow.brand : msNow.textSecondary.withOpacity(dead ? 0.25 : 0.55)), size: 24),
             const SizedBox(width: 14),
             Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15,
-                color: dead ? Colors.white.withOpacity(0.35) : null))),
+                color: dead ? msNow.textSecondary.withOpacity(0.35) : null))),
             _sharedLatencyBadge(latency),
             const SizedBox(width: 12),
             if (active && connected)
-              const Icon(Icons.check_circle_rounded, color: kBrand, size: 20)
+              Icon(Icons.check_circle_rounded, color: msNow.brand, size: 20)
             else
-              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.3)),
+              Icon(Icons.chevron_right_rounded, color: msNow.textSecondary.withOpacity(0.3)),
           ]),
         ),
       ),

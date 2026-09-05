@@ -52,10 +52,10 @@ class SettingsScreen extends StatelessWidget {
   Widget _group(String title, List<Widget> rows) => Padding(
     padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(title.toUpperCase(), style: TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.4))),
+      Text(title.toUpperCase(), style: TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w600, color: msNow.textSecondary.withOpacity(0.4))),
       const SizedBox(height: 10),
       Container(
-        decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white.withOpacity(0.05))),
+        decoration: BoxDecoration(color: msNow.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: msNow.textSecondary.withOpacity(0.05))),
         child: Column(children: rows),
       ),
     ]),
@@ -63,16 +63,16 @@ class SettingsScreen extends StatelessWidget {
 
   Widget _row(String label, String value, {bool locked = false, String? hint}) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.04)))),
+    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: msNow.textSecondary.withOpacity(0.04)))),
     child: Row(children: [
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontSize: 14)),
         if (hint != null) Padding(padding: const EdgeInsets.only(top: 2),
-          child: Text(hint, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.4)))),
+          child: Text(hint, style: TextStyle(fontSize: 11, color: msNow.textSecondary.withOpacity(0.4)))),
       ])),
-      Text(value, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5))),
+      Text(value, style: TextStyle(fontSize: 12, color: msNow.textSecondary.withOpacity(0.5))),
       if (locked) Padding(padding: const EdgeInsets.only(left: 6),
-        child: Icon(Icons.lock_outline_rounded, size: 14, color: Colors.white.withOpacity(0.3))),
+        child: Icon(Icons.lock_outline_rounded, size: 14, color: msNow.textSecondary.withOpacity(0.3))),
     ]),
   );
 
@@ -80,10 +80,10 @@ class SettingsScreen extends StatelessWidget {
     onTap: onTap,
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.04)))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: msNow.textSecondary.withOpacity(0.04)))),
       child: Row(children: [
         Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
-        Icon(Icons.chevron_right_rounded, size: 18, color: Colors.white.withOpacity(0.35)),
+        Icon(Icons.chevron_right_rounded, size: 18, color: msNow.textSecondary.withOpacity(0.35)),
       ]),
     ),
   );

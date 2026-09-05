@@ -135,10 +135,10 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     rows.addAll(rest);
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: msNow.bg,
       appBar: AppBar(
         title: Text(tr('分应用代理', 'Per-app proxy')),
-        backgroundColor: kBg, surfaceTintColor: Colors.transparent,
+        backgroundColor: msNow.bg, surfaceTintColor: Colors.transparent,
         actions: [
           if (_isWin)
             IconButton(
@@ -165,7 +165,7 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
                               ? tr('暂无，勾选下方正在运行的应用加入',
                                     'None yet — check a running app below')
                               : tr('暂无，勾选下方应用加入', 'None yet — check apps below'),
-                          style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.35))),
+                          style: TextStyle(fontSize: 12, color: msNow.textSecondary.withOpacity(0.35))),
                     );
                   }
                   if (row is String) {
@@ -173,7 +173,7 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
                       child: Text(row, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-                          color: Colors.white.withOpacity(0.5))),
+                          color: msNow.textSecondary.withOpacity(0.5))),
                     );
                   }
                   final a = row as _ProxyItem;
@@ -238,7 +238,7 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
           Text(
             tr('仅显示正在运行且有窗口的应用；如没看到，先打开该应用再点右上角刷新。',
                'Shows running apps with a window. Don\'t see it? Open the app, then Refresh.'),
-            style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4))),
+            style: TextStyle(fontSize: 10, color: msNow.textSecondary.withOpacity(0.4))),
         ],
         const SizedBox(height: 12),
         TextField(
@@ -261,15 +261,15 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: sel ? kBrand.withOpacity(0.18) : Colors.white.withOpacity(0.05),
+          color: sel ? msNow.brand.withOpacity(0.18) : msNow.textSecondary.withOpacity(0.05),
           borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: sel ? kBrand : Colors.white.withOpacity(0.1)),
+          border: Border.all(color: sel ? msNow.brand : msNow.textSecondary.withOpacity(0.1)),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
-              color: sel ? kBrand : Colors.white70)),
+              color: sel ? msNow.brand : msNow.textSecondary)),
           const SizedBox(height: 2),
-          Text(desc, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4))),
+          Text(desc, style: TextStyle(fontSize: 10, color: msNow.textSecondary.withOpacity(0.4))),
         ]),
       ),
     ));

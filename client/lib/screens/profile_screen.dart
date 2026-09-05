@@ -32,7 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // 未登录：显示登录引导（#7，登录是可选的，从这里发起）
     if (!auth.isLoggedIn) {
       return Scaffold(
-        backgroundColor: kBg,
+        backgroundColor: msNow.bg,
         appBar: AppBar(
           backgroundColor: Colors.transparent, elevation: 0,
           title: Text(tr('个人中心','Profile'),
@@ -46,10 +46,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(
                 width: 72, height: 72,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [kBrand, kBrandDark]),
+                  gradient: LinearGradient(colors: [msNow.brand, kBrandDark]),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(Icons.person_outline_rounded, size: 36, color: Colors.white),
+                child: Icon(Icons.person_outline_rounded, size: 36, color: msNow.textPrimary),
               ),
               const SizedBox(height: 20),
               Text(tr('登录后开始加速', 'Sign in to get started'),
@@ -58,14 +58,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Text(tr('邮箱验证码登录，免费用户每日有时长额度',
                       'Email code sign-in. Free users get daily time.'),
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
+                style: TextStyle(color: msNow.textSecondary.withOpacity(0.5), fontSize: 13)),
               const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: () => context.go('/login'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: kBrand,
+                    backgroundColor: msNow.brand,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -76,7 +76,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 24),
               Text('MirrorSpeed VPN  v$kAppVersion',
-                style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 12)),
+                style: TextStyle(color: msNow.textSecondary.withOpacity(0.25), fontSize: 12)),
             ]),
           ),
         ),
@@ -84,7 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: msNow.bg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -108,7 +108,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 : Icons.person_outline_rounded,
                   label:      tr('账号类型', 'Account'),
                   value:      isPaid ? tr('付费会员', 'Premium') : tr('免费用户', 'Free'),
-                  valueColor: isPaid ? kBrand : Colors.white54,
+                  valueColor: isPaid ? msNow.brand : msNow.textMuted,
                 ),
               ]),
 
@@ -228,7 +228,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: TextButton.icon(
                   onPressed: () => _confirmExitApp(context),
                   style: TextButton.styleFrom(
-                    foregroundColor: Colors.white60,
+                    foregroundColor: msNow.textSecondary,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   icon:  const Icon(Icons.power_settings_new_rounded, size: 18),
@@ -240,7 +240,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 24),
 
               Text('MirrorSpeed VPN  v$kAppVersion',
-                style: TextStyle(color: Colors.white.withOpacity(0.25),
+                style: TextStyle(color: msNow.textSecondary.withOpacity(0.25),
                   fontSize: 12)),
               const SizedBox(height: 8),
             ],
@@ -256,15 +256,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: kCard,
+        backgroundColor: msNow.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(tr('退出程序', 'Exit app')),
         content: Text(tr('该操作将会断开 VPN 并退出程序。',
                          'This will disconnect the VPN and exit the app.'),
-          style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          style: TextStyle(color: msNow.textSecondary, fontSize: 13)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
-            child: Text(tr('取消', 'Cancel'), style: const TextStyle(color: Colors.white54))),
+            child: Text(tr('取消', 'Cancel'), style: TextStyle(color: msNow.textMuted))),
           TextButton(onPressed: () => Navigator.pop(ctx, true),
             child: Text(tr('退出', 'Exit'), style: const TextStyle(color: kDanger))),
         ],
@@ -280,16 +280,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: kCard,
+        backgroundColor: msNow.card,
         shape:           RoundedRectangleBorder(
                            borderRadius: BorderRadius.circular(16)),
         title:           Text(tr('退出登录', 'Sign out')),
         content:         Text(tr('确定要退出当前账号吗？', 'Sign out of this account?'),
-                           style: const TextStyle(color: Colors.white70)),
+                           style: TextStyle(color: msNow.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(tr('取消', 'Cancel'), style: const TextStyle(color: Colors.white54)),
+            child: Text(tr('取消', 'Cancel'), style: TextStyle(color: msNow.textMuted)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -309,9 +309,9 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color:         kCard,
+      color:         msNow.card,
       borderRadius:  BorderRadius.circular(16),
-      border:        Border.all(color: Colors.white.withOpacity(0.06)),
+      border:        Border.all(color: msNow.textSecondary.withOpacity(0.06)),
     ),
     child: Column(children: children),
   );
@@ -332,8 +332,8 @@ class _AvatarRow extends StatelessWidget {
         Container(
           width: 52, height: 52,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [kBrand, kBrandDark],
+            gradient: LinearGradient(
+              colors: [msNow.brand, kBrandDark],
               begin: Alignment.topLeft,
               end:   Alignment.bottomRight,
             ),
@@ -341,8 +341,8 @@ class _AvatarRow extends StatelessWidget {
           ),
           alignment: Alignment.center,
           child: Text(initial,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold,
-              color: Colors.white)),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold,
+              color: msNow.textPrimary)),
         ),
         const SizedBox(width: 14),
         Expanded(child: Column(
@@ -355,10 +355,10 @@ class _AvatarRow extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color:         (isPaid ? kBrand : Colors.white24).withOpacity(0.15),
+                color:         (isPaid ? msNow.brand : msNow.textMuted).withOpacity(0.15),
                 borderRadius:  BorderRadius.circular(20),
                 border:        Border.all(
-                                 color: (isPaid ? kBrand : Colors.white38)
+                                 color: (isPaid ? msNow.brand : msNow.textMuted)
                                             .withOpacity(0.35)),
               ),
               child: Text(
@@ -366,7 +366,7 @@ class _AvatarRow extends StatelessWidget {
                 style: TextStyle(
                   fontSize:   11,
                   fontWeight: FontWeight.w600,
-                  color:      isPaid ? kBrand : Colors.white54,
+                  color:      isPaid ? msNow.brand : msNow.textMuted,
                 ),
               ),
             ),
@@ -392,14 +392,14 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
     child: Row(children: [
-      Icon(icon, size: 17, color: Colors.white38),
+      Icon(icon, size: 17, color: msNow.textMuted),
       const SizedBox(width: 12),
       Text(label,
-        style: const TextStyle(color: Colors.white70, fontSize: 14)),
+        style: TextStyle(color: msNow.textSecondary, fontSize: 14)),
       const Spacer(),
       Text(value,
         style: TextStyle(
-          color:      valueColor ?? Colors.white,
+          color:      valueColor ?? msNow.textPrimary,
           fontSize:   14,
           fontWeight: FontWeight.w500,
         )),
@@ -417,11 +417,11 @@ void _showErrorInfo(BuildContext context) {
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(
-      backgroundColor: kCard,
+      backgroundColor: msNow.card,
       title: Text(tr('错误信息', 'Error info'), style: const TextStyle(fontSize: 16)),
       content: items.isEmpty
           ? Text(tr('暂无错误信息 ✅', 'No errors ✅'),
-              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13))
+              style: TextStyle(color: msNow.textSecondary.withOpacity(0.7), fontSize: 13))
           : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (final e in items)
@@ -453,7 +453,7 @@ class _ConnModeRow extends StatelessWidget {
   void _pick(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: kCard,
+      backgroundColor: msNow.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
@@ -468,11 +468,11 @@ class _ConnModeRow extends StatelessWidget {
             ListTile(
               leading: Icon(
                 m == vpn.connMode ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                color: m == vpn.connMode ? kBrand : Colors.white38, size: 22),
+                color: m == vpn.connMode ? msNow.brand : msNow.textMuted, size: 22),
               title: Text(vpn.connModeLabel(m, Brand.isZh),
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               subtitle: Text(_desc(m),
-                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.45))),
+                style: TextStyle(fontSize: 12, color: msNow.textSecondary.withOpacity(0.45))),
               onTap: () { Navigator.pop(ctx); vpn.setConnMode(m); },
             ),
           const SizedBox(height: 8),
@@ -487,15 +487,15 @@ class _ConnModeRow extends StatelessWidget {
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       child: Row(children: [
-        const Icon(Icons.swap_horiz_rounded, size: 17, color: Colors.white38),
+        Icon(Icons.swap_horiz_rounded, size: 17, color: msNow.textMuted),
         const SizedBox(width: 12),
         Text(tr('连接模式', 'Connection mode'),
-          style: const TextStyle(color: Colors.white70, fontSize: 14)),
+          style: TextStyle(color: msNow.textSecondary, fontSize: 14)),
         const Spacer(),
         Text(vpn.connModeLabel(vpn.connMode, Brand.isZh),
-          style: const TextStyle(color: kBrand, fontSize: 14, fontWeight: FontWeight.w600)),
+          style: TextStyle(color: msNow.brand, fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(width: 4),
-        Icon(Icons.chevron_right_rounded, size: 18, color: Colors.white.withOpacity(0.3)),
+        Icon(Icons.chevron_right_rounded, size: 18, color: msNow.textSecondary.withOpacity(0.3)),
       ]),
     ),
   );
@@ -515,13 +515,13 @@ class _ActionRow extends StatelessWidget {
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(children: [
-        Icon(icon, size: 17, color: Colors.white38),
+        Icon(icon, size: 17, color: msNow.textMuted),
         const SizedBox(width: 12),
         Text(label,
-          style: const TextStyle(color: Colors.white70, fontSize: 14)),
+          style: TextStyle(color: msNow.textSecondary, fontSize: 14)),
         const Spacer(),
         Icon(Icons.chevron_right_rounded,
-          size: 18, color: Colors.white.withOpacity(0.2)),
+          size: 18, color: msNow.textSecondary.withOpacity(0.2)),
       ]),
     ),
   );
@@ -570,7 +570,7 @@ class _QuotaSection extends StatelessWidget {
           child: LinearProgressIndicator(
             value:           ratio,
             minHeight:       6,
-            backgroundColor: Colors.white.withOpacity(0.08),
+            backgroundColor: msNow.textSecondary.withOpacity(0.08),
             valueColor:      AlwaysStoppedAnimation<Color>(color),
           ),
         ),
@@ -588,14 +588,14 @@ class _UpgradeCard extends StatelessWidget {
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       gradient: LinearGradient(
-        colors: [kBrand.withOpacity(0.25), kBrandDark.withOpacity(0.15)],
+        colors: [msNow.brand.withOpacity(0.25), kBrandDark.withOpacity(0.15)],
         begin: Alignment.topLeft, end: Alignment.bottomRight,
       ),
       borderRadius: BorderRadius.circular(16),
-      border:       Border.all(color: kBrand.withOpacity(0.3)),
+      border:       Border.all(color: msNow.brand.withOpacity(0.3)),
     ),
     child: Row(children: [
-      const Icon(Icons.workspace_premium_rounded, color: kBrand, size: 28),
+      Icon(Icons.workspace_premium_rounded, color: msNow.brand, size: 28),
       const SizedBox(width: 12),
       Expanded(child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -604,7 +604,7 @@ class _UpgradeCard extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           const SizedBox(height: 3),
           Text(tr('不限时长 · 全部节点 · 无广告', 'Unlimited time · All nodes · No ads'),
-            style: const TextStyle(color: Colors.white54, fontSize: 12)),
+            style: TextStyle(color: msNow.textMuted, fontSize: 12)),
         ],
       )),
       FilledButton(
@@ -613,7 +613,7 @@ class _UpgradeCard extends StatelessWidget {
           mode: LaunchMode.externalApplication,
         ),
         style: FilledButton.styleFrom(
-          backgroundColor: kBrand,
+          backgroundColor: msNow.brand,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         ),

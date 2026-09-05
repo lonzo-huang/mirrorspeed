@@ -166,7 +166,10 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
         ChangeNotifierProvider.value(value: _locale),
       ],
       child: Consumer2<ThemeController, LocaleController>(
-        builder: (_, theme, __, ___) => MaterialApp.router(
+        builder: (_, theme, __, ___) {
+          // 同步全局配色，供无 context 的 helper 取色（msNow）。
+          msNow = theme.isDark ? MsColors.dark : MsColors.light;
+          return MaterialApp.router(
           title:                Brand.appName,
           theme:                buildLightTheme(),
           darkTheme:            buildDarkTheme(),
@@ -174,7 +177,8 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
           routerConfig:         _router,
           scaffoldMessengerKey: rootMessengerKey,
           debugShowCheckedModeBanner: false,
-        ),
+          );
+        },
       ),
     );
   }

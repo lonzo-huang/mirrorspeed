@@ -67,20 +67,20 @@ class _VipScreenState extends State<VipScreen> {
       gradient: const LinearGradient(
         colors: [Color(0xFF1A1530), Color(0xFF0F0B22)],
         begin: Alignment.topLeft, end: Alignment.bottomRight),
-      border: Border.all(color: Colors.white.withOpacity(0.08)),
+      border: Border.all(color: msNow.textSecondary.withOpacity(0.08)),
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        const Icon(Icons.auto_awesome_rounded, size: 15, color: kGold),
+        Icon(Icons.auto_awesome_rounded, size: 15, color: msNow.gold),
         const SizedBox(width: 6),
-        Text(tr('尊享会员', 'PREMIUM'), style: const TextStyle(fontSize: 11, letterSpacing: 3, fontWeight: FontWeight.w700, color: kGold)),
+        Text(tr('尊享会员', 'PREMIUM'), style: TextStyle(fontSize: 11, letterSpacing: 3, fontWeight: FontWeight.w700, color: msNow.gold)),
       ]),
       const SizedBox(height: 12),
       Text(tr('解锁全部速度与节点', 'Unlock full speed & all nodes'),
         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.2)),
       const SizedBox(height: 8),
       Text(tr('无广告 · 无限时长 · 4 台设备 · 全部高速节点', 'No ads · Unlimited · 4 devices · All premium nodes'),
-        style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7))),
+        style: TextStyle(fontSize: 12, color: msNow.textSecondary.withOpacity(0.7))),
     ]),
   );
 
@@ -94,18 +94,18 @@ class _VipScreenState extends State<VipScreen> {
           padding: const EdgeInsets.symmetric(vertical: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: on ? kBrand : Colors.transparent,
+            color: on ? msNow.brand : Colors.transparent,
             borderRadius: BorderRadius.circular(12)),
           child: Text(label, style: TextStyle(
             fontSize: 13, fontWeight: FontWeight.w600,
-            color: on ? Colors.black : Colors.white.withOpacity(0.6))),
+            color: on ? Colors.black : msNow.textSecondary.withOpacity(0.6))),
         ),
       ));
     }
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.06))),
+      decoration: BoxDecoration(color: msNow.card, borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: msNow.textSecondary.withOpacity(0.06))),
       child: Row(children: [
         seg(_Tab.iap,    tr('应用内购', 'In-App')),
         seg(_Tab.web,    tr('官网购买', 'Website')),
@@ -126,15 +126,15 @@ class _VipScreenState extends State<VipScreen> {
     SizedBox(width: double.infinity, child: FilledButton(
       onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(tr('应用内购买即将开放，敬请期待 🎉', 'In-app purchase coming soon 🎉')),
-        backgroundColor: kBrand, duration: const Duration(seconds: 2))),
-      style: FilledButton.styleFrom(backgroundColor: kBrand, padding: const EdgeInsets.symmetric(vertical: 16),
+        backgroundColor: msNow.brand, duration: Duration(seconds: 2))),
+      style: FilledButton.styleFrom(backgroundColor: msNow.brand, padding: EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
       child: Text(tr('开通会员 · 敬请期待', 'Subscribe · Coming soon'),
         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
     )),
     const SizedBox(height: 8),
     Center(child: Text(tr('通过 App Store / Google Play 计费', 'Billed via App Store / Google Play'),
-      style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)))),
+      style: TextStyle(fontSize: 10, color: msNow.textSecondary.withOpacity(0.4)))),
   ];
 
   // ── Tab 2：官网购买（人民币，选中后微信/支付宝直付）──────────────
@@ -157,7 +157,7 @@ class _VipScreenState extends State<VipScreen> {
       onTap: () => _payWeb('wechat_pay')),
     const SizedBox(height: 10),
     Center(child: Text(tr('金额与官网一致 · 复用登录，无需重复登录', 'Same as website · uses your login'),
-      style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)))),
+      style: TextStyle(fontSize: 10, color: msNow.textSecondary.withOpacity(0.4)))),
   ];
 
   // 复用 App 登录态跳转官网完成人民币支付（openPortal 走 /auth/app-bridge 免重复登录）。
@@ -187,7 +187,7 @@ class _VipScreenState extends State<VipScreen> {
       onTap: _openSupport),
     const SizedBox(height: 12),
     Center(child: Text(tr('定制方案由客服1对1对接', 'Custom plans handled 1:1 by support'),
-      style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)))),
+      style: TextStyle(fontSize: 10, color: msNow.textSecondary.withOpacity(0.4)))),
   ];
 
   // ── 通用套餐行（可选中）──────────────────────────────────────────
@@ -198,14 +198,14 @@ class _VipScreenState extends State<VipScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? kBrand.withOpacity(0.12) : kPanel,
+          color: selected ? msNow.brand.withOpacity(0.12) : msNow.card,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: selected ? kBrand : Colors.white.withOpacity(0.06), width: selected ? 1.5 : 1)),
+          border: Border.all(color: selected ? msNow.brand : msNow.textSecondary.withOpacity(0.06), width: selected ? 1.5 : 1)),
         child: Row(children: [
           Container(width: 20, height: 20,
             decoration: BoxDecoration(shape: BoxShape.circle,
-              border: Border.all(color: selected ? kBrand : Colors.white.withOpacity(0.25), width: 2),
-              color: selected ? kBrand : Colors.transparent),
+              border: Border.all(color: selected ? msNow.brand : msNow.textSecondary.withOpacity(0.25), width: 2),
+              color: selected ? msNow.brand : Colors.transparent),
             child: selected ? const Icon(Icons.check, size: 12, color: Colors.black) : null),
           const SizedBox(width: 14),
           Expanded(child: Row(children: [
@@ -213,13 +213,13 @@ class _VipScreenState extends State<VipScreen> {
             if (p.best) ...[
               const SizedBox(width: 8),
               Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(color: kGold.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-                child: Text(tr('最划算', 'BEST'), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: kGold))),
+                decoration: BoxDecoration(color: msNow.gold.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                child: Text(tr('最划算', 'BEST'), style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: msNow.gold))),
             ],
           ])),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(priceBig, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
-            Text(priceSub, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.45))),
+            Text(priceSub, style: TextStyle(fontSize: 10, color: msNow.textSecondary.withOpacity(0.45))),
           ]),
         ]),
       ),
@@ -233,12 +233,12 @@ class _VipScreenState extends State<VipScreen> {
       style: FilledButton.styleFrom(backgroundColor: color, padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+        Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: msNow.textPrimary)),
         if (recommend) ...[
           const SizedBox(width: 8),
           Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.25), borderRadius: BorderRadius.circular(20)),
-            child: Text(tr('推荐', 'Best'), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white))),
+            decoration: BoxDecoration(color: msNow.textSecondary.withOpacity(0.25), borderRadius: BorderRadius.circular(20)),
+            child: Text(tr('推荐', 'Best'), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: msNow.textPrimary))),
         ],
       ]),
     ));
@@ -249,20 +249,20 @@ class _VipScreenState extends State<VipScreen> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.06))),
+        decoration: BoxDecoration(color: msNow.card, borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: msNow.textSecondary.withOpacity(0.06))),
         child: Row(children: [
           Container(width: 40, height: 40, alignment: Alignment.center,
-            decoration: BoxDecoration(color: kBrand.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, size: 20, color: kBrand)),
+            decoration: BoxDecoration(color: msNow.brand.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, size: 20, color: msNow.brand)),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             const SizedBox(height: 2),
-            Text(desc, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.45))),
+            Text(desc, style: TextStyle(fontSize: 11, color: msNow.textSecondary.withOpacity(0.45))),
           ])),
-          Text(price, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: kBrand)),
-          if (onTap != null) Icon(Icons.chevron_right_rounded, size: 18, color: Colors.white.withOpacity(0.3)),
+          Text(price, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: msNow.brand)),
+          if (onTap != null) Icon(Icons.chevron_right_rounded, size: 18, color: msNow.textSecondary.withOpacity(0.3)),
         ]),
       ),
     );

@@ -151,18 +151,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Container(
                   width: 72, height: 72,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [kBrand, kBrandDark]),
+                    gradient: LinearGradient(colors: [msNow.brand, kBrandDark]),
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: kBrand.withOpacity(0.4), blurRadius: 24, offset: const Offset(0, 6))],
+                    boxShadow: [BoxShadow(color: msNow.brand.withOpacity(0.4), blurRadius: 24, offset: Offset(0, 6))],
                   ),
-                  child: const Icon(Icons.shield_rounded, size: 36, color: Colors.white),
+                  child: Icon(Icons.shield_rounded, size: 36, color: msNow.textPrimary),
                 ),
               ),
               const SizedBox(height: 24),
               Center(child: Text(Brand.appName, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))),
               const SizedBox(height: 8),
               Center(child: Text(tr('高速安全，全球加速', 'Fast, secure, worldwide'),
-                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 15))),
+                  style: TextStyle(color: msNow.textSecondary.withOpacity(0.5), fontSize: 15))),
               const SizedBox(height: 36),
 
               // ── 登录方式标签 ─────────────────────────────────────
@@ -232,7 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
             tr('请查收发往 ${_emailCtrl.text} 的邮件\n输入其中的 6 位数字验证码',
                'Check the email sent to ${_emailCtrl.text}\nand enter the 6-digit code'),
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 13, height: 1.5),
+            style: TextStyle(color: msNow.textSecondary.withOpacity(0.55), fontSize: 13, height: 1.5),
           ),
         ]),
       ),
@@ -248,7 +248,7 @@ class _LoginScreenState extends State<LoginScreen> {
         style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 12, fontFamily: 'monospace'),
         decoration: InputDecoration(
           hintText:       '──────',
-          hintStyle:      TextStyle(color: Colors.white.withOpacity(0.15), letterSpacing: 10),
+          hintStyle:      TextStyle(color: msNow.textSecondary.withOpacity(0.15), letterSpacing: 10),
           counterText:    '',
           contentPadding: const EdgeInsets.symmetric(vertical: 16),
         ),
@@ -266,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
           onPressed: _loading ? null : _sendOtp,
           child: Text(tr('重新发送', 'Resend'), style: const TextStyle(fontSize: 13)),
         ),
-        Text('·', style: TextStyle(color: Colors.white.withOpacity(0.3))),
+        Text('·', style: TextStyle(color: msNow.textSecondary.withOpacity(0.3))),
         TextButton(
           onPressed: _loading ? null : () => setState(() { _sent = false; _otpCtrl.clear(); _error = null; }),
           child: Text(tr('换个邮箱', 'Change email'), style: const TextStyle(fontSize: 13)),
@@ -329,7 +329,7 @@ class _LoginScreenState extends State<LoginScreen> {
         padding: const EdgeInsets.only(bottom: 16),
         child: Text(tr('使用你的 Google 账号一键登录', 'Sign in instantly with your Google account'),
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
+            style: TextStyle(color: msNow.textSecondary.withOpacity(0.5), fontSize: 13)),
       ),
       _OAuthButton(
         onTap:  _loading ? null : _googleLogin,
@@ -356,19 +356,19 @@ class _MethodTabs extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: sel ? kBrand : Colors.transparent,
+            color: sel ? msNow.brand : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
           alignment: Alignment.center,
           child: Text(label, style: TextStyle(
-            color: sel ? Colors.white : Colors.white.withOpacity(0.55),
+            color: sel ? msNow.textPrimary : msNow.textSecondary.withOpacity(0.55),
             fontWeight: sel ? FontWeight.w600 : FontWeight.w500, fontSize: 14)),
         ),
       ));
     }
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: kCard, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: msNow.card, borderRadius: BorderRadius.circular(12)),
       child: Row(children: [
         seg(_LoginMethod.otp,      tr('验证码', 'Code')),
         seg(_LoginMethod.password, tr('密码', 'Password')),
@@ -397,8 +397,8 @@ class _Banner extends StatelessWidget {
 class _BtnSpinner extends StatelessWidget {
   const _BtnSpinner();
   @override
-  Widget build(BuildContext context) => const SizedBox(
-    width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white));
+  Widget build(BuildContext context) => SizedBox(
+    width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: msNow.textPrimary));
 }
 
 class _OAuthButton extends StatelessWidget {
@@ -410,7 +410,7 @@ class _OAuthButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color:        kCard,
+      color:        msNow.card,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap:        onTap,
@@ -418,7 +418,7 @@ class _OAuthButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 14),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 22, color: Colors.white70),
+            Icon(icon, size: 22, color: msNow.textSecondary),
             const SizedBox(width: 10),
             Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
           ]),

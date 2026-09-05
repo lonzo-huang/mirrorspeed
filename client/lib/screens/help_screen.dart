@@ -48,16 +48,16 @@ class HelpScreen extends StatelessWidget {
               final card = Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.05))),
+                decoration: BoxDecoration(color: msNow.card, borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: msNow.textSecondary.withOpacity(0.05))),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Expanded(child: Text(item[0], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
                     if (url != null)
-                      Icon(Icons.open_in_new_rounded, size: 16, color: kBrand.withOpacity(0.8)),
+                      Icon(Icons.open_in_new_rounded, size: 16, color: msNow.brand.withOpacity(0.8)),
                   ]),
                   const SizedBox(height: 6),
-                  Text(item[1], style: TextStyle(fontSize: 12.5, height: 1.5, color: Colors.white.withOpacity(0.6))),
+                  Text(item[1], style: TextStyle(fontSize: 12.5, height: 1.5, color: msNow.textSecondary.withOpacity(0.6))),
                 ]),
               );
               if (url == null) return card;
