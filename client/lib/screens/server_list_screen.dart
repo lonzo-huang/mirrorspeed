@@ -446,23 +446,22 @@ class _ServerTile extends StatelessWidget {
     final dispLat = server.displayLatencyMs;   // 校正后展示延迟（仅用于判断是否超时）
     final bars    = server.signalBars;
     final tier    = server.loadTier;
-    // 状态显示：以服务器上报的 status 为权威。
-    //   offline           → 「离线」
-    //   仍在测量           → 转圈
-    //   探测失败但非离线    → 不显示「超时」（如西班牙节点健康检查域名问题导致客户端探测
-    //                        失败，但服务端 status 仍在线），按在线展示信号格
-    //   正常               → 按校正延迟显示信号格
+    // 状态显示：**以客户端实测可达性为准**（后端 status 可能过时/误报 offline）。
+    //   仍在测量               → 转圈
+    //   实测到延迟(可达)        → 信号格（即便后端报 offline，能测到就是能连）
+    //   测不到 + 后端报离线      → 「离线」
+    //   测不到 + 后端非离线      → 按 degraded 显示信号格（不误显示离线）
     final Widget statusW;
-    if (server.status == 'offline') {
-      statusW = Text(tr('离线', 'offline'),
-          style: const TextStyle(color: kDanger, fontSize: 13, fontWeight: FontWeight.w600));
-    } else if (!server.latencyMeasured) {
+    if (!server.latencyMeasured) {
       statusW = SizedBox(width: 12, height: 12,
           child: CircularProgressIndicator(strokeWidth: 2, color: msNow.textSecondary.withOpacity(0.3)));
-    } else if (dispLat == null) {
-      statusW = _SignalBars(bars: server.status == 'degraded' ? 2 : 3);
-    } else {
+    } else if (dispLat != null) {
       statusW = _SignalBars(bars: bars);
+    } else if (server.status == 'offline') {
+      statusW = Text(tr('离线', 'offline'),
+          style: const TextStyle(color: kDanger, fontSize: 13, fontWeight: FontWeight.w600));
+    } else {
+      statusW = _SignalBars(bars: server.status == 'degraded' ? 2 : 3);
     }
     return Material(
       color: isActive ? msNow.brand.withOpacity(0.18) : msNow.card,

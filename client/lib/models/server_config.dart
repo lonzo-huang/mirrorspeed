@@ -90,9 +90,10 @@ class ServerConfig {
   );
 
   // ── 负载分档（三档色块）────────────────────────────────────────
-  /// 0=空闲(<50%) · 1=适中(50–85%) · 2=繁忙(>85%)；offline 视为繁忙。
+  /// 0=空闲(<50%) · 1=适中(50–85%) · 2=繁忙(>85%)。
+  /// 注意：**不**再把 status==offline 当作繁忙——可用性由客户端实测可达性决定并单独
+  /// 以「离线」文字展示；否则后端过时的 offline 会让能连的节点误显示「繁忙」。
   int get loadTier {
-    if (status == 'offline') return 2;
     if (loadPercent > 85) return 2;
     if (loadPercent >= 50) return 1;
     return 0;
