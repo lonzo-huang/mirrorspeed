@@ -115,17 +115,13 @@ class HomeScreen extends StatelessWidget {
           child: SafeArea(
             bottom: false,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 28),
+              physics: const AlwaysScrollableScrollPhysics(),
+              // 底部留足空间清开悬浮底部导航（extendBody），并保证内容可上滑。
+              padding: const EdgeInsets.only(bottom: 110),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const _Header(),
-
-                  // 会员中心金色横条
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-                    child: _MembershipBanner(onTap: () => context.go('/vip')),
-                  ),
 
                   // 运营 banner（通告 / 更新 / 到期）
                   Padding(
@@ -340,34 +336,6 @@ class _PillButton extends StatelessWidget {
   }
 }
 
-// ── 会员中心金色横条 ────────────────────────────────────────────────────────
-class _MembershipBanner extends StatelessWidget {
-  final VoidCallback onTap;
-  const _MembershipBanner({required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    final ms = context.ms;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: ms.goldBannerBg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: ms.gold.withOpacity(0.45)),
-        ),
-        child: Row(children: [
-          Icon(Icons.workspace_premium_rounded, color: ms.gold, size: 18),
-          const SizedBox(width: 10),
-          Expanded(child: Text(tr('会员中心', 'Premium Center'),
-            style: TextStyle(color: ms.gold, fontSize: 14, fontWeight: FontWeight.w700))),
-          Icon(Icons.chevron_right_rounded, color: ms.gold.withOpacity(0.8), size: 20),
-        ]),
-      ),
-    );
-  }
-}
-
 // ── 当前节点卡片 ────────────────────────────────────────────────────────────
 class _CurrentNodeCard extends StatelessWidget {
   final String label;
@@ -548,7 +516,7 @@ class _ToggleItem extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         decoration: BoxDecoration(
           color: selected ? ms.brand.withOpacity(0.14) : ms.card,
           borderRadius: BorderRadius.circular(14),
@@ -557,7 +525,7 @@ class _ToggleItem extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
             color: selected ? ms.brand : ms.textPrimary)),
-          const SizedBox(height: 3),
+          const SizedBox(height: 1),
           Text(subtitle, style: TextStyle(fontSize: 11, color: ms.textSecondary)),
         ]),
       ),
@@ -636,7 +604,7 @@ class _FreeTimeCardState extends State<_FreeTimeCard> {
     final ratio = vpn.trialTotalSec > 0 ? (vpn.trialRemainingSec / vpn.trialTotalSec).clamp(0.0, 1.0) : 0.0;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(color: ms.card, borderRadius: BorderRadius.circular(16),
         border: Border.all(color: ms.cardBorder)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -657,13 +625,13 @@ class _FreeTimeCardState extends State<_FreeTimeCard> {
                'Watch a 1-min ad to get 30 min of Premium servers, or use a free server directly.'),
             style: TextStyle(color: ms.textSecondary, fontSize: 12.5, height: 1.45)),
         ] else ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 9),
           ClipRRect(borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(value: ratio, minHeight: 5,
               backgroundColor: ms.accentOn.withOpacity(0.15),
               valueColor: AlwaysStoppedAnimation<Color>(ms.accentOn))),
         ],
-        const SizedBox(height: 14),
+        const SizedBox(height: 10),
         // 广告按钮（正常=虚线；用完=实心）；桌面无广告则用升级替代。
         if (_adsSupported)
           _justRewarded
@@ -716,7 +684,7 @@ class _FreeTimeCardState extends State<_FreeTimeCard> {
       label: Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
         color: isDark ? Colors.black : Colors.white)),
       style: ElevatedButton.styleFrom(backgroundColor: ms.brand,
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 11),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
     ));
   }
@@ -728,7 +696,7 @@ class _FreeTimeCardState extends State<_FreeTimeCard> {
       icon: Icon(icon, size: 18, color: ms.textPrimary),
       label: Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: ms.textPrimary)),
       style: OutlinedButton.styleFrom(side: BorderSide(color: ms.cardBorder),
-        padding: const EdgeInsets.symmetric(vertical: 13),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
     ));
   }
@@ -745,7 +713,7 @@ class DottedBorderBox extends StatelessWidget {
       painter: _DashedRectPainter(color: color, radius: 12),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         child: child,
       ),
     );
