@@ -624,10 +624,9 @@ class VpnProvider extends ChangeNotifier {
     // AWG 解析异常/无效，且优质节点 Windows 分应用需 WFP 驱动（暂不支持）。
     if (!Platform.isAndroid) return wgConf;
     if (_routingMode != RoutingMode.smart) return wgConf;
-    // 分应用白/黑名单是中国市场特性：非中文用户即使切到智能模式也走全隧道，
-    // 不注入 Included/ExcludedApplications——否则默认白名单只放 26 个 App，会出现
-    // 「连上但只有名单内应用走 VPN」。（与共享节点 sing-box 侧的门控保持一致。）
-    if (!_isZh()) return wgConf;
+    // 分应用白/黑名单：谁配了就对谁生效，不再限定中文环境（英文机上配了白名单也要生效）。
+    // 非中文的「只放 26 个 App」误会已通过「非中文默认路由=全局 + 默认白名单为空」解决，
+    // 见 loadPkgs 默认值与 RoutingMode 默认值。
     if (!await AppProxyStore.loadEnabled()) return wgConf;
     final pkgs = await AppProxyStore.loadPkgs();
     if (pkgs.isEmpty) return wgConf;   // 名单空则不做分应用限制，避免死隧道

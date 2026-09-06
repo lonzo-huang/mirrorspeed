@@ -252,17 +252,16 @@ class SharedNodeProvider extends ChangeNotifier {
     notifyListeners();
     try {
       // 分应用黑白名单对免费节点生效：
-      // - Android：sing-box tun include/exclude_package（Android 专属字段）。仅中文壳
-      //   注入——分应用是中国市场特性，否则默认白名单只放 26 个 App 会「连上但应用没走
-      //   VPN」，故非中文一律全隧道。
-      // - Windows/桌面：用 sing-box process_name 路由规则(按进程名)，存的是 exe 名；
-      //   opt-in(默认空)，不受 isZh 限制。
+      // - Android：sing-box tun include/exclude_package（Android 专属字段）。谁配了白/黑
+      //   名单就对谁生效，不再限定中文环境（英文机上配了也要生效）。非中文的「默认只放
+      //   26 个 App」误会已由「非中文默认白名单为空」(loadPkgs) 解决。
+      // - Windows/桌面：用 sing-box process_name 路由规则(按进程名)，存的是 exe 名。
       List<String>? inc, exc, incProc, excProc;
       if (applyAppProxy && await AppProxyStore.loadEnabled()) {
         final pkgs = (await AppProxyStore.loadPkgs()).toList();
         if (pkgs.isNotEmpty) {
           final white = await AppProxyStore.loadMode() == 'white';
-          if (Platform.isAndroid && Brand.isZh) {
+          if (Platform.isAndroid) {
             if (white) { inc = pkgs; } else { exc = pkgs; }
           } else if (Platform.isWindows) {
             if (white) { incProc = pkgs; } else { excProc = pkgs; }

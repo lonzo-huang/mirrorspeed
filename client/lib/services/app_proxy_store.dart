@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../brand.dart';
 
 /// 分应用代理配置（智能模式黑白名单）。
 /// - white(白名单)：只有名单内 App 走 VPN，其余直连。默认。
@@ -62,7 +63,9 @@ class AppProxyStore {
   static Future<Set<String>> loadPkgs() async {
     final p = await SharedPreferences.getInstance();
     if (!(p.getBool(_kInit) ?? false)) {
-      return Platform.isAndroid ? defaultOverseas.toSet() : <String>{};
+      // 首次默认：仅中文 Android 预置海外白名单；非中文默认空(opt-in)，避免非中文用户
+      // 切到智能模式后被「只放这 26 个 App」搞懵。配了白名单则不分语言都生效。
+      return (Platform.isAndroid && Brand.isZh) ? defaultOverseas.toSet() : <String>{};
     }
     final list = p.getStringList(_kPkgs) ?? const <String>[];
     if (!Platform.isAndroid) return list.where(_isExe).toSet();
