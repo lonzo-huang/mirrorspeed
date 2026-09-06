@@ -147,18 +147,20 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         try { tunFd?.close() } catch (_: Throwable) {}
         tunFd = null
         instance = null
-        // 3) 在后台线程优雅关闭 libbox，随后停服务；不阻塞主线程/服务生命周期。
-        //    真正的 "disconnected" 仍在 onDestroy 发出——那才代表系统已完全释放 VPN，
-        //    此时 Dart 侧再启另一条隧道(WireGuard)才不会和 VPN 拆除回调在主线程撞车。
+        // 3) 立即停服务：tun fd 已关 = VPN 已释放，不能再等 libbox 优雅关闭。
+        //    之前把 stopSelf 放在 closeService/close 之后，libbox 这个 close 偶发卡住/耗时
+        //    数秒(三星上概率复现)时，服务迟迟不销毁 → 状态栏图标滞留、界面显示已断开但
+        //    系统仍连。现在先 stopSelf(触发 onDestroy 发 "disconnected" + 释放 VPN)，
+        //    libbox 收尾丢后台 best-effort，进程随服务结束也无妨。
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
+            try { stopSelf() } catch (_: Throwable) {}
+        }
         val srv = server
         server = null
         Thread {
             try { srv?.closeService() } catch (_: Throwable) {}
             try { srv?.close() } catch (_: Throwable) {}
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
-                try { stopSelf() } catch (_: Throwable) {}
-            }
         }.start()
     }
 
