@@ -1,0 +1,3 @@
+/* 中文系统显示「镜速加速器」（与 Android values-zh 一致，不出现 VPN 字样） */
+"CFBundleDisplayName" = "镜速加速器";
+"CFBundleName" = "镜速加速器";

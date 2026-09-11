@@ -1,0 +1,4 @@
+// 隧道扩展 target 的基础配置（setup_xcode_targets.rb 生成）。
+// 只取 Flutter 生成的版本号（FLUTTER_BUILD_NAME/NUMBER），不带 Runner 的 Pods。
+#include? "Generated.xcconfig"
+#include "../../ios_macos_native/Signing.xcconfig"
