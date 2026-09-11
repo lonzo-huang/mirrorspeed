@@ -1,5 +1,6 @@
 import 'invite_screen.dart';
 import 'app_proxy_screen.dart';
+import '../services/app_proxy_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -156,12 +157,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const InviteScreen())),
                 ),
-                _ActionRow(
-                  icon:  Icons.apps_rounded,
-                  label: tr('分应用代理（黑白名单）', 'Per-app proxy'),
-                  onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const AppProxyScreen())),
-                ),
+                if (AppProxyStore.supported)
+                  _ActionRow(
+                    icon:  Icons.apps_rounded,
+                    label: tr('分应用代理（黑白名单）', 'Per-app proxy'),
+                    onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const AppProxyScreen())),
+                  ),
                 _ActionRow(
                   icon:  Icons.error_outline_rounded,
                   label: vpn.error != null || auth.error != null

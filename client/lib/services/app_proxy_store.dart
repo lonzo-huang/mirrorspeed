@@ -13,6 +13,10 @@ class AppProxyStore {
   static const _kPkgs    = 'app_proxy_pkgs';
   static const _kInit    = 'app_proxy_inited';
 
+  /// 当前平台是否支持分应用代理。iOS/macOS 的 NEPacketTunnelProvider 不支持按 App
+  /// 分流（需 MDM 下发的 per-app VPN），故 Apple 上隐藏入口、走全局隧道。
+  static bool get supported => Platform.isAndroid || Platform.isWindows;
+
   /// 默认海外 App 白名单包名（首次默认勾选，走 VPN）。
   static const List<String> defaultOverseas = [
     'com.google.android.youtube',

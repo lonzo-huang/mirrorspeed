@@ -14,8 +14,11 @@ DEFINES = \
 run-android:
 	flutter run -d android $(DEFINES)
 
-run-ios:
+run-ios: apple-libs
 	flutter run -d ios $(DEFINES)
+
+run-macos: apple-libs
+	flutter run -d macos $(DEFINES)
 
 run-windows:
 	flutter run -d windows $(DEFINES)
@@ -29,23 +32,36 @@ build-aab:
 	flutter build appbundle --release $(DEFINES)
 	@echo "\n✅ AAB: build/app/outputs/bundle/release/app-release.aab"
 
-build-ios:
+build-ios: apple-libs
 	flutter build ios --release $(DEFINES)
 	@echo "\n✅ iOS archive ready — open Xcode to distribute"
 
-build-ipa:
+build-ipa: apple-libs
 	flutter build ipa --release $(DEFINES)
 	@echo "\n✅ IPA: build/ios/ipa/"
+
+# macOS：未签名只能编译验证；真机/本机跑 VPN 需先在 ios_macos_native/Signing.xcconfig 填 Team ID
+build-macos: apple-libs
+	flutter build macos --release $(DEFINES)
+	@echo "\n✅ APP: build/macos/Build/Products/Release/mirrorspeed_vpn.app"
 
 build-windows:
 	flutter build windows --release $(DEFINES)
 	@echo "\n✅ EXE: build/windows/x64/runner/Release/"
 
 # ── 工具 ─────────────────────────────────────────────────────
+# iOS/macOS 两个隧道扩展依赖的 Go 库（Libbox / WireGuardKitGo），已存在则跳过
+apple-libs:
+	bash ios_macos_native/build_apple_libs.sh
+
+# 重新把隧道扩展 target 接进 Runner 工程（幂等；--force 重建）
+apple-targets:
+	ruby ios_macos_native/setup_xcode_targets.rb
+
 get:
 	flutter pub get
 
 clean:
 	flutter clean && flutter pub get
 
-.PHONY: run-android run-ios run-windows build-apk build-aab build-ios build-ipa build-windows get clean
+.PHONY: run-android run-ios run-macos run-windows build-apk build-aab build-ios build-ipa build-macos build-windows apple-libs apple-targets get clean

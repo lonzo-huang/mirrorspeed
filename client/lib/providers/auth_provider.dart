@@ -353,6 +353,9 @@ class AuthProvider extends ChangeNotifier {
     } else if (Platform.isWindows) {
       final d = await info.windowsInfo;
       fp = d.deviceId;
+    } else if (Platform.isMacOS) {
+      final d = await info.macOsInfo;
+      fp = d.systemGUID ?? 'macos_unknown_${DateTime.now().millisecondsSinceEpoch}';
     } else {
       fp = 'unknown_${DateTime.now().millisecondsSinceEpoch}';
     }
@@ -378,6 +381,9 @@ class AuthProvider extends ChangeNotifier {
       return d.name;
     } else if (Platform.isWindows) {
       final d = await info.windowsInfo;
+      return d.computerName;
+    } else if (Platform.isMacOS) {
+      final d = await info.macOsInfo;
       return d.computerName;
     }
     return 'My Device';

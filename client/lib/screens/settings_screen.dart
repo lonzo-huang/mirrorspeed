@@ -7,6 +7,7 @@ import '../version.dart';
 import 'sub_page.dart';
 import 'invite_screen.dart';
 import 'app_proxy_screen.dart';
+import '../services/app_proxy_store.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -28,11 +29,12 @@ class SettingsScreen extends StatelessWidget {
             _row(tr('加密', 'Encryption'), 'ChaCha20', locked: true),
             _row(tr('流量混淆', 'Obfuscation'), tr('已开启', 'Enabled'), locked: true),
           ]),
-          _group(tr('智能模式', 'Smart mode'), [
-            _link(context, tr('分应用代理（黑白名单）', 'Per-app proxy'),
-                onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const AppProxyScreen()))),
-          ]),
+          if (AppProxyStore.supported)
+            _group(tr('智能模式', 'Smart mode'), [
+              _link(context, tr('分应用代理（黑白名单）', 'Per-app proxy'),
+                  onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const AppProxyScreen()))),
+            ]),
           _group(tr('通用', 'General'), [
             _link(context, tr('邀请好友', 'Invite friends'), onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const InviteScreen()))),
