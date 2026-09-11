@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# iOS/macOS 隧道扩展的 Go 原生库（体积大，由 ios_macos_native/build_apple_libs.sh 生成）
+/ios_macos_native/Frameworks/

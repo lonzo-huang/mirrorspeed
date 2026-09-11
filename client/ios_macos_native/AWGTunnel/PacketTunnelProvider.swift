@@ -1,0 +1,100 @@
+import Foundation
+import NetworkExtension
+import os
+
+/// MirrorSpeed 优质节点隧道扩展（AmneziaWG）。iOS 与 macOS 共用本文件。
+///
+/// 数据流：
+///   App(AmneziawgFlutterPlugin) --providerConfiguration["wg_conf"](wg-quick 文本)-->
+///   本扩展 startTunnel --> TunnelConfiguration(fromWgQuickConfig:) 解析(含 Jc/Jmin/Jmax/S1/S2/H1-H4)
+///   --> WireGuardAdapter(vendored WireGuardKit) --> amneziawg-go(WireGuardKitGo.xcframework)。
+///
+/// WireGuardKit 源码取自 amneziawg-apple（MIT，见 COPYING），直接编进本 target，
+/// C/Go 符号经 AWGTunnel-Bridging-Header.h 引入。
+class PacketTunnelProvider: NEPacketTunnelProvider {
+
+    private let log = OSLog(subsystem: "com.mirrorspeed.AWGTunnel", category: "tunnel")
+
+    private lazy var adapter: WireGuardAdapter = {
+        WireGuardAdapter(with: self) { [log] level, message in
+            os_log("%{public}@", log: log, type: level == .error ? .error : .debug, message)
+        }
+    }()
+
+    // MARK: - 生命周期
+
+    override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
+        guard
+            let proto = protocolConfiguration as? NETunnelProviderProtocol,
+            let wgConf = proto.providerConfiguration?["wg_conf"] as? String
+        else {
+            completionHandler(TunnelError.missingConfig)
+            return
+        }
+
+        let tunnelConfiguration: TunnelConfiguration
+        do {
+            tunnelConfiguration = try TunnelConfiguration(fromWgQuickConfig: wgConf, called: "mirrorspeed")
+        } catch {
+            os_log("config parse failed: %{public}@", log: log, type: .error, "\(error)")
+            completionHandler(TunnelError.invalidConfig("\(error)"))
+            return
+        }
+
+        adapter.start(tunnelConfiguration: tunnelConfiguration) { [log] error in
+            if let error = error {
+                os_log("adapter start failed: %{public}@", log: log, type: .error, "\(error)")
+                completionHandler(error)
+                return
+            }
+            os_log("AmneziaWG tunnel started", log: log, type: .info)
+            completionHandler(nil)
+        }
+    }
+
+    override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
+        os_log("stopTunnel reason=%d", log: log, type: .info, reason.rawValue)
+        adapter.stop { _ in
+            completionHandler()
+            #if os(macOS)
+            // macOS 的 app extension 进程停隧道后不会自己退出；主动退出，
+            // 下次 start 拿到干净的 Go 运行时（与 wireguard-apple 做法一致）。
+            exit(0)
+            #endif
+        }
+    }
+
+    // MARK: - App ↔ 扩展消息
+
+    /// "stats" → "rx,tx"：累计收发字节（取自 amneziawg-go 的 UAPI 运行时配置）。
+    override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
+        guard String(data: messageData, encoding: .utf8) == "stats" else {
+            completionHandler?(nil)
+            return
+        }
+        adapter.getRuntimeConfiguration { settings in
+            guard let settings = settings else { completionHandler?(nil); return }
+            var rx = 0, tx = 0
+            for line in settings.split(separator: "\n") {
+                if line.hasPrefix("rx_bytes=") {
+                    rx += Int(line.dropFirst("rx_bytes=".count)) ?? 0
+                } else if line.hasPrefix("tx_bytes=") {
+                    tx += Int(line.dropFirst("tx_bytes=".count)) ?? 0
+                }
+            }
+            completionHandler?(Data("\(rx),\(tx)".utf8))
+        }
+    }
+}
+
+enum TunnelError: LocalizedError {
+    case missingConfig
+    case invalidConfig(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingConfig:          return "missing wg_conf"
+        case .invalidConfig(let msg): return "invalid wg_conf: \(msg)"
+        }
+    }
+}
