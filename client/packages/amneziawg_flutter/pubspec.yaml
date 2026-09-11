@@ -1,5 +1,5 @@
 name: amneziawg_flutter
-description: AmneziaWG (obfuscated WireGuard) Flutter plugin for Android, iOS and Windows.
+description: AmneziaWG (obfuscated WireGuard) Flutter plugin for Android, iOS, macOS and Windows.
 version: 0.1.0
 
 environment:
@@ -14,6 +14,10 @@ flutter:
         pluginClass: AmneziawgFlutterPlugin
       ios:
         pluginClass: AmneziawgFlutterPlugin
+        sharedDarwinSource: true
+      macos:
+        pluginClass: AmneziawgFlutterPlugin
+        sharedDarwinSource: true
       windows:
         pluginClass: AmneziawgFlutterPluginCApi
         fileName: amneziawg_flutter_plugin_c_api.h
