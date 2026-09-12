@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../env.dart';
 import '../models/server_config.dart';
@@ -8,6 +10,13 @@ class ApiService {
   static ApiService get instance => _instance;
   static final ApiService _instance = ApiService._();
   ApiService._();
+
+  // 优质节点配置（含 wg 私钥）本地缓存：存加密的 secure storage，不落明文。
+  // 作用：冷启动先读缓存秒出节点列表；当 www.mirrorspeed.com（引导域名）被墙/超时
+  // 导致刷新失败时，用户仍能看到并连接上次的优质节点，打破「要拉节点先连 VPN、
+  // 要连 VPN 先拉节点」的死锁。
+  final _secure = const FlutterSecureStorage();
+  static const _kConfigCacheKey = 'cached_configs_body_v1';
 
   String? get _token => Supabase.instance.client.auth.currentSession?.accessToken;
 
@@ -84,7 +93,40 @@ class ApiService {
     }
     final body    = jsonDecode(res.body) as Map<String, dynamic>;
     final devices = body['devices'] as List;
-    return devices.map((d) => DeviceInfo.fromJson(d as Map<String, dynamic>)).toList();
+    final parsed  = devices.map((d) => DeviceInfo.fromJson(d as Map<String, dynamic>)).toList();
+    // 仅缓存「有设备配置」的成功响应；空列表不覆盖旧缓存（避免误清空可用节点）。
+    if (devices.isNotEmpty) {
+      try {
+        await _secure.write(key: _kConfigCacheKey, value: res.body);
+      } catch (e) {
+        if (kDebugMode) debugPrint('缓存优质配置失败: $e');
+      }
+    }
+    return parsed;
+  }
+
+  /// 读取上次成功拉取的优质节点配置缓存（冷启动/网络不可用时使用）。
+  /// 解析失败或无缓存时返回空列表，调用方据此回退到正常刷新流程。
+  Future<List<DeviceInfo>> loadCachedConfigs() async {
+    try {
+      final raw = await _secure.read(key: _kConfigCacheKey);
+      if (raw == null || raw.isEmpty) return [];
+      final body    = jsonDecode(raw) as Map<String, dynamic>;
+      final devices = body['devices'] as List;
+      return devices
+          .map((d) => DeviceInfo.fromJson(d as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      if (kDebugMode) debugPrint('读取优质配置缓存失败: $e');
+      return [];
+    }
+  }
+
+  /// 登出时清除优质配置缓存（不保留上一账号的节点/私钥）。
+  Future<void> clearCachedConfigs() async {
+    try {
+      await _secure.delete(key: _kConfigCacheKey);
+    } catch (_) {/* ignore */}
   }
 
   // ── 按需建 peer（连接前 / 节点列表预热）──────────────────────

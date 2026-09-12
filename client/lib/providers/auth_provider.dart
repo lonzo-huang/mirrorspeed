@@ -124,6 +124,17 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _onLoggedIn() async {
     _status = AuthStatus.loading;
     notifyListeners();
+
+    // 冷启动先读优质配置缓存：秒出节点列表，且在引导域名被墙/超时时仍可连接。
+    // 后续 refreshConfigs 成功会覆盖；失败则保留缓存内容。
+    if (_configs.isEmpty) {
+      final cached = await ApiService.instance.loadCachedConfigs();
+      if (cached.isNotEmpty) {
+        _configs = cached;
+        notifyListeners();
+      }
+    }
+
     try {
       // 自动注册/获取设备
       // Pass cached device_id (if any) so the server can recognise returning devices
@@ -232,6 +243,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> signOut() async {
     await _supabase.auth.signOut();
     await _storage.delete(key: 'device_id');
+    await ApiService.instance.clearCachedConfigs();  // 不保留上一账号的节点/私钥
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_member', false);
     _deviceId = null; _configs = [];

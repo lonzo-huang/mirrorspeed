@@ -21,8 +21,11 @@ class FreeNodeService {
     'https://scanner.mirrorspeed.com:10612',
   ];
   static const String _cnToken = '7385e047b29180935b3686c5';
-  // 海外源（土耳其 185.93.70.165，面向境外用户；裸 IP，http 明文已放行）。
+  // 海外源（土耳其，面向境外用户）。优先走域名（便于换机/换 IP 不必发版），
+  // 裸 IP 作兜底，保证 DNS 尚未生效/被污染时仍可达。http 明文两者均已在
+  // network_security_config.xml 放行。
   static const List<String> _osHosts = [
+    'http://scanner-os.mirrorspeed.com:10611',
     'http://185.93.70.165:10611',
   ];
   static const String _osToken = 'e1f4663359f4f29095d1f393';
