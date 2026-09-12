@@ -19,11 +19,11 @@ class FreeNodeService {
   static const List<String> _cnHosts = [
     'http://scanner.mirrorspeed.com:10611',
     'https://scanner.mirrorspeed.com:10612',
+    'http://218.11.5.114:10611',        // 裸 IP 兜底：DNS 被污染/域名被墙时仍可达
   ];
   static const String _cnToken = '7385e047b29180935b3686c5';
-  // 海外源（土耳其，面向境外用户）。优先走域名（便于换机/换 IP 不必发版），
-  // 裸 IP 作兜底，保证 DNS 尚未生效/被污染时仍可达。http 明文两者均已在
-  // network_security_config.xml 放行。
+  // 海外源（土耳其，面向境外用户）。域名优先（换机/换 IP 不必发版），裸 IP 兜底
+  // （DNS 被污染/未生效时可达）。http 明文两者均已在 network_security_config.xml 放行。
   static const List<String> _osHosts = [
     'http://scanner-os.mirrorspeed.com:10611',
     'http://185.93.70.165:10611',

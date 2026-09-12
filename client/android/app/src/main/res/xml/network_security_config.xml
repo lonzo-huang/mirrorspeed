@@ -5,6 +5,8 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">scanner.mirrorspeed.com</domain>
         <domain includeSubdomains="true">msscanner.mirrorquant.com</domain>
+        <!-- 国内源裸 IP 兜底（域名被污染时可达） -->
+        <domain includeSubdomains="false">218.11.5.114</domain>
         <!-- 海外免费节点订阅源（土耳其，面向境外用户）：域名优先 + 裸 IP 兜底 -->
         <domain includeSubdomains="true">scanner-os.mirrorspeed.com</domain>
         <domain includeSubdomains="false">185.93.70.165</domain>
