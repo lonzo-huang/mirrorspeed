@@ -9,9 +9,20 @@ const String kSupabaseUrl  = String.fromEnvironment('SUPABASE_URL',
 const String kSupabaseAnon = String.fromEnvironment('SUPABASE_ANON_KEY',
     defaultValue: 'your-anon-key');
 
-// Portal API 地址（和网页端同一个 Vercel 部署）
-const String kApiBase      = String.fromEnvironment('API_BASE',
+// Portal API 地址（和网页端同一个 Vercel 部署）。
+// 主域名 + 兜底域名：主域名被 GFW 封锁（DNS 污染 / SNI 阻断）连不上时，
+// 客户端自动切到兜底域名。兜底域名须指向【同一个 Vercel 部署】、提供相同 API。
+// 两个域名都在 Vercel 项目 Domains 里添加即可（自动签 TLS）。
+const String kApiBase         = String.fromEnvironment('API_BASE',
     defaultValue: 'https://portal.mirrorspeed.com');
+const String kApiBaseFallback = String.fromEnvironment('API_BASE_FALLBACK',
+    defaultValue: 'https://mirrorspeed.eu.cc');
+
+/// 引导域名候选（按优先级）。为空项自动剔除，便于只配一个时降级。
+List<String> get kApiBases => [
+      kApiBase,
+      kApiBaseFallback,
+    ].where((e) => e.isNotEmpty).toList();
 
 // iOS Network Extension Bundle ID（须与 Xcode 配置一致）
 const String kProviderBundle = 'com.mirrorspeed.vpn.network';
