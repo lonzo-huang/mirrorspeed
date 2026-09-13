@@ -3,7 +3,8 @@
 
 SUPABASE_URL   = https://yqckjzfwibklwokialac.supabase.co
 SUPABASE_ANON  = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxY2tqemZ3aWJrbHdva2lhbGFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxOTY1MzcsImV4cCI6MjA5NDc3MjUzN30.NDxrGI6mgVMjgJvBchTkOCcT_ldiEEWtpJkFOhFGYNA
-API_BASE       = https://mirrorspeed-portal.vercel.app
+# 与 release.ps1 保持一致；旧的 mirrorspeed-portal.vercel.app 部署已失效(404)
+API_BASE       = https://www.mirrorspeed.com
 
 DEFINES = \
 	--dart-define=SUPABASE_URL=$(SUPABASE_URL) \
