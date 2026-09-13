@@ -615,7 +615,6 @@ class VpnProvider extends ChangeNotifier {
   Future<String> _applyAppProxy(String wgConf) async {
     if (!Platform.isAndroid) return wgConf;              // Windows 优质：不按应用
     if (_routingMode != RoutingMode.smart) return wgConf; // 全局模式不做分应用过滤
-    if (!await AppProxyStore.loadEnabled()) return wgConf;
     final pkgs = await AppProxyStore.loadPkgs();
     if (pkgs.isEmpty) return wgConf;   // 名单空则不限制，避免死隧道
     final mode = await AppProxyStore.loadMode();

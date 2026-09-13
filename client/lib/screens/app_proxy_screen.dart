@@ -2,11 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import '../services/app_proxy_store.dart';
-import '../providers/vpn_provider.dart';
 import '../brand.dart';
 import '../theme.dart';
 
@@ -29,7 +26,8 @@ class _ProxyItem {
 }
 
 class _AppProxyScreenState extends State<AppProxyScreen> {
-  bool _enabled = true;
+  // 分应用代理只是「配置黑白名单」，没有独立启用开关：是否生效只由连接模式决定
+  // （智能模式读名单、全局模式不读；Windows 下仅对免费节点生效）。
   String _mode = 'white';          // white=白名单 / black=黑名单
   Set<String> _selected = {};
   List<_ProxyItem> _items = [];
@@ -45,7 +43,6 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
   }
 
   Future<void> _load() async {
-    _enabled  = await AppProxyStore.loadEnabled();
     _mode     = await AppProxyStore.loadMode();
     _selected = await AppProxyStore.loadPkgs();
     _items    = _isWin ? await _loadWindowsProcesses() : await _loadAndroidApps();
@@ -110,7 +107,7 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _persist() => AppProxyStore.save(enabled: _enabled, mode: _mode, pkgs: _selected);
+  Future<void> _persist() => AppProxyStore.save(mode: _mode, pkgs: _selected);
 
   @override
   Widget build(BuildContext context) {
@@ -183,13 +180,13 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
                   return CheckboxListTile(
                     dense: true,
                     value: on,
-                    onChanged: _enabled ? (v) {
+                    onChanged: (v) {
                       setState(() {
                         if (v == true) { _selected.add(a.id); }
                         else { _selected.remove(a.id); }
                       });
                       _persist();
-                    } : null,
+                    },
                     secondary: (a.icon != null)
                         ? Image.memory(a.icon!, width: 34, height: 34)
                         : Icon(_isWin ? Icons.desktop_windows_outlined : Icons.android),
@@ -204,80 +201,52 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     );
   }
 
-  // 区块标题
-  Widget _sectionLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(text, style: TextStyle(
-            fontSize: 13, fontWeight: FontWeight.w800, color: msNow.textSecondary)),
-      );
-
-  // 优质节点：只有一个「按 GeoIP-CN 分流」开关（= 智能/全局）。优质走 WireGuard，
-  // 只能按地区/IP 分流，不支持按应用；所以这里不出应用列表。
-  Widget _premiumSection(VpnProvider vpn) {
-    final smart = vpn.routingMode == RoutingMode.smart;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionLabel(tr('优质节点', 'Premium nodes')),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        value: smart,
-        onChanged: (v) => context
-            .read<VpnProvider>()
-            .setRoutingMode(v ? RoutingMode.smart : RoutingMode.global),
-        title: Text(tr('按 GeoIP-CN 智能分流', 'Smart routing (GeoIP-CN)'),
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-        subtitle: Text(
-            _isWin
-                ? tr('中国大陆流量直连、境外走优质节点；关闭＝全部走优质节点。\n'
-                     'Windows 优质节点按地区分流，不支持按应用。',
-                     'Mainland China direct, overseas via premium node; off = all via node.\n'
-                     'On Windows, premium routes by region only (no per-app).')
-                : tr('中国大陆流量直连、境外走优质节点；关闭＝全部走优质节点。\n'
-                     '开启时，下方分应用名单对优质节点同样生效。',
-                     'Mainland China direct, overseas via premium node; off = all via node.\n'
-                     'When on, the per-app list below also applies to premium.'),
-            style: const TextStyle(fontSize: 11)),
+  // 说明条：解释「黑白名单何时生效」。没有独立启用开关——生效与否只看连接模式。
+  Widget _infoNote() {
+    final text = _isWin
+        ? tr('优质节点按连接模式分流：智能模式＝中国大陆直连、境外走节点(GeoIP-CN)；'
+             '全局模式＝全部走节点。优质节点不支持按应用。\n'
+             '当前版本：下面的黑/白名单只对「免费节点」生效。',
+             'Premium nodes route by connection mode: Smart = mainland China direct, '
+             'overseas via node (GeoIP-CN); Global = all via node. Premium has no per-app.\n'
+             'Current version: the black/white list below applies to free nodes only.')
+        : tr('配置黑/白名单即可，无需单独开关。智能模式下按此名单分流；'
+             '全局模式下全部走 VPN、不读名单。',
+             'Just set the black/white list — no separate switch. It applies in Smart mode; '
+             'in Global mode all traffic goes via VPN and the list is ignored.');
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: msNow.brand.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: msNow.brand.withOpacity(0.25)),
       ),
-    ]);
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.info_outline, size: 16, color: msNow.brand),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text,
+            style: TextStyle(fontSize: 11, height: 1.4, color: msNow.textSecondary))),
+      ]),
+    );
   }
 
   Widget _header() {
-    final vpn = context.watch<VpnProvider>();
     return Padding(
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _premiumSection(vpn),
-        const Divider(height: 24),
-        // 安卓：按应用对免费节点始终生效、对优质节点在智能模式下也生效 → 标「分应用代理」。
-        // Windows：优质做不到按应用，这块只对免费节点 → 标「免费节点」。
-        _sectionLabel(_isWin ? tr('免费节点', 'Free nodes') : tr('分应用代理', 'Per-app proxy')),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _enabled,
-          onChanged: (v) { setState(() => _enabled = v); _persist(); },
-          title: Text(tr('启用分应用代理', 'Enable per-app proxy'),
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-          subtitle: Text(
-              _isWin
-                  ? tr('对免费节点按进程(exe)分流；关闭＝免费节点全部流量走 VPN',
-                        'Free nodes route by process (exe); off = all via VPN')
-                  : tr('免费节点始终生效；优质节点在「智能分流」开启时也生效。关闭＝不做按应用限制',
-                        'Always applies to free nodes; applies to premium when Smart routing is on.'),
-              style: const TextStyle(fontSize: 11)),
-        ),
-        const SizedBox(height: 6),
-        // 白/黑名单切换
-        Opacity(
-          opacity: _enabled ? 1 : 0.4,
-          child: Row(children: [
-            _modeChip('white', tr('白名单', 'Whitelist'),
-                _isWin ? tr('只有勾选的应用走 VPN', 'Only selected use VPN')
-                       : tr('只有勾选的 App 走 VPN', 'Only selected use VPN')),
-            const SizedBox(width: 10),
-            _modeChip('black', tr('黑名单', 'Blacklist'),
-                _isWin ? tr('勾选的应用不走 VPN', 'Selected bypass VPN')
-                       : tr('勾选的 App 不走 VPN', 'Selected bypass VPN')),
-          ]),
-        ),
+        _infoNote(),
+        // 白/黑名单切换（始终可配，无启用开关）
+        Row(children: [
+          _modeChip('white', tr('白名单', 'Whitelist'),
+              _isWin ? tr('只有勾选的应用走 VPN', 'Only selected use VPN')
+                     : tr('只有勾选的 App 走 VPN', 'Only selected use VPN')),
+          const SizedBox(width: 10),
+          _modeChip('black', tr('黑名单', 'Blacklist'),
+              _isWin ? tr('勾选的应用不走 VPN', 'Selected bypass VPN')
+                     : tr('勾选的 App 不走 VPN', 'Selected bypass VPN')),
+        ]),
         if (_isWin) ...[
           const SizedBox(height: 8),
           Text(
@@ -302,7 +271,7 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
   Widget _modeChip(String m, String label, String desc) {
     final sel = _mode == m;
     return Expanded(child: GestureDetector(
-      onTap: _enabled ? () { setState(() => _mode = m); _persist(); } : null,
+      onTap: () { setState(() => _mode = m); _persist(); },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
