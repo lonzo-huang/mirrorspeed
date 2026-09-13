@@ -57,6 +57,7 @@
 		B7E1C10BF84B001800419C6A /* Array+ConcurrentMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0400C1434C4135FB3994DDF4 /* Array+ConcurrentMap.swift */; };
 		BEA1EBDE5B25182D9B2DFC4F /* SingboxPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F6B71F055256CD4FA76CFE4 /* SingboxPlatform.swift */; };
 		CCB60F3CCAC89F8C124526B6 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6301C66D79742F4F3F5A1265 /* Cocoa.framework */; };
+		E7F4DA3513E6B979396109E0 /* TrayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53891EEAEB89C6C6C76E0AD /* TrayController.swift */; };
 		EB6DA6AB3FC47D1AAED5DF4B /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6301C66D79742F4F3F5A1265 /* Cocoa.framework */; };
 		FB3E51A3D00A784CF631956D /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = BFD4A2C71C21BA9C3517954A /* InfoPlist.strings */; };
 		FECB888437B529578CE1182F /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FAA907BD34613D389A24548A /* Pods_Runner.framework */; };
@@ -167,6 +168,7 @@
 		9219A992F75DD59977E4132C /* x25519.c */ = {isa = PBXFileReference; includeInIndex = 1; path = x25519.c; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		9A1AF74472B607A75EF7F567 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A53891EEAEB89C6C6C76E0AD /* TrayController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrayController.swift; sourceTree = "<group>"; };
 		A53B0599605E365CA3462026 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
 		AC1320530F88B5B3B7F427F2 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		B563CE3B5C17792CEB0AD439 /* libresolv.tbd */ = {isa = PBXFileReference; includeInIndex = 1; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
@@ -358,6 +360,7 @@
 				33CC11242044D66E0003C045 /* Resources */,
 				33BA886A226E78AF003329D5 /* Configs */,
 				BFD4A2C71C21BA9C3517954A /* InfoPlist.strings */,
+				A53891EEAEB89C6C6C76E0AD /* TrayController.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -700,6 +703,7 @@
 				33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
+				E7F4DA3513E6B979396109E0 /* TrayController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
