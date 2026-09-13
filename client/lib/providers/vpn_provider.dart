@@ -13,7 +13,7 @@ import '../models/server_config.dart';
 import '../services/ws_relay_service.dart';
 import '../services/port_hopping.dart';
 import '../services/api_service.dart';
-import '../brand.dart';
+import '../services/app_proxy_store.dart';
 import '../env.dart';
 
 export 'package:amneziawg_flutter/amneziawg_flutter.dart' show VpnStage;
@@ -390,7 +390,7 @@ class VpnProvider extends ChangeNotifier {
           : server.wgConf;
       wgConf = PortHoppingService.instance
           .rewriteEndpointPort(wgConf, effectivePort);
-      // 优质节点只按 GeoIP-CN/全局分流，不做按应用（按应用归免费节点）。
+      wgConf = await _applyAppProxy(wgConf);   // Android 优质：智能模式下按应用
 
       debugPrint('[VPN] 直连 AmneziaWG，端口=$effectivePort');
 
@@ -519,8 +519,8 @@ class VpnProvider extends ChangeNotifier {
       // server.port 是对外暴露端口（可能经 iptables DNAT），不适合此处。
       final localPort = await _relay.start(
           '$relayBaseUrl/secure-tunnel', _awgInternalPort);
-      final relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
-      // 优质节点不做按应用（按应用归免费节点）。
+      var relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
+      relayConf = await _applyAppProxy(relayConf);   // Android 优质：智能模式下按应用
 
       await _engine.start(EngineStartParams(
         serverAddress:  '127.0.0.1:$localPort',
@@ -607,9 +607,35 @@ class VpnProvider extends ChangeNotifier {
     return conf;
   }
 
+  // ── 优质节点分应用（仅 Android）────────────────────────────────────────
+  // 「能按应用就按应用」：Android 优质节点(WireGuard)在智能模式下套按应用白/黑名单
+  // （插件解析 Included/ExcludedApplications 调 addAllowed/DisallowedApplication）。
+  // Windows 优质节点做不到按应用（需 WFP 驱动），故此函数在非 Android 直接返回，
+  // Windows 优质只按 GeoIP-CN/全局分流。按应用列表与免费节点共用 AppProxyStore。
+  Future<String> _applyAppProxy(String wgConf) async {
+    if (!Platform.isAndroid) return wgConf;              // Windows 优质：不按应用
+    if (_routingMode != RoutingMode.smart) return wgConf; // 全局模式不做分应用过滤
+    if (!await AppProxyStore.loadEnabled()) return wgConf;
+    final pkgs = await AppProxyStore.loadPkgs();
+    if (pkgs.isEmpty) return wgConf;   // 名单空则不限制，避免死隧道
+    final mode = await AppProxyStore.loadMode();
+    final key  = mode == 'white' ? 'IncludedApplications' : 'ExcludedApplications';
+    final line = '$key = ${pkgs.join(', ')}';
+    final lines = wgConf.split('\n');
+    final out = <String>[];
+    var inserted = false;
+    for (final l in lines) {
+      out.add(l);
+      if (!inserted && l.trim().toLowerCase() == '[interface]') {
+        out.add(line);
+        inserted = true;
+      }
+    }
+    debugPrint('[APPPROXY] mode=$mode inject=$inserted pkgs=${pkgs.length} → $line');
+    return inserted ? out.join('\n') : wgConf;
+  }
+
   // ── 智能路由：将 AWG 配置的 AllowedIPs 改为非中国IP段 ────────────────────
-  // 注：优质节点已不做按应用分流（原 _applyAppProxy 已移除）。优质只按 GeoIP-CN(智能)
-  // 或全局分流；按应用分流归免费节点（AppProxyStore + SharedNodeProvider.connect）。
   Future<String> _applySmartRouting(String wgConf, {required String? excludeIp}) async {
     // 智能模式按「裸 IP」归属地决定：
     //  - 境内裸 IP：路由表分流（AllowedIPs=非中国 IP 段互补集，中国直连、境外走 VPN）；

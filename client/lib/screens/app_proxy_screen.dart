@@ -226,10 +226,15 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
         title: Text(tr('按 GeoIP-CN 智能分流', 'Smart routing (GeoIP-CN)'),
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         subtitle: Text(
-            tr('中国大陆流量直连、境外走优质节点；关闭＝全部走优质节点。\n'
-               '优质节点按地区分流，不支持按应用。',
-               'Mainland China direct, overseas via premium node; off = all via node.\n'
-               'Premium routes by region, not per-app.'),
+            _isWin
+                ? tr('中国大陆流量直连、境外走优质节点；关闭＝全部走优质节点。\n'
+                     'Windows 优质节点按地区分流，不支持按应用。',
+                     'Mainland China direct, overseas via premium node; off = all via node.\n'
+                     'On Windows, premium routes by region only (no per-app).')
+                : tr('中国大陆流量直连、境外走优质节点；关闭＝全部走优质节点。\n'
+                     '开启时，下方分应用名单对优质节点同样生效。',
+                     'Mainland China direct, overseas via premium node; off = all via node.\n'
+                     'When on, the per-app list below also applies to premium.'),
             style: const TextStyle(fontSize: 11)),
       ),
     ]);
@@ -242,7 +247,9 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _premiumSection(vpn),
         const Divider(height: 24),
-        _sectionLabel(tr('免费节点', 'Free nodes')),
+        // 安卓：按应用对免费节点始终生效、对优质节点在智能模式下也生效 → 标「分应用代理」。
+        // Windows：优质做不到按应用，这块只对免费节点 → 标「免费节点」。
+        _sectionLabel(_isWin ? tr('免费节点', 'Free nodes') : tr('分应用代理', 'Per-app proxy')),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           value: _enabled,
@@ -253,8 +260,8 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
               _isWin
                   ? tr('对免费节点按进程(exe)分流；关闭＝免费节点全部流量走 VPN',
                         'Free nodes route by process (exe); off = all via VPN')
-                  : tr('对免费节点按应用分流；关闭＝免费节点全部流量走 VPN',
-                        'Free nodes route by app; off = all via VPN'),
+                  : tr('免费节点始终生效；优质节点在「智能分流」开启时也生效。关闭＝不做按应用限制',
+                        'Always applies to free nodes; applies to premium when Smart routing is on.'),
               style: const TextStyle(fontSize: 11)),
         ),
         const SizedBox(height: 6),
