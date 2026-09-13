@@ -17,6 +17,7 @@ import 'screens/server_list_screen.dart';
 import 'theme.dart';
 import 'brand.dart';
 import 'services/ad_service.dart';
+import 'services/desktop_tray.dart';
 
 /// 全局 ScaffoldMessenger：用于在导航切换后仍能可靠弹出提示（如免费节点
 /// 「连上但不通外网」），不依赖某个已卸载页面的 context。
@@ -57,6 +58,9 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
       if (_vpn.isConnected) return;   // 已有优质隧道就不折腾
       await _shared.connectRandomForAd();
     };
+    // 桌面托盘（macOS 菜单栏 / Windows 通知区）：状态与节点列表推给原生菜单，
+    // 移动端此调用为空操作。
+    DesktopTray.instance.attach(auth: _auth, vpn: _vpn, shared: _shared);
     // #5 冷启动清理：停掉上次未正常退出而残留的 sing-box 隧道，避免死 tun 黑洞
     // 导致拉不到配置、一直卡在加载。冷启动 = 本 initState 只执行一次。
     _shared.disconnect();

@@ -7,16 +7,11 @@
 #include "resource.h"
 
 namespace {
-// System tray: clicking X hides to the tray; the tray menu offers Show/Exit.
-constexpr UINT kTrayCallbackMessage = WM_APP + 1;
-constexpr UINT kTrayIconId          = 1;
-constexpr UINT kMenuShowId          = 1001;
-constexpr UINT kMenuExitId          = 1002;
-// CN labels via \u escapes: this target builds without /utf-8 and with /WX,
-// so literal multibyte CJK in source would break the build.
-const wchar_t* kTrayTip   = L"MirrorSpeed";
-const wchar_t* kMenuShow  = L"显示主界面";  // Show main window
-const wchar_t* kMenuExit  = L"退出";                    // Exit
+// System tray: clicking X hides to the tray. The dynamic tray menu (status,
+// nodes, connect/disconnect, launch-at-login, show, quit) is built by
+// TrayController from state pushed over the "mirrorspeed/tray" channel.
+// kTrayCallbackMessage / kTrayIconId live in tray_controller.h so both agree.
+const wchar_t* kTrayTip = L"MirrorSpeed";
 
 void AddTrayIcon(HWND hwnd) {
   NOTIFYICONDATAW nid{};
@@ -42,17 +37,6 @@ void RestoreWindow(HWND hwnd) {
   ShowWindow(hwnd, SW_SHOW);
   ShowWindow(hwnd, SW_RESTORE);
   SetForegroundWindow(hwnd);
-}
-
-void ShowTrayMenu(HWND hwnd) {
-  POINT pt;
-  GetCursorPos(&pt);
-  HMENU menu = CreatePopupMenu();
-  AppendMenuW(menu, MF_STRING, kMenuShowId, kMenuShow);
-  AppendMenuW(menu, MF_STRING, kMenuExitId, kMenuExit);
-  SetForegroundWindow(hwnd);  // 让菜单在点击别处时正确消失
-  TrackPopupMenu(menu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, nullptr);
-  DestroyMenu(menu);
 }
 }  // namespace
 
@@ -89,12 +73,16 @@ bool FlutterWindow::OnCreate() {
   flutter_controller_->ForceRedraw();
 
   AddTrayIcon(GetHandle());   // 托盘常驻
+  // 托盘菜单控制器：挂到 Flutter 引擎的 messenger 上，接收 Dart 推送的状态。
+  tray_ = std::make_unique<TrayController>(
+      flutter_controller_->engine()->messenger(), GetHandle());
 
   return true;
 }
 
 void FlutterWindow::OnDestroy() {
-  RemoveTrayIcon(GetHandle());   // 真正退出时移除托盘图标
+  tray_ = nullptr;              // 先拆通道（引擎还在），再销毁引擎
+  RemoveTrayIcon(GetHandle());  // 真正退出时移除托盘图标
 
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
@@ -128,23 +116,25 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       return 0;
 
     case kTrayCallbackMessage:
-      // 左键单击/双击托盘图标 → 还原窗口；右键 → 弹出菜单。
+      // 左键单击/双击托盘图标 → 还原窗口；右键 → 弹出动态菜单。
       if (LOWORD(lparam) == WM_LBUTTONUP || LOWORD(lparam) == WM_LBUTTONDBLCLK) {
         RestoreWindow(hwnd);
+        if (tray_) tray_->InvokeShow();
       } else if (LOWORD(lparam) == WM_RBUTTONUP) {
-        ShowTrayMenu(hwnd);
+        if (tray_) tray_->ShowMenu();
       }
       return 0;
 
     case WM_COMMAND: {
       const UINT cmd_id = static_cast<UINT>(LOWORD(wparam));
-      if (cmd_id == kMenuShowId) {
-        RestoreWindow(hwnd);
-        return 0;
-      }
-      if (cmd_id == kMenuExitId) {
-        DestroyWindow(hwnd);   // → WM_DESTROY → quit_on_close_ → PostQuitMessage
-        return 0;
+      if (tray_) {
+        bool want_restore = false, want_quit = false;
+        if (tray_->HandleCommand(cmd_id, &want_restore, &want_quit)) {
+          if (want_restore) RestoreWindow(hwnd);
+          // 真正退出：DestroyWindow → WM_DESTROY → quit_on_close_ → PostQuitMessage
+          if (want_quit) DestroyWindow(hwnd);
+          return 0;
+        }
       }
       break;
     }
