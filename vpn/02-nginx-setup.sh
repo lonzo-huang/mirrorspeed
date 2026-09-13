@@ -67,10 +67,15 @@ ln -sf /etc/nginx/sites-available/enterprise-http-temp \
        /etc/nginx/sites-enabled/enterprise-http-temp
 nginx -t && systemctl reload nginx
 
-echo "[4/5] 签发 Let's Encrypt TLS 证书..."
+echo "[4/5] 签发 Let's Encrypt TLS 证书（nginx 授权方式）..."
+# 关键：用 --nginx（而非 --webroot）签发。webroot 方式签完会把上面的临时 HTTP 站删掉，
+# 续期时 certbot 取不到 /.well-known/acme-challenge 校验文件 → 404 → 90 天后证书必过期
+# → 控制机 https 探测握手失败 → 节点被误标 offline（历史上西班牙/德国/新加坡都因此中招）。
+# --nginx 会把续期配置记成 authenticator=nginx，certbot.timer 以后能自动用 nginx/http-01
+# 续期（最终 nginx 配置里有永久 80 端口块，校验可达）。
 certbot certonly \
-    --webroot \
-    --webroot-path "${WEBROOT}" \
+    --nginx \
+    --preferred-challenges http-01 \
     --domain "${DOMAIN}" \
     --email "${EMAIL}" \
     --agree-tos \
