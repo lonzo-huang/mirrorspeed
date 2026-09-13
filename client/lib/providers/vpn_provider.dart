@@ -615,9 +615,18 @@ class VpnProvider extends ChangeNotifier {
   Future<String> _applyAppProxy(String wgConf) async {
     if (!Platform.isAndroid) return wgConf;              // Windows 优质：不按应用
     if (_routingMode != RoutingMode.smart) return wgConf; // 全局模式不做分应用过滤
-    final pkgs = await AppProxyStore.loadPkgs();
+    final pkgs = (await AppProxyStore.loadPkgs()).toList();
     if (pkgs.isEmpty) return wgConf;   // 名单空则不限制，避免死隧道
     final mode = await AppProxyStore.loadMode();
+    // 本 App 自己必须走隧道，否则其 AdMob 广告请求走直连、国内被墙 → 加载不出：
+    // 白名单里补入本 App、黑名单里剔除本 App。
+    const selfPkg = 'com.mirrorspeed.vpn';
+    if (mode == 'white') {
+      if (!pkgs.contains(selfPkg)) pkgs.add(selfPkg);
+    } else {
+      pkgs.removeWhere((p) => p == selfPkg);
+      if (pkgs.isEmpty) return wgConf;   // 黑名单剔除自己后为空 → 不做限制
+    }
     final key  = mode == 'white' ? 'IncludedApplications' : 'ExcludedApplications';
     final line = '$key = ${pkgs.join(', ')}';
     final lines = wgConf.split('\n');
