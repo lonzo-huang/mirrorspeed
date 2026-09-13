@@ -272,6 +272,15 @@ class SharedNodeProvider extends ChangeNotifier {
           }
         }
       }
+      // 关键：本 App(镜速)自己的流量必须进隧道，否则它的 AdMob 广告请求走直连、国内
+      // 被墙 → 一直「加载中」。白名单里自动补上本 App；黑名单里绝不排除本 App。
+      // (App 的非广告流量在 sing-box 内仍按规则 final=direct 直连；只有广告域名被强制
+      //  走代理，见 SingboxConfig 的 _adDomains 规则。)
+      const selfPkg = 'com.mirrorspeed.vpn';
+      if (Platform.isAndroid) {
+        if (inc != null && !inc.contains(selfPkg)) inc = [...inc, selfPkg];
+        if (exc != null) exc = exc.where((p) => p != selfPkg).toList();
+      }
       debugPrint('[APPPROXY-SB] inc=${inc?.length ?? 0} exc=${exc?.length ?? 0} '
           'incProc=${incProc?.length ?? 0} excProc=${excProc?.length ?? 0}');
       // 仅当系统确有可用 IPv6 时才给 tun 加 v6 地址：IPv6 被禁用的机器上设 v6 地址会让
