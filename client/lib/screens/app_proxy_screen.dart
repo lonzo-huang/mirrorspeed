@@ -210,10 +210,8 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
              'Premium nodes route by connection mode: Smart = mainland China direct, '
              'overseas via node (GeoIP-CN); Global = all via node. Premium has no per-app.\n'
              'Current version: the black/white list below applies to free nodes only.')
-        : tr('配置黑/白名单即可，无需单独开关。智能模式下按此名单分流；'
-             '全局模式下全部走 VPN、不读名单。',
-             'Just set the black/white list — no separate switch. It applies in Smart mode; '
-             'in Global mode all traffic goes via VPN and the list is ignored.');
+        : tr('智能模式下按下面的黑/白名单分流；全局模式下全部流量走 VPN。',
+             'In Smart mode, traffic is split by the list below; in Global mode all traffic goes via VPN.');
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 14),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/free_node.dart';
 import '../services/free_node_service.dart';
 import '../vpn/proxy_core_engine.dart';
@@ -255,9 +256,12 @@ class SharedNodeProvider extends ChangeNotifier {
       //   名单就对谁生效，不再限定中文环境（英文机上配了也要生效）。非中文的「默认只放
       //   26 个 App」误会已由「非中文默认白名单为空」(loadPkgs) 解决。
       // - Windows/桌面：用 sing-box process_name 路由规则(按进程名)，存的是 exe 名。
-      // 无独立启用开关：直接读黑白名单，名单为空即不做限制(全部走节点)。
+      // 分流按连接模式:智能模式读黑白名单;全局模式一律全部走节点(不读名单)。
+      // 无独立启用开关;名单为空也等于不做限制。
+      final rmode = (await SharedPreferences.getInstance()).getString('routing_mode');
+      final isGlobal = rmode == 'global';
       List<String>? inc, exc, incProc, excProc;
-      if (applyAppProxy) {
+      if (applyAppProxy && !isGlobal) {
         final pkgs = (await AppProxyStore.loadPkgs()).toList();
         if (pkgs.isNotEmpty) {
           final white = await AppProxyStore.loadMode() == 'white';
