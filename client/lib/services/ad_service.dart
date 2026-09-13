@@ -128,6 +128,9 @@ class AdService {
   }
 
   bool get rewardedReady => _supported && _rewardedPool.isNotEmpty;
+  bool get appOpenReady  => _supported && _appOpenAd != null;
+  /// 调试暗门用：当前是否有已加载且有效的广告(激励或开屏)可展示。
+  bool get hasReadyAd    => rewardedReady || appOpenReady;
 
   /// 提前预热：进入会展示激励广告的界面时调用，把池子提前填满（#4）。
   void warmUp() {
