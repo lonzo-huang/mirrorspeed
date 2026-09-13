@@ -84,6 +84,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     private var ifaceListener: InterfaceUpdateListener? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        android.util.Log.d("singbox", "onStartCommand action=${intent?.action} (svc proc)")
         when (intent?.action) {
             ACTION_STOP -> { stopNow(); return START_NOT_STICKY }
             ACTION_START -> intent.getStringExtra(EXTRA_CONFIG)?.let { startBox(it) }
@@ -93,6 +94,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     }
 
     private fun setStage(s: String) {
+        android.util.Log.d("singbox", "stage -> $s")
         currentStage = s
         // 跨进程广播给主进程的插件（本服务在 :singbox 独立进程，静态变量共享不到主进程）。
         try {
@@ -134,6 +136,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     @Volatile private var stopping = false
 
     private fun stopBox() {
+        android.util.Log.d("singbox", "stopBox called (stopping=$stopping)")
         if (stopping) return   // 幂等：避免 disconnect + onRevoke + onDestroy 多次触发导致 double-free 崩溃
         stopping = true
         setStage("disconnecting")

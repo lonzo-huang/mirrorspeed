@@ -106,8 +106,15 @@ class SingboxFlutterPlugin :
             "stop" -> {
                 // 跨进程：发 Intent 给 :singbox 服务停止。阻塞的拆除发生在那个进程，
                 // 不影响主进程 UI/WireGuard。
-                context.startService(Intent(context, SingboxVpnService::class.java)
-                    .setAction(SingboxVpnService.ACTION_STOP))
+                android.util.Log.d("singbox", "plugin: stop requested (main proc)")
+                try {
+                    context.startService(Intent(context, SingboxVpnService::class.java)
+                        .setAction(SingboxVpnService.ACTION_STOP))
+                } catch (e: Throwable) {
+                    // Android 8+ 后台启动服务可能被拦（BackgroundServiceStartNotAllowed）→
+                    // 这才是「有时候断不掉」的头号嫌疑：Intent 没送达 :singbox。
+                    android.util.Log.e("singbox", "plugin: startService(STOP) FAILED", e)
+                }
                 result.success(null)
             }
 
