@@ -9,15 +9,10 @@ namespace {
 // 菜单命令 id。固定项用独立 id，节点项用基址 + 下标。
 constexpr UINT kCmdAuto = 1100;
 constexpr UINT kCmdDisconnect = 1101;
-constexpr UINT kCmdLaunch = 1102;
 constexpr UINT kCmdShow = 1103;
 constexpr UINT kCmdQuit = 1104;
 constexpr UINT kCmdServerBase = 1200;  // 1200..1299（优质节点，按下标）
 constexpr UINT kCmdFreeBase = 1300;    // 1300..1399（免费节点，按下标）
-
-const wchar_t* kRunKey =
-    L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-const wchar_t* kRunValue = L"MirrorSpeed";
 
 // UTF-8（EncodableValue 的 std::string）→ UTF-16。
 std::wstring U16(const std::string& s) {
@@ -228,9 +223,6 @@ void TrayController::ShowMenu() {
     AppendMenuW(menu, MF_STRING, kCmdDisconnect,
                 tr(L"断开连接", L"Disconnect"));
   }
-  AppendMenuW(menu,
-              MF_STRING | (LaunchAtLoginEnabled() ? MF_CHECKED : MF_UNCHECKED),
-              kCmdLaunch, tr(L"开机自启动", L"Launch at login"));
   AppendMenuW(menu, MF_STRING, kCmdShow, tr(L"打开主窗口", L"Open MirrorSpeed"));
   AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(menu, MF_STRING, kCmdQuit, tr(L"退出", L"Quit"));
@@ -250,10 +242,6 @@ bool TrayController::HandleCommand(UINT id, bool* want_restore,
   }
   if (id == kCmdDisconnect) {
     Invoke("disconnect", "");
-    return true;
-  }
-  if (id == kCmdLaunch) {
-    ToggleLaunchAtLogin();
     return true;
   }
   if (id == kCmdShow) {
@@ -290,38 +278,4 @@ void TrayController::Invoke(const char* method, const std::string& id) {
         {flutter::EncodableValue("id"), flutter::EncodableValue(id)}});
   }
   channel_->InvokeMethod(method, std::move(args));
-}
-
-bool TrayController::LaunchAtLoginEnabled() const {
-  HKEY key;
-  if (RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0, KEY_READ, &key) !=
-      ERROR_SUCCESS) {
-    return false;
-  }
-  DWORD type = 0;
-  LONG r = RegQueryValueExW(key, kRunValue, nullptr, &type, nullptr, nullptr);
-  RegCloseKey(key);
-  return r == ERROR_SUCCESS && type == REG_SZ;
-}
-
-void TrayController::ToggleLaunchAtLogin() {
-  bool on = LaunchAtLoginEnabled();
-  HKEY key;
-  if (RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0, KEY_SET_VALUE, &key) !=
-      ERROR_SUCCESS) {
-    return;
-  }
-  if (on) {
-    RegDeleteValueW(key, kRunValue);
-  } else {
-    wchar_t path[MAX_PATH]{};
-    GetModuleFileNameW(nullptr, path, MAX_PATH);
-    std::wstring quoted = L"\"";
-    quoted += path;
-    quoted += L"\"";
-    RegSetValueExW(key, kRunValue, 0, REG_SZ,
-                   reinterpret_cast<const BYTE*>(quoted.c_str()),
-                   static_cast<DWORD>((quoted.size() + 1) * sizeof(wchar_t)));
-  }
-  RegCloseKey(key);
 }

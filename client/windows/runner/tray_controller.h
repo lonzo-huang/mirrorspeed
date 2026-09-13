@@ -45,8 +45,6 @@ class TrayController {
   void OnUpdate(const flutter::EncodableMap& args);
   void UpdateTooltip();
   void Invoke(const char* method, const std::string& id);
-  bool LaunchAtLoginEnabled() const;
-  void ToggleLaunchAtLogin();
 
   HWND hwnd_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
