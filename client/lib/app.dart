@@ -61,6 +61,22 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
     // 桌面托盘（macOS 菜单栏 / Windows 通知区）：状态与节点列表推给原生菜单，
     // 移动端此调用为空操作。
     DesktopTray.instance.attach(auth: _auth, vpn: _vpn, shared: _shared);
+    // 连上任一隧道（Google 此刻可达）→ 立即把激励/开屏广告灌进 SDK 本地缓存。
+    // 国内直连 AdMob 被墙，若等到用户点「看广告」才加载多半拉不到；连上就预热能让
+    // 之后即使网络受限也能直接展示（激励广告缓存有效期约 1 小时）。边沿触发：
+    // 断开后复位，下次连上再预热一次（刷新缓存）。
+    var adWarmedOnConnect = false;
+    void warmAdsOnConnect() {
+      final up = _vpn.isConnected || _shared.isConnected;
+      if (up && !adWarmedOnConnect) {
+        adWarmedOnConnect = true;
+        AdService.instance.warmUp();
+      } else if (!up) {
+        adWarmedOnConnect = false;
+      }
+    }
+    _vpn.addListener(warmAdsOnConnect);
+    _shared.addListener(warmAdsOnConnect);
     // #5 冷启动清理：停掉上次未正常退出而残留的 sing-box 隧道，避免死 tun 黑洞
     // 导致拉不到配置、一直卡在加载。冷启动 = 本 initState 只执行一次。
     _shared.disconnect();
