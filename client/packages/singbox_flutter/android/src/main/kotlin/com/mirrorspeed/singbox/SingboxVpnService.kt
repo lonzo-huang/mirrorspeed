@@ -103,6 +103,12 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     }
 
     private fun startBox(config: String) {
+        // 复位停止闸：切换节点是「先 stop 再 start」复用同一 service 实例。上一次
+        // stopBox 置 stopping=true 后，若服务没真正销毁（stopSelf 被随后的 START 顶掉，
+        // onDestroy 未跑），本实例 stopping 会一直是 true → 之后所有 stopBox 幂等 return
+        // → 永远断不掉（真机日志实证：disconnecting 后无 disconnected，同 pid 复连，
+        // 下一次 STOP 变 no-op）。新连接开始即视为服务重新活跃，必须清掉这个闸。
+        stopping = false
         setStage("connecting")
         startForeground(NOTI_ID, buildNotification())
         try {
