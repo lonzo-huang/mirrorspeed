@@ -202,10 +202,41 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     );
   }
 
+  // Windows 提示：分应用分流只对免费节点(sing-box 按进程)生效；优质节点走
+  // WireGuard，只能按地区/IP 智能分流，不支持按应用挑选。避免用户误以为优质
+  // 也能按应用而困惑。
+  Widget _winPremiumHint() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: msNow.brand.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: msNow.brand.withOpacity(0.25)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.info_outline, size: 16, color: msNow.brand),
+        const SizedBox(width: 8),
+        Expanded(child: Text(
+          tr(
+            '分应用分流仅对「免费节点」生效。优质节点按地区智能分流（国内直连、境外走节点），'
+            '不支持按应用挑选；需要按应用请切换到免费节点。',
+            'Per-app routing applies to free nodes only. Premium nodes use smart '
+            'region-based routing and can\'t be split per app — switch to a free '
+            'node if you need per-app control.',
+          ),
+          style: TextStyle(fontSize: 11, height: 1.4, color: msNow.textSecondary),
+        )),
+      ]),
+    );
+  }
+
   Widget _header() {
     return Padding(
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (_isWin) _winPremiumHint(),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           value: _enabled,
