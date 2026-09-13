@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import '../services/app_proxy_store.dart';
+import '../providers/vpn_provider.dart';
 import '../brand.dart';
 import '../theme.dart';
 
@@ -202,41 +204,45 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     );
   }
 
-  // Windows 提示：分应用分流只对免费节点(sing-box 按进程)生效；优质节点走
-  // WireGuard，只能按地区/IP 智能分流，不支持按应用挑选。避免用户误以为优质
-  // 也能按应用而困惑。
-  Widget _winPremiumHint() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: msNow.brand.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: msNow.brand.withOpacity(0.25)),
+  // 区块标题
+  Widget _sectionLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(text, style: TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w800, color: msNow.textSecondary)),
+      );
+
+  // 优质节点：只有一个「按 GeoIP-CN 分流」开关（= 智能/全局）。优质走 WireGuard，
+  // 只能按地区/IP 分流，不支持按应用；所以这里不出应用列表。
+  Widget _premiumSection(VpnProvider vpn) {
+    final smart = vpn.routingMode == RoutingMode.smart;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionLabel(tr('优质节点', 'Premium nodes')),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: smart,
+        onChanged: (v) => context
+            .read<VpnProvider>()
+            .setRoutingMode(v ? RoutingMode.smart : RoutingMode.global),
+        title: Text(tr('按 GeoIP-CN 智能分流', 'Smart routing (GeoIP-CN)'),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        subtitle: Text(
+            tr('中国大陆流量直连、境外走优质节点；关闭＝全部走优质节点。\n'
+               '优质节点按地区分流，不支持按应用。',
+               'Mainland China direct, overseas via premium node; off = all via node.\n'
+               'Premium routes by region, not per-app.'),
+            style: const TextStyle(fontSize: 11)),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(Icons.info_outline, size: 16, color: msNow.brand),
-        const SizedBox(width: 8),
-        Expanded(child: Text(
-          tr(
-            '分应用分流仅对「免费节点」生效。优质节点按地区智能分流（国内直连、境外走节点），'
-            '不支持按应用挑选；需要按应用请切换到免费节点。',
-            'Per-app routing applies to free nodes only. Premium nodes use smart '
-            'region-based routing and can\'t be split per app — switch to a free '
-            'node if you need per-app control.',
-          ),
-          style: TextStyle(fontSize: 11, height: 1.4, color: msNow.textSecondary),
-        )),
-      ]),
-    );
+    ]);
   }
 
   Widget _header() {
+    final vpn = context.watch<VpnProvider>();
     return Padding(
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (_isWin) _winPremiumHint(),
+        _premiumSection(vpn),
+        const Divider(height: 24),
+        _sectionLabel(tr('免费节点', 'Free nodes')),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           value: _enabled,
@@ -245,9 +251,10 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           subtitle: Text(
               _isWin
-                  ? tr('免费节点按进程分流；关闭则所有流量走 VPN',
-                        'Free nodes route by process; off = all via VPN')
-                  : tr('仅智能模式生效；关闭则所有 App 按智能规则走', 'Smart mode only'),
+                  ? tr('对免费节点按进程(exe)分流；关闭＝免费节点全部流量走 VPN',
+                        'Free nodes route by process (exe); off = all via VPN')
+                  : tr('对免费节点按应用分流；关闭＝免费节点全部流量走 VPN',
+                        'Free nodes route by app; off = all via VPN'),
               style: const TextStyle(fontSize: 11)),
         ),
         const SizedBox(height: 6),
