@@ -317,11 +317,8 @@ Step "Creating GitHub Release: $TAG"
 
 $notes = "## MirrorSpeed VPN v$Version`n`n" +
          "### What's new`n" +
-         "- Fixed: a free node could occasionally get stuck and refuse to disconnect`n" +
-         "- More resilient in restricted networks: the app falls back to a backup domain if the main one is blocked, and your premium node list is cached so you can reconnect even when access is limited`n" +
-         "- Free subscription sources now use domains with an IP fallback for better reachability`n" +
-         "- Windows: full system-tray menu — pick a node, connect/disconnect, open the window or quit; closing the window minimizes to the tray`n" +
-         "- Routing settings tidied up: premium nodes route by region (Smart / GeoIP-CN); free nodes support per-app split (per app on Android, per process on Windows), with no redundant on/off switch`n`n" +
+         "- Rewarded / open ads now load reliably from within China: ad traffic (incl. Google Play services that carry it) is always routed through the tunnel, ads are preloaded on connect and refreshed periodically, and Smart mode uses a clean DNS so ad domains resolve correctly`n" +
+         "- Fewer failed ad loads and less wasted proxying`n" +
          "### Install`n" +
          "**Android**: download the APK and install (allow unknown sources)`n" +
          "**Windows**: download the ZIP, extract, and run mirrorspeed_vpn.exe (right-click → Run as administrator on first launch)"
