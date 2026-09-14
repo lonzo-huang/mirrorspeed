@@ -585,6 +585,9 @@ class VpnProvider extends ChangeNotifier {
         // 智能模式：排除中国IP + 服务器IP（防 WebSocket 中继回环）
         final routes = await _getSmartRoutes(excludeIp: serverIp);
         allowedIps = routes.join(', ');
+        // 强制海外公共 DNS（同 _applySmartRouting）：避免智能模式下 DNS 走直连被污染
+        // 导致境外域名(含广告)解析失败。
+        conf = _setDns(conf, '1.1.1.1, 8.8.8.8');
       } else {
         // 全局模式：0.0.0.0/0 排除服务器IP
         allowedIps = _ipv4AllExcept(serverIp).join(', ');
@@ -652,10 +655,15 @@ class VpnProvider extends ChangeNotifier {
     final inCn = await FreeNodeService.instance.egressInChina();
     if (inCn != true) return wgConf;
     final routes = await _getSmartRoutes(excludeIp: excludeIp);
-    return wgConf.replaceAll(
+    var conf = wgConf.replaceAll(
       RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
       'AllowedIPs   = ${routes.join(', ')}',
     );
+    // 智能模式强制海外公共 DNS：其 IP 属「非中国段」→ 跟着走隧道 → DNS 不被污染。
+    // 否则若配置用国内 DNS，智能模式下 DNS 查询走直连被污染，境外域名(含 AdMob/
+    // googleads)解析成假 IP → network error（全局模式因 DNS 也走隧道故正常）。
+    conf = _setDns(conf, '1.1.1.1, 8.8.8.8');
+    return conf;
   }
 
   /// 获取智能模式的 AllowedIPs 列表（非中国IP段，可选排除指定IP）。
