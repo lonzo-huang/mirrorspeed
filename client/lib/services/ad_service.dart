@@ -146,10 +146,12 @@ class AdService {
   Timer? _refreshTimer;
   static const Duration _kAdRefreshEvery = Duration(minutes: 50);
 
-  /// 隧道刚连通：立即预热，并启动每 50 分钟一次的周期刷新。
+  /// 隧道刚连通：稍等隧道底层就绪后预热，并启动每 50 分钟一次的周期刷新。
+  /// 连上那一瞬间隧道还没完全 ready，立刻发广告请求常被 reset（code 0 连接中断），
+  /// 故延迟 ~2 秒再首次预热，避开这个窗口。
   void onTunnelUp() {
     if (!_supported) return;
-    warmUp();
+    Timer(const Duration(seconds: 2), () { if (_supported) warmUp(); });
     _refreshTimer ??= Timer.periodic(_kAdRefreshEvery, (_) => _refreshRewarded());
   }
 
