@@ -42,9 +42,17 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     _load();
   }
 
+  // 隐藏的强制白名单：本 App + Google Play 服务(承载 AdMob)始终走隧道，代码在连接
+  // 时强制注入(见 SharedNodeProvider/vpn_provider)，用户不可见、不可去除——否则广告
+  // 流量走直连被墙、加载不出。这里从列表与已选中里滤掉，避免用户误操作/困惑。
+  static const Set<String> _kForcedPkgs = {
+    'com.mirrorspeed.vpn',
+    'com.google.android.gms',
+  };
+
   Future<void> _load() async {
     _mode     = await AppProxyStore.loadMode();
-    _selected = await AppProxyStore.loadPkgs();
+    _selected = (await AppProxyStore.loadPkgs())..removeAll(_kForcedPkgs);
     _items    = _isWin ? await _loadWindowsProcesses() : await _loadAndroidApps();
     if (mounted) setState(() => _loading = false);
   }
@@ -55,6 +63,7 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
       final apps = await InstalledApps.getInstalledApps(false, true);
       apps.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       return apps
+          .where((a) => !_kForcedPkgs.contains(a.packageName))   // 隐藏强制白名单项
           .map((a) => _ProxyItem(a.packageName, a.name, a.packageName,
               icon: a.icon as Uint8List?))
           .toList();
