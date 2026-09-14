@@ -276,10 +276,20 @@ class SharedNodeProvider extends ChangeNotifier {
       // 被墙 → 一直「加载中」。白名单里自动补上本 App；黑名单里绝不排除本 App。
       // (App 的非广告流量在 sing-box 内仍按规则 final=direct 直连；只有广告域名被强制
       //  走代理，见 SingboxConfig 的 _adDomains 规则。)
+      // 白名单必须含:本 App(广告 SDK 在本进程) + Google Play 服务(AdMob 请求实际由
+      // com.google.android.gms 承载)。否则白名单模式下广告流量走直连、国内被墙 →
+      // LoadAdError network error（真机实证:全局模式无白名单故正常，白名单模式全挂）。
       const selfPkg = 'com.mirrorspeed.vpn';
+      const gmsPkg  = 'com.google.android.gms';
       if (Platform.isAndroid) {
-        if (inc != null && !inc.contains(selfPkg)) inc = [...inc, selfPkg];
-        if (exc != null) exc = exc.where((p) => p != selfPkg).toList();
+        if (inc != null) {
+          var list = inc;
+          for (final p in [selfPkg, gmsPkg]) {
+            if (!list.contains(p)) list = [...list, p];
+          }
+          inc = list;
+        }
+        if (exc != null) exc = exc.where((p) => p != selfPkg && p != gmsPkg).toList();
       }
       debugPrint('[APPPROXY-SB] inc=${inc?.length ?? 0} exc=${exc?.length ?? 0} '
           'incProc=${incProc?.length ?? 0} excProc=${excProc?.length ?? 0}');

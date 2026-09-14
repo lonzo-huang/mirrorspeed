@@ -621,14 +621,18 @@ class VpnProvider extends ChangeNotifier {
     final pkgs = (await AppProxyStore.loadPkgs()).toList();
     if (pkgs.isEmpty) return wgConf;   // 名单空则不限制，避免死隧道
     final mode = await AppProxyStore.loadMode();
-    // 本 App 自己必须走隧道，否则其 AdMob 广告请求走直连、国内被墙 → 加载不出：
-    // 白名单里补入本 App、黑名单里剔除本 App。
+    // 广告要能加载,白名单必须含:本 App(SDK 在本进程) + Google Play 服务
+    // (AdMob 请求实际由 com.google.android.gms 承载)。否则其广告流量走直连、
+    // 国内被墙 → LoadAdError network error。黑名单则须剔除这两者。
     const selfPkg = 'com.mirrorspeed.vpn';
+    const gmsPkg  = 'com.google.android.gms';
     if (mode == 'white') {
-      if (!pkgs.contains(selfPkg)) pkgs.add(selfPkg);
+      for (final p in [selfPkg, gmsPkg]) {
+        if (!pkgs.contains(p)) pkgs.add(p);
+      }
     } else {
-      pkgs.removeWhere((p) => p == selfPkg);
-      if (pkgs.isEmpty) return wgConf;   // 黑名单剔除自己后为空 → 不做限制
+      pkgs.removeWhere((p) => p == selfPkg || p == gmsPkg);
+      if (pkgs.isEmpty) return wgConf;   // 黑名单剔除后为空 → 不做限制
     }
     final key  = mode == 'white' ? 'IncludedApplications' : 'ExcludedApplications';
     final line = '$key = ${pkgs.join(', ')}';
