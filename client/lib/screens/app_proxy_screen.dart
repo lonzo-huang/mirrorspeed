@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import '../services/app_proxy_store.dart';
 import '../brand.dart';
@@ -27,7 +26,8 @@ class _ProxyItem {
 }
 
 class _AppProxyScreenState extends State<AppProxyScreen> {
-  bool _enabled = true;
+  // 分应用代理只是「配置黑白名单」，没有独立启用开关：是否生效只由连接模式决定
+  // （智能模式读名单、全局模式不读；Windows 下仅对免费节点生效）。
   String _mode = 'white';          // white=白名单 / black=黑名单
   Set<String> _selected = {};
   List<_ProxyItem> _items = [];
@@ -42,10 +42,17 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     _load();
   }
 
+  // 隐藏的强制白名单：本 App + Google Play 服务(承载 AdMob)始终走隧道，代码在连接
+  // 时强制注入(见 SharedNodeProvider/vpn_provider)，用户不可见、不可去除——否则广告
+  // 流量走直连被墙、加载不出。这里从列表与已选中里滤掉，避免用户误操作/困惑。
+  static const Set<String> _kForcedPkgs = {
+    'com.mirrorspeed.vpn',
+    'com.google.android.gms',
+  };
+
   Future<void> _load() async {
-    _enabled  = await AppProxyStore.loadEnabled();
     _mode     = await AppProxyStore.loadMode();
-    _selected = await AppProxyStore.loadPkgs();
+    _selected = (await AppProxyStore.loadPkgs())..removeAll(_kForcedPkgs);
     _items    = _isWin ? await _loadWindowsProcesses() : await _loadAndroidApps();
     if (mounted) setState(() => _loading = false);
   }
@@ -56,6 +63,7 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
       final apps = await InstalledApps.getInstalledApps(false, true);
       apps.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       return apps
+          .where((a) => !_kForcedPkgs.contains(a.packageName))   // 隐藏强制白名单项
           .map((a) => _ProxyItem(a.packageName, a.name, a.packageName,
               icon: a.icon as Uint8List?))
           .toList();
@@ -108,7 +116,7 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _persist() => AppProxyStore.save(enabled: _enabled, mode: _mode, pkgs: _selected);
+  Future<void> _persist() => AppProxyStore.save(mode: _mode, pkgs: _selected);
 
   @override
   Widget build(BuildContext context) {
@@ -181,13 +189,13 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
                   return CheckboxListTile(
                     dense: true,
                     value: on,
-                    onChanged: _enabled ? (v) {
+                    onChanged: (v) {
                       setState(() {
                         if (v == true) { _selected.add(a.id); }
                         else { _selected.remove(a.id); }
                       });
                       _persist();
-                    } : null,
+                    },
                     secondary: (a.icon != null)
                         ? Image.memory(a.icon!, width: 34, height: 34)
                         : Icon(_isWin ? Icons.desktop_windows_outlined : Icons.android),
@@ -202,37 +210,50 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     );
   }
 
+  // 说明条：解释「黑白名单何时生效」。没有独立启用开关——生效与否只看连接模式。
+  Widget _infoNote() {
+    final text = _isWin
+        ? tr('优质节点按连接模式分流：智能模式＝中国大陆直连、境外走节点(GeoIP-CN)；'
+             '全局模式＝全部走节点。优质节点不支持按应用。\n'
+             '当前版本：下面的黑/白名单只对「免费节点」生效。',
+             'Premium nodes route by connection mode: Smart = mainland China direct, '
+             'overseas via node (GeoIP-CN); Global = all via node. Premium has no per-app.\n'
+             'Current version: the black/white list below applies to free nodes only.')
+        : tr('智能模式下按下面的黑/白名单分流；全局模式下全部流量走 VPN。',
+             'In Smart mode, traffic is split by the list below; in Global mode all traffic goes via VPN.');
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: msNow.brand.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: msNow.brand.withOpacity(0.25)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.info_outline, size: 16, color: msNow.brand),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text,
+            style: TextStyle(fontSize: 11, height: 1.4, color: msNow.textSecondary))),
+      ]),
+    );
+  }
+
   Widget _header() {
     return Padding(
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _enabled,
-          onChanged: (v) { setState(() => _enabled = v); _persist(); },
-          title: Text(tr('启用分应用代理', 'Enable per-app proxy'),
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-          subtitle: Text(
-              _isWin
-                  ? tr('免费节点按进程分流；关闭则所有流量走 VPN',
-                        'Free nodes route by process; off = all via VPN')
-                  : tr('仅智能模式生效；关闭则所有 App 按智能规则走', 'Smart mode only'),
-              style: const TextStyle(fontSize: 11)),
-        ),
-        const SizedBox(height: 6),
-        // 白/黑名单切换
-        Opacity(
-          opacity: _enabled ? 1 : 0.4,
-          child: Row(children: [
-            _modeChip('white', tr('白名单', 'Whitelist'),
-                _isWin ? tr('只有勾选的应用走 VPN', 'Only selected use VPN')
-                       : tr('只有勾选的 App 走 VPN', 'Only selected use VPN')),
-            const SizedBox(width: 10),
-            _modeChip('black', tr('黑名单', 'Blacklist'),
-                _isWin ? tr('勾选的应用不走 VPN', 'Selected bypass VPN')
-                       : tr('勾选的 App 不走 VPN', 'Selected bypass VPN')),
-          ]),
-        ),
+        _infoNote(),
+        // 白/黑名单切换（始终可配，无启用开关）
+        Row(children: [
+          _modeChip('white', tr('白名单', 'Whitelist'),
+              _isWin ? tr('只有勾选的应用走 VPN', 'Only selected use VPN')
+                     : tr('只有勾选的 App 走 VPN', 'Only selected use VPN')),
+          const SizedBox(width: 10),
+          _modeChip('black', tr('黑名单', 'Blacklist'),
+              _isWin ? tr('勾选的应用不走 VPN', 'Selected bypass VPN')
+                     : tr('勾选的 App 不走 VPN', 'Selected bypass VPN')),
+        ]),
         if (_isWin) ...[
           const SizedBox(height: 8),
           Text(
@@ -257,7 +278,7 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
   Widget _modeChip(String m, String label, String desc) {
     final sel = _mode == m;
     return Expanded(child: GestureDetector(
-      onTap: _enabled ? () { setState(() => _mode = m); _persist(); } : null,
+      onTap: () { setState(() => _mode = m); _persist(); },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(

@@ -17,7 +17,7 @@ import 'screens/server_list_screen.dart';
 import 'theme.dart';
 import 'brand.dart';
 import 'services/ad_service.dart';
-import 'services/mac_tray.dart';
+import 'services/desktop_tray.dart';
 
 /// 全局 ScaffoldMessenger：用于在导航切换后仍能可靠弹出提示（如免费节点
 /// 「连上但不通外网」），不依赖某个已卸载页面的 context。
@@ -58,8 +58,26 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
       if (_vpn.isConnected) return;   // 已有优质隧道就不折腾
       await _shared.connectRandomForAd();
     };
-    // macOS 菜单栏（托盘）：状态与优质节点列表推给原生菜单，其它平台此调用为空操作。
-    MacTray.instance.attach(auth: _auth, vpn: _vpn, shared: _shared);
+    // 桌面托盘（macOS 菜单栏 / Windows 通知区）：状态与节点列表推给原生菜单，
+    // 移动端此调用为空操作。
+    DesktopTray.instance.attach(auth: _auth, vpn: _vpn, shared: _shared);
+    // 连上任一隧道（Google 此刻可达）→ 立即预热广告到 SDK 本地缓存，并在连通期间
+    // 每 50 分钟刷新一次（激励广告缓存有效期约 1 小时），保证用户随时有有效广告可看。
+    // 国内直连 AdMob 被墙，若等到用户点「看广告」才加载多半拉不到。边沿触发：连通
+    // 启动预热+周期刷新，断开停止刷新。
+    var adTunnelUp = false;
+    void syncAdWarmup() {
+      final up = _vpn.isConnected || _shared.isConnected;
+      if (up && !adTunnelUp) {
+        adTunnelUp = true;
+        AdService.instance.onTunnelUp();
+      } else if (!up && adTunnelUp) {
+        adTunnelUp = false;
+        AdService.instance.onTunnelDown();
+      }
+    }
+    _vpn.addListener(syncAdWarmup);
+    _shared.addListener(syncAdWarmup);
     // #5 冷启动清理：停掉上次未正常退出而残留的 sing-box 隧道，避免死 tun 黑洞
     // 导致拉不到配置、一直卡在加载。冷启动 = 本 initState 只执行一次。
     _shared.disconnect();

@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
 import '../services/api_service.dart';
+import '../services/ad_service.dart';
 import '../brand.dart';
 import '../theme.dart';
 import '../widgets/ms_top_controls.dart';
@@ -422,7 +423,15 @@ void _showErrorInfo(BuildContext context) {
     context: context,
     builder: (ctx) => AlertDialog(
       backgroundColor: msNow.card,
-      title: Text(tr('错误信息', 'Error info'), style: const TextStyle(fontSize: 16)),
+      // 调试暗门：有已加载且有效的广告(激励/开屏)时，标题前显示一个 ⓘ；否则不显示。
+      // 用来快速判断"广告是否已缓存到本地"，排查国内广告加载问题。
+      title: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (AdService.instance.hasReadyAd) ...[
+          Icon(Icons.error_outline, size: 16, color: msNow.brand),
+          const SizedBox(width: 6),
+        ],
+        Text(tr('错误信息', 'Error info'), style: const TextStyle(fontSize: 16)),
+      ]),
       content: items.isEmpty
           ? Text(tr('暂无错误信息 ✅', 'No errors ✅'),
               style: TextStyle(color: msNow.textSecondary.withOpacity(0.7), fontSize: 13))

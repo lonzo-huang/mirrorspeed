@@ -57,6 +57,13 @@ class SingboxConfig {
       ],
     };
 
+    // 广告域名始终走代理：即便处于白名单/黑名单/智能直连，也不让 App 自身的广告请求
+    // 走直连——国内直连 AdMob/Google 被墙会导致广告加载不出。放在分应用/地区规则之前，
+    // 优先级最高。（adOnly 模式本就只代理广告域名，不重复加。）
+    if (!adOnly) {
+      route['rules'].add({'domain_suffix': _adDomains, 'outbound': 'proxy'});
+    }
+
     // 桌面分应用(process_name)：黑名单进程直连，放在最前，优先于地区/最终规则。
     if (hasBlackProc) {
       route['rules'].add({'process_name': excludeProcesses, 'outbound': 'direct'});

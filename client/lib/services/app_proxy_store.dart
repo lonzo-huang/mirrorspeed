@@ -8,7 +8,6 @@ import '../brand.dart';
 /// 持久化在 SharedPreferences，连接时由 VpnProvider 注入 wg 配置
 /// (IncludedApplications / ExcludedApplications)。
 class AppProxyStore {
-  static const _kEnabled = 'app_proxy_enabled';
   static const _kMode    = 'app_proxy_mode';   // 'white' | 'black'
   static const _kPkgs    = 'app_proxy_pkgs';
   static const _kInit    = 'app_proxy_inited';
@@ -49,11 +48,6 @@ class AppProxyStore {
     'com.android.chrome',                  // Chrome：海外浏览常用，默认走 VPN
   ];
 
-  /// 启用状态。Android 默认开；桌面默认**关**（opt-in）——桌面分应用是新功能，
-  /// 且默认名单为空，若误开白名单会导致「只有名单内进程走 VPN」，默认关最安全。
-  static Future<bool> loadEnabled() async =>
-      (await SharedPreferences.getInstance()).getBool(_kEnabled) ?? Platform.isAndroid;
-
   static Future<String> loadMode() async =>
       (await SharedPreferences.getInstance()).getString(_kMode) ?? 'white';
 
@@ -76,9 +70,8 @@ class AppProxyStore {
     return list.toSet();
   }
 
-  static Future<void> save({required bool enabled, required String mode, required Set<String> pkgs}) async {
+  static Future<void> save({required String mode, required Set<String> pkgs}) async {
     final p = await SharedPreferences.getInstance();
-    await p.setBool(_kEnabled, enabled);
     await p.setString(_kMode, mode);
     await p.setStringList(_kPkgs, pkgs.toList());
     await p.setBool(_kInit, true);

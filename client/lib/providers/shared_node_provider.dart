@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import '../brand.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/free_node.dart';
 import '../services/free_node_service.dart';
 import '../vpn/proxy_core_engine.dart';
@@ -256,8 +256,12 @@ class SharedNodeProvider extends ChangeNotifier {
       //   名单就对谁生效，不再限定中文环境（英文机上配了也要生效）。非中文的「默认只放
       //   26 个 App」误会已由「非中文默认白名单为空」(loadPkgs) 解决。
       // - Windows/桌面：用 sing-box process_name 路由规则(按进程名)，存的是 exe 名。
+      // 分流按连接模式:智能模式读黑白名单;全局模式一律全部走节点(不读名单)。
+      // 无独立启用开关;名单为空也等于不做限制。
+      final rmode = (await SharedPreferences.getInstance()).getString('routing_mode');
+      final isGlobal = rmode == 'global';
       List<String>? inc, exc, incProc, excProc;
-      if (applyAppProxy && await AppProxyStore.loadEnabled()) {
+      if (applyAppProxy && !isGlobal) {
         final pkgs = (await AppProxyStore.loadPkgs()).toList();
         if (pkgs.isNotEmpty) {
           final white = await AppProxyStore.loadMode() == 'white';
@@ -267,6 +271,25 @@ class SharedNodeProvider extends ChangeNotifier {
             if (white) { incProc = pkgs; } else { excProc = pkgs; }
           }
         }
+      }
+      // 关键：本 App(镜速)自己的流量必须进隧道，否则它的 AdMob 广告请求走直连、国内
+      // 被墙 → 一直「加载中」。白名单里自动补上本 App；黑名单里绝不排除本 App。
+      // (App 的非广告流量在 sing-box 内仍按规则 final=direct 直连；只有广告域名被强制
+      //  走代理，见 SingboxConfig 的 _adDomains 规则。)
+      // 白名单必须含:本 App(广告 SDK 在本进程) + Google Play 服务(AdMob 请求实际由
+      // com.google.android.gms 承载)。否则白名单模式下广告流量走直连、国内被墙 →
+      // LoadAdError network error（真机实证:全局模式无白名单故正常，白名单模式全挂）。
+      const selfPkg = 'com.mirrorspeed.vpn';
+      const gmsPkg  = 'com.google.android.gms';
+      if (Platform.isAndroid) {
+        if (inc != null) {
+          var list = inc;
+          for (final p in [selfPkg, gmsPkg]) {
+            if (!list.contains(p)) list = [...list, p];
+          }
+          inc = list;
+        }
+        if (exc != null) exc = exc.where((p) => p != selfPkg && p != gmsPkg).toList();
       }
       debugPrint('[APPPROXY-SB] inc=${inc?.length ?? 0} exc=${exc?.length ?? 0} '
           'incProc=${incProc?.length ?? 0} excProc=${excProc?.length ?? 0}');

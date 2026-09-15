@@ -84,6 +84,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     private var ifaceListener: InterfaceUpdateListener? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        android.util.Log.d("singbox", "onStartCommand action=${intent?.action} (svc proc)")
         when (intent?.action) {
             ACTION_STOP -> { stopNow(); return START_NOT_STICKY }
             ACTION_START -> intent.getStringExtra(EXTRA_CONFIG)?.let { startBox(it) }
@@ -93,6 +94,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     }
 
     private fun setStage(s: String) {
+        android.util.Log.d("singbox", "stage -> $s")
         currentStage = s
         // 跨进程广播给主进程的插件（本服务在 :singbox 独立进程，静态变量共享不到主进程）。
         try {
@@ -101,6 +103,12 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     }
 
     private fun startBox(config: String) {
+        // 复位停止闸：切换节点是「先 stop 再 start」复用同一 service 实例。上一次
+        // stopBox 置 stopping=true 后，若服务没真正销毁（stopSelf 被随后的 START 顶掉，
+        // onDestroy 未跑），本实例 stopping 会一直是 true → 之后所有 stopBox 幂等 return
+        // → 永远断不掉（真机日志实证：disconnecting 后无 disconnected，同 pid 复连，
+        // 下一次 STOP 变 no-op）。新连接开始即视为服务重新活跃，必须清掉这个闸。
+        stopping = false
         setStage("connecting")
         startForeground(NOTI_ID, buildNotification())
         try {
@@ -134,6 +142,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     @Volatile private var stopping = false
 
     private fun stopBox() {
+        android.util.Log.d("singbox", "stopBox called (stopping=$stopping)")
         if (stopping) return   // 幂等：避免 disconnect + onRevoke + onDestroy 多次触发导致 double-free 崩溃
         stopping = true
         setStage("disconnecting")

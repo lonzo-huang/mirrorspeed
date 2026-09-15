@@ -7,25 +7,29 @@ import '../providers/auth_provider.dart';
 import '../providers/shared_node_provider.dart';
 import '../providers/vpn_provider.dart';
 
-/// macOS 菜单栏（托盘）桥接。**仅 macOS 生效**，其它平台所有方法直接返回。
+/// 桌面托盘（macOS 菜单栏 / Windows 通知区）桥接。**仅桌面生效**，其它平台空转。
 ///
-/// 原生侧在 macos/Runner/TrayController.swift：
-///   Dart → 原生 `update`（状态 + 优质节点列表，用于重建菜单）
-///   原生 → Dart `connect` {id: 节点 id 或 "auto"} / `disconnect` / `show`
-class MacTray {
-  MacTray._();
-  static final MacTray instance = MacTray._();
+/// 原生侧实现同一个 MethodChannel('mirrorspeed/tray')：
+///   macOS   → macos/Runner/TrayController.swift（NSStatusItem）
+///   Windows → windows/runner/tray_controller.cpp（Shell_NotifyIcon）
+/// 协议：
+///   Dart → 原生 `update`（状态 + 优质/免费节点列表，用于重建菜单）
+///   原生 → Dart `connect` {id: 节点 id 或 "auto"} / `connectFree` {id} / `disconnect` / `show`
+class DesktopTray {
+  DesktopTray._();
+  static final DesktopTray instance = DesktopTray._();
 
   static const _ch = MethodChannel('mirrorspeed/tray');
 
-  static bool get supported => !kIsWeb && Platform.isMacOS;
+  static bool get supported =>
+      !kIsWeb && (Platform.isMacOS || Platform.isWindows);
 
   AuthProvider? _auth;
   VpnProvider? _vpn;
   SharedNodeProvider? _shared;
   String? _lastPayload;
 
-  /// App 启动时接上 provider；两者变化时自动刷新菜单。
+  /// App 启动时接上 provider；三者变化时自动刷新菜单。
   void attach({
     required AuthProvider auth,
     required VpnProvider vpn,
@@ -45,7 +49,7 @@ class MacTray {
   /// 菜单里展示的免费节点数量（按延迟取最快的若干个；全部列表在主窗口里选）。
   static const _kFreeInMenu = 10;
 
-  /// 把当前状态和节点列表推给菜单栏（内容没变则不推）。
+  /// 把当前状态和节点列表推给托盘（内容没变则不推）。
   Future<void> sync() async {
     if (!supported) return;
     final vpn = _vpn, auth = _auth;

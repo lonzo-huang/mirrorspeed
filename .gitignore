@@ -32,3 +32,7 @@ yarn-error.log*
 # ── Misc ────────────────────────────────────────────────────
 *.pem
 .vercel
+
+# 本地发布密钥（含 anon key 等，绝不提交）
+client/.release-secrets.local
+.release-secrets.local

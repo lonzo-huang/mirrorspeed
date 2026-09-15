@@ -22,6 +22,7 @@ class AdService {
   void setEnabled(bool enabled) {
     _enabled = enabled;
     if (!enabled) {
+      _refreshTimer?.cancel(); _refreshTimer = null;
       _appOpenAd?.dispose(); _appOpenAd = null;
       for (final a in _rewardedPool) { a.dispose(); }
       _rewardedPool.clear();
@@ -127,10 +128,45 @@ class AdService {
   }
 
   bool get rewardedReady => _supported && _rewardedPool.isNotEmpty;
+  bool get appOpenReady  => _supported && _appOpenAd != null;
+  /// 调试暗门用：当前是否有已加载且有效的广告(激励或开屏)可展示。
+  bool get hasReadyAd    => rewardedReady || appOpenReady;
 
   /// 提前预热：进入会展示激励广告的界面时调用，把池子提前填满（#4）。
   void warmUp() {
     if (!_supported) return;
+    loadRewarded();
+    loadAppOpen();
+  }
+
+  // ── 隧道连通期的广告预热 + 周期刷新 ─────────────────────────────
+  // 国内直连 AdMob 被墙，必须趁隧道连通(Google 可达)把广告灌进 SDK 缓存。
+  // 激励广告缓存有效期约 1 小时，故连通期间每 50 分钟刷新一次，保证用户随时有
+  // 有效广告可看。
+  Timer? _refreshTimer;
+  static const Duration _kAdRefreshEvery = Duration(minutes: 50);
+
+  /// 隧道刚连通：稍等隧道底层就绪后预热，并启动每 50 分钟一次的周期刷新。
+  /// 连上那一瞬间隧道还没完全 ready，立刻发广告请求常被 reset（code 0 连接中断），
+  /// 故延迟 ~2 秒再首次预热，避开这个窗口。
+  void onTunnelUp() {
+    if (!_supported) return;
+    Timer(const Duration(seconds: 2), () { if (_supported) warmUp(); });
+    _refreshTimer ??= Timer.periodic(_kAdRefreshEvery, (_) => _refreshRewarded());
+  }
+
+  /// 隧道断开：停止周期刷新（已缓存的广告仍可在有效期内展示，不清空）。
+  void onTunnelDown() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+  }
+
+  /// 丢弃可能临近过期的激励广告并重新加载，保持缓存新鲜；顺带补开屏。
+  /// 连播/正在展示的那条不在池中，不受影响。
+  void _refreshRewarded() {
+    if (!_supported) return;
+    for (final a in _rewardedPool) { a.dispose(); }
+    _rewardedPool.clear();
     loadRewarded();
     loadAppOpen();
   }

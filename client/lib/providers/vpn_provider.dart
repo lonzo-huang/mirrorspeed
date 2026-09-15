@@ -8,13 +8,12 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../vpn/vpn_engine.dart';
 import '../vpn/amnezia_wg_engine.dart';
-import '../services/app_proxy_store.dart';
 import '../services/free_node_service.dart';
 import '../models/server_config.dart';
 import '../services/ws_relay_service.dart';
 import '../services/port_hopping.dart';
 import '../services/api_service.dart';
-import '../brand.dart';
+import '../services/app_proxy_store.dart';
 import '../env.dart';
 
 export 'package:amneziawg_flutter/amneziawg_flutter.dart' show VpnStage;
@@ -273,15 +272,8 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('routing_mode', mode.name);
-    // Windows：智能模式 ↔ 分应用VPN 联动——切到智能自动使能分应用（用户随后直接选
-    // 应用即可，无需再去手动开一遍）；切到全局自动关闭（全局=所有流量走 VPN）。
-    if (Platform.isWindows) {
-      await AppProxyStore.save(
-        enabled: mode == RoutingMode.smart,
-        mode:    await AppProxyStore.loadMode(),
-        pkgs:    await AppProxyStore.loadPkgs(),
-      );
-    }
+    // 注：不再联动分应用设置。优质节点只按 GeoIP-CN(智能)/全局分流，不做按应用；
+    // 按应用分流归免费节点(见 AppProxyStore + SharedNodeProvider.connect)。
   }
 
   void _onStage(VpnStage stage) {
@@ -398,7 +390,7 @@ class VpnProvider extends ChangeNotifier {
           : server.wgConf;
       wgConf = PortHoppingService.instance
           .rewriteEndpointPort(wgConf, effectivePort);
-      wgConf = await _applyAppProxy(wgConf);   // #7 智能模式分应用黑白名单
+      wgConf = await _applyAppProxy(wgConf);   // Android 优质：智能模式下按应用
 
       debugPrint('[VPN] 直连 AmneziaWG，端口=$effectivePort');
 
@@ -528,7 +520,7 @@ class VpnProvider extends ChangeNotifier {
       final localPort = await _relay.start(
           '$relayBaseUrl/secure-tunnel', _awgInternalPort);
       var relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
-      relayConf = await _applyAppProxy(relayConf);   // #7 分应用代理(智能模式)
+      relayConf = await _applyAppProxy(relayConf);   // Android 优质：智能模式下按应用
 
       await _engine.start(EngineStartParams(
         serverAddress:  '127.0.0.1:$localPort',
@@ -593,6 +585,9 @@ class VpnProvider extends ChangeNotifier {
         // 智能模式：排除中国IP + 服务器IP（防 WebSocket 中继回环）
         final routes = await _getSmartRoutes(excludeIp: serverIp);
         allowedIps = routes.join(', ');
+        // 强制海外公共 DNS（同 _applySmartRouting）：避免智能模式下 DNS 走直连被污染
+        // 导致境外域名(含广告)解析失败。
+        conf = _setDns(conf, '1.1.1.1, 8.8.8.8');
       } else {
         // 全局模式：0.0.0.0/0 排除服务器IP
         allowedIps = _ipv4AllExcept(serverIp).join(', ');
@@ -615,22 +610,30 @@ class VpnProvider extends ChangeNotifier {
     return conf;
   }
 
-  // ── 智能路由：将 AWG 配置的 AllowedIPs 改为非中国IP段 ────────────────────
-  // #7 分应用代理：仅智能模式生效（全局模式=所有流量走隧道，不做分应用过滤）。
-  // 白名单→IncludedApplications(只这些走 VPN)；黑名单→ExcludedApplications(这些直连)。
-  // AmneziaWG 插件解析这两个键调 addAllowed/DisallowedApplication。
+  // ── 优质节点分应用（仅 Android）────────────────────────────────────────
+  // 「能按应用就按应用」：Android 优质节点(WireGuard)在智能模式下套按应用白/黑名单
+  // （插件解析 Included/ExcludedApplications 调 addAllowed/DisallowedApplication）。
+  // Windows 优质节点做不到按应用（需 WFP 驱动），故此函数在非 Android 直接返回，
+  // Windows 优质只按 GeoIP-CN/全局分流。按应用列表与免费节点共用 AppProxyStore。
   Future<String> _applyAppProxy(String wgConf) async {
-    // 分应用(IncludedApplications)仅 Android WireGuard 支持；桌面注入会让 Windows
-    // AWG 解析异常/无效，且优质节点 Windows 分应用需 WFP 驱动（暂不支持）。
-    if (!Platform.isAndroid) return wgConf;
-    if (_routingMode != RoutingMode.smart) return wgConf;
-    // 分应用白/黑名单：谁配了就对谁生效，不再限定中文环境（英文机上配了白名单也要生效）。
-    // 非中文的「只放 26 个 App」误会已通过「非中文默认路由=全局 + 默认白名单为空」解决，
-    // 见 loadPkgs 默认值与 RoutingMode 默认值。
-    if (!await AppProxyStore.loadEnabled()) return wgConf;
-    final pkgs = await AppProxyStore.loadPkgs();
-    if (pkgs.isEmpty) return wgConf;   // 名单空则不做分应用限制，避免死隧道
+    if (!Platform.isAndroid) return wgConf;              // Windows 优质：不按应用
+    if (_routingMode != RoutingMode.smart) return wgConf; // 全局模式不做分应用过滤
+    final pkgs = (await AppProxyStore.loadPkgs()).toList();
+    if (pkgs.isEmpty) return wgConf;   // 名单空则不限制，避免死隧道
     final mode = await AppProxyStore.loadMode();
+    // 广告要能加载,白名单必须含:本 App(SDK 在本进程) + Google Play 服务
+    // (AdMob 请求实际由 com.google.android.gms 承载)。否则其广告流量走直连、
+    // 国内被墙 → LoadAdError network error。黑名单则须剔除这两者。
+    const selfPkg = 'com.mirrorspeed.vpn';
+    const gmsPkg  = 'com.google.android.gms';
+    if (mode == 'white') {
+      for (final p in [selfPkg, gmsPkg]) {
+        if (!pkgs.contains(p)) pkgs.add(p);
+      }
+    } else {
+      pkgs.removeWhere((p) => p == selfPkg || p == gmsPkg);
+      if (pkgs.isEmpty) return wgConf;   // 黑名单剔除后为空 → 不做限制
+    }
     final key  = mode == 'white' ? 'IncludedApplications' : 'ExcludedApplications';
     final line = '$key = ${pkgs.join(', ')}';
     final lines = wgConf.split('\n');
@@ -643,10 +646,11 @@ class VpnProvider extends ChangeNotifier {
         inserted = true;
       }
     }
-    debugPrint('[APPPROXY] mode=$mode enabled inject=$inserted pkgs=${pkgs.length} → $line');
+    debugPrint('[APPPROXY] mode=$mode inject=$inserted pkgs=${pkgs.length} → $line');
     return inserted ? out.join('\n') : wgConf;
   }
 
+  // ── 智能路由：将 AWG 配置的 AllowedIPs 改为非中国IP段 ────────────────────
   Future<String> _applySmartRouting(String wgConf, {required String? excludeIp}) async {
     // 智能模式按「裸 IP」归属地决定：
     //  - 境内裸 IP：路由表分流（AllowedIPs=非中国 IP 段互补集，中国直连、境外走 VPN）；
@@ -655,10 +659,15 @@ class VpnProvider extends ChangeNotifier {
     final inCn = await FreeNodeService.instance.egressInChina();
     if (inCn != true) return wgConf;
     final routes = await _getSmartRoutes(excludeIp: excludeIp);
-    return wgConf.replaceAll(
+    var conf = wgConf.replaceAll(
       RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
       'AllowedIPs   = ${routes.join(', ')}',
     );
+    // 智能模式强制海外公共 DNS：其 IP 属「非中国段」→ 跟着走隧道 → DNS 不被污染。
+    // 否则若配置用国内 DNS，智能模式下 DNS 查询走直连被污染，境外域名(含 AdMob/
+    // googleads)解析成假 IP → network error（全局模式因 DNS 也走隧道故正常）。
+    conf = _setDns(conf, '1.1.1.1, 8.8.8.8');
+    return conf;
   }
 
   /// 获取智能模式的 AllowedIPs 列表（非中国IP段，可选排除指定IP）。

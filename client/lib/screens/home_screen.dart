@@ -175,8 +175,11 @@ class HomeScreen extends StatelessWidget {
                       connected: connected,
                       pingMs: showShared ? _sharedPing(shared)
                           : (vpn.isConnected ? (vpn.connectedPingMs ?? server?.displayLatencyMs) : server?.displayLatencyMs),
-                      upStr:   vpn.isConnected ? vpn.uploadSpeedStr   : '0 KB/s',
-                      downStr: vpn.isConnected ? vpn.downloadSpeedStr : '0 KB/s',
+                      // 速率计量目前仅优质(WireGuard)引擎有：Windows 读网卡计数。
+                      // 免费(sing-box)节点暂未接入计量，显示「—」而非误导性的 0；
+                      // 未连接时也显示「—」。（真正的分上/下行计量是后续项。）
+                      upStr:   vpn.isConnected ? vpn.uploadSpeedStr   : '—',
+                      downStr: vpn.isConnected ? vpn.downloadSpeedStr : '—',
                     ),
                   ),
 
