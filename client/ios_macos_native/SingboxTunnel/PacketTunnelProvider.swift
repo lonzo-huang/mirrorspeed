@@ -41,6 +41,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     DispatchQueue.global(qos: .userInitiated).async { [self] in
       do {
         try setupLibboxOnce()
+        // 规则集（geoip-cn / geosite-cn）随扩展打包，Dart 侧用占位符写路径，
+        // 这里换成本扩展 bundle 里的真实路径（Dart 不知道 bundle 路径，也不该知道）。
+        let config = Self.resolveRuleSetPaths(config)
+
         var err: NSError?
         LibboxCheckConfig(config, &err)
         if let err = err { throw err }
@@ -94,6 +98,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
   }
 
   // MARK: - 内部
+
+  /// Dart 侧的 sing-box 配置里，本地规则集路径写成 `$RULESET_DIR/xxx.srs`；
+  /// 替换为扩展 bundle 内的实际资源目录。
+  static func resolveRuleSetPaths(_ config: String) -> String {
+    guard config.contains("$RULESET_DIR") else { return config }
+    let dir = Bundle.main.resourcePath ?? Bundle.main.bundlePath
+    return config.replacingOccurrences(of: "$RULESET_DIR", with: dir)
+  }
 
   private func setupLibboxOnce() throws {
     if Self.didSetup { return }

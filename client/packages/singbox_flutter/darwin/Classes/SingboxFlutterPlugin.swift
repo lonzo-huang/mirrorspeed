@@ -81,18 +81,40 @@ public class SingboxFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
 
   // MARK: - Tunnel lifecycle
 
+  /// 防重入：loadAllFromPreferences 是异步的，重复调用会堆出大量 manager 实例。
+  private var loading = false
+  private var pending: [(NETunnelProviderManager?, Error?) -> Void] = []
+
   private func loadManager(_ done: @escaping (NETunnelProviderManager?, Error?) -> Void) {
+    if loading { pending.append(done); return }
+    loading = true
     let bundleId = Self.tunnelBundleId
     NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, error in
       DispatchQueue.main.async {
         guard let self = self else { return }
-        if let error = error { done(nil, error); return }
-        let mine = managers?.first {
+        self.loading = false
+        let queued = self.pending
+        self.pending = []
+        if let error = error {
+          done(nil, error)
+          queued.forEach { $0(nil, error) }
+          return
+        }
+        let mineAll = (managers ?? []).filter {
           ($0.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier == bundleId
         }
+        // 去重：历史上并发保存可能留下多条同名配置（系统会自动改名成「… 2」），
+        // 多条同 bundle id 的配置会互相干扰导致连接失败。只留第一条，其余删掉。
+        if mineAll.count > 1 {
+          for extra in mineAll.dropFirst() {
+              extra.removeFromPreferences { _ in }
+          }
+        }
+        let mine = mineAll.first
         let mgr = mine ?? self.manager ?? NETunnelProviderManager()
         self.manager = mgr
         done(mgr, nil)
+        queued.forEach { $0(mgr, nil) }
         self.emitCurrent()
       }
     }
@@ -175,12 +197,14 @@ public class SingboxFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
     statusObserver = NotificationCenter.default.addObserver(
       forName: .NEVPNStatusDidChange, object: nil, queue: .main
     ) { [weak self] note in
-      guard let self = self else { return }
-      if let conn = note.object as? NEVPNConnection, conn === self.manager?.connection {
-        self.emitCurrent()
-      } else {
-        self.loadManager { _, _ in }
-      }
+            guard let self = self else { return }
+            // 只处理「自己这条隧道」的通知。
+            // 切勿在这里调 loadAllFromPreferences 刷新：加载本身又会派发
+            // NEVPNStatusDidChange，会形成 加载→通知→加载 的无限递归，
+            // 几十秒就能造出上万个 NETunnelProviderManager 把内存吃光。
+            guard let conn = note.object as? NEVPNConnection,
+                  conn === self.manager?.connection else { return }
+            self.emitCurrent()
     }
   }
 

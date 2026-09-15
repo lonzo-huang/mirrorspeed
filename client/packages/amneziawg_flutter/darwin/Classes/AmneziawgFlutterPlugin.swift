@@ -109,21 +109,55 @@ public class AmneziawgFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
         return nil
     }
 
+    /// 把 NSError 的域/代码一并带出来，便于定位（NE 的 localizedDescription 太笼统）。
+    static func describe(_ error: Error) -> String {
+        let e = error as NSError
+        var msg = "\(e.localizedDescription) [\(e.domain) code=\(e.code)]"
+        if let reason = e.localizedFailureReason { msg += " reason=\(reason)" }
+        if let underlying = e.userInfo[NSUnderlyingErrorKey] as? NSError {
+            msg += " under=\(underlying.domain)/\(underlying.code)"
+        }
+        NSLog("[AWG] %@", msg)
+        return msg
+    }
+
     // ── Manager ────────────────────────────────────────────────────────────
 
     /// 找到（或新建）属于 AWGTunnel 扩展的 manager。
+    /// 防重入：loadAllFromPreferences 是异步的，重复调用会堆出大量 manager 实例。
+    private var loading = false
+    private var pending: [(NETunnelProviderManager?, Error?) -> Void] = []
+
     private func loadManager(_ done: @escaping (NETunnelProviderManager?, Error?) -> Void) {
+        if loading { pending.append(done); return }
+        loading = true
         let bundleId = Self.tunnelBundleId
         NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, error in
             DispatchQueue.main.async {
                 guard let self = self else { return }
-                if let error = error { done(nil, error); return }
-                let mine = managers?.first {
+                self.loading = false
+                let queued = self.pending
+                self.pending = []
+                if let error = error {
+                    done(nil, error)
+                    queued.forEach { $0(nil, error) }
+                    return
+                }
+                let mineAll = (managers ?? []).filter {
                     ($0.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier == bundleId
                 }
+                // 去重：历史上并发保存可能留下多条同名配置（系统会自动改名成「… 2」），
+                // 多条同 bundle id 的配置会互相干扰导致连接失败。只留第一条，其余删掉。
+                if mineAll.count > 1 {
+                    for extra in mineAll.dropFirst() {
+                        extra.removeFromPreferences { _ in }
+                    }
+                }
+                let mine = mineAll.first
                 let mgr = mine ?? self.manager ?? NETunnelProviderManager()
                 self.manager = mgr
                 done(mgr, nil)
+                queued.forEach { $0(mgr, nil) }
                 self.emitCurrent()
             }
         }
@@ -147,7 +181,7 @@ public class AmneziawgFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
 
             mgr.saveToPreferences { error in
                 if let e = error {
-                    result(FlutterError(code: "SAVE_FAILED", message: e.localizedDescription, details: nil))
+                    result(FlutterError(code: "SAVE_FAILED", message: Self.describe(e), details: nil))
                     return
                 }
                 // save 之后必须重新 load，否则首次 start 会报 "configuration is stale"。
@@ -158,7 +192,9 @@ public class AmneziawgFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
                             self.emitCurrent()
                             result(nil)
                         } catch {
-                            result(FlutterError(code: "START_FAILED", message: error.localizedDescription, details: nil))
+                            result(FlutterError(code: "START_FAILED",
+                                                message: Self.describe(error),
+                                                details: nil))
                         }
                     }
                 }
@@ -206,12 +242,13 @@ public class AmneziawgFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
             forName: .NEVPNStatusDidChange, object: nil, queue: .main
         ) { [weak self] note in
             guard let self = self else { return }
-            if let conn = note.object as? NEVPNConnection, conn === self.manager?.connection {
-                self.emitCurrent()
-            } else {
-                // 其它 connection 实例（或 sing-box 的 manager）变化：重新 load 自己的再报。
-                self.loadManager { _, _ in }
-            }
+            // 只处理「自己这条隧道」的通知。
+            // 切勿在这里调 loadAllFromPreferences 刷新：加载本身又会派发
+            // NEVPNStatusDidChange，会形成 加载→通知→加载 的无限递归，
+            // 几十秒就能造出上万个 NETunnelProviderManager 把内存吃光。
+            guard let conn = note.object as? NEVPNConnection,
+                  conn === self.manager?.connection else { return }
+            self.emitCurrent()
         }
     }
 
