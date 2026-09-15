@@ -2,4 +2,8 @@
 // 填你的 Apple Developer Team ID（10 位，developer.apple.com → Membership 里可见），
 // Xcode 的 Automatic signing 就会为三个 bundle id 自动生成含 Network Extension +
 // App Groups 的描述文件。留空则只能 --no-codesign 编译，无法真机运行 VPN。
-DEVELOPMENT_TEAM =
+DEVELOPMENT_TEAM = 957R34M9NR
+
+// macOS 签名身份。填了 Team ID 就用真实证书（VPN 扩展必须），
+// 没有开发者账号时改回 "-"（本地临时签名，能编译但跑不了 VPN）。
+MS_CODE_SIGN_IDENTITY = Apple Development

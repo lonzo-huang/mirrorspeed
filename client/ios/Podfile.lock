@@ -4,6 +4,8 @@ PODS:
     - FlutterMacOS
   - app_links (6.4.1):
     - Flutter
+  - app_tracking_transparency (0.0.1):
+    - Flutter
   - device_info_plus (0.0.1):
     - Flutter
   - Flutter (1.0.0)
@@ -33,6 +35,7 @@ PODS:
 DEPENDENCIES:
   - amneziawg_flutter (from `.symlinks/plugins/amneziawg_flutter/darwin`)
   - app_links (from `.symlinks/plugins/app_links/ios`)
+  - app_tracking_transparency (from `.symlinks/plugins/app_tracking_transparency/ios`)
   - device_info_plus (from `.symlinks/plugins/device_info_plus/ios`)
   - Flutter (from `Flutter`)
   - flutter_secure_storage (from `.symlinks/plugins/flutter_secure_storage/ios`)
@@ -53,6 +56,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/amneziawg_flutter/darwin"
   app_links:
     :path: ".symlinks/plugins/app_links/ios"
+  app_tracking_transparency:
+    :path: ".symlinks/plugins/app_tracking_transparency/ios"
   device_info_plus:
     :path: ".symlinks/plugins/device_info_plus/ios"
   Flutter:
@@ -75,6 +80,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   amneziawg_flutter: 27a770a4250b1357dfd492a34a937995f2967b6d
   app_links: 3dbc685f76b1693c66a6d9dd1e9ab6f73d97dc0a
+  app_tracking_transparency: 3d84f147f67ca82d3c15355c36b1fa6b66ca7c92
   device_info_plus: 71ffc6ab7634ade6267c7a93088ed7e4f74e5896
   Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
   flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
