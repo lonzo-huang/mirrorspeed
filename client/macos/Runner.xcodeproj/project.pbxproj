@@ -21,44 +21,75 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		03082A282E45B7540C5A92E4 /* x25519.c in Sources */ = {isa = PBXBuildFile; fileRef = DA306B986D9E343991521DED /* x25519.c */; };
+		064E44620BEAFEC9906BF932 /* TunnelConfiguration+WgQuickConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65EBFFFF161D6A11C6A0A358 /* TunnelConfiguration+WgQuickConfig.swift */; };
+		0FCDDEE7BA1C30B9479B9FB5 /* Endpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C9A43E5F45ADF0F581D78E1 /* Endpoint.swift */; };
+		13083B802190B95FBACC775B /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A140E2965F05D8F083477E /* PacketTunnelProvider.swift */; };
+		15C1DFE18536290482102BB6 /* PeerConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29EB7341D4A3EF60BB04E7CB /* PeerConfiguration.swift */; };
+		16961C8BF709B6F45B456702 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 19C6CF94D3546D7B21D586B4 /* NetworkExtension.framework */; };
+		18A844F9C83537445A348E02 /* WireGuardAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B58FA5B4FCEF58972256788 /* WireGuardAdapter.swift */; };
+		19C271071C781F1703172696 /* SingboxPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 582D9BC385A23BE5CFB9551B /* SingboxPlatform.swift */; };
+		1A8C8E7D27CF3AB94A499133 /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = B563CE3B5C17792CEB0AD439 /* libresolv.tbd */; };
 		1DF9C0212A1A5C9B0B9FE4D1 /* PacketTunnelSettingsGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 718465AF63EC93D6A1CA88F8 /* PacketTunnelSettingsGenerator.swift */; };
+		217D65E535F52F52E7872810 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6301C66D79742F4F3F5A1265 /* Cocoa.framework */; };
+		264CB6AD2E94821260CB4A48 /* geosite-cn.srs in Resources */ = {isa = PBXBuildFile; fileRef = CFDBF6097D5A31142BF6440C /* geosite-cn.srs */; };
 		2AF55B6846EA87C83A9F76DE /* WireGuardAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4178F7541E596D070F51E830 /* WireGuardAdapter.swift */; };
 		2FE715BD4B95BEDFB3D0A7E9 /* String+ArrayConversion.swift in Sources */ = {isa = PBXBuildFile; fileRef = C23C1CB950155ECEC83591AB /* String+ArrayConversion.swift */; };
 		30E2B8C2D95D74350F050206 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 19C6CF94D3546D7B21D586B4 /* NetworkExtension.framework */; };
 		331C80D8294CF71000263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C80D7294CF71000263BE5 /* RunnerTests.swift */; };
+		33492CA7116E7495809E2A85 /* DNSResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40CB3F9BF9A01A1B62FFB65A /* DNSResolver.swift */; };
 		335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */; };
 		33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC10F02044A3C60003C045 /* AppDelegate.swift */; };
 		33CC10F32044A3C60003C045 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F22044A3C60003C045 /* Assets.xcassets */; };
 		33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F42044A3C60003C045 /* MainMenu.xib */; };
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
+		3779F280BDCA04254ED99F57 /* HandshakeFreshnessEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95312B4B26A3F926298C886C /* HandshakeFreshnessEvaluator.swift */; };
 		4005E43DD74387E3C458C596 /* x25519.c in Sources */ = {isa = PBXBuildFile; fileRef = 9219A992F75DD59977E4132C /* x25519.c */; };
 		4334ED9CF4C1BC957AE77CE3 /* Endpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54ECA28B27D96C28A4B0AE73 /* Endpoint.swift */; };
+		43628382A5D687D0466BD10C /* TunnelConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBAC3CF8528F4E6D77C1ED64 /* TunnelConfiguration.swift */; };
 		481E14FF09D21F8A0B07BACD /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = B563CE3B5C17792CEB0AD439 /* libresolv.tbd */; };
 		4910BD63834F77FC4D4E9025 /* PrivateKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193AFCF84AA07633A3EF019E /* PrivateKey.swift */; };
+		50631D562F97DD32B27BC7DB /* geoip-cn.srs in Resources */ = {isa = PBXBuildFile; fileRef = 06CBD18A4515BAEFEEB26B6B /* geoip-cn.srs */; };
+		50B823E3AEE6ADC18C6D7868 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 933B4DAB837676F579244CC9 /* PacketTunnelProvider.swift */; };
 		5223620F28006ED468B28920 /* TunnelConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E715008579A8C80CE434DF /* TunnelConfiguration.swift */; };
 		55D6EEF003D0BB0058146E10 /* HandshakeFreshnessEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FE12996847B89D569ABF69 /* HandshakeFreshnessEvaluator.swift */; };
 		5A70A51ECCCBFB672BF47EBB /* IPAddress+AddrInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81554F1571307A1E5CD789BC /* IPAddress+AddrInfo.swift */; };
 		5AF8794887FDB3289F80A623 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE66E3DA5DC490FC35DA06D8 /* Libbox.xcframework */; };
 		5C04AAEA563571A780FE4A10 /* DNSResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6429783C02B63D461BD0B994 /* DNSResolver.swift */; };
+		5DD600812B7B3B733F355468 /* PacketTunnelSettingsGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE9A0B1031EB6C75758879AC /* PacketTunnelSettingsGenerator.swift */; };
 		5E70DF6E0D96449D80A991F5 /* WireGuardKitGo.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5218E2300F02FB03FCBD0DF /* WireGuardKitGo.xcframework */; };
-		65487EAA689876FF77F47F5F /* AWGTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 40C2FA816522BC6327103A56 /* AWGTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		6A0CA8057150A0244E3B678E /* InterfaceConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E6EE96B06532261CAD26BC /* InterfaceConfiguration.swift */; };
 		6B2ADB4B5923DC1BD6CDED61 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 19C6CF94D3546D7B21D586B4 /* NetworkExtension.framework */; };
 		6C1F0FF6A3513936EB931E94 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40C31D4ABC0143E4A2D8B4AD /* PacketTunnelProvider.swift */; };
+		6E563F85366980D157406C7E /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6301C66D79742F4F3F5A1265 /* Cocoa.framework */; };
 		7254897F7A2E80469F092498 /* TunnelConfiguration+WgQuickConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 534EF50D1D4D6592DB2D2341 /* TunnelConfiguration+WgQuickConfig.swift */; };
 		7864BE6B3AFEEB46388A15F5 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2A19337C8EBE3E6D2EA92FCA /* Pods_RunnerTests.framework */; };
+		7D4BE53DF312F202FF219D7D /* DNSServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAE9092EAF2A43A4CCD902BD /* DNSServer.swift */; };
+		80DBD3F2B102BB81EEB230F6 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE66E3DA5DC490FC35DA06D8 /* Libbox.xcframework */; };
 		863A84796EEC4599861E3858 /* key.c in Sources */ = {isa = PBXBuildFile; fileRef = 5F7841946F2868949CD0217B /* key.c */; };
+		8A9458039BD6C3912D52AE21 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E418737687427CE53974B7ED /* SystemConfiguration.framework */; };
 		8FF9C156AB49F7C696C40FE0 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E418737687427CE53974B7ED /* SystemConfiguration.framework */; };
-		90863582B2E4B5E84FC0D0BE /* SingboxTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DBC6FAA739DBBF38BF5422EC /* SingboxTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		92AF07023559786A4487F32E /* IPAddressRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22E2FE715D0E03884E6D8FF7 /* IPAddressRange.swift */; };
 		985872331429562883A692F7 /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = B563CE3B5C17792CEB0AD439 /* libresolv.tbd */; };
+		9CDB7851C7A4DD67BE9095F7 /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = B563CE3B5C17792CEB0AD439 /* libresolv.tbd */; };
 		A3034C5AB68A9754436D56CB /* DNSServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB74E2A1E45C547B1C7ABD6 /* DNSServer.swift */; };
+		B54212F62A4CDF7C54F09DC5 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 19C6CF94D3546D7B21D586B4 /* NetworkExtension.framework */; };
 		B6A34083E8E5FF1AA85B5768 /* PeerConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5D61536781BB431D9D21DCA /* PeerConfiguration.swift */; };
 		B7E1C10BF84B001800419C6A /* Array+ConcurrentMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0400C1434C4135FB3994DDF4 /* Array+ConcurrentMap.swift */; };
+		BDEF4290D3F098F87C80F7B7 /* InterfaceConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6AECBFA051F1A94D1B83D9 /* InterfaceConfiguration.swift */; };
 		BEA1EBDE5B25182D9B2DFC4F /* SingboxPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F6B71F055256CD4FA76CFE4 /* SingboxPlatform.swift */; };
+		CBFAFB8A5CAB9B0E5C194F0C /* String+ArrayConversion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CAD54D2C38677E121A5B19C /* String+ArrayConversion.swift */; };
 		CCB60F3CCAC89F8C124526B6 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6301C66D79742F4F3F5A1265 /* Cocoa.framework */; };
+		DA53BD133442A924E5BE4CA6 /* SingboxTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A4A6EE080D964BC424C522C5 /* SingboxTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DC5ED8BC7BB237F8359ED18E /* PrivateKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE85BD433F7091EA56BD845 /* PrivateKey.swift */; };
+		DCE56803B4AF0C14D2B1E465 /* Array+ConcurrentMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4D427E2E1BE63E133C651A5 /* Array+ConcurrentMap.swift */; };
+		E0491B8EB6308C2344B4D6C7 /* IPAddress+AddrInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D2669F7EBB65457C1CDC86 /* IPAddress+AddrInfo.swift */; };
+		E18C3E7A70AB4321507377FD /* AWGTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B383F26D23E3A3491864BD13 /* AWGTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		E4CAE44192C8C3E507EF56C8 /* WireGuardKitGo.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5218E2300F02FB03FCBD0DF /* WireGuardKitGo.xcframework */; };
 		E7F4DA3513E6B979396109E0 /* TrayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53891EEAEB89C6C6C76E0AD /* TrayController.swift */; };
 		EB6DA6AB3FC47D1AAED5DF4B /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6301C66D79742F4F3F5A1265 /* Cocoa.framework */; };
+		F021EABD85BF809840D8C1C8 /* key.c in Sources */ = {isa = PBXBuildFile; fileRef = B2B431B191C2C63EC894FCA6 /* key.c */; };
+		F0A3660E649D6BEB735332C6 /* IPAddressRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2FD6EB97760F2BE75F8C93B /* IPAddressRange.swift */; };
 		FB3E51A3D00A784CF631956D /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = BFD4A2C71C21BA9C3517954A /* InfoPlist.strings */; };
 		FECB888437B529578CE1182F /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FAA907BD34613D389A24548A /* Pods_Runner.framework */; };
 		FFAA138FE5880B90B226CAEF /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53B0599605E365CA3462026 /* PacketTunnelProvider.swift */; };
@@ -79,18 +110,18 @@
 			remoteGlobalIDString = 33CC111A2044C6BA0003C045;
 			remoteInfo = FLX;
 		};
-		96804B37CDD6B6AC36BC1A3C /* PBXContainerItemProxy */ = {
+		63DCA9267416FE1DBCFEEF60 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 33CC10E52044A3C60003C045 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = B9AAA10AFB392B4AFA4BC499;
+			remoteGlobalIDString = 321C543E53CC8C5D8666EC72;
 			remoteInfo = AWGTunnel;
 		};
-		D933CC1B86A1A268D2345480 /* PBXContainerItemProxy */ = {
+		A7BD142CC036288A31273EA8 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 33CC10E52044A3C60003C045 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = DFEFE6F86279BDC2D64137A3;
+			remoteGlobalIDString = F46A70D1DF41CC8D943DAF95;
 			remoteInfo = SingboxTunnel;
 		};
 /* End PBXContainerItemProxy section */
@@ -112,8 +143,8 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				65487EAA689876FF77F47F5F /* AWGTunnel.appex in Embed Foundation Extensions */,
-				90863582B2E4B5E84FC0D0BE /* SingboxTunnel.appex in Embed Foundation Extensions */,
+				E18C3E7A70AB4321507377FD /* AWGTunnel.appex in Embed Foundation Extensions */,
+				DA53BD133442A924E5BE4CA6 /* SingboxTunnel.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -123,11 +154,19 @@
 /* Begin PBXFileReference section */
 		0400C1434C4135FB3994DDF4 /* Array+ConcurrentMap.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Array+ConcurrentMap.swift"; sourceTree = "<group>"; };
 		06838398710C71DB8FE8DF05 /* TunnelExtension.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = TunnelExtension.xcconfig; path = Flutter/TunnelExtension.xcconfig; sourceTree = SOURCE_ROOT; };
+		06CBD18A4515BAEFEEB26B6B /* geoip-cn.srs */ = {isa = PBXFileReference; includeInIndex = 1; name = "geoip-cn.srs"; path = "../ios_macos_native/RuleSets/geoip-cn.srs"; sourceTree = SOURCE_ROOT; };
+		0AE971A1BD1E061AD80ADB55 /* AWGTunnel-Bridging-Header.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "AWGTunnel-Bridging-Header.h"; sourceTree = "<group>"; };
+		0CAD54D2C38677E121A5B19C /* String+ArrayConversion.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "String+ArrayConversion.swift"; sourceTree = "<group>"; };
 		193AFCF84AA07633A3EF019E /* PrivateKey.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PrivateKey.swift; sourceTree = "<group>"; };
 		19C6CF94D3546D7B21D586B4 /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk/System/Library/Frameworks/NetworkExtension.framework; sourceTree = DEVELOPER_DIR; };
+		1C9A43E5F45ADF0F581D78E1 /* Endpoint.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Endpoint.swift; sourceTree = "<group>"; };
+		1F486A7DACC26C11BF629595 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		22E2FE715D0E03884E6D8FF7 /* IPAddressRange.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IPAddressRange.swift; sourceTree = "<group>"; };
 		24FE12996847B89D569ABF69 /* HandshakeFreshnessEvaluator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HandshakeFreshnessEvaluator.swift; sourceTree = "<group>"; };
+		29EB7341D4A3EF60BB04E7CB /* PeerConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PeerConfiguration.swift; sourceTree = "<group>"; };
 		2A19337C8EBE3E6D2EA92FCA /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		2B6F05624FE078307CA94844 /* SingboxTunnel-macOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = "SingboxTunnel-macOS.entitlements"; sourceTree = "<group>"; };
+		2BEC2003A780B42617539BA6 /* AWGTunnel-macOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = "AWGTunnel-macOS.entitlements"; sourceTree = "<group>"; };
 		31C1FF0EE807597D638B08AA /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		331C80D5294CF71000263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C80D7294CF71000263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
@@ -145,45 +184,59 @@
 		33E51913231747F40026EE4D /* DebugProfile.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DebugProfile.entitlements; sourceTree = "<group>"; };
 		33E51914231749380026EE4D /* Release.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = Release.entitlements; sourceTree = "<group>"; };
 		33E5194F232828860026EE4D /* AppInfo.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppInfo.xcconfig; sourceTree = "<group>"; };
-		3EE7F19E7A4DC983A4A2B0A2 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		40C2FA816522BC6327103A56 /* AWGTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AWGTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		3B58FA5B4FCEF58972256788 /* WireGuardAdapter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WireGuardAdapter.swift; sourceTree = "<group>"; };
 		40C31D4ABC0143E4A2D8B4AD /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		40CB3F9BF9A01A1B62FFB65A /* DNSResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DNSResolver.swift; sourceTree = "<group>"; };
 		4178F7541E596D070F51E830 /* WireGuardAdapter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WireGuardAdapter.swift; sourceTree = "<group>"; };
 		45352F4AE64994ED02EA61CA /* en */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		46E715008579A8C80CE434DF /* TunnelConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TunnelConfiguration.swift; sourceTree = "<group>"; };
 		4826B6FFD3AAF8C1CA60711E /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		534EF50D1D4D6592DB2D2341 /* TunnelConfiguration+WgQuickConfig.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "TunnelConfiguration+WgQuickConfig.swift"; sourceTree = "<group>"; };
 		54ECA28B27D96C28A4B0AE73 /* Endpoint.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Endpoint.swift; sourceTree = "<group>"; };
-		5F7841946F2868949CD0217B /* key.c */ = {isa = PBXFileReference; includeInIndex = 1; path = key.c; sourceTree = "<group>"; };
+		582D9BC385A23BE5CFB9551B /* SingboxPlatform.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SingboxPlatform.swift; sourceTree = "<group>"; };
+		5F7841946F2868949CD0217B /* key.c */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.c; path = key.c; sourceTree = "<group>"; };
 		6301C66D79742F4F3F5A1265 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		6429783C02B63D461BD0B994 /* DNSResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DNSResolver.swift; sourceTree = "<group>"; };
+		65EBFFFF161D6A11C6A0A358 /* TunnelConfiguration+WgQuickConfig.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "TunnelConfiguration+WgQuickConfig.swift"; sourceTree = "<group>"; };
 		6AB74E2A1E45C547B1C7ABD6 /* DNSServer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DNSServer.swift; sourceTree = "<group>"; };
 		6F6B71F055256CD4FA76CFE4 /* SingboxPlatform.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SingboxPlatform.swift; sourceTree = "<group>"; };
 		718465AF63EC93D6A1CA88F8 /* PacketTunnelSettingsGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PacketTunnelSettingsGenerator.swift; sourceTree = "<group>"; };
+		71D3991ACED39F74873C93EE /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		78D2669F7EBB65457C1CDC86 /* IPAddress+AddrInfo.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "IPAddress+AddrInfo.swift"; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		7CE85BD433F7091EA56BD845 /* PrivateKey.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PrivateKey.swift; sourceTree = "<group>"; };
 		8013401EB90E5134841F8746 /* zh-Hans */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		81554F1571307A1E5CD789BC /* IPAddress+AddrInfo.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "IPAddress+AddrInfo.swift"; sourceTree = "<group>"; };
-		88A91FF1E4B1B700AE169D3C /* AWGTunnel-Bridging-Header.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "AWGTunnel-Bridging-Header.h"; sourceTree = "<group>"; };
 		8F60A7FD24B6851A6A175F4B /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
-		9219A992F75DD59977E4132C /* x25519.c */ = {isa = PBXFileReference; includeInIndex = 1; path = x25519.c; sourceTree = "<group>"; };
+		8F6AECBFA051F1A94D1B83D9 /* InterfaceConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InterfaceConfiguration.swift; sourceTree = "<group>"; };
+		9219A992F75DD59977E4132C /* x25519.c */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.c; path = x25519.c; sourceTree = "<group>"; };
+		933B4DAB837676F579244CC9 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		95312B4B26A3F926298C886C /* HandshakeFreshnessEvaluator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HandshakeFreshnessEvaluator.swift; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
-		9A1AF74472B607A75EF7F567 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A2FD6EB97760F2BE75F8C93B /* IPAddressRange.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IPAddressRange.swift; sourceTree = "<group>"; };
+		A4A6EE080D964BC424C522C5 /* SingboxTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SingboxTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A4D427E2E1BE63E133C651A5 /* Array+ConcurrentMap.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Array+ConcurrentMap.swift"; sourceTree = "<group>"; };
 		A53891EEAEB89C6C6C76E0AD /* TrayController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrayController.swift; sourceTree = "<group>"; };
 		A53B0599605E365CA3462026 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
 		AC1320530F88B5B3B7F427F2 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
-		B563CE3B5C17792CEB0AD439 /* libresolv.tbd */ = {isa = PBXFileReference; includeInIndex = 1; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
+		B2B431B191C2C63EC894FCA6 /* key.c */ = {isa = PBXFileReference; includeInIndex = 1; path = key.c; sourceTree = "<group>"; };
+		B383F26D23E3A3491864BD13 /* AWGTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AWGTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B563CE3B5C17792CEB0AD439 /* libresolv.tbd */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
 		B6D2E635F0EE2AA51DA75E53 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
-		BE66E3DA5DC490FC35DA06D8 /* Libbox.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; name = Libbox.xcframework; path = ../ios_macos_native/Frameworks/Libbox.xcframework; sourceTree = SOURCE_ROOT; };
+		BE66E3DA5DC490FC35DA06D8 /* Libbox.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = Libbox.xcframework; path = ../ios_macos_native/Frameworks/Libbox.xcframework; sourceTree = SOURCE_ROOT; };
 		C23C1CB950155ECEC83591AB /* String+ArrayConversion.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "String+ArrayConversion.swift"; sourceTree = "<group>"; };
-		C5218E2300F02FB03FCBD0DF /* WireGuardKitGo.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; name = WireGuardKitGo.xcframework; path = ../ios_macos_native/Frameworks/WireGuardKitGo.xcframework; sourceTree = SOURCE_ROOT; };
+		C5218E2300F02FB03FCBD0DF /* WireGuardKitGo.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = WireGuardKitGo.xcframework; path = ../ios_macos_native/Frameworks/WireGuardKitGo.xcframework; sourceTree = SOURCE_ROOT; };
 		C8E6EE96B06532261CAD26BC /* InterfaceConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InterfaceConfiguration.swift; sourceTree = "<group>"; };
-		CA862F2983C57E7D4E213F53 /* AWGTunnel-macOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = "AWGTunnel-macOS.entitlements"; sourceTree = "<group>"; };
-		DB72ACB2517E25FC2CAD1BFF /* SingboxTunnel-macOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = "SingboxTunnel-macOS.entitlements"; sourceTree = "<group>"; };
-		DBC6FAA739DBBF38BF5422EC /* SingboxTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SingboxTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CAE9092EAF2A43A4CCD902BD /* DNSServer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DNSServer.swift; sourceTree = "<group>"; };
+		CFDBF6097D5A31142BF6440C /* geosite-cn.srs */ = {isa = PBXFileReference; includeInIndex = 1; name = "geosite-cn.srs"; path = "../ios_macos_native/RuleSets/geosite-cn.srs"; sourceTree = SOURCE_ROOT; };
+		D8A140E2965F05D8F083477E /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		DA306B986D9E343991521DED /* x25519.c */ = {isa = PBXFileReference; includeInIndex = 1; path = x25519.c; sourceTree = "<group>"; };
+		DE9A0B1031EB6C75758879AC /* PacketTunnelSettingsGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PacketTunnelSettingsGenerator.swift; sourceTree = "<group>"; };
 		E418737687427CE53974B7ED /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk/System/Library/Frameworks/SystemConfiguration.framework; sourceTree = DEVELOPER_DIR; };
 		E77BABE1D12AC4CF6709B529 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 		F5D61536781BB431D9D21DCA /* PeerConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PeerConfiguration.swift; sourceTree = "<group>"; };
 		FAA907BD34613D389A24548A /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		FBAC3CF8528F4E6D77C1ED64 /* TunnelConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TunnelConfiguration.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -203,60 +256,50 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		BBF6856032844A8512EFB99E /* Frameworks */ = {
+		4A9E8EE837A5394712A8119A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CCB60F3CCAC89F8C124526B6 /* Cocoa.framework in Frameworks */,
-				5E70DF6E0D96449D80A991F5 /* WireGuardKitGo.xcframework in Frameworks */,
-				6B2ADB4B5923DC1BD6CDED61 /* NetworkExtension.framework in Frameworks */,
-				985872331429562883A692F7 /* libresolv.tbd in Frameworks */,
+				217D65E535F52F52E7872810 /* Cocoa.framework in Frameworks */,
+				80DBD3F2B102BB81EEB230F6 /* Libbox.xcframework in Frameworks */,
+				B54212F62A4CDF7C54F09DC5 /* NetworkExtension.framework in Frameworks */,
+				8A9458039BD6C3912D52AE21 /* SystemConfiguration.framework in Frameworks */,
+				9CDB7851C7A4DD67BE9095F7 /* libresolv.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		EF9C582F2AE3EF8AACA10A1F /* Frameworks */ = {
+		E2EB38FAAF90F8FEB9B0C0EA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EB6DA6AB3FC47D1AAED5DF4B /* Cocoa.framework in Frameworks */,
-				5AF8794887FDB3289F80A623 /* Libbox.xcframework in Frameworks */,
-				30E2B8C2D95D74350F050206 /* NetworkExtension.framework in Frameworks */,
-				8FF9C156AB49F7C696C40FE0 /* SystemConfiguration.framework in Frameworks */,
-				481E14FF09D21F8A0B07BACD /* libresolv.tbd in Frameworks */,
+				6E563F85366980D157406C7E /* Cocoa.framework in Frameworks */,
+				E4CAE44192C8C3E507EF56C8 /* WireGuardKitGo.xcframework in Frameworks */,
+				16961C8BF709B6F45B456702 /* NetworkExtension.framework in Frameworks */,
+				1A8C8E7D27CF3AB94A499133 /* libresolv.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0D7F9CD97B9F0EC4BAC6CA8D /* WireGuardKitC */ = {
+		009E8AF14095AA01EDE8741B /* WireGuardKit */ = {
 			isa = PBXGroup;
 			children = (
-				5F7841946F2868949CD0217B /* key.c */,
-				9219A992F75DD59977E4132C /* x25519.c */,
-			);
-			name = WireGuardKitC;
-			path = WireGuardKitC;
-			sourceTree = "<group>";
-		};
-		14E2D4FC57FFE8A9FD7A7D6C /* WireGuardKit */ = {
-			isa = PBXGroup;
-			children = (
-				0400C1434C4135FB3994DDF4 /* Array+ConcurrentMap.swift */,
-				6429783C02B63D461BD0B994 /* DNSResolver.swift */,
-				6AB74E2A1E45C547B1C7ABD6 /* DNSServer.swift */,
-				54ECA28B27D96C28A4B0AE73 /* Endpoint.swift */,
-				24FE12996847B89D569ABF69 /* HandshakeFreshnessEvaluator.swift */,
-				81554F1571307A1E5CD789BC /* IPAddress+AddrInfo.swift */,
-				22E2FE715D0E03884E6D8FF7 /* IPAddressRange.swift */,
-				C8E6EE96B06532261CAD26BC /* InterfaceConfiguration.swift */,
-				718465AF63EC93D6A1CA88F8 /* PacketTunnelSettingsGenerator.swift */,
-				F5D61536781BB431D9D21DCA /* PeerConfiguration.swift */,
-				193AFCF84AA07633A3EF019E /* PrivateKey.swift */,
-				C23C1CB950155ECEC83591AB /* String+ArrayConversion.swift */,
-				534EF50D1D4D6592DB2D2341 /* TunnelConfiguration+WgQuickConfig.swift */,
-				46E715008579A8C80CE434DF /* TunnelConfiguration.swift */,
-				4178F7541E596D070F51E830 /* WireGuardAdapter.swift */,
+				A4D427E2E1BE63E133C651A5 /* Array+ConcurrentMap.swift */,
+				40CB3F9BF9A01A1B62FFB65A /* DNSResolver.swift */,
+				CAE9092EAF2A43A4CCD902BD /* DNSServer.swift */,
+				1C9A43E5F45ADF0F581D78E1 /* Endpoint.swift */,
+				95312B4B26A3F926298C886C /* HandshakeFreshnessEvaluator.swift */,
+				78D2669F7EBB65457C1CDC86 /* IPAddress+AddrInfo.swift */,
+				A2FD6EB97760F2BE75F8C93B /* IPAddressRange.swift */,
+				8F6AECBFA051F1A94D1B83D9 /* InterfaceConfiguration.swift */,
+				DE9A0B1031EB6C75758879AC /* PacketTunnelSettingsGenerator.swift */,
+				29EB7341D4A3EF60BB04E7CB /* PeerConfiguration.swift */,
+				7CE85BD433F7091EA56BD845 /* PrivateKey.swift */,
+				0CAD54D2C38677E121A5B19C /* String+ArrayConversion.swift */,
+				65EBFFFF161D6A11C6A0A358 /* TunnelConfiguration+WgQuickConfig.swift */,
+				FBAC3CF8528F4E6D77C1ED64 /* TunnelConfiguration.swift */,
+				3B58FA5B4FCEF58972256788 /* WireGuardAdapter.swift */,
 			);
 			name = WireGuardKit;
 			path = WireGuardKit;
@@ -265,23 +308,11 @@
 		17E54CE0E3E3D5ADCBEAE779 /* Tunnels */ = {
 			isa = PBXGroup;
 			children = (
-				7FD719702F07AE98FB196C1D /* AWGTunnel */,
-				1DA51575FB556AAF045167D3 /* SingboxTunnel */,
+				AD1BC5ACD902A04F62C0EC3C /* AWGTunnel */,
+				AC22BDFF3B0FF5FCE26BD9BC /* SingboxTunnel */,
 			);
 			name = Tunnels;
 			path = ../ios_macos_native;
-			sourceTree = "<group>";
-		};
-		1DA51575FB556AAF045167D3 /* SingboxTunnel */ = {
-			isa = PBXGroup;
-			children = (
-				A53B0599605E365CA3462026 /* PacketTunnelProvider.swift */,
-				6F6B71F055256CD4FA76CFE4 /* SingboxPlatform.swift */,
-				3EE7F19E7A4DC983A4A2B0A2 /* Info.plist */,
-				DB72ACB2517E25FC2CAD1BFF /* SingboxTunnel-macOS.entitlements */,
-			);
-			name = SingboxTunnel;
-			path = SingboxTunnel;
 			sourceTree = "<group>";
 		};
 		331C80D6294CF71000263BE5 /* RunnerTests */ = {
@@ -321,8 +352,8 @@
 			children = (
 				33CC10ED2044A3C60003C045 /* mirrorspeed_vpn.app */,
 				331C80D5294CF71000263BE5 /* RunnerTests.xctest */,
-				40C2FA816522BC6327103A56 /* AWGTunnel.appex */,
-				DBC6FAA739DBBF38BF5422EC /* SingboxTunnel.appex */,
+				B383F26D23E3A3491864BD13 /* AWGTunnel.appex */,
+				A4A6EE080D964BC424C522C5 /* SingboxTunnel.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -365,6 +396,15 @@
 			path = Runner;
 			sourceTree = "<group>";
 		};
+		4B53AA2AD6AE3B29C9D467E9 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				06CBD18A4515BAEFEEB26B6B /* geoip-cn.srs */,
+				CFDBF6097D5A31142BF6440C /* geosite-cn.srs */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
 		5A6AE662BB7C84D241C61D1F /* Pods */ = {
 			isa = PBXGroup;
 			children = (
@@ -375,22 +415,17 @@
 				AC1320530F88B5B3B7F427F2 /* Pods-RunnerTests.release.xcconfig */,
 				4826B6FFD3AAF8C1CA60711E /* Pods-RunnerTests.profile.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
-		7FD719702F07AE98FB196C1D /* AWGTunnel */ = {
+		6853AF3F3F75083442886C0D /* WireGuardKitC */ = {
 			isa = PBXGroup;
 			children = (
-				40C31D4ABC0143E4A2D8B4AD /* PacketTunnelProvider.swift */,
-				14E2D4FC57FFE8A9FD7A7D6C /* WireGuardKit */,
-				0D7F9CD97B9F0EC4BAC6CA8D /* WireGuardKitC */,
-				9A1AF74472B607A75EF7F567 /* Info.plist */,
-				CA862F2983C57E7D4E213F53 /* AWGTunnel-macOS.entitlements */,
-				88A91FF1E4B1B700AE169D3C /* AWGTunnel-Bridging-Header.h */,
+				B2B431B191C2C63EC894FCA6 /* key.c */,
+				DA306B986D9E343991521DED /* x25519.c */,
 			);
-			name = AWGTunnel;
-			path = AWGTunnel;
+			name = WireGuardKitC;
+			path = WireGuardKitC;
 			sourceTree = "<group>";
 		};
 		8F52752C45E9097295366BD3 /* OS X */ = {
@@ -401,6 +436,33 @@
 				E418737687427CE53974B7ED /* SystemConfiguration.framework */,
 			);
 			name = "OS X";
+			sourceTree = "<group>";
+		};
+		AC22BDFF3B0FF5FCE26BD9BC /* SingboxTunnel */ = {
+			isa = PBXGroup;
+			children = (
+				933B4DAB837676F579244CC9 /* PacketTunnelProvider.swift */,
+				582D9BC385A23BE5CFB9551B /* SingboxPlatform.swift */,
+				71D3991ACED39F74873C93EE /* Info.plist */,
+				2B6F05624FE078307CA94844 /* SingboxTunnel-macOS.entitlements */,
+				4B53AA2AD6AE3B29C9D467E9 /* Resources */,
+			);
+			name = SingboxTunnel;
+			path = SingboxTunnel;
+			sourceTree = "<group>";
+		};
+		AD1BC5ACD902A04F62C0EC3C /* AWGTunnel */ = {
+			isa = PBXGroup;
+			children = (
+				D8A140E2965F05D8F083477E /* PacketTunnelProvider.swift */,
+				009E8AF14095AA01EDE8741B /* WireGuardKit */,
+				6853AF3F3F75083442886C0D /* WireGuardKitC */,
+				1F486A7DACC26C11BF629595 /* Info.plist */,
+				2BEC2003A780B42617539BA6 /* AWGTunnel-macOS.entitlements */,
+				0AE971A1BD1E061AD80ADB55 /* AWGTunnel-Bridging-Header.h */,
+			);
+			name = AWGTunnel;
+			path = AWGTunnel;
 			sourceTree = "<group>";
 		};
 		D73912EC22F37F3D000D13A0 /* Frameworks */ = {
@@ -419,6 +481,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		321C543E53CC8C5D8666EC72 /* AWGTunnel */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 74F34B27E638F7B909BB3F68 /* Build configuration list for PBXNativeTarget "AWGTunnel" */;
+			buildPhases = (
+				8FAEB91B38FB58C95D0A1A1D /* Sources */,
+				E2EB38FAAF90F8FEB9B0C0EA /* Frameworks */,
+				2799305EB3AD43EAD7D0BA18 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AWGTunnel;
+			productName = AWGTunnel;
+			productReference = B383F26D23E3A3491864BD13 /* AWGTunnel.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		331C80D4294CF70F00263BE5 /* RunnerTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 331C80DE294CF71000263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */;
@@ -455,38 +534,21 @@
 			);
 			dependencies = (
 				33CC11202044C79F0003C045 /* PBXTargetDependency */,
-				A89D379F832656D78A368328 /* PBXTargetDependency */,
-				0524944E394D637537995244 /* PBXTargetDependency */,
+				EF74C9A285B4060489078B24 /* PBXTargetDependency */,
+				F30946859A657A3488767B19 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
 			productReference = 33CC10ED2044A3C60003C045 /* mirrorspeed_vpn.app */;
 			productType = "com.apple.product-type.application";
 		};
-		B9AAA10AFB392B4AFA4BC499 /* AWGTunnel */ = {
+		F46A70D1DF41CC8D943DAF95 /* SingboxTunnel */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AB5E3B16415C1C2362E6915D /* Build configuration list for PBXNativeTarget "AWGTunnel" */;
+			buildConfigurationList = 09B13581D41F19A7265B7743 /* Build configuration list for PBXNativeTarget "SingboxTunnel" */;
 			buildPhases = (
-				834053EF26BFEFEDADFA63B6 /* Sources */,
-				BBF6856032844A8512EFB99E /* Frameworks */,
-				843C43BD3CB53F857F101FC4 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = AWGTunnel;
-			productName = AWGTunnel;
-			productReference = 40C2FA816522BC6327103A56 /* AWGTunnel.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
-		DFEFE6F86279BDC2D64137A3 /* SingboxTunnel */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 77C879B8B30737207AFA6DBD /* Build configuration list for PBXNativeTarget "SingboxTunnel" */;
-			buildPhases = (
-				501625F3A070997011244267 /* Sources */,
-				EF9C582F2AE3EF8AACA10A1F /* Frameworks */,
-				443276E9C4D1751B04ABA141 /* Resources */,
+				9AFC868E018DE1587CC7E632 /* Sources */,
+				4A9E8EE837A5394712A8119A /* Frameworks */,
+				A41D4672DA36C93795D6DC4D /* Resources */,
 			);
 			buildRules = (
 			);
@@ -494,7 +556,7 @@
 			);
 			name = SingboxTunnel;
 			productName = SingboxTunnel;
-			productReference = DBC6FAA739DBBF38BF5422EC /* SingboxTunnel.appex */;
+			productReference = A4A6EE080D964BC424C522C5 /* SingboxTunnel.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -505,7 +567,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 0920;
-				LastUpgradeCheck = 1510;
+				LastUpgradeCheck = 2630;
 				ORGANIZATIONNAME = "";
 				TargetAttributes = {
 					331C80D4294CF70F00263BE5 = {
@@ -545,13 +607,20 @@
 				33CC10EC2044A3C60003C045 /* Runner */,
 				331C80D4294CF70F00263BE5 /* RunnerTests */,
 				33CC111A2044C6BA0003C045 /* Flutter Assemble */,
-				B9AAA10AFB392B4AFA4BC499 /* AWGTunnel */,
-				DFEFE6F86279BDC2D64137A3 /* SingboxTunnel */,
+				321C543E53CC8C5D8666EC72 /* AWGTunnel */,
+				F46A70D1DF41CC8D943DAF95 /* SingboxTunnel */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		2799305EB3AD43EAD7D0BA18 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		331C80D3294CF70F00263BE5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -569,17 +638,12 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		443276E9C4D1751B04ABA141 /* Resources */ = {
+		A41D4672DA36C93795D6DC4D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		843C43BD3CB53F857F101FC4 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
+				50631D562F97DD32B27BC7DB /* geoip-cn.srs in Resources */,
+				264CB6AD2E94821260CB4A48 /* geosite-cn.srs in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -707,49 +771,43 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		501625F3A070997011244267 /* Sources */ = {
+		8FAEB91B38FB58C95D0A1A1D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FFAA138FE5880B90B226CAEF /* PacketTunnelProvider.swift in Sources */,
-				BEA1EBDE5B25182D9B2DFC4F /* SingboxPlatform.swift in Sources */,
+				13083B802190B95FBACC775B /* PacketTunnelProvider.swift in Sources */,
+				DCE56803B4AF0C14D2B1E465 /* Array+ConcurrentMap.swift in Sources */,
+				33492CA7116E7495809E2A85 /* DNSResolver.swift in Sources */,
+				7D4BE53DF312F202FF219D7D /* DNSServer.swift in Sources */,
+				0FCDDEE7BA1C30B9479B9FB5 /* Endpoint.swift in Sources */,
+				3779F280BDCA04254ED99F57 /* HandshakeFreshnessEvaluator.swift in Sources */,
+				E0491B8EB6308C2344B4D6C7 /* IPAddress+AddrInfo.swift in Sources */,
+				F0A3660E649D6BEB735332C6 /* IPAddressRange.swift in Sources */,
+				BDEF4290D3F098F87C80F7B7 /* InterfaceConfiguration.swift in Sources */,
+				5DD600812B7B3B733F355468 /* PacketTunnelSettingsGenerator.swift in Sources */,
+				15C1DFE18536290482102BB6 /* PeerConfiguration.swift in Sources */,
+				DC5ED8BC7BB237F8359ED18E /* PrivateKey.swift in Sources */,
+				CBFAFB8A5CAB9B0E5C194F0C /* String+ArrayConversion.swift in Sources */,
+				064E44620BEAFEC9906BF932 /* TunnelConfiguration+WgQuickConfig.swift in Sources */,
+				43628382A5D687D0466BD10C /* TunnelConfiguration.swift in Sources */,
+				18A844F9C83537445A348E02 /* WireGuardAdapter.swift in Sources */,
+				F021EABD85BF809840D8C1C8 /* key.c in Sources */,
+				03082A282E45B7540C5A92E4 /* x25519.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		834053EF26BFEFEDADFA63B6 /* Sources */ = {
+		9AFC868E018DE1587CC7E632 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6C1F0FF6A3513936EB931E94 /* PacketTunnelProvider.swift in Sources */,
-				B7E1C10BF84B001800419C6A /* Array+ConcurrentMap.swift in Sources */,
-				5C04AAEA563571A780FE4A10 /* DNSResolver.swift in Sources */,
-				A3034C5AB68A9754436D56CB /* DNSServer.swift in Sources */,
-				4334ED9CF4C1BC957AE77CE3 /* Endpoint.swift in Sources */,
-				55D6EEF003D0BB0058146E10 /* HandshakeFreshnessEvaluator.swift in Sources */,
-				5A70A51ECCCBFB672BF47EBB /* IPAddress+AddrInfo.swift in Sources */,
-				92AF07023559786A4487F32E /* IPAddressRange.swift in Sources */,
-				6A0CA8057150A0244E3B678E /* InterfaceConfiguration.swift in Sources */,
-				1DF9C0212A1A5C9B0B9FE4D1 /* PacketTunnelSettingsGenerator.swift in Sources */,
-				B6A34083E8E5FF1AA85B5768 /* PeerConfiguration.swift in Sources */,
-				4910BD63834F77FC4D4E9025 /* PrivateKey.swift in Sources */,
-				2FE715BD4B95BEDFB3D0A7E9 /* String+ArrayConversion.swift in Sources */,
-				7254897F7A2E80469F092498 /* TunnelConfiguration+WgQuickConfig.swift in Sources */,
-				5223620F28006ED468B28920 /* TunnelConfiguration.swift in Sources */,
-				2AF55B6846EA87C83A9F76DE /* WireGuardAdapter.swift in Sources */,
-				863A84796EEC4599861E3858 /* key.c in Sources */,
-				4005E43DD74387E3C458C596 /* x25519.c in Sources */,
+				50B823E3AEE6ADC18C6D7868 /* PacketTunnelProvider.swift in Sources */,
+				19C271071C781F1703172696 /* SingboxPlatform.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		0524944E394D637537995244 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = SingboxTunnel;
-			target = DFEFE6F86279BDC2D64137A3 /* SingboxTunnel */;
-			targetProxy = D933CC1B86A1A268D2345480 /* PBXContainerItemProxy */;
-		};
 		331C80DA294CF71000263BE5 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 33CC10EC2044A3C60003C045 /* Runner */;
@@ -760,11 +818,17 @@
 			target = 33CC111A2044C6BA0003C045 /* Flutter Assemble */;
 			targetProxy = 33CC111F2044C79F0003C045 /* PBXContainerItemProxy */;
 		};
-		A89D379F832656D78A368328 /* PBXTargetDependency */ = {
+		EF74C9A285B4060489078B24 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = AWGTunnel;
-			target = B9AAA10AFB392B4AFA4BC499 /* AWGTunnel */;
-			targetProxy = 96804B37CDD6B6AC36BC1A3C /* PBXContainerItemProxy */;
+			target = 321C543E53CC8C5D8666EC72 /* AWGTunnel */;
+			targetProxy = 63DCA9267416FE1DBCFEEF60 /* PBXContainerItemProxy */;
+		};
+		F30946859A657A3488767B19 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = SingboxTunnel;
+			target = F46A70D1DF41CC8D943DAF95 /* SingboxTunnel */;
+			targetProxy = A7BD142CC036288A31273EA8 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -800,6 +864,38 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_BITCODE = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				INFOPLIST_FILE = ../ios_macos_native/SingboxTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mirrorspeed.mirrorspeedVpn.PacketTunnel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		29C42D7FF50175C042A07BDF /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 06838398710C71DB8FE8DF05 /* TunnelExtension.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "../ios_macos_native/SingboxTunnel/SingboxTunnel-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_BITCODE = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = ../ios_macos_native/SingboxTunnel/Info.plist;
@@ -824,6 +920,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CURRENT_PROJECT_VERSION = 1;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 957R34M9NR;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mirrorspeed.mirrorspeedVpn.RunnerTests;
@@ -839,6 +936,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CURRENT_PROJECT_VERSION = 1;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 957R34M9NR;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mirrorspeed.mirrorspeedVpn.RunnerTests;
@@ -854,6 +952,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CURRENT_PROJECT_VERSION = 1;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 957R34M9NR;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mirrorspeed.mirrorspeedVpn.RunnerTests;
@@ -869,6 +968,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -890,7 +990,7 @@
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_IDENTITY = "$(MS_CODE_SIGN_IDENTITY)";
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -907,6 +1007,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 			};
@@ -921,12 +1022,17 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/DebugProfile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_JIT = YES;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Profile;
@@ -945,6 +1051,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -966,7 +1073,7 @@
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_IDENTITY = "$(MS_CODE_SIGN_IDENTITY)";
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
@@ -990,6 +1097,7 @@
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -1001,6 +1109,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -1022,7 +1131,7 @@
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_IDENTITY = "$(MS_CODE_SIGN_IDENTITY)";
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -1039,6 +1148,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 			};
@@ -1053,12 +1163,17 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/DebugProfile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_JIT = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
@@ -1073,12 +1188,17 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_JIT = YES;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -1109,6 +1229,107 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_BITCODE = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				INFOPLIST_FILE = ../ios_macos_native/SingboxTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mirrorspeed.mirrorspeedVpn.PacketTunnel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Profile;
+		};
+		519B70162E3F5AF8D7F6C0FA /* Profile */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 06838398710C71DB8FE8DF05 /* TunnelExtension.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "../ios_macos_native/AWGTunnel/AWGTunnel-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_BITCODE = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../ios_macos_native/AWGTunnel",
+				);
+				INFOPLIST_FILE = ../ios_macos_native/AWGTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mirrorspeed.mirrorspeedVpn.AWGTunnel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "../ios_macos_native/AWGTunnel/AWGTunnel-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Profile;
+		};
+		62F1121776A8D8B9AFA65980 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 06838398710C71DB8FE8DF05 /* TunnelExtension.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "../ios_macos_native/SingboxTunnel/SingboxTunnel-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_BITCODE = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				INFOPLIST_FILE = ../ios_macos_native/SingboxTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mirrorspeed.mirrorspeedVpn.PacketTunnel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		77FEBE5DB1233F1B54FB4C88 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 06838398710C71DB8FE8DF05 /* TunnelExtension.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "../ios_macos_native/SingboxTunnel/SingboxTunnel-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_BITCODE = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = ../ios_macos_native/SingboxTunnel/Info.plist;
@@ -1122,12 +1343,12 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
-			name = Profile;
+			name = Debug;
 		};
-		519B70162E3F5AF8D7F6C0FA /* Profile */ = {
+		804D0ECF7B8BC48ED63CB6C7 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 06838398710C71DB8FE8DF05 /* TunnelExtension.xcconfig */;
 			buildSettings = {
@@ -1160,7 +1381,7 @@
 			};
 			name = Profile;
 		};
-		62F1121776A8D8B9AFA65980 /* Debug */ = {
+		84244CFB58471A643513AAE5 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 06838398710C71DB8FE8DF05 /* TunnelExtension.xcconfig */;
 			buildSettings = {
@@ -1183,12 +1404,12 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
 			};
-			name = Debug;
+			name = Profile;
 		};
-		AE1A9364D8EE18908197E5FE /* Release */ = {
+		97C9504D1F0B37CA4EE64E34 /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 06838398710C71DB8FE8DF05 /* TunnelExtension.xcconfig */;
 			buildSettings = {
@@ -1221,7 +1442,44 @@
 			};
 			name = Release;
 		};
-		D6700CD3BB35FA90E75AFEBF /* Debug */ = {
+		AE1A9364D8EE18908197E5FE /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 06838398710C71DB8FE8DF05 /* TunnelExtension.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "../ios_macos_native/AWGTunnel/AWGTunnel-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_BITCODE = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../ios_macos_native/AWGTunnel",
+				);
+				INFOPLIST_FILE = ../ios_macos_native/AWGTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mirrorspeed.mirrorspeedVpn.AWGTunnel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "../ios_macos_native/AWGTunnel/AWGTunnel-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		B78CD8B682D1669D53746697 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 06838398710C71DB8FE8DF05 /* TunnelExtension.xcconfig */;
 			buildSettings = {
@@ -1254,9 +1512,56 @@
 			};
 			name = Debug;
 		};
+		D6700CD3BB35FA90E75AFEBF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 06838398710C71DB8FE8DF05 /* TunnelExtension.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "../ios_macos_native/AWGTunnel/AWGTunnel-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_BITCODE = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../ios_macos_native/AWGTunnel",
+				);
+				INFOPLIST_FILE = ../ios_macos_native/AWGTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mirrorspeed.mirrorspeedVpn.AWGTunnel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "../ios_macos_native/AWGTunnel/AWGTunnel-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		09B13581D41F19A7265B7743 /* Build configuration list for PBXNativeTarget "SingboxTunnel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				29C42D7FF50175C042A07BDF /* Release */,
+				77FEBE5DB1233F1B54FB4C88 /* Debug */,
+				84244CFB58471A643513AAE5 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		331C80DE294CF71000263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1297,22 +1602,12 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		77C879B8B30737207AFA6DBD /* Build configuration list for PBXNativeTarget "SingboxTunnel" */ = {
+		74F34B27E638F7B909BB3F68 /* Build configuration list for PBXNativeTarget "AWGTunnel" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				03AB8814F1D3CAC1BF67FED3 /* Release */,
-				62F1121776A8D8B9AFA65980 /* Debug */,
-				408C1D45899521B89E75EE6D /* Profile */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		AB5E3B16415C1C2362E6915D /* Build configuration list for PBXNativeTarget "AWGTunnel" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				AE1A9364D8EE18908197E5FE /* Release */,
-				D6700CD3BB35FA90E75AFEBF /* Debug */,
-				519B70162E3F5AF8D7F6C0FA /* Profile */,
+				97C9504D1F0B37CA4EE64E34 /* Release */,
+				B78CD8B682D1669D53746697 /* Debug */,
+				804D0ECF7B8BC48ED63CB6C7 /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

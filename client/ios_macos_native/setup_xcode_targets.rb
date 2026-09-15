@@ -20,6 +20,7 @@ EXTENSIONS = [
     bundle_suffix: 'AWGTunnel',
     sources: ['PacketTunnelProvider.swift', 'WireGuardKit/*.swift', 'WireGuardKitC/*.c'],
     xcframework: 'WireGuardKitGo.xcframework',
+    resources: [],
     frameworks: [],
     ios_frameworks: [],
     bridging_header: 'AWGTunnel/AWGTunnel-Bridging-Header.h',
@@ -29,6 +30,8 @@ EXTENSIONS = [
     bundle_suffix: 'PacketTunnel',
     sources: ['PacketTunnelProvider.swift', 'SingboxPlatform.swift'],
     xcframework: 'Libbox.xcframework',
+    # geoip-cn / geosite-cn 规则集随扩展打包（智能分流用，离线可用）
+    resources: ['../RuleSets/geoip-cn.srs', '../RuleSets/geosite-cn.srs'],
     frameworks: ['SystemConfiguration'],
     # iOS 版 libbox 含 Chromium(naive 出站)代码，引用 UIApplication 后台任务符号。
     ios_frameworks: ['UIKit'],
@@ -165,6 +168,18 @@ def setup(platform, force)
     %w[Info.plist].each { |f| group.new_reference(f) }
     group.new_reference("#{name}-#{cfg[:entitlements_suffix]}.entitlements")
     group.new_reference(File.basename(ext[:bridging_header])) if ext[:bridging_header]
+
+    # 规则集等资源文件
+    ext[:resources].each do |rel|
+      abs = File.expand_path(File.join(src_dir, rel))
+      abort "missing resource: #{abs}" unless File.exist?(abs)
+      rg = group.find_subpath('Resources', true)
+      rg.set_source_tree('SOURCE_ROOT')
+      rg.set_path(nil)
+      ref = rg.new_reference("#{NATIVE_REL}/#{rel.sub('../', '')}")
+      ref.source_tree = 'SOURCE_ROOT'
+      target.resources_build_phase.add_file_reference(ref)
+    end
 
     # 静态 Go 库：只链接，不嵌入。
     xcf = frameworks_group.files.find { |f| f.path == "#{NATIVE_REL}/Frameworks/#{ext[:xcframework]}" } ||

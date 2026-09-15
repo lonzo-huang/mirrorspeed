@@ -147,6 +147,21 @@ class SharedNodeProvider extends ChangeNotifier {
     }
   }
 
+  /// 免费节点是否启用智能分流（geosite-cn + geoip-cn 直连，其余走代理）。
+  ///
+  /// **仅 Apple（iOS/macOS）**：Windows/安卓的免费节点维持既有的全局隧道行为不变。
+  /// 跟随首页那个「智能 / 全局」开关（与优质节点同一个偏好键 routing_mode），
+  /// 且只在出口 IP 归属中国时才分流——境外出口全隧道即可，分流没有意义。
+  Future<bool> _appleSmartRouting() async {
+    if (!Platform.isIOS && !Platform.isMacOS) return false;
+    final prefs = await SharedPreferences.getInstance();
+    final mode = prefs.getString('routing_mode');
+    // 与 VpnProvider 的默认值保持一致：中文环境默认智能，其它默认全局。
+    final smart = mode == null ? _isZh() : mode == 'smart';
+    if (!smart) return false;
+    return await FreeNodeService.instance.egressInChina() == true;
+  }
+
   static bool _isZh() => Platform.localeName.toLowerCase().startsWith('zh');
 
   /// 系统是否有可用的全局 IPv6（非链路本地/回环）。用于决定 sing-box tun 是否加 v6 地址：
@@ -296,7 +311,7 @@ class SharedNodeProvider extends ChangeNotifier {
       // 仅当系统确有可用 IPv6 时才给 tun 加 v6 地址：IPv6 被禁用的机器上设 v6 地址会让
       // sing-box FATAL、整个隧道起不来（企业 Windows 常见）。桌面探测，Android 保持纯 IPv4。
       final ipv6 = await _hasGlobalIpv6();
-      final cfg = SingboxConfig.build(node, smart: false,
+      final cfg = SingboxConfig.build(node, smart: await _appleSmartRouting(),
           includePackages: inc, excludePackages: exc,
           includeProcesses: incProc, excludeProcesses: excProc,
           ipv6: ipv6);
