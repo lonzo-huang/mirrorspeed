@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../env.dart';
 
@@ -16,6 +17,24 @@ class AdService {
   bool get _supported => _platformOk && _enabled;
   // 看完激励广告后的一段时间内，抑制开屏广告（避免手动看完广告紧接着又弹开屏，#2）。
   DateTime _suppressAppOpenUntil = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// iOS 14+：展示个性化广告前必须先征得「允许跟踪」授权（ATT）。
+  /// 必须在 MobileAds 初始化之前调用，否则本次启动只能投非个性化广告。
+  /// 用户拒绝也照常投放，只是变成非个性化（收入略低），不影响看广告加时长。
+  /// 安卓/桌面不需要，直接跳过。
+  Future<void> _requestTrackingAuthorizationIOS() async {
+    if (kIsWeb || !Platform.isIOS) return;
+    try {
+      final status = await AppTrackingTransparency.trackingAuthorizationStatus;
+      if (status == TrackingStatus.notDetermined) {
+        // 系统要求 App 进入前台后再弹，稍等一下更稳。
+        await Future.delayed(const Duration(milliseconds: 300));
+        await AppTrackingTransparency.requestTrackingAuthorization();
+      }
+    } catch (e) {
+      debugPrint('[AD] ATT 请求失败(忽略): $e');
+    }
+  }
 
   /// 运行时启用/关闭所有广告（付费会员关闭，#3）。关闭时立即丢弃已加载的广告，
   /// 防止冷启动以"非会员"加载后、会员身份确认前残留的开屏/激励被展示。
@@ -37,6 +56,7 @@ class AdService {
   Future<void> initialize({bool enabled = true}) async {
     _enabled = enabled;
     if (!_platformOk || !enabled || _initialized) return;
+    await _requestTrackingAuthorizationIOS();
     try {
       await MobileAds.instance.initialize();
       _initialized = true;

@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 // ============================================================
 // 环境配置 — 替换为你的实际值
 // 生产环境可通过 --dart-define=SUPABASE_URL=xxx 注入
@@ -37,9 +39,21 @@ const String kAuthCallbackScheme = 'mirrorspeed';
 const String kAuthCallbackUrl    = '$kAuthCallbackScheme://login-callback';
 
 // ── AdMob 广告（仅 Android/iOS）──────────────────────────────────
-// App ID 同时写入 AndroidManifest / Info.plist。
-const String kAdMobAppId       = 'ca-app-pub-6444342069684995~8865360511';
-const String kAdRewardedUnitId = 'ca-app-pub-6444342069684995/6183660776'; // 激励视频 → 延长试用
-const String kAdAppOpenUnitId  = 'ca-app-pub-6444342069684995/6906245736'; // 开屏（可跳过）
+// AdMob 的 App ID / 广告位 ID 是分平台的，用错平台会被判为无效请求拿不到广告。
+// App ID 另需写入 AndroidManifest（安卓）/ Info.plist（iOS）。
+bool get _isIOS => !kIsWeb && Platform.isIOS;
+
+// 安卓
+const String _kAdMobAppIdAndroid       = 'ca-app-pub-6444342069684995~8865360511';
+const String _kAdRewardedUnitIdAndroid = 'ca-app-pub-6444342069684995/6183660776';
+const String _kAdAppOpenUnitIdAndroid  = 'ca-app-pub-6444342069684995/6906245736';
+// iOS
+const String _kAdMobAppIdIOS           = 'ca-app-pub-6444342069684995~4402982650';
+const String _kAdRewardedUnitIdIOS     = 'ca-app-pub-6444342069684995/5669806179';
+const String _kAdAppOpenUnitIdIOS      = 'ca-app-pub-6444342069684995/1263657308';
+
+String get kAdMobAppId       => _isIOS ? _kAdMobAppIdIOS       : _kAdMobAppIdAndroid;
+String get kAdRewardedUnitId => _isIOS ? _kAdRewardedUnitIdIOS : _kAdRewardedUnitIdAndroid;
+String get kAdAppOpenUnitId  => _isIOS ? _kAdAppOpenUnitIdIOS  : _kAdAppOpenUnitIdAndroid;
 // 每看完一条激励视频奖励的免费时长（分钟）
 const int    kAdRewardMinutes  = 30;
