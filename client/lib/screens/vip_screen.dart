@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../brand.dart';
+import '../env.dart';
 import '../theme.dart';
 import '../utils/portal_link.dart';
 import 'sub_page.dart';
+import '../services/iap_service.dart';
 import '../widgets/ms_top_controls.dart';
 
 class VipScreen extends StatefulWidget {
@@ -21,8 +23,9 @@ class _Plan {
   const _Plan(this.key, this.nameZh, this.nameEn, this.months, this.cny, this.usd, {this.best = false});
 
   String get name => Brand.isZh ? nameZh : nameEn;
-  // 应用内购价 = 官网美元价 × 1.2 后向下取整（整数美元）。
-  int get iapUsd => (usd * 1.2).floor();
+  // 应用内购价与官网价一致（苹果抽成由我们承担，不向用户加价）。
+  // 苹果只能选固定档位，实际收取价见 App Store Connect（$3 → $2.99，以此类推）。
+  double get iapUsd => usd;
   String cnyPerMonth() => '¥${(cny / months).round()}';
   String usdIapPerMonth() => '\$${(iapUsd / months).toStringAsFixed(2)}';
 }
@@ -38,8 +41,20 @@ const List<_Plan> _kPlans = [
 enum _Tab { iap, web, custom }
 
 class _VipScreenState extends State<VipScreen> {
-  _Tab   _tab  = _Tab.web;
+  // iOS 默认落在内购页（苹果要求数字商品走内购）；其它平台维持官网购买。
+  _Tab   _tab  = IapService.supported ? _Tab.iap : _Tab.web;
   String _pick = 'yearly';
+
+  @override
+  void initState() {
+    super.initState();
+    if (IapService.supported) {
+      // 进页面即拉一次商品，拿 App Store 的本地化价格。
+      IapService.instance.queryProducts().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,35 +122,79 @@ class _VipScreenState extends State<VipScreen> {
       decoration: BoxDecoration(color: msNow.card, borderRadius: BorderRadius.circular(14),
         border: Border.all(color: msNow.textSecondary.withOpacity(0.06))),
       child: Row(children: [
-        seg(_Tab.iap,    tr('应用内购', 'In-App')),
-        seg(_Tab.web,    tr('官网购买', 'Website')),
+        // iOS 上只显示内购：苹果的 anti-steering 条款禁止在 App 内引导去站外支付，
+        // 带官网入口会被拒审。将来若拿到 External Purchase Link 权限，把
+        // kAllowWebPurchaseOnIOS 打开即可恢复。
+        if (!IapService.supported || kAllowWebPurchaseOnIOS)
+          seg(_Tab.iap,    tr('应用内购', 'In-App')),
+        if (!IapService.supported || kAllowWebPurchaseOnIOS)
+          seg(_Tab.web,    tr('官网购买', 'Website')),
+        if (IapService.supported && !kAllowWebPurchaseOnIOS)
+          seg(_Tab.iap,    tr('开通会员', 'Subscribe')),
         seg(_Tab.custom, tr('私人定制', 'Custom')),
       ]),
     );
   }
 
-  // ── Tab 1：应用内购（美元，官网价 ×1.2 向下取整）─────────────────
+  // ── Tab 1：应用内购（iOS，App Store 计费）────────────────────────
+  // 价格优先用 App Store 返回的本地化价格串（苹果要求显示用户当地货币），
+  // 拿不到（未上架/网络异常）时退回美元展示。
+  String _iapPrice(_Plan p) =>
+      IapService.instance.products[p.key]?.price ?? '\$${p.usd.toStringAsFixed(2)}';
+
   List<Widget> _iapTab() => [
     for (final p in _kPlans) ...[
       _planRow(
         p, selected: _pick == p.key, onTap: () => setState(() => _pick = p.key),
-        priceBig: '\$${p.iapUsd}', priceSub: '${p.usdIapPerMonth()}/${tr('月','mo')}'),
+        priceBig: _iapPrice(p), priceSub: '${p.usdIapPerMonth()}/${tr('月','mo')}'),
       const SizedBox(height: 10),
     ],
     const SizedBox(height: 6),
-    SizedBox(width: double.infinity, child: FilledButton(
-      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(tr('应用内购买即将开放，敬请期待 🎉', 'In-app purchase coming soon 🎉')),
-        backgroundColor: msNow.brand, duration: Duration(seconds: 2))),
-      style: FilledButton.styleFrom(backgroundColor: msNow.brand, padding: EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-      child: Text(tr('开通会员 · 敬请期待', 'Subscribe · Coming soon'),
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+    ValueListenableBuilder<bool>(
+      valueListenable: IapService.instance.busy,
+      builder: (_, busy, __) => SizedBox(width: double.infinity, child: FilledButton(
+        onPressed: busy ? null : _buyIap,
+        style: FilledButton.styleFrom(backgroundColor: msNow.brand, padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+        child: busy
+          ? const SizedBox(width: 18, height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+          : Text(tr('开通会员', 'Subscribe'),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+      )),
+    ),
+    const SizedBox(height: 10),
+    // 恢复购买：苹果强制要求提供（换设备/重装后拿回会员）
+    Center(child: TextButton(
+      onPressed: () async {
+        await IapService.instance.restore();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(tr('已向 App Store 请求恢复购买', 'Restore requested')),
+            duration: const Duration(seconds: 2)));
+        }
+      },
+      child: Text(tr('恢复购买', 'Restore purchases'),
+        style: TextStyle(fontSize: 12, color: msNow.textSecondary)),
     )),
-    const SizedBox(height: 8),
-    Center(child: Text(tr('通过 App Store / Google Play 计费', 'Billed via App Store / Google Play'),
-      style: TextStyle(fontSize: 10, color: msNow.textSecondary.withOpacity(0.4)))),
+    const SizedBox(height: 4),
+    Center(child: Text(
+      tr('订阅自动续期，可在 设置 → Apple ID → 订阅 中随时取消',
+         'Auto-renews. Cancel anytime in Settings → Apple ID → Subscriptions'),
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: 10, color: msNow.textSecondary.withOpacity(0.5)))),
   ];
+
+  Future<void> _buyIap() async {
+    final iap = IapService.instance;
+    await iap.buy(_pick);
+    final err = iap.error.value;
+    if (err != null && mounted) {
+      iap.error.value = null;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(err), backgroundColor: kDanger, duration: const Duration(seconds: 4)));
+    }
+  }
 
   // ── Tab 2：官网购买（人民币，选中后微信/支付宝直付）──────────────
   List<Widget> _webTab() => [

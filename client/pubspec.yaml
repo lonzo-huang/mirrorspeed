@@ -66,6 +66,7 @@ dependencies:
   # ── 分应用代理（智能模式黑白名单：枚举已安装 App）──
   installed_apps: ^1.4.0
   app_tracking_transparency: ^2.0.7
+  in_app_purchase: ^3.3.0
 
 dev_dependencies:
   flutter_test:

@@ -17,6 +17,7 @@ import 'screens/server_list_screen.dart';
 import 'theme.dart';
 import 'brand.dart';
 import 'services/ad_service.dart';
+import 'services/iap_service.dart';
 import 'services/desktop_tray.dart';
 
 /// 全局 ScaffoldMessenger：用于在导航切换后仍能可靠弹出提示（如免费节点
@@ -58,6 +59,11 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
       if (_vpn.isConnected) return;   // 已有优质隧道就不折腾
       await _shared.connectRandomForAd();
     };
+    // 应用内购（仅 iOS）：购买/恢复成功后由服务器确认，再刷新本地会员状态。
+    IapService.instance.onEntitlementChanged = () async {
+      await _auth.refreshConfigs();
+    };
+    IapService.instance.initialize();
     // 桌面托盘（macOS 菜单栏 / Windows 通知区）：状态与节点列表推给原生菜单，
     // 移动端此调用为空操作。
     DesktopTray.instance.attach(auth: _auth, vpn: _vpn, shared: _shared);
