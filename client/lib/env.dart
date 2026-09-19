@@ -57,9 +57,3 @@ String get kAdRewardedUnitId => _isIOS ? _kAdRewardedUnitIdIOS : _kAdRewardedUni
 String get kAdAppOpenUnitId  => _isIOS ? _kAdAppOpenUnitIdIOS  : _kAdAppOpenUnitIdAndroid;
 // 每看完一条激励视频奖励的免费时长（分钟）
 const int    kAdRewardMinutes  = 30;
-
-// ── iOS 站外支付入口开关 ─────────────────────────────────────────
-// 苹果的 anti-steering 条款禁止在 App 内引导用户去网页购买数字商品，带这类入口
-// 会被拒审，所以 iOS 上默认隐藏「官网购买」（安卓/Windows/macOS 不受影响）。
-// 若将来申请到 External Purchase Link 权限（美区/欧盟等），改成 true 即可恢复。
-const bool kAllowWebPurchaseOnIOS = false;

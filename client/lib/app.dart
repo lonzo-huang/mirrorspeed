@@ -19,6 +19,7 @@ import 'brand.dart';
 import 'services/ad_service.dart';
 import 'services/iap_service.dart';
 import 'services/desktop_tray.dart';
+import 'services/iap_service.dart';
 
 /// 全局 ScaffoldMessenger：用于在导航切换后仍能可靠弹出提示（如免费节点
 /// 「连上但不通外网」），不依赖某个已卸载页面的 context。
@@ -46,6 +47,12 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
     _theme = ThemeController()..load();
     _locale = LocaleController()..load();
     _auth = AuthProvider();
+    // App Store 购买/恢复核验成功（含启动时补投递的交易）→ 刷新会员状态、关广告。
+    IapService.instance.events.listen((e) {
+      if (e.type == IapEventType.purchased || e.type == IapEventType.restored) {
+        _auth.refreshMembership();
+      }
+    });
     _vpn  = VpnProvider()..initialize();
     _shared = SharedNodeProvider();
     // 两条隧道系统级互斥：连一条前先停另一条。
@@ -59,11 +66,6 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
       if (_vpn.isConnected) return;   // 已有优质隧道就不折腾
       await _shared.connectRandomForAd();
     };
-    // 应用内购（仅 iOS）：购买/恢复成功后由服务器确认，再刷新本地会员状态。
-    IapService.instance.onEntitlementChanged = () async {
-      await _auth.refreshConfigs();
-    };
-    IapService.instance.initialize();
     // 桌面托盘（macOS 菜单栏 / Windows 通知区）：状态与节点列表推给原生菜单，
     // 移动端此调用为空操作。
     DesktopTray.instance.attach(auth: _auth, vpn: _vpn, shared: _shared);

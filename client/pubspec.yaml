@@ -65,8 +65,9 @@ dependencies:
 
   # ── 分应用代理（智能模式黑白名单：枚举已安装 App）──
   installed_apps: ^1.4.0
+  # iOS 广告 ATT 授权（个性化广告前必须征得「允许跟踪」）
   app_tracking_transparency: ^2.0.7
-  in_app_purchase: ^3.3.0
+  in_app_purchase: ^3.3.1
 
 dev_dependencies:
   flutter_test:

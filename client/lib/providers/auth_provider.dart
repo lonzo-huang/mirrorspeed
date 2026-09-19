@@ -201,6 +201,13 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// 购买/恢复会员后调用：重新拉配置（额度→不限时）与订阅到期时间。
+  Future<void> refreshMembership() async {
+    await refreshConfigs();
+    await _fetchSubscriptionExpiry();
+    notifyListeners();
+  }
+
   // ── 刷新配置 ─────────────────────────────────────────────────
   Future<void> refreshConfigs() async {
     final devId = _deviceId ?? await _storage.read(key: 'device_id');

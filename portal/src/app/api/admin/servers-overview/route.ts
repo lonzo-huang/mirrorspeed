@@ -86,6 +86,8 @@ export async function GET(req: Request) {
       const peersRaw = peersR.ok ? await peersR.json() : []
       const now = Date.now()
       let fast = 0, relay = 0
+      let paidOn = 0, freeOn = 0, superOn = 0
+      let active24 = 0, active24Paid = 0
       const peers = (peersRaw as any[]).map(p => {
         const owner = ownerByKey.get(p.public_key)
         const hs = p.last_handshake ? Date.parse(p.last_handshake) : NaN
@@ -97,6 +99,18 @@ export async function GET(req: Request) {
         const isRelay = ep.startsWith('127.0.0.1') || ep.startsWith('::1') || ep.startsWith('[::1]')
         let mode: 'fast' | 'relay' | 'offline' = 'offline'
         if (online && ep) { mode = isRelay ? 'relay' : 'fast'; if (isRelay) relay++; else fast++ }
+        // 在线用户按套餐分类（tier 为中文：付费/免费/超级）
+        if (online) {
+          const t = owner?.tier
+          if (t === '付费') paidOn++
+          else if (t === '超级') superOn++
+          else freeOn++
+        }
+        // 24 小时活跃 = 最近 24h 内有过握手
+        if (!Number.isNaN(hs) && age >= -60_000 && age < 86_400_000) {
+          active24++
+          if (owner?.tier === '付费' || owner?.tier === '超级') active24Paid++
+        }
         return {
           vpn_ip: p.vpn_ip,
           online, mode,
@@ -106,7 +120,16 @@ export async function GET(req: Request) {
         }
       })
       const onlineCount = fast + relay
-      const summary = { online: onlineCount, fast, relay, fast_pct: onlineCount > 0 ? Math.round(fast / onlineCount * 100) : 0 }
+      const paidLike = paidOn + superOn
+      const summary = {
+        online: onlineCount, fast, relay,
+        fast_pct: onlineCount > 0 ? Math.round(fast / onlineCount * 100) : 0,
+        paid: paidOn, free: freeOn, super: superOn,
+        paid_pct: onlineCount > 0 ? Math.round(paidLike / onlineCount * 100) : 0,
+        active_24h: active24, active_24h_paid: active24Paid,
+      }
+      // 明细表：在线的排前面
+      peers.sort((a, b) => Number(b.online) - Number(a.online))
       return { ...base, online: true, stats, peers, summary }
     } catch (e: any) {
       return { ...base, online: false, error: String(e?.message ?? e), peers: [] }
