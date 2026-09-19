@@ -155,13 +155,19 @@ public class SingboxFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
   }
 
   private func stop(result: @escaping FlutterResult) {
-    guard let mgr = manager else { result(nil); return }
+    guard let mgr = manager else {
+      // 还没加载过配置 = 肯定没在跑；同样要强制回 disconnected，否则 Dart 白等 6 秒。
+      emit("disconnected", force: true)
+      result(nil); return
+    }
     switch mgr.connection.status {
     case .connected, .connecting, .reasserting:
       mgr.connection.stopVPNTunnel()
     default:
-      // 本来就没在跑：补发一次，免得 Dart 侧干等 disconnected。
-      emit("disconnected")
+      // 本来就没在跑：必须**强制**补发一次 disconnected（绕过去重）。
+      // Dart 的 SharedNodeProvider._teardown 会等这个信号最多 6 秒；上次状态本就是
+      // disconnected 时若被去重吞掉，切到优质节点前就会白等 6 秒才显示「连接中」。
+      emit("disconnected", force: true)
     }
     result(nil)
   }

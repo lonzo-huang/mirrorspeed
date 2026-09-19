@@ -203,7 +203,12 @@ public class AmneziawgFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     }
 
     private func stopTunnel(result: @escaping FlutterResult) {
-        guard let mgr = manager else { result(nil); return }
+        guard let mgr = manager else {
+            // 还没加载过配置 = 肯定没在跑；强制回 disconnected，免得 Dart 干等。
+            lastStage = nil
+            emitCurrent()
+            result(nil); return
+        }
         switch mgr.connection.status {
         case .connected, .connecting, .reasserting:
             mgr.connection.stopVPNTunnel()
