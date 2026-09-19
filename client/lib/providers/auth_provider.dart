@@ -120,6 +120,28 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 公开节点列表为空时补拉一次（节点页进入 / 定时刷新时调用）。
+  ///
+  /// 启动时的那次拉取可能失败而且不会重试：典型是国行 iPhone 首次启动，
+  /// 系统「允许使用无线数据」的弹窗还没点，第一批请求全部失败 —— 结果未登录
+  /// 用户的优质节点列表整个会话都是空的。这里只在列表为空时才发请求。
+  bool _publicLoading = false;
+  Future<void> ensurePublicServers() async {
+    if (_publicServers.isNotEmpty || _publicLoading) return;
+    _publicLoading = true;
+    try {
+      final list = await ApiService.instance.fetchPublicServers();
+      if (list.isNotEmpty) {
+        _publicServers = list;
+        notifyListeners();
+      }
+    } catch (_) {
+      // 静默：下次进入节点页/定时刷新再试
+    } finally {
+      _publicLoading = false;
+    }
+  }
+
   // ── 登录后流程 ───────────────────────────────────────────────
   Future<void> _onLoggedIn() async {
     _status = AuthStatus.loading;
