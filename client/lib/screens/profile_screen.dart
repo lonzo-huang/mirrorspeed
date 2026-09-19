@@ -1,5 +1,6 @@
 import 'invite_screen.dart';
 import 'app_proxy_screen.dart';
+import '../services/iap_service.dart';
 import '../services/app_proxy_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -419,6 +420,11 @@ void _showErrorInfo(BuildContext context) {
   final items = <String>[];
   if (auth.error != null) items.add('${tr('配置 / 登录', 'Config / Login')}：${auth.error}');
   if (vpn.error  != null) items.add('${tr('连接', 'Connection')}：${vpn.error}');
+  // iOS 内购诊断：最近一次向 App Store 查询订阅商品的结果（TestFlight 包没有控制台日志）
+  final iapReport = IapService.instance.lastQueryReport;
+  if (IapService.supported && iapReport != null) {
+    items.add('${tr('内购', 'In-App Purchase')}：$iapReport');
+  }
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(
