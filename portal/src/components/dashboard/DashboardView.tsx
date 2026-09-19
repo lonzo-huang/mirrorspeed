@@ -51,7 +51,7 @@ export function DashboardView({ userEmail, displayName, profile, subscription, d
   const d = t.dash
   const deviceCount = devices.length
   const isActive = subscription?.status === 'active'
-  const maxDevices = isActive ? 4 : 2   // 付费 4 台 / 免费 2 台
+  const maxDevices = isActive ? 8 : 4   // 付费 8 台 / 免费 4 台
   const plan = subscription?.plan
 
   return (
