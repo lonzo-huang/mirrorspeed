@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'env.dart';
 import 'app.dart';
 import 'services/ad_service.dart';
+import 'services/iap_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +19,9 @@ Future<void> main() async {
       authFlowType: AuthFlowType.pkce,
     ),
   );
+
+  // ── App Store 订阅：尽早监听购买流，接住上次未完成/续费投递的交易（仅 iOS）──
+  IapService.instance.init();
 
   // ── OAuth deep-link callback (Windows desktop) ──────────────────────────
   // On Android/iOS, supabase_flutter handles the deep link automatically.

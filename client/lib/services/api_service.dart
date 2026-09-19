@@ -177,6 +177,22 @@ class ApiService {
     }
   }
 
+  // ── App Store 购买核验：后端校验苹果签名并开通会员 ──────────────
+  Future<Map<String, dynamic>> verifyApplePurchase({
+    String? transactionId,
+    String? signedTransaction,
+  }) async {
+    final res = await _post('/api/iap/apple/verify', {
+      if (transactionId != null)     'transactionId':     transactionId,
+      if (signedTransaction != null) 'signedTransaction': signedTransaction,
+    });
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode != 200 || body['ok'] != true) {
+      throw ApiException(body['error']?.toString() ?? '核验失败 (${res.statusCode})');
+    }
+    return body;
+  }
+
   // ── 公开节点列表（无需登录，仅展示用，不含密钥/配置）#1 ────────────
   Future<List<ServerConfig>> fetchPublicServers() async {
     try {
