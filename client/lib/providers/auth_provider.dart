@@ -351,8 +351,8 @@ class AuthProvider extends ChangeNotifier {
       );
     }
     return tr(
-      '免费版最多 $max 台设备。升级到会员可同时使用 5 台设备，请在网页端删除旧设备或升级会员。',
-      'The free plan allows up to $max devices. Upgrade to Premium to use 5 devices at once, or remove an old device on the web portal.',
+      '免费版最多 $max 台设备。升级到会员可同时使用 8 台设备，请在网页端删除旧设备或升级会员。',
+      'The free plan allows up to $max devices. Upgrade to Premium to use 8 devices at once, or remove an old device on the web portal.',
     );
   }
 

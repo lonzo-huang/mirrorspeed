@@ -82,7 +82,8 @@ export async function POST(req: NextRequest) {
   // ── Case 3: 新设备（受上限约束）──
   // 免费版 2 台，付费版 4 台。超限返回结构化错误码，客户端按系统语言本地化提示并引导升级。
   const isPaid = !!sub
-  const MAX_DEVICES = isPaid ? 4 : 2
+  // 设备上限：免费 4 台 / 付费 8 台（与官网控制台、App 提示保持一致）
+  const MAX_DEVICES = isPaid ? 8 : 4
   const { count: devCount } = await admin.from('vpn_devices')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id).eq('is_active', true)
