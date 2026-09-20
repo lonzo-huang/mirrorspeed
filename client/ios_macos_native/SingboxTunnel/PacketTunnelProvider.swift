@@ -27,7 +27,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
   // MARK: - 生命周期
 
+  override init() {
+    super.init()
+    TunnelLog.name = "singbox"
+  }
+
   override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
+    TunnelLog.log("startTunnel 被调用")
     guard
       let proto = protocolConfiguration as? NETunnelProviderProtocol,
       let config = proto.providerConfiguration?["config"] as? String
@@ -58,9 +64,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         try server.startOrReloadService(config, options: LibboxOverrideOptions())
         self.platform = platform
         self.server = server
+        TunnelLog.log("✅ sing-box 已启动")
         os_log("sing-box started", log: log, type: .info)
         completionHandler(nil)
       } catch {
+        TunnelLog.log("❌ 启动失败: \(error.localizedDescription)")
         os_log("sing-box start failed: %{public}@", log: log, type: .error, error.localizedDescription)
         closeServer()
         completionHandler(error)
@@ -69,6 +77,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
   }
 
   override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
+    TunnelLog.log("stopTunnel 原因码=\(reason.rawValue)")
     os_log("stopTunnel reason=%d", log: log, type: .info, reason.rawValue)
     closeServer()
     completionHandler()

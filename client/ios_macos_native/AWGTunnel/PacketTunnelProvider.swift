@@ -15,6 +15,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private let log = OSLog(subsystem: "com.mirrorspeed.AWGTunnel", category: "tunnel")
 
+    override init() {
+        super.init()
+        TunnelLog.name = "awg"
+    }
+
     private lazy var adapter: WireGuardAdapter = {
         WireGuardAdapter(with: self) { [log] level, message in
             os_log("%{public}@", log: log, type: level == .error ? .error : .debug, message)
@@ -24,10 +29,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     // MARK: - 生命周期
 
     override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
+        TunnelLog.log("startTunnel 被调用")
         guard
             let proto = protocolConfiguration as? NETunnelProviderProtocol,
             let wgConf = proto.providerConfiguration?["wg_conf"] as? String
         else {
+            TunnelLog.log("❌ 配置里没有 wg_conf")
             completionHandler(TunnelError.missingConfig)
             return
         }
@@ -36,6 +43,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         do {
             tunnelConfiguration = try TunnelConfiguration(fromWgQuickConfig: wgConf, called: "mirrorspeed")
         } catch {
+            TunnelLog.log("❌ 配置解析失败: \(error)")
             os_log("config parse failed: %{public}@", log: log, type: .error, "\(error)")
             completionHandler(TunnelError.invalidConfig("\(error)"))
             return
@@ -43,16 +51,19 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         adapter.start(tunnelConfiguration: tunnelConfiguration) { [log] error in
             if let error = error {
+                TunnelLog.log("❌ 内核启动失败: \(error)")
                 os_log("adapter start failed: %{public}@", log: log, type: .error, "\(error)")
                 completionHandler(error)
                 return
             }
+            TunnelLog.log("✅ 内核已启动")
             os_log("AmneziaWG tunnel started", log: log, type: .info)
             completionHandler(nil)
         }
     }
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
+        TunnelLog.log("stopTunnel 原因码=\(reason.rawValue)")
         os_log("stopTunnel reason=%d", log: log, type: .info, reason.rawValue)
         adapter.stop { _ in
             completionHandler()
@@ -73,7 +84,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
         adapter.getRuntimeConfiguration { settings in
-            guard let settings = settings else { completionHandler?(nil); return }
+            guard let settings = settings else {
+                // 内核不在运行：主 App 会显示「扩展无响应」，这里记下来便于定位
+                TunnelLog.log("⚠️ stats 查询时内核未运行（getRuntimeConfiguration 返回空）")
+                completionHandler?(nil); return
+            }
             var rx = 0, tx = 0, handshake = 0
             for line in settings.split(separator: "\n") {
                 if line.hasPrefix("rx_bytes=") {

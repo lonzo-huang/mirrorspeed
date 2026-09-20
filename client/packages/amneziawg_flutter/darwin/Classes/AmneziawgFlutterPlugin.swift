@@ -90,6 +90,15 @@ public class AmneziawgFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
 
         // 隧道诊断：[rx, tx, 最后握手 unix 秒]。握手为 0 = 从未握手成功，
         // 说明 UDP 到服务器不通（被墙/端口错/密钥不符），隧道是「假连上」。
+        // 读取隧道扩展写在 App Group 里的日志（扩展是独立进程，正式包看不到控制台）
+        case "tunnelLog":
+            let group = "group." + ((Bundle.main.bundleIdentifier ?? "com.mirrorspeed.mirrorspeedVpn")
+                .components(separatedBy: ".").prefix(3).joined(separator: "."))
+            let url = FileManager.default
+                .containerURL(forSecurityApplicationGroupIdentifier: group)?
+                .appendingPathComponent("awg.log")
+            result(url.flatMap { try? String(contentsOf: $0, encoding: .utf8) })
+
         case "tunnelStats":
             // 诊断用：除了 [rx, tx, 握手时间]，失败时还要说清是哪一环没通，
             // 所以第 4 个元素是状态码：0=正常 1=系统会话未连接 2=扩展无响应

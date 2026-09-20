@@ -1271,12 +1271,20 @@ class VpnProvider extends ChangeNotifier {
   Future<void> _updateTunnelDiagnostic() async {
     if (kIsWeb || !(Platform.isIOS || Platform.isMacOS)) return;
     if (_engine is! AmneziaWgEngine) return;
-    final ch = AmneziawgFlutterInterface.instance;
-    final st = ch is AmneziawgFlutterMethodChannel ? await ch.tunnelStats() : null;
+    final base = AmneziawgFlutterInterface.instance;
+    final ch = base is AmneziawgFlutterMethodChannel ? base : null;
+    final st = ch == null ? null : await ch.tunnelStats();
     if (st == null) { tunnelDiagnostic = '插件未响应'; return; }
     final code = st.length >= 4 ? st[3] : 0;
     if (code == 1) { tunnelDiagnostic = '系统 VPN 会话未连接（隧道没真正建立）'; return; }
-    if (code == 2) { tunnelDiagnostic = '扩展无响应（WireGuard 内核未启动或已崩溃）⚠️'; return; }
+    if (code == 2) {
+      // 附上扩展自己写的最近几行日志，直接看出它卡在哪一步
+      final log = await ch?.tunnelLog();
+      final tail = (log ?? '').trim().split('\n').where((l) => l.isNotEmpty).toList();
+      final last = tail.isEmpty ? '（扩展没有写下任何日志）' : tail.sublist(tail.length > 4 ? tail.length - 4 : 0).join('\n');
+      tunnelDiagnostic = '扩展无响应（内核未启动或已崩溃）⚠️\n$last';
+      return;
+    }
     final hs = st[2];
     final ago = hs > 0
         ? '${DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000 - hs} 秒前'

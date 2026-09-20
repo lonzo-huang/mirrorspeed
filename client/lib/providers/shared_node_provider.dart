@@ -48,12 +48,19 @@ class SharedNodeProvider extends ChangeNotifier {
   SharedNodeProvider() {
     _stageSub = _engine.stageStream.listen((s) {
       _stage = s;
+      // 连上即开始采速率，断开停止（免费节点的上/下行计量）
+      if (s == VpnStage.connected) {
+        _startSpeedPolling();
+      } else if (s == VpnStage.disconnected) {
+        _stopSpeedPolling();
+      }
       notifyListeners();
     });
   }
 
   @override
   void dispose() {
+    _speedTimer?.cancel();
     _stageSub?.cancel();
     super.dispose();
   }
@@ -160,6 +167,60 @@ class SharedNodeProvider extends ChangeNotifier {
     final smart = mode == null ? _isZh() : mode == 'smart';
     if (!smart) return false;
     return await FreeNodeService.instance.egressInChina() == true;
+  }
+
+  // ── 速率计量 ────────────────────────────────────────────────────
+  // 连接期间每 5 秒读一次隧道累计收发字节，算出瞬时速率。
+  // 原生未实现计量的平台(安卓/Windows)返回 [-1,-1]，speedAvailable=false，
+  // 界面继续显示「—」，行为不变。
+  Timer? _speedTimer;
+  int _lastRx = -1, _lastTx = -1, _lastSpeedMs = 0;
+  int _downBps = 0, _upBps = 0;
+  bool _speedAvailable = false;
+
+  bool   get speedAvailable   => _speedAvailable;
+  String get downloadSpeedStr => _fmtBps(_downBps);
+  String get uploadSpeedStr   => _fmtBps(_upBps);
+
+  void _startSpeedPolling() {
+    _speedTimer?.cancel();
+    _lastRx = _lastTx = -1;
+    _pollSpeed();
+    _speedTimer = Timer.periodic(const Duration(seconds: 5), (_) => _pollSpeed());
+  }
+
+  void _stopSpeedPolling() {
+    _speedTimer?.cancel();
+    _speedTimer = null;
+    _downBps = _upBps = 0;
+    _speedAvailable = false;
+  }
+
+  Future<void> _pollSpeed() async {
+    final r = await _engine.transferRxTx()
+        .timeout(const Duration(seconds: 3), onTimeout: () => const [-1, -1]);
+    final rx = r.isNotEmpty ? r[0] : -1, tx = r.length > 1 ? r[1] : -1;
+    if (rx < 0 || tx < 0) {
+      if (_speedAvailable) { _speedAvailable = false; notifyListeners(); }
+      return;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_lastRx >= 0 && _lastSpeedMs > 0) {
+      final dt = (now - _lastSpeedMs) / 1000.0;
+      if (dt >= 0.5) {
+        _downBps = ((rx - _lastRx) / dt).round().clamp(0, 1 << 40);
+        _upBps   = ((tx - _lastTx) / dt).round().clamp(0, 1 << 40);
+      }
+    }
+    _lastRx = rx; _lastTx = tx; _lastSpeedMs = now;
+    _speedAvailable = true;
+    notifyListeners();
+  }
+
+  static String _fmtBps(int b) {
+    if (b >= 1024 * 1024) return '${(b / 1024 / 1024).toStringAsFixed(1)} MB/s';
+    if (b >= 1024)        return '${(b / 1024).toStringAsFixed(0)} KB/s';
+    return '$b B/s';
   }
 
   static bool _isZh() => Platform.localeName.toLowerCase().startsWith('zh');

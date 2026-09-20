@@ -18,7 +18,8 @@ EXTENSIONS = [
   {
     name: 'AWGTunnel',
     bundle_suffix: 'AWGTunnel',
-    sources: ['PacketTunnelProvider.swift', 'WireGuardKit/*.swift', 'WireGuardKitC/*.c'],
+    sources: ['PacketTunnelProvider.swift', '../Shared/TunnelLog.swift',
+              'WireGuardKit/*.swift', 'WireGuardKitC/*.c'],
     xcframework: 'WireGuardKitGo.xcframework',
     resources: [],
     frameworks: [],
@@ -28,7 +29,7 @@ EXTENSIONS = [
   {
     name: 'SingboxTunnel',
     bundle_suffix: 'PacketTunnel',
-    sources: ['PacketTunnelProvider.swift', 'SingboxPlatform.swift'],
+    sources: ['PacketTunnelProvider.swift', 'SingboxPlatform.swift', '../Shared/TunnelLog.swift'],
     xcframework: 'Libbox.xcframework',
     # geoip-cn / geosite-cn 规则集随扩展打包（智能分流用，离线可用）
     resources: ['../RuleSets/geoip-cn.srs', '../RuleSets/geosite-cn.srs'],

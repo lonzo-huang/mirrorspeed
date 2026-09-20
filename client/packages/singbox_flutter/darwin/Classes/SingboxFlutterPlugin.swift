@@ -71,6 +71,15 @@ public class SingboxFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
         result(currentStageName())
       }
 
+    // 读取隧道扩展写在 App Group 里的日志（扩展是独立进程，正式包看不到控制台）
+    case "tunnelLog":
+      let group = "group." + ((Bundle.main.bundleIdentifier ?? "com.mirrorspeed.mirrorspeedVpn")
+        .components(separatedBy: ".").prefix(3).joined(separator: "."))
+      let url = FileManager.default
+        .containerURL(forSecurityApplicationGroupIdentifier: group)?
+        .appendingPathComponent("singbox.log")
+      result(url.flatMap { try? String(contentsOf: $0, encoding: .utf8) })
+
     case "transferRxTx":
       queryStats { rx, tx in result([rx, tx]) }
 
