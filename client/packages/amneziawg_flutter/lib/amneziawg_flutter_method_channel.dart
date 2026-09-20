@@ -64,7 +64,7 @@ class AmneziawgFlutterMethodChannel extends AmneziawgFlutterInterface {
   Future<List<int>?> tunnelStats() async {
     try {
       final v = await _controlChannel.invokeListMethod<int>('tunnelStats');
-      if (v != null && v.length >= 3) return v;
+      if (v != null && v.length >= 3) return v;   // [rx, tx, 握手, 状态码?]
     } catch (_) { /* 平台未实现 */ }
     return null;
   }

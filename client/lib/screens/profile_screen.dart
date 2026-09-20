@@ -422,10 +422,6 @@ void _showErrorInfo(BuildContext context) {
   final items = <String>[];
   if (auth.error != null) items.add('${tr('配置 / 登录', 'Config / Login')}：${auth.error}');
   if (vpn.error  != null) items.add('${tr('连接', 'Connection')}：${vpn.error}');
-  // Apple 隧道诊断：优质节点「显示已连接但流量不通」时，看有没有握手成功
-  if (!kIsWeb && (Platform.isIOS || Platform.isMacOS) && vpn.isConnected) {
-    items.add('${tr('隧道', 'Tunnel')}：${vpn.tunnelDiagnostic ?? tr('读取中…', 'reading…')}');
-  }
   // iOS 内购诊断：最近一次向 App Store 查询订阅商品的结果（TestFlight 包没有控制台日志）
   final iapReport = IapService.instance.lastQueryReport;
   if (IapService.supported && iapReport != null) {
@@ -444,21 +440,34 @@ void _showErrorInfo(BuildContext context) {
         ],
         Text(tr('错误信息', 'Error info'), style: const TextStyle(fontSize: 16)),
       ]),
-      content: items.isEmpty
-          ? Text(tr('暂无错误信息 ✅', 'No errors ✅'),
-              style: TextStyle(color: msNow.textSecondary.withOpacity(0.7), fontSize: 13))
-          : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final e in items)
-                  Padding(padding: const EdgeInsets.only(bottom: 10),
-                    child: SelectableText(e, style: const TextStyle(color: Colors.orange, fontSize: 13))),
-              ]),
+      content: _dialogBody(context, items),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx),
           child: Text(tr('关闭', 'Close'))),
       ],
     ),
   );
+}
+
+// 错误信息弹窗正文：错误列表 + Apple 隧道诊断（现取一次，不依赖后台轮询时机）。
+Widget _dialogBody(BuildContext context, List<String> items) {
+  final vpn = context.read<VpnProvider>();
+  final showTunnel = !kIsWeb && (Platform.isIOS || Platform.isMacOS) && vpn.isConnected;
+  return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    if (items.isEmpty && !showTunnel)
+      Text(tr('暂无错误信息 ✅', 'No errors ✅'),
+        style: TextStyle(color: msNow.textSecondary.withOpacity(0.7), fontSize: 13)),
+    for (final e in items)
+      Padding(padding: const EdgeInsets.only(bottom: 10),
+        child: SelectableText(e, style: const TextStyle(color: Colors.orange, fontSize: 13))),
+    if (showTunnel)
+      FutureBuilder<String?>(
+        future: vpn.refreshTunnelDiagnostic(),
+        builder: (_, snap) => SelectableText(
+          '${tr('隧道', 'Tunnel')}：${snap.data ?? tr('读取中…', 'reading…')}',
+          style: TextStyle(color: msNow.textSecondary, fontSize: 12)),
+      ),
+  ]);
 }
 
 // ── 连接模式选择行 ───────────────────────────────────────────────

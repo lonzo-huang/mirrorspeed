@@ -295,10 +295,12 @@ class VpnProvider extends ChangeNotifier {
           _status = VpnStatus.connected;
           _postConnectCheck(_activeServer); // 4 秒后验证直连流量
         }
+        _startDiagPolling();
       case VpnStage.connecting:
         _status = VpnStatus.connecting;
       case VpnStage.disconnected:
         _status = VpnStatus.disconnected;
+        _stopDiagPolling();
         _stopTimer();
         _usageTimer?.cancel();   // 隧道已断，停止用量轮询（不再有适配器可读）
         _stopConnectedPing();
@@ -1246,17 +1248,42 @@ class VpnProvider extends ChangeNotifier {
   /// 握手「从未」= UDP 根本没通到服务器，此时即便界面显示已连接也不会有流量。
   String? tunnelDiagnostic;
 
+  Timer? _diagTimer;
+
+  /// 隧道一建立就开始采集诊断（不等连通性验证——验证失败时更需要这份数据）。
+  void _startDiagPolling() {
+    _diagTimer?.cancel();
+    _updateTunnelDiagnostic();
+    _diagTimer = Timer.periodic(const Duration(seconds: 5), (_) => _updateTunnelDiagnostic());
+  }
+
+  void _stopDiagPolling() {
+    _diagTimer?.cancel();
+    _diagTimer = null;
+  }
+
+  /// 供「错误信息」弹窗主动拉取一次最新诊断。
+  Future<String?> refreshTunnelDiagnostic() async {
+    await _updateTunnelDiagnostic();
+    return tunnelDiagnostic;
+  }
+
   Future<void> _updateTunnelDiagnostic() async {
     if (kIsWeb || !(Platform.isIOS || Platform.isMacOS)) return;
     if (_engine is! AmneziaWgEngine) return;
     final ch = AmneziawgFlutterInterface.instance;
     final st = ch is AmneziawgFlutterMethodChannel ? await ch.tunnelStats() : null;
-    if (st == null) { tunnelDiagnostic = '不可用'; return; }
+    if (st == null) { tunnelDiagnostic = '插件未响应'; return; }
+    final code = st.length >= 4 ? st[3] : 0;
+    if (code == 1) { tunnelDiagnostic = '系统 VPN 会话未连接（隧道没真正建立）'; return; }
+    if (code == 2) { tunnelDiagnostic = '扩展无响应（WireGuard 内核未启动或已崩溃）⚠️'; return; }
     final hs = st[2];
     final ago = hs > 0
         ? '${DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000 - hs} 秒前'
         : '从未握手 ⚠️';
-    tunnelDiagnostic = '收 ${_fmtBytes(st[0])} / 发 ${_fmtBytes(st[1])}，握手 $ago';
+    tunnelDiagnostic = '收 ${_fmtBytes(st[0])} / 发 ${_fmtBytes(st[1])}，握手 $ago'
+        '（${_protocol == VpnProtocol.relay ? '中继' : '直连'}'
+        '${_activeServer?.displayName != null ? ' · ${_activeServer!.displayName}' : ''}）';
   }
 
   static String _fmtBytes(int b) {
@@ -1475,6 +1502,7 @@ class VpnProvider extends ChangeNotifier {
   void dispose() {
     _fallbackTimer?.cancel();
     _usageTimer?.cancel();
+    _diagTimer?.cancel();
     _trialTimer?.cancel();
     _pingTimer?.cancel();
     _stageSub?.cancel();

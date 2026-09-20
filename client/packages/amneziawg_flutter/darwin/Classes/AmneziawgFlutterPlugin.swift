@@ -91,7 +91,29 @@ public class AmneziawgFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
         // 隧道诊断：[rx, tx, 最后握手 unix 秒]。握手为 0 = 从未握手成功，
         // 说明 UDP 到服务器不通（被墙/端口错/密钥不符），隧道是「假连上」。
         case "tunnelStats":
-            queryStats { rx, tx, hs in result([rx, tx, hs]) }
+            // 诊断用：除了 [rx, tx, 握手时间]，失败时还要说清是哪一环没通，
+            // 所以第 4 个元素是状态码：0=正常 1=系统会话未连接 2=扩展无响应
+            guard let session = manager?.connection as? NETunnelProviderSession else {
+                result([-1, -1, -1, 1]); return
+            }
+            if session.status != .connected {
+                result([-1, -1, -1, 1]); return
+            }
+            do {
+                try session.sendProviderMessage(Data("stats".utf8)) { data in
+                    DispatchQueue.main.async {
+                        guard let data = data,
+                              let s = String(data: data, encoding: .utf8) else {
+                            result([-1, -1, -1, 2]); return   // 扩展没回 = 隧道内核没起来
+                        }
+                        let p = s.split(separator: ",").compactMap { Int($0) }
+                        guard p.count >= 2 else { result([-1, -1, -1, 2]); return }
+                        result([p[0], p[1], p.count >= 3 ? p[2] : -1, 0])
+                    }
+                }
+            } catch {
+                result([-1, -1, -1, 2])
+            }
 
         default:
             result(FlutterMethodNotImplemented)
