@@ -83,10 +83,15 @@ public class AmneziawgFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
             }
 
         case "transfer":
-            queryStats { rx, tx in result(rx < 0 ? -1 : rx + tx) }
+            queryStats { rx, tx, _ in result(rx < 0 ? -1 : rx + tx) }
 
         case "transferRxTx":
-            queryStats { rx, tx in result([rx, tx]) }
+            queryStats { rx, tx, _ in result([rx, tx]) }
+
+        // 隧道诊断：[rx, tx, 最后握手 unix 秒]。握手为 0 = 从未握手成功，
+        // 说明 UDP 到服务器不通（被墙/端口错/密钥不符），隧道是「假连上」。
+        case "tunnelStats":
+            queryStats { rx, tx, hs in result([rx, tx, hs]) }
 
         default:
             result(FlutterMethodNotImplemented)
@@ -221,20 +226,21 @@ public class AmneziawgFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     }
 
     /// 经 App↔扩展消息读取累计 [rx, tx] 字节（扩展从 amneziawg-go 运行时配置里取）。
-    private func queryStats(_ done: @escaping (Int, Int) -> Void) {
+    private func queryStats(_ done: @escaping (Int, Int, Int) -> Void) {
         guard let session = manager?.connection as? NETunnelProviderSession,
-              session.status == .connected else { done(-1, -1); return }
+              session.status == .connected else { done(-1, -1, -1); return }
         do {
             try session.sendProviderMessage(Data("stats".utf8)) { data in
                 DispatchQueue.main.async {
                     guard let data = data,
-                          let s = String(data: data, encoding: .utf8) else { done(-1, -1); return }
-                    let parts = s.split(separator: ",").compactMap { Int($0) }
-                    parts.count == 2 ? done(parts[0], parts[1]) : done(-1, -1)
+                          let s = String(data: data, encoding: .utf8) else { done(-1, -1, -1); return }
+                    let p = s.split(separator: ",").compactMap { Int($0) }
+                    guard p.count >= 2 else { done(-1, -1, -1); return }
+                    done(p[0], p[1], p.count >= 3 ? p[2] : -1)
                 }
             }
         } catch {
-            done(-1, -1)
+            done(-1, -1, -1)
         }
     }
 

@@ -74,15 +74,19 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         adapter.getRuntimeConfiguration { settings in
             guard let settings = settings else { completionHandler?(nil); return }
-            var rx = 0, tx = 0
+            var rx = 0, tx = 0, handshake = 0
             for line in settings.split(separator: "\n") {
                 if line.hasPrefix("rx_bytes=") {
                     rx += Int(line.dropFirst("rx_bytes=".count)) ?? 0
                 } else if line.hasPrefix("tx_bytes=") {
                     tx += Int(line.dropFirst("tx_bytes=".count)) ?? 0
+                } else if line.hasPrefix("last_handshake_time_sec=") {
+                    handshake = max(handshake, Int(line.dropFirst("last_handshake_time_sec=".count)) ?? 0)
                 }
             }
-            completionHandler?(Data("\(rx),\(tx)".utf8))
+            // 第三个字段是最后一次握手的 unix 时间（0 = 从未握手成功 = 隧道没真正建立）。
+            // 老版本 App 只解析前两个字段，多出的字段会被忽略，兼容。
+            completionHandler?(Data("\(rx),\(tx),\(handshake)".utf8))
         }
     }
 }

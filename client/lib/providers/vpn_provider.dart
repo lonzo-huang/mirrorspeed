@@ -7,6 +7,8 @@ import 'package:flutter/services.dart'; // PlatformException + rootBundle
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../vpn/vpn_engine.dart';
+import 'package:amneziawg_flutter/amneziawg_flutter.dart';
+import 'package:amneziawg_flutter/amneziawg_flutter_method_channel.dart';
 import '../vpn/amnezia_wg_engine.dart';
 import '../services/free_node_service.dart';
 import '../models/server_config.dart';
@@ -1240,10 +1242,35 @@ class VpnProvider extends ChangeNotifier {
     await _pollUsage();   // 结算最后一段
   }
 
+  /// Apple 隧道诊断串（错误信息弹窗展示）：收发字节 + 最后握手时间。
+  /// 握手「从未」= UDP 根本没通到服务器，此时即便界面显示已连接也不会有流量。
+  String? tunnelDiagnostic;
+
+  Future<void> _updateTunnelDiagnostic() async {
+    if (kIsWeb || !(Platform.isIOS || Platform.isMacOS)) return;
+    if (_engine is! AmneziaWgEngine) return;
+    final ch = AmneziawgFlutterInterface.instance;
+    final st = ch is AmneziawgFlutterMethodChannel ? await ch.tunnelStats() : null;
+    if (st == null) { tunnelDiagnostic = '不可用'; return; }
+    final hs = st[2];
+    final ago = hs > 0
+        ? '${DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000 - hs} 秒前'
+        : '从未握手 ⚠️';
+    tunnelDiagnostic = '收 ${_fmtBytes(st[0])} / 发 ${_fmtBytes(st[1])}，握手 $ago';
+  }
+
+  static String _fmtBytes(int b) {
+    if (b < 0) return '?';
+    if (b < 1024) return '${b}B';
+    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(1)}KB';
+    return '${(b / 1024 / 1024).toStringAsFixed(1)}MB';
+  }
+
   Future<void> _pollUsage() async {
     // 取 rx/tx 分项：rx=下行(收)、tx=上行(发)。隧道未起/平台不支持返回 [-1,-1]。
     final rxtx = await _engine.transferRxTx()
         .timeout(const Duration(seconds: 3), onTimeout: () => const [-1, -1]);
+    unawaited(_updateTunnelDiagnostic());
     _rollDayIfNeeded();
     final rx = rxtx.isNotEmpty ? rxtx[0] : -1;
     final tx = rxtx.length > 1 ? rxtx[1] : -1;

@@ -2,6 +2,8 @@ import 'invite_screen.dart';
 import 'app_proxy_screen.dart';
 import '../services/iap_service.dart';
 import '../services/app_proxy_store.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -420,6 +422,10 @@ void _showErrorInfo(BuildContext context) {
   final items = <String>[];
   if (auth.error != null) items.add('${tr('配置 / 登录', 'Config / Login')}：${auth.error}');
   if (vpn.error  != null) items.add('${tr('连接', 'Connection')}：${vpn.error}');
+  // Apple 隧道诊断：优质节点「显示已连接但流量不通」时，看有没有握手成功
+  if (!kIsWeb && (Platform.isIOS || Platform.isMacOS) && vpn.isConnected) {
+    items.add('${tr('隧道', 'Tunnel')}：${vpn.tunnelDiagnostic ?? tr('读取中…', 'reading…')}');
+  }
   // iOS 内购诊断：最近一次向 App Store 查询订阅商品的结果（TestFlight 包没有控制台日志）
   final iapReport = IapService.instance.lastQueryReport;
   if (IapService.supported && iapReport != null) {
