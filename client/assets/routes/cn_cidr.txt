@@ -1,10 +1,43 @@
 # China Mainland IP Ranges — Smart Mode
 # Traffic matching these ranges goes DIRECT (bypasses VPN).
 # Everything else is routed through the VPN tunnel.
-# Generated 2026-09-19 by tool/gen_cn_cidr.py from sing-box geoip-cn,
-# merged to /15: 891 CN ranges -> 1464 tunnel routes.
+# Generated 2026-09-20 by tool/gen_cn_cidr.py from sing-box geoip-cn,
+# merged to /15: 923 CN ranges -> 1466 tunnel routes.
+# Public DNS (1.1.1.1 / 8.8.8.8 / 9.9.9.9 ...) carved out so they stay tunneled.
 # Do not edit by hand; re-run the script instead.
-1.0.0.0/14
+1.0.0.0/32
+1.0.0.2/31
+1.0.0.4/30
+1.0.0.8/29
+1.0.0.16/28
+1.0.0.32/27
+1.0.0.64/26
+1.0.0.128/25
+1.0.1.0/24
+1.0.2.0/23
+1.0.4.0/22
+1.0.8.0/21
+1.0.16.0/20
+1.0.32.0/19
+1.0.64.0/18
+1.0.128.0/17
+1.1.0.0/24
+1.1.1.0/32
+1.1.1.2/31
+1.1.1.4/30
+1.1.1.8/29
+1.1.1.16/28
+1.1.1.32/27
+1.1.1.64/26
+1.1.1.128/25
+1.1.2.0/23
+1.1.4.0/22
+1.1.8.0/21
+1.1.16.0/20
+1.1.32.0/19
+1.1.64.0/18
+1.1.128.0/17
+1.2.0.0/15
 1.4.0.0/15
 1.8.0.0/13
 1.24.0.0/13

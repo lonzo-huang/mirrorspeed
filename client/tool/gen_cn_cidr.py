@@ -21,6 +21,32 @@ SRS = os.path.join(CLIENT, 'ios_macos_native', 'RuleSets', 'geoip-cn.srs')
 OUT = os.path.join(CLIENT, 'assets', 'routes', 'cn_cidr.txt')
 
 
+# 智能模式强制使用的海外公共 DNS，以及少数关键 anycast 地址：
+# 按 /15 向上合并会把它们误并进「中国段」→ 直连 → 在国内被污染 →
+# 隧道明明是通的却什么都打不开。必须从中国段里挖掉，确保它们走隧道。
+DNS_MUST_TUNNEL = [
+    '1.1.1.1/32', '1.0.0.1/32',          # Cloudflare（vpn_provider 智能模式默认）
+    '8.8.8.8/32', '8.8.4.4/32',          # Google
+    '9.9.9.9/32', '149.112.112.112/32',  # Quad9
+]
+
+
+def carve_out(nets, holes):
+    """从 nets 中挖掉 holes 覆盖的地址。"""
+    out = list(nets)
+    for h in holes:
+        nxt = []
+        for n in out:
+            if n.overlaps(h):
+                if n.subnet_of(h):
+                    continue
+                nxt.extend(n.address_exclude(h))
+            else:
+                nxt.append(n)
+        out = nxt
+    return list(ipaddress.collapse_addresses(out))
+
+
 def complement(nets):
     out = [ipaddress.ip_network('0.0.0.0/0')]
     for n in nets:
@@ -51,6 +77,7 @@ def main():
     p = args.prefix
     merged = list(ipaddress.collapse_addresses(
         n.supernet(new_prefix=p) if n.prefixlen > p else n for n in v4))
+    merged = carve_out(merged, [ipaddress.ip_network(x) for x in DNS_MUST_TUNNEL])
     routes = complement(merged)
 
     today = datetime.date.today().isoformat()
@@ -60,6 +87,7 @@ def main():
         f.write('# Everything else is routed through the VPN tunnel.\n')
         f.write(f'# Generated {today} by tool/gen_cn_cidr.py from sing-box geoip-cn,\n')
         f.write(f'# merged to /{p}: {len(merged)} CN ranges -> {len(routes)} tunnel routes.\n')
+        f.write('# Public DNS (1.1.1.1 / 8.8.8.8 / 9.9.9.9 ...) carved out so they stay tunneled.\n')
         f.write('# Do not edit by hand; re-run the script instead.\n')
         for n in merged:
             f.write(f'{n}\n')
