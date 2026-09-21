@@ -359,7 +359,9 @@ class VpnProvider extends ChangeNotifier {
       // 0. 按需建 peer：确保该节点服务器上已添加本设备（on-demand provisioning）。
       //    尽力而为，不阻断连接（多数情况已由列表预热提前建好）。
       if (!server.isDisplayOnly) {
-        await ApiService.instance.ensurePeer(serverIds: [server.id]);
+        // 结果记下来：服务器端没配好 peer 时，表现正是「握手成功但数据全被丢」，
+        // 之前失败了也静默忽略，排查时完全看不出来。
+        _lastEnsurePeerOk = await ApiService.instance.ensurePeer(serverIds: [server.id]);
       }
 
       // 强制连接模式：强力/超级 跳过直连，直接走对应中继。
@@ -1244,6 +1246,9 @@ class VpnProvider extends ChangeNotifier {
     await _pollUsage();   // 结算最后一段
   }
 
+  /// 最近一次 ensurePeer（在目标服务器上确保本机 peer 存在）的结果。
+  bool? _lastEnsurePeerOk;
+
   /// Apple 隧道诊断串（错误信息弹窗展示）：收发字节 + 最后握手时间。
   /// 握手「从未」= UDP 根本没通到服务器，此时即便界面显示已连接也不会有流量。
   String? tunnelDiagnostic;
@@ -1289,7 +1294,13 @@ class VpnProvider extends ChangeNotifier {
     final ago = hs > 0
         ? '${DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000 - hs} 秒前'
         : '从未握手 ⚠️';
+    // 附上本机隧道 IP 与节点端点：服务器上的 peer 若绑了别的 IP，
+    // 就会「握手成功但数据全被丢」——这两个值能直接对账。
+    final conf = _activeServer?.wgConf ?? '';
+    final myIp = RegExp(r'Address\s*=\s*([\d./]+)').firstMatch(conf)?.group(1) ?? '?';
     tunnelDiagnostic = '收 ${_fmtBytes(st[0])} / 发 ${_fmtBytes(st[1])}，握手 $ago'
+        '\n本机隧道 IP $myIp'
+        '${_lastEnsurePeerOk == false ? '，⚠️ 服务器未确认 peer' : ''}'
         '（${_protocol == VpnProtocol.relay ? '中继' : '直连'}'
         '${_activeServer?.displayName != null ? ' · ${_activeServer!.displayName}' : ''}）';
   }
