@@ -15,6 +15,12 @@
 #   bash ios_macos_native/upload_testflight.sh --no-upload  # 只打包导出到本地，不上传
 set -euo pipefail
 
+# flutter 可能不在非交互 shell 的 PATH 里（例如从 IDE/自动化里调用）。
+# 不补这一句的话，第 1 步会以 "flutter: command not found" 失败，而调用方
+# 若用管道取输出还会拿到 0 —— 看起来"上传成功"实则什么都没发生。
+export PATH="$PATH:$HOME/development/flutter/bin"
+command -v flutter >/dev/null || { echo "❌ 找不到 flutter，请检查 PATH"; exit 1; }
+
 HERE="$(cd "$(dirname "$0")" && pwd)"
 CLIENT="$(cd "$HERE/.." && pwd)"
 cd "$CLIENT"
