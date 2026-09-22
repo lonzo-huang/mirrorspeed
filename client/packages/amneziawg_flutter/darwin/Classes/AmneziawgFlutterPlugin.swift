@@ -102,6 +102,7 @@ public class AmneziawgFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
         case "tunnelStats":
             // 诊断用：除了 [rx, tx, 握手时间]，失败时还要说清是哪一环没通，
             // 所以第 4 个元素是状态码：0=正常 1=系统会话未连接 2=扩展无响应
+            //                        3=内核因网络不可用暂停中（扩展看门狗会自动恢复）
             guard let session = manager?.connection as? NETunnelProviderSession else {
                 result([-1, -1, -1, 1]); return
             }
@@ -117,7 +118,8 @@ public class AmneziawgFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
                         }
                         let p = s.split(separator: ",").compactMap { Int($0) }
                         guard p.count >= 2 else { result([-1, -1, -1, 2]); return }
-                        result([p[0], p[1], p.count >= 3 ? p[2] : -1, 0])
+                        // 扩展可能带回自己的状态码（如 3=暂停中），带了就透传
+                        result([p[0], p[1], p.count >= 3 ? p[2] : -1, p.count >= 4 ? p[3] : 0])
                     }
                 }
             } catch {

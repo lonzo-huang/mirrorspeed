@@ -51,6 +51,21 @@ public class WireGuardAdapter {
     /// Tracks whether the tunnel has ever had a successful handshake during the lifetime of this adapter instance.
     private var everHadHandshake = false
 
+    /// 进入 `.temporaryShutdown` 的时刻；看门狗据此判断已经停了多久。
+    private var pausedSince: Date?
+
+    /// 恢复看门狗。NE 扩展里 NWPathMonitor 常常在装上全局路由后一直报 `.unsatisfied`，
+    /// 而且不再推送新的路径事件 —— 只靠 pathUpdateHandler 恢复会永久卡在暂停态：
+    /// 系统仍显示"已连接"，内核却已关闭，App 查 stats 得到 nil（表现为"内核已崩溃"）。
+    /// 因此暂停后独立计时，到点无条件重启内核；长时间恢复不了就让系统重建隧道。
+    private var resumeTimer: DispatchSourceTimer?
+
+    /// 暂停多久后无条件尝试恢复（不再等待路径事件）。
+    private let forcedResumeAfter: TimeInterval = 15
+
+    /// 暂停多久后放弃自愈、交给系统重建隧道。
+    private let giveUpAndRestartAfter: TimeInterval = 120
+
     /// Packet tunnel provider.
     private weak var packetTunnelProvider: NEPacketTunnelProvider?
 
@@ -159,6 +174,14 @@ public class WireGuardAdapter {
 
     // MARK: - Public methods
 
+    /// 内核是否因网络不可用而暂停（区别于"从未启动/已崩溃"）。
+    public var isPaused: Bool {
+        workQueue.sync {
+            if case .temporaryShutdown = self.state { return true }
+            return false
+        }
+    }
+
     /// Returns a runtime configuration from WireGuard.
     /// - Parameter completionHandler: completion handler.
     public func getRuntimeConfiguration(completionHandler: @escaping (String?) -> Void) {
@@ -240,6 +263,7 @@ public class WireGuardAdapter {
 
             self.networkMonitor?.cancel()
             self.networkMonitor = nil
+            self.stopResumeWatchdog()
 
             self.state = .stopped
 
@@ -475,6 +499,7 @@ public class WireGuardAdapter {
 
                     self.state = .temporaryShutdown(settingsGenerator)
                     wgTurnOff(handle)
+                    self.startResumeWatchdog()
                 } else {
                     let remaining = self.remainingUnsatisfiedGraceSeconds()
                     if remaining > 0 {
@@ -489,22 +514,7 @@ public class WireGuardAdapter {
             guard path.status.isSatisfiable else { return }
 
             self.logHandler(.verbose, "Connectivity online, resuming backend.")
-
-            do {
-                let networkSettings = settingsGenerator.generateNetworkSettings()
-                self.logNetworkSettingsSummary(networkSettings, context: "resume")
-                try self.setNetworkSettings(networkSettings)
-
-                let (wgConfig, resolutionResults) = settingsGenerator.uapiConfiguration()
-                self.logEndpointResolutionResults(resolutionResults)
-
-                self.state = .started(
-                    try self.startWireGuardBackend(wgConfig: wgConfig),
-                    settingsGenerator
-                )
-            } catch {
-                self.logHandler(.error, "Failed to restart backend: \(error.localizedDescription)")
-            }
+            self.resumeBackend(settingsGenerator, context: "path-update")
 
         case .stopped:
             // no-op
@@ -545,6 +555,69 @@ public class WireGuardAdapter {
         guard let lastUpdateAt = self.lastNetworkSettingsUpdateAt else { return 0 }
         let elapsed = Date().timeIntervalSince(lastUpdateAt)
         return max(0, self.unsatisfiedGracePeriodAfterNetworkSettings - elapsed)
+    }
+
+    /// 重启内核并重新装路由。必须在 workQueue 上调用。
+    /// - Returns: 是否恢复成功。
+    @discardableResult
+    private func resumeBackend(_ settingsGenerator: PacketTunnelSettingsGenerator, context: String) -> Bool {
+        do {
+            let networkSettings = settingsGenerator.generateNetworkSettings()
+            self.logNetworkSettingsSummary(networkSettings, context: "resume(\(context))")
+            try self.setNetworkSettings(networkSettings)
+
+            let (wgConfig, resolutionResults) = settingsGenerator.uapiConfiguration()
+            self.logEndpointResolutionResults(resolutionResults)
+
+            self.state = .started(
+                try self.startWireGuardBackend(wgConfig: wgConfig),
+                settingsGenerator
+            )
+            self.stopResumeWatchdog()
+            return true
+        } catch {
+            self.logHandler(.error, "Failed to restart backend (\(context)): \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// 暂停后每 5 秒检查一次：超过 `forcedResumeAfter` 就不再等路径事件，直接重启内核
+    /// （endpoint 暂时不可达没关系，wireguard-go 自己会重试握手）；超过
+    /// `giveUpAndRestartAfter` 仍未恢复，则让系统重建整条隧道。
+    private func startResumeWatchdog() {
+        self.pausedSince = Date()
+        self.resumeTimer?.cancel()
+
+        let timer = DispatchSource.makeTimerSource(queue: self.workQueue)
+        timer.schedule(deadline: .now() + 5, repeating: 5)
+        timer.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            guard case .temporaryShutdown(let settingsGenerator) = self.state else {
+                self.stopResumeWatchdog()
+                return
+            }
+            let paused = self.pausedSince.map { Date().timeIntervalSince($0) } ?? 0
+
+            if paused >= self.giveUpAndRestartAfter {
+                self.logHandler(.error, "Backend paused for \(Int(paused))s and cannot resume, asking system to restart the tunnel.")
+                self.stopResumeWatchdog()
+                self.packetTunnelProvider?.cancelTunnelWithError(WireGuardAdapterError.invalidState)
+                return
+            }
+
+            guard paused >= self.forcedResumeAfter else { return }
+
+            self.logHandler(.verbose, "Watchdog: paused for \(Int(paused))s without a satisfiable path event, forcing resume.")
+            self.resumeBackend(settingsGenerator, context: "watchdog")
+        }
+        timer.resume()
+        self.resumeTimer = timer
+    }
+
+    private func stopResumeWatchdog() {
+        self.resumeTimer?.cancel()
+        self.resumeTimer = nil
+        self.pausedSince = nil
     }
 
     private func updateEverHadHandshake(handle: Int32) {

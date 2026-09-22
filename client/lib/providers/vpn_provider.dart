@@ -1290,6 +1290,12 @@ class VpnProvider extends ChangeNotifier {
       tunnelDiagnostic = '扩展无响应（内核未启动或已崩溃）⚠️\n$last';
       return;
     }
+    if (code == 3) {
+      // 系统把网络判成不可用 → 扩展暂停了内核；看门狗会在 15 秒内强制恢复，
+      // 不必让用户手动重连（见 WireGuardAdapter.startResumeWatchdog）。
+      tunnelDiagnostic = '网络切换中，内核已暂停，正在自动恢复…';
+      return;
+    }
     final hs = st[2];
     final ago = hs > 0
         ? '${DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000 - hs} 秒前'

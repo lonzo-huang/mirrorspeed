@@ -83,11 +83,22 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             completionHandler?(nil)
             return
         }
+        // 注意：getRuntimeConfiguration 的回调在 adapter 的 workQueue 上执行，
+        // 而 isPaused 用 workQueue.sync —— 必须在这里先取，回调里取会死锁。
+        let paused = adapter.isPaused
         adapter.getRuntimeConfiguration { settings in
             guard let settings = settings else {
-                // 内核不在运行：主 App 会显示「扩展无响应」，这里记下来便于定位
-                TunnelLog.log("⚠️ stats 查询时内核未运行（getRuntimeConfiguration 返回空）")
-                completionHandler?(nil); return
+                if paused {
+                    // 网络被判为不可用 → 内核已暂停，看门狗会在 15 秒内强制恢复。
+                    // 与"崩溃"区分开，避免 App 误报、也避免用户白白重连。
+                    TunnelLog.log("⏸ 内核因网络不可用暂停中，等待自动恢复")
+                    completionHandler?(Data("0,0,0,3".utf8))
+                } else {
+                    // 内核不在运行：主 App 会显示「扩展无响应」，这里记下来便于定位
+                    TunnelLog.log("⚠️ stats 查询时内核未运行（getRuntimeConfiguration 返回空）")
+                    completionHandler?(nil)
+                }
+                return
             }
             var rx = 0, tx = 0, handshake = 0
             for line in settings.split(separator: "\n") {
