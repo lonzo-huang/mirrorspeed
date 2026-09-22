@@ -51,20 +51,20 @@ public class WireGuardAdapter {
     /// Tracks whether the tunnel has ever had a successful handshake during the lifetime of this adapter instance.
     private var everHadHandshake = false
 
-    /// 进入 `.temporaryShutdown` 的时刻；看门狗据此判断已经停了多久。
-    private var pausedSince: Date?
-
     /// 恢复看门狗。NE 扩展里 NWPathMonitor 常常在装上全局路由后一直报 `.unsatisfied`，
     /// 而且不再推送新的路径事件 —— 只靠 pathUpdateHandler 恢复会永久卡在暂停态：
     /// 系统仍显示"已连接"，内核却已关闭，App 查 stats 得到 nil（表现为"内核已崩溃"）。
     /// 因此暂停后独立计时，到点无条件重启内核；长时间恢复不了就让系统重建隧道。
     private var resumeTimer: DispatchSourceTimer?
 
-    /// 暂停多久后无条件尝试恢复（不再等待路径事件）。
-    private let forcedResumeAfter: TimeInterval = 15
+    /// 握手多久没更新就先尝试重绑 socket。
+    private let bumpSocketsAfterStaleHandshake: TimeInterval = 120
 
-    /// 暂停多久后放弃自愈、交给系统重建隧道。
-    private let giveUpAndRestartAfter: TimeInterval = 120
+    /// 握手多久没更新就判定隧道已死，交给系统重建。
+    private let restartTunnelAfterStaleHandshake: TimeInterval = 300
+
+    /// 握手过期看门狗（仅在曾经握手成功后才生效，避免影响首次连接的重试）。
+    private var healthTimer: DispatchSourceTimer?
 
     /// Packet tunnel provider.
     private weak var packetTunnelProvider: NEPacketTunnelProvider?
@@ -234,6 +234,7 @@ public class WireGuardAdapter {
                     settingsGenerator
                 )
                 self.networkMonitor = networkMonitor
+                self.startHealthWatchdog()
                 completionHandler(nil)
             } catch let error as WireGuardAdapterError {
                 networkMonitor.cancel()
@@ -263,7 +264,7 @@ public class WireGuardAdapter {
 
             self.networkMonitor?.cancel()
             self.networkMonitor = nil
-            self.stopResumeWatchdog()
+            self.stopHealthWatchdog()
 
             self.state = .stopped
 
@@ -494,20 +495,13 @@ public class WireGuardAdapter {
                 wgDisableSomeRoamingForBrokenMobileSemantics(handle)
                 wgBumpSockets(handle)
             } else {
-                if self.shouldPauseBackendOnUnsatisfiedPath() {
-                    self.logHandler(.verbose, "Connectivity offline, pausing backend.")
-
-                    self.state = .temporaryShutdown(settingsGenerator)
-                    wgTurnOff(handle)
-                    self.startResumeWatchdog()
-                } else {
-                    let remaining = self.remainingUnsatisfiedGraceSeconds()
-                    if remaining > 0 {
-                        self.logHandler(.verbose, "Connectivity unsatisfied right after applying routes, not pausing backend for ~\(Int(ceil(remaining)))s.")
-                    } else {
-                        self.logHandler(.verbose, "Connectivity unsatisfied right after applying routes, not pausing backend.")
-                    }
-                }
+                // 不关内核。NE 扩展里 `.unsatisfied` 多半是装上全局路由后的误报，
+                // 而且之后未必再推送 satisfiable 事件 —— 一旦关掉就可能永远起不来
+                // （系统仍显示"已连接"，实则内核已停）。wireguard-go 自己会重试握手、
+                // 重绑 socket，网络真断了也只是暂时收不到包，恢复后自动继续。
+                // macOS 分支一直是这个行为（只 bumpSockets），iOS 现在与之对齐。
+                self.logHandler(.verbose, "Connectivity unsatisfied, keeping backend alive and bumping sockets.")
+                wgBumpSockets(handle)
             }
 
         case .temporaryShutdown(let settingsGenerator):
@@ -525,40 +519,9 @@ public class WireGuardAdapter {
         #endif
     }
 
-    // MARK: - iOS offline detection helpers
-
-    private var unsatisfiedGracePeriodAfterNetworkSettings: TimeInterval {
-        // Long enough to cover the route-flip window on Wi‑Fi (en0 → utun*) while the first handshake completes,
-        // short enough to still pause reasonably quickly on genuine offline transitions.
-        12
-    }
-
-    private func shouldPauseBackendOnUnsatisfiedPath() -> Bool {
-        // `.unsatisfied` is commonly reported right after installing kill-switch routes (Wi‑Fi is especially prone).
-        // Suppress pausing for a short grace period after the last network settings update.
-        if let lastUpdateAt = self.lastNetworkSettingsUpdateAt,
-           Date().timeIntervalSince(lastUpdateAt) < self.unsatisfiedGracePeriodAfterNetworkSettings {
-            return false
-        }
-
-        // If we have never completed a handshake, treat `.unsatisfied` as transient during bootstrap.
-        if !self.everHadHandshake {
-            return false
-        }
-
-        // Outside the grace period, treat `.unsatisfied` as a real offline transition.
-        // (We still keep `everHadHandshake` for future heuristics and for logging/debugging.)
-        return true
-    }
-
-    private func remainingUnsatisfiedGraceSeconds() -> TimeInterval {
-        guard let lastUpdateAt = self.lastNetworkSettingsUpdateAt else { return 0 }
-        let elapsed = Date().timeIntervalSince(lastUpdateAt)
-        return max(0, self.unsatisfiedGracePeriodAfterNetworkSettings - elapsed)
-    }
+    // MARK: - 自愈
 
     /// 重启内核并重新装路由。必须在 workQueue 上调用。
-    /// - Returns: 是否恢复成功。
     @discardableResult
     private func resumeBackend(_ settingsGenerator: PacketTunnelSettingsGenerator, context: String) -> Bool {
         do {
@@ -573,7 +536,7 @@ public class WireGuardAdapter {
                 try self.startWireGuardBackend(wgConfig: wgConfig),
                 settingsGenerator
             )
-            self.stopResumeWatchdog()
+            self.startHealthWatchdog()
             return true
         } catch {
             self.logHandler(.error, "Failed to restart backend (\(context)): \(error.localizedDescription)")
@@ -581,44 +544,55 @@ public class WireGuardAdapter {
         }
     }
 
-    /// 暂停后每 5 秒检查一次：超过 `forcedResumeAfter` 就不再等路径事件，直接重启内核
-    /// （endpoint 暂时不可达没关系，wireguard-go 自己会重试握手）；超过
-    /// `giveUpAndRestartAfter` 仍未恢复，则让系统重建整条隧道。
-    private func startResumeWatchdog() {
-        self.pausedSince = Date()
-        self.resumeTimer?.cancel()
-
+    /// 隧道健康看门狗。每 30 秒看一次最后握手时间（仅在曾经握手成功后才生效，
+    /// 免得干扰首次连接的正常重试）：
+    ///   · 超过 120s 没握手 → wgBumpSockets 重绑 socket（换网/换出口 IP 后最常见的卡死）
+    ///   · 超过 300s 没握手 → 判定隧道已死，cancelTunnelWithError 让系统重建，
+    ///     而不是继续显示"已连接"却不通
+    private func startHealthWatchdog() {
+        self.healthTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: self.workQueue)
-        timer.schedule(deadline: .now() + 5, repeating: 5)
+        timer.schedule(deadline: .now() + 30, repeating: 30)
         timer.setEventHandler { [weak self] in
             guard let self = self else { return }
-            guard case .temporaryShutdown(let settingsGenerator) = self.state else {
-                self.stopResumeWatchdog()
-                return
-            }
-            let paused = self.pausedSince.map { Date().timeIntervalSince($0) } ?? 0
+            guard case .started(let handle, _) = self.state else { return }
+            self.updateEverHadHandshake(handle: handle)
+            guard self.everHadHandshake, let age = self.handshakeAge(handle: handle) else { return }
 
-            if paused >= self.giveUpAndRestartAfter {
-                self.logHandler(.error, "Backend paused for \(Int(paused))s and cannot resume, asking system to restart the tunnel.")
-                self.stopResumeWatchdog()
+            if age >= self.restartTunnelAfterStaleHandshake {
+                self.logHandler(.error, "No handshake for \(Int(age))s, asking system to restart the tunnel.")
+                self.stopHealthWatchdog()
                 self.packetTunnelProvider?.cancelTunnelWithError(WireGuardAdapterError.invalidState)
-                return
+            } else if age >= self.bumpSocketsAfterStaleHandshake {
+                self.logHandler(.verbose, "No handshake for \(Int(age))s, bumping sockets.")
+                wgBumpSockets(handle)
             }
-
-            guard paused >= self.forcedResumeAfter else { return }
-
-            self.logHandler(.verbose, "Watchdog: paused for \(Int(paused))s without a satisfiable path event, forcing resume.")
-            self.resumeBackend(settingsGenerator, context: "watchdog")
         }
         timer.resume()
-        self.resumeTimer = timer
+        self.healthTimer = timer
     }
 
-    private func stopResumeWatchdog() {
-        self.resumeTimer?.cancel()
-        self.resumeTimer = nil
-        self.pausedSince = nil
+    private func stopHealthWatchdog() {
+        self.healthTimer?.cancel()
+        self.healthTimer = nil
     }
+
+    /// 距最后一次成功握手的秒数；从未握手返回 nil。
+    private func handshakeAge(handle: Int32) -> TimeInterval? {
+        guard let settings = wgGetConfig(handle) else { return nil }
+        let config = String(cString: settings)
+        free(settings)
+
+        var newest: Int64 = 0
+        for line in config.split(separator: "\n", omittingEmptySubsequences: true) {
+            guard line.hasPrefix("last_handshake_time_sec=") else { continue }
+            if let value = Int64(line.dropFirst("last_handshake_time_sec=".count)) { newest = max(newest, value) }
+        }
+        guard newest > 0 else { return nil }
+        return max(0, Date().timeIntervalSince1970 - TimeInterval(newest))
+    }
+
+    // MARK: - iOS offline detection helpers
 
     private func updateEverHadHandshake(handle: Int32) {
         guard !self.everHadHandshake else { return }
