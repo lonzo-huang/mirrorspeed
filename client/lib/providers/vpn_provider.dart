@@ -394,6 +394,7 @@ class VpnProvider extends ChangeNotifier {
       String wgConf = _routingMode == RoutingMode.smart
           ? await _applySmartRouting(server.wgConf, excludeIp: null)
           : server.wgConf;
+      wgConf = await _appleDefaultRouteWithExclusions(wgConf);
       wgConf = PortHoppingService.instance
           .rewriteEndpointPort(wgConf, effectivePort);
       wgConf = await _applyAppProxy(wgConf);   // Android 优质：智能模式下按应用
@@ -526,6 +527,9 @@ class VpnProvider extends ChangeNotifier {
       final localPort = await _relay.start(
           '$relayBaseUrl/secure-tunnel', _awgInternalPort);
       var relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
+      // 中继模式同样受益；serverIp 的回环排除已在 _buildRelayConf 里从 AllowedIPs 扣掉，
+      // 取补集后自然落进 ExcludedIPs，不会被默认路由重新吃回去。
+      relayConf = await _appleDefaultRouteWithExclusions(relayConf);
       relayConf = await _applyAppProxy(relayConf);   // Android 优质：智能模式下按应用
 
       await _engine.start(EngineStartParams(
@@ -654,6 +658,42 @@ class VpnProvider extends ChangeNotifier {
     }
     debugPrint('[APPPROXY] mode=$mode inject=$inserted pkgs=${pkgs.length} → $line');
     return inserted ? out.join('\n') : wgConf;
+  }
+
+  /// Apple 专用：把「拆分路由」改写成「默认路由 + 排除表」，语义等价。
+  ///
+  /// 为什么必须这么做：iOS 只对单条 `0.0.0.0/0` 的全局 VPN 做特殊处理，会让系统自己的
+  /// 联网探测照常工作。若交给它几十上千条普通拆分路由（服务器下发的 AllowedIPs 本就是
+  /// 0.0.0.0/5, 8.0.0.0/7 … 这种形式，智能模式更有上千条），WiFi 刚连上时系统在 WiFi
+  /// 接口上做的探测会被这些路由截走而失败 → 判定「WiFi 无互联网」→ 永不把 WiFi 提为
+  /// 主接口 → VPN 永远留在蜂窝上，用户看到"切到 5G 后再也回不去 WiFi"。
+  ///
+  /// 服务器 endpoint 无需在这里排除：Apple 扩展的 PacketTunnelSettingsGenerator 会自动
+  /// 把已解析的 endpoint 放进 excludedRoutes。
+  ///
+  /// 仅 Apple 生效；安卓/Windows 原样返回（`ExcludedIPs` 也只有本项目的 Apple 解析器认识）。
+  Future<String> _appleDefaultRouteWithExclusions(String wgConf) async {
+    if (kIsWeb || !(Platform.isIOS || Platform.isMacOS)) return wgConf;
+
+    final m = RegExp(r'AllowedIPs\s*=\s*([^\n]+)').firstMatch(wgConf);
+    if (m == null) return wgConf;
+    final current = m.group(1)!.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    // 已经是单条默认路由就不用动
+    if (current.length == 1 && current.first == '0.0.0.0/0') return wgConf;
+
+    // 排除表 = 全 IPv4 空间减去当前 AllowedIPs（即"原本就不走隧道"的那部分）。
+    // 智能模式下它就是中国 IP 段，全局模式下就是内网段 —— 两种模式共用一套逻辑。
+    final excluded = _computeComplementCidrs(current.where((c) => !c.contains(':')).toList());
+    if (excluded.isEmpty) return wgConf;
+
+    final hasV6 = current.any((c) => c.contains(':'));
+    var conf = wgConf.replaceAll(
+      RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
+      'AllowedIPs   = ${hasV6 ? '0.0.0.0/0, ::/0' : '0.0.0.0/0'}\n'
+      'ExcludedIPs  = ${excluded.join(', ')}',
+    );
+    debugPrint('[VPN] Apple 路由：${current.length} 条拆分路由 → 默认路由 + ${excluded.length} 条排除');
+    return conf;
   }
 
   // ── 智能路由：将 AWG 配置的 AllowedIPs 改为非中国IP段 ────────────────────

@@ -63,7 +63,7 @@ extension TunnelConfiguration {
                     let keyWithCase = trimmedLine[..<equalsIndex].trimmingCharacters(in: .whitespacesAndNewlines)
                     let key = keyWithCase.lowercased()
                     let value = trimmedLine[trimmedLine.index(equalsIndex, offsetBy: 1)...].trimmingCharacters(in: .whitespacesAndNewlines)
-                    let keysWithMultipleEntriesAllowed: Set<String> = ["address", "allowedips", "dns"]
+                    let keysWithMultipleEntriesAllowed: Set<String> = ["address", "allowedips", "excludedips", "dns"]
                     if let presentValue = attributes[key] {
                         if keysWithMultipleEntriesAllowed.contains(key) {
                             attributes[key] = presentValue + "," + value
@@ -105,7 +105,11 @@ extension TunnelConfiguration {
                         "randomtrailers",
                         "disablecookies",
                     ]
-                    let peerSectionKeys: Set<String> = ["publickey", "presharedkey", "allowedips", "endpoint", "persistentkeepalive"]
+                    // excludedips 是本项目的扩展键（标准 wg-quick 没有）：让 Apple 侧能用
+                    // 「默认路由 + 排除表」表达分流，而不是几百上千条拆分路由 —— iOS 只对
+                    // 单条 0.0.0.0/0 的全局 VPN 做特殊处理，拆分路由会让系统的 WiFi 联网探测
+                    // 被截走、判定 WiFi 不可用，从而永远不把 WiFi 提为主接口。
+                    let peerSectionKeys: Set<String> = ["publickey", "presharedkey", "allowedips", "excludedips", "endpoint", "persistentkeepalive"]
                     if parserState == .inInterfaceSection {
                         guard interfaceSectionKeys.contains(key) else {
                             throw ParseError.interfaceHasUnrecognizedKey(keyWithCase)
@@ -257,6 +261,10 @@ extension TunnelConfiguration {
             output.append("PublicKey = \(peer.publicKey.base64Key)\n")
             if let preSharedKey = peer.preSharedKey?.base64Key {
                 output.append("PresharedKey = \(preSharedKey)\n")
+            }
+            if !peer.excludeIPs.isEmpty {
+                let excludeIPsString = peer.excludeIPs.map { $0.stringRepresentation }.joined(separator: ", ")
+                output.append("ExcludedIPs = \(excludeIPsString)\n")
             }
             if !peer.allowedIPs.isEmpty {
                 let allowedIPsString = peer.allowedIPs.map { $0.stringRepresentation }.joined(separator: ", ")
@@ -432,6 +440,17 @@ extension TunnelConfiguration {
             }
             peer.preSharedKey = preSharedKey
         }
+        if let excludedIPsString = attributes["excludedips"] {
+            var excludeIPs = [IPAddressRange]()
+            for excludedIPString in excludedIPsString.splitToArray(trimmingCharacters: .whitespacesAndNewlines) {
+                guard let excludedIP = IPAddressRange(from: excludedIPString) else {
+                    throw ParseError.peerHasInvalidAllowedIP(excludedIPString)
+                }
+                excludeIPs.append(excludedIP)
+            }
+            peer.excludeIPs = excludeIPs
+        }
+
         if let allowedIPsString = attributes["allowedips"] {
             var allowedIPs = [IPAddressRange]()
             for allowedIPString in allowedIPsString.splitToArray(trimmingCharacters: .whitespacesAndNewlines) {
