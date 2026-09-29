@@ -169,7 +169,8 @@ class AdService {
   /// 诊断快照：ATT 授权状态 + 池子情况 + 最近一次结果。
   String get diagnosticReport {
     final parts = <String>[
-      '池=${_rewardedPool.length}/$_kRewardedPoolTarget 加载中=$_rewardedInFlight 开屏=${_appOpenAd != null ? '有' : '无'}',
+      '池=${_rewardedPool.length}/$_kRewardedPoolTarget 加载中=$_rewardedInFlight 开屏=${_appOpenAd != null ? '有' : '无'}'
+          '${kAdTestMode ? '（测试广告位）' : ''}',
       'ATT=${_attStatus ?? '未知'}',
       lastAdReport ?? '尚无加载记录',
     ];

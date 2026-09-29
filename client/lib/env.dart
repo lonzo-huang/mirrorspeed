@@ -52,8 +52,22 @@ const String _kAdMobAppIdIOS           = 'ca-app-pub-6444342069684995~4402982650
 const String _kAdRewardedUnitIdIOS     = 'ca-app-pub-6444342069684995/5669806179';
 const String _kAdAppOpenUnitIdIOS      = 'ca-app-pub-6444342069684995/1263657308';
 
+// Google 官方测试广告位：100% 有填充，用于把「客户端接入是否正常」与「账号侧有没有
+// 库存」分开。真实广告位在新应用上初期常年 0 填充（iOS 的 code 1 就是 No Fill —— 注意
+// iOS 与安卓的错误码编号不同，安卓 1 才是无效请求），光看真实位分不清是哪一种。
+// 仅在打诊断包时加 --dart-define=AD_TEST=true，正式包不受影响。
+const bool kAdTestMode = bool.fromEnvironment('AD_TEST');
+const String _kAdRewardedUnitIdTestIOS     = 'ca-app-pub-3940256099942544/1712485313';
+const String _kAdAppOpenUnitIdTestIOS      = 'ca-app-pub-3940256099942544/5575463023';
+const String _kAdRewardedUnitIdTestAndroid = 'ca-app-pub-3940256099942544/5224354917';
+const String _kAdAppOpenUnitIdTestAndroid  = 'ca-app-pub-3940256099942544/9257395921';
+
 String get kAdMobAppId       => _isIOS ? _kAdMobAppIdIOS       : _kAdMobAppIdAndroid;
-String get kAdRewardedUnitId => _isIOS ? _kAdRewardedUnitIdIOS : _kAdRewardedUnitIdAndroid;
-String get kAdAppOpenUnitId  => _isIOS ? _kAdAppOpenUnitIdIOS  : _kAdAppOpenUnitIdAndroid;
+String get kAdRewardedUnitId => kAdTestMode
+    ? (_isIOS ? _kAdRewardedUnitIdTestIOS : _kAdRewardedUnitIdTestAndroid)
+    : (_isIOS ? _kAdRewardedUnitIdIOS     : _kAdRewardedUnitIdAndroid);
+String get kAdAppOpenUnitId  => kAdTestMode
+    ? (_isIOS ? _kAdAppOpenUnitIdTestIOS : _kAdAppOpenUnitIdTestAndroid)
+    : (_isIOS ? _kAdAppOpenUnitIdIOS     : _kAdAppOpenUnitIdAndroid);
 // 每看完一条激励视频奖励的免费时长（分钟）
 const int    kAdRewardMinutes  = 30;

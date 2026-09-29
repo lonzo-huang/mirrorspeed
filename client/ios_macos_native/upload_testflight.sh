@@ -27,12 +27,18 @@ cd "$CLIENT"
 
 UPLOAD=1
 BUILD_NUMBER=""
+AD_TEST=false
 for a in "$@"; do
   case "$a" in
     --no-upload) UPLOAD=0 ;;
+    # 诊断包：改用 Google 官方测试广告位（100% 填充），用来确认客户端接入是否正常。
+    # 绝不能用于送审或正式发布 —— 测试位只会投 Google 的示例广告，且不产生收入。
+    --ad-test)   AD_TEST=true ;;
     *) BUILD_NUMBER="$a" ;;
   esac
 done
+[[ $AD_TEST == true ]] && echo "⚠️  测试广告位模式（AD_TEST=true）：此包仅供验证，不要送审"
+
 # 用时间戳做构建号：不改 pubspec(安卓 versionCode 不受影响)，且天然递增、不会撞号
 BUILD_NUMBER="${BUILD_NUMBER:-$(date +%y%m%d%H%M)}"
 TEAM="$(sed -n 's/^DEVELOPMENT_TEAM *= *//p' "$HERE/Signing.xcconfig" | tr -d '[:space:]')"
@@ -50,7 +56,8 @@ echo "▶ 1/5 生成 Flutter 配置（构建号 ${BUILD_NUMBER}）"
 flutter build ios --config-only --release --build-number "$BUILD_NUMBER" \
   --dart-define=SUPABASE_URL="$SUPABASE_URL" \
   --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON" \
-  --dart-define=API_BASE="$API_BASE" >/dev/null
+  --dart-define=API_BASE="$API_BASE" \
+  --dart-define=AD_TEST="$AD_TEST" >/dev/null
 
 echo "▶ 2/5 无签名归档（约 10 分钟）"
 rm -rf "$ARCHIVE"
