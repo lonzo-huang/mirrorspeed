@@ -427,6 +427,9 @@ void _showErrorInfo(BuildContext context) {
   if (IapService.supported && iapReport != null) {
     items.add('${tr('内购', 'In-App Purchase')}：$iapReport');
   }
+  // 广告诊断：AdMob 的失败原因决定完全不同的处理（没广告可投 / 网络到不了 /
+  // 广告位 ID 不对），正式包看不到控制台日志，只能显示出来。
+  items.add('${tr('广告', 'Ads')}：${AdService.instance.diagnosticReport}');
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(

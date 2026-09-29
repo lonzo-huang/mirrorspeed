@@ -25,12 +25,13 @@ class AdService {
   Future<void> _requestTrackingAuthorizationIOS() async {
     if (kIsWeb || !Platform.isIOS) return;
     try {
-      final status = await AppTrackingTransparency.trackingAuthorizationStatus;
+      var status = await AppTrackingTransparency.trackingAuthorizationStatus;
       if (status == TrackingStatus.notDetermined) {
         // 系统要求 App 进入前台后再弹，稍等一下更稳。
         await Future.delayed(const Duration(milliseconds: 300));
-        await AppTrackingTransparency.requestTrackingAuthorization();
+        status = await AppTrackingTransparency.requestTrackingAuthorization();
       }
+      _attStatus = status.name;
     } catch (e) {
       debugPrint('[AD] ATT 请求失败(忽略): $e');
     }
@@ -82,6 +83,7 @@ class AdService {
         onAdFailedToLoad: (e) {
           _appOpenAd = null;
           debugPrint('[Ad] appOpen load failed: $e');
+          _noteAd('开屏广告', e);
           _retry(() => loadAppOpen(), _appOpenRetry++);
         },
       ),
@@ -136,16 +138,45 @@ class AdService {
             _rewardedInFlight--;
             _rewardedPool.add(ad);
             _rewardedRetry = 0;
+            _noteAd('激励广告', null);
           },
           onAdFailedToLoad: (e) {
             _rewardedInFlight--;
             debugPrint('[Ad] rewarded load failed: $e');
+            _noteAd('激励广告', e);
             _retry(() => loadRewarded(), _rewardedRetry++);
           },
         ),
       );
     }
   }
+
+  /// 最近一次广告加载结果，显示在「我的 → 错误信息」里。
+  /// TestFlight/正式包看不到控制台日志，而 AdMob 的失败原因决定了完全不同的处理：
+  ///   code 0 internal / 2 network  → 网络到不了 AdMob（国内直连被墙、代理没生效）
+  ///   code 1 invalid request       → 广告位 ID 或 App ID 不对
+  ///   code 3 no fill               → 请求正常但没广告可投（新广告位、应用未上架最常见）
+  ///   "No ad config"               → AdMob 后台该应用/广告位尚未就绪（多因未关联已上架应用）
+  String? lastAdReport;
+
+  void _noteAd(String kind, Object? err) {
+    final t = DateTime.now().toIso8601String().substring(11, 19);
+    lastAdReport = err == null
+        ? '[$t] $kind 加载成功（池 ${_rewardedPool.length}）'
+        : '[$t] $kind 失败：$err';
+  }
+
+  /// 诊断快照：ATT 授权状态 + 池子情况 + 最近一次结果。
+  String get diagnosticReport {
+    final parts = <String>[
+      '池=${_rewardedPool.length}/$_kRewardedPoolTarget 加载中=$_rewardedInFlight 开屏=${_appOpenAd != null ? '有' : '无'}',
+      'ATT=${_attStatus ?? '未知'}',
+      lastAdReport ?? '尚无加载记录',
+    ];
+    return parts.join('\n');
+  }
+
+  String? _attStatus;
 
   bool get rewardedReady => _supported && _rewardedPool.isNotEmpty;
   bool get appOpenReady  => _supported && _appOpenAd != null;
