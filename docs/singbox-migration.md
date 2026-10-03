@@ -127,6 +127,84 @@ sing-box 一次性解决:**按应用 / 按域名(GeoSite)/ GeoIP / 广告域名�
 | 全节点铺开 | lonzo | ⬜ |
 | 2 个月后 sunset | 双方 | ⬜ |
 
+## 8.1 客户端 ↔ 后端 字段约定（client 按此解析，backend 按此下发）
+
+分工：后端(lonzo, main 主线) / 客户端 iOS+macOS(Claude)。双方以本节为准。
+
+### 请求：客户端如何声明自己是新版
+
+`/api/mobile/configs` 与 `/api/mobile/ensure-peer` 的请求带上：
+
+```
+app_version: "3.0.0"      // 已有字段沿用即可
+caps: ["singbox"]          // 新增；后端据此决定发不发 singbox 块
+```
+
+不带 `caps` 的老客户端，后端行为**完全不变**（只发 `wg_conf`）。
+
+### 响应：每个节点追加一个可选的 `singbox` 对象
+
+老字段全部保留、含义不变；新增的 `singbox` 为**可空**对象，节点未开通
+（`sb_enabled=false`）时整个省略，客户端自动回退 AWG。
+
+```jsonc
+{
+  "id": "es01",
+  "display_name": "西班牙01",
+  "endpoint": "82.223.165.88",
+  "wg_conf": "...",            // 老字段保留，双栈期两者同时下发
+  "port_secret": "...",
+  "singbox": {
+    "uuid": "a1b2c3d4-...",    // VLESS 认证，reality 与 ws 共用
+    "hy2_password": "...",     // Hysteria2 认证
+
+    // 快速层。缺失 = 该节点不提供快速模式
+    "hysteria2": {
+      "server": "82.223.165.88",
+      "port": 44443,
+      "ports": "20000-40000",  // 可空；端口跳跃范围
+      "obfs_password": "..."   // 可空；salamander 混淆密码
+    },
+
+    // 强力层。缺失 = 不提供强力模式
+    "reality": {
+      "server": "82.223.165.88",
+      "port": 443,
+      "public_key": "...",     // 节点级
+      "short_id": "...",       // 节点级
+      "sni": "www.microsoft.com",
+      "flow": "xtls-rprx-vision"   // 可空
+    },
+
+    // 超级层（经 Cloudflare）。**阶段 2 才实施**，阶段 1 整个省略
+    "ws": {
+      "host": "cf.mirrorspeed.com",  // CF 代理的域名，也用作 TLS SNI 与 Host 头
+      "port": 443,
+      "path": "/xxxxxx"
+    }
+  }
+}
+```
+
+### 客户端行为（已约定，后端无需关心细节）
+
+- `singbox == null` → 走现有 AmneziaWG 路径，行为与今天完全一致；
+- `singbox != null` → 用 sing-box 引擎，子对象分别对应 快速/强力/超级；
+  某个子对象缺失，则该模式在 UI 上不可选。**阶段 1 只会有 hysteria2 与 reality**，
+  `ws` 留到阶段 2 —— 客户端已按可空处理，阶段 2 后端开始下发即自动生效，不用发版；
+- 路由复用免费节点那套：GeoSite-CN/GeoIP-CN 直连、广告域名强制走代理、干净 DNS；
+- 节点级参数（reality 的 pbk/sid/sni、hy2 端口、ws path/host）**只从本接口读**，
+  客户端不内置任何默认值 —— 后端改参数即时生效，不用发版。
+
+### 两条硬约束
+
+1. **`uuid` 与 `hy2_password` 必须按设备下发**，不同设备不同值；否则无法按设备
+   统计流量与封禁，也会让"设备数上限"形同虚设。
+2. **Reality 不能走 Cloudflare**（CF 终止 TLS 会让偷握手失效），所以 `ws` 层固定
+   是 WS+TLS，`reality` 层必须直连节点 IP。两者的 `server`/`host` 不应相同。
+
+---
+
 ## 9. 已定决策(2026-10-03)
 
 - ✅ **Reality 伪装 SNI**:默认 `www.microsoft.com`,**节点级可配置**(`vpn_servers.reality_sni`,为空则用默认)。
