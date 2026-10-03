@@ -31,9 +31,14 @@ class FreeNodeService {
   ];
   static const String _osToken = 'e1f4663359f4f29095d1f393';
 
-  // 裸 IP 归属地判定结果缓存（会话内只判定一次）。null=未判定/无法识别。
+  // 裸 IP 归属地判定结果缓存。null=未判定/无法识别。
+  // 不能缓存一整个会话：用户出国/回国、或从国外热点漫游到国内接入点时，出口国家
+  // 会变，沿用旧结论会让智能分流按错误的前提工作（实测：在国外判定过一次，漫游
+  // 回国内后不重启 App，国内流量继续全部走隧道）。故加 TTL + 多处主动失效。
   bool? _egressIsCn;
   bool  _egressResolved = false;
+  DateTime? _egressAt;
+  static const Duration _egressTtl = Duration(minutes: 10);
 
   /// 判定「裸 IP」（未经本 App VPN 的真实出口）是否在中国境内。
   /// true=境内，false=境外，null=无法识别。
@@ -47,7 +52,11 @@ class FreeNodeService {
   /// 否则量到的是节点出口而不是本机出口（见 VpnProvider._applySmartRouting）。
   /// 公开：优质节点智能模式也据此决定是否用路由表分流。
   Future<bool?> egressInChina() async {
-    if (_egressResolved) return _egressIsCn;
+    if (_egressResolved &&
+        _egressAt != null &&
+        DateTime.now().difference(_egressAt!) < _egressTtl) {
+      return _egressIsCn;
+    }
 
     // 1) 自家接口（国内可达）
     for (final base in kApiBases) {
@@ -60,6 +69,7 @@ class FreeNodeService {
           if (c is String && c.isNotEmpty) {
             _egressIsCn = (c == 'CN');
             _egressResolved = true;
+            _egressAt = DateTime.now();
             return _egressIsCn;
           }
         }
@@ -76,6 +86,7 @@ class FreeNodeService {
         if (loc != null && loc.isNotEmpty) {
           _egressIsCn = (loc == 'CN');
           _egressResolved = true;
+          _egressAt = DateTime.now();
           return _egressIsCn;
         }
       }
@@ -83,11 +94,12 @@ class FreeNodeService {
     return null;   // 无法识别：按需求退回国内/兜底源
   }
 
-  /// 清掉出口判定缓存。隧道连上过之后再判定会量到节点所在国，所以断开时重置，
-  /// 避免把"境外"错误地记一整个会话。
+  /// 清掉出口判定缓存。在隧道断开、以及 App 从后台恢复时调用：
+  /// 前者因为连接期间量到的是节点所在国，后者因为用户可能已经换网或跨境漫游。
   void resetEgressCache() {
     _egressIsCn = null;
     _egressResolved = false;
+    _egressAt = null;
   }
 
   String _listPath(String token, bool top) =>
