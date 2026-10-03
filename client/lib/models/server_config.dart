@@ -121,7 +121,8 @@ class ServerConfig {
   );
 
   /// 是否为「仅展示」的公开节点（无可用配置，连接前需登录）。
-  bool get isDisplayOnly => wgConf.isEmpty;
+  /// 纯 sing-box 节点 wg_conf 为空但有可用 singbox 块 → 可连，不算仅展示。
+  bool get isDisplayOnly => wgConf.isEmpty && !(singbox?.usable ?? false);
 
   String get label => '$flagEmoji $displayName';
 
