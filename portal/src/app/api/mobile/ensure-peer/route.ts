@@ -56,10 +56,13 @@ export async function POST(req: NextRequest) {
 
   // ── 目标服务器（指定或全部活跃）─────────────────────────────
   let srvQuery = (admin.from('vpn_servers') as any)
-    .select('id, api_url, api_secret').eq('is_active', true)
+    .select('id, api_url, api_secret, sb_enabled, awg_enabled').eq('is_active', true)
   if (body.server_ids?.length) srvQuery = srvQuery.in('id', body.server_ids)
   const { data: serversRaw } = await srvQuery
-  const servers = (serversRaw ?? []) as Array<{ id: string; api_url: string; api_secret: string | null }>
+  const servers = (serversRaw ?? []) as Array<{
+    id: string; api_url: string; api_secret: string | null
+    sb_enabled: boolean | null; awg_enabled: boolean | null
+  }>
 
   const results: Array<{ device_id: string; server_id: string; ok: boolean; detail?: string }> = []
 
@@ -72,26 +75,44 @@ export async function POST(req: NextRequest) {
       if (!srv.api_url || !srv.api_secret) {
         results.push({ device_id: dev.id, server_id: srv.id, ok: false, detail: 'no api' }); return
       }
-      // 1) 远程 ensure（awg set 该公钥）
-      try {
-        const resp = await fetch(`${srv.api_url}/peers/ensure`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-API-Secret': srv.api_secret },
-          body: JSON.stringify({
-            public_key: crypto.publicKey,
-            vpn_ip:     ipNoMask,
-            peer_name:  `ms-${dev.id}`,
-          }),
-          signal: AbortSignal.timeout(8000),
-        })
-        if (!resp.ok) {
-          const t = await resp.text()
-          results.push({ device_id: dev.id, server_id: srv.id, ok: false, detail: `vpn-api ${resp.status}: ${t.slice(0,120)}` })
+      const headers = { 'Content-Type': 'application/json', 'X-API-Secret': srv.api_secret }
+
+      // 1a) AWG：awg set 该公钥(存量节点；纯 sing-box 节点 awg_enabled=false 跳过)
+      if (srv.awg_enabled !== false) {
+        try {
+          const resp = await fetch(`${srv.api_url}/peers/ensure`, {
+            method: 'POST', headers,
+            body: JSON.stringify({ public_key: crypto.publicKey, vpn_ip: ipNoMask, peer_name: `ms-${dev.id}` }),
+            signal: AbortSignal.timeout(8000),
+          })
+          if (!resp.ok) {
+            const t = await resp.text()
+            results.push({ device_id: dev.id, server_id: srv.id, ok: false, detail: `awg ${resp.status}: ${t.slice(0,100)}` })
+            return
+          }
+        } catch (e: any) {
+          results.push({ device_id: dev.id, server_id: srv.id, ok: false, detail: `awg ${String(e?.message ?? e)}` })
           return
         }
-      } catch (e: any) {
-        results.push({ device_id: dev.id, server_id: srv.id, ok: false, detail: String(e?.message ?? e) })
-        return
+      }
+
+      // 1b) sing-box：按用户发 UUID/hy2 密码(sb_enabled 节点)
+      if (srv.sb_enabled) {
+        try {
+          const resp = await fetch(`${srv.api_url}/singbox/user/ensure`, {
+            method: 'POST', headers,
+            body: JSON.stringify({ name: `ms-${dev.id}`, uuid: crypto.sbUuid, hy2_password: crypto.hy2Password }),
+            signal: AbortSignal.timeout(8000),
+          })
+          if (!resp.ok) {
+            const t = await resp.text()
+            results.push({ device_id: dev.id, server_id: srv.id, ok: false, detail: `sb ${resp.status}: ${t.slice(0,100)}` })
+            return
+          }
+        } catch (e: any) {
+          results.push({ device_id: dev.id, server_id: srv.id, ok: false, detail: `sb ${String(e?.message ?? e)}` })
+          return
+        }
       }
 
       // 2) 台账（ratelimit / GC 用）：幂等 upsert（不受并发插入竞态影响）

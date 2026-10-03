@@ -49,6 +49,19 @@ interface ServerRow {
   max_peers:    number | null
   load_percent: number | null
   status:       string | null
+  // sing-box 迁移(见 docs/singbox-migration.md)
+  sb_enabled:   boolean | null
+  awg_enabled:  boolean | null
+  reality_pbk:  string | null
+  reality_sid:  string | null
+  reality_sni:  string | null
+  reality_port: number | null
+  hy2_port:     number | null
+  hy2_obfs:     string | null
+  hy2_hop_min:  number | null
+  hy2_hop_max:  number | null
+  ws_path:      string | null
+  cf_host:      string | null
 }
 
 // GET /api/mobile/configs?device_id=<optional>
@@ -112,7 +125,9 @@ export async function GET(req: NextRequest) {
   const { data: serversRaw } = await (admin.from('vpn_servers') as any)
     .select(`id, display_name, flag_emoji, location, endpoint, port, public_key, port_secret, api_url,
              awg_jc, awg_jmin, awg_jmax, awg_s1, awg_s2, awg_h1, awg_h2, awg_h3, awg_h4,
-             cf_relay_url, active_peers, max_peers, load_percent, status`)
+             cf_relay_url, active_peers, max_peers, load_percent, status,
+             sb_enabled, awg_enabled, reality_pbk, reality_sid, reality_sni, reality_port,
+             hy2_port, hy2_obfs, hy2_hop_min, hy2_hop_max, ws_path, cf_host`)
     .eq('is_active', true)
     .order('sort_order') as { data: ServerRow[] | null }
   const servers = (serversRaw ?? []) as ServerRow[]
@@ -139,7 +154,10 @@ export async function GET(req: NextRequest) {
       let relayHost = srv.endpoint
       try { relayHost = new URL(srv.api_url).hostname } catch { /* keep */ }
 
-      const wgConf = generateWgConf({
+      // wg_conf：仅 AWG 节点下发(老客户端用)。纯 sing-box 节点(awg_enabled=false)留空，
+      // 避免老客户端拿到连不上的 WG 配置。
+      const awgOn = srv.awg_enabled !== false && !!srv.public_key
+      const wgConf = awgOn ? generateWgConf({
         clientPrivateKey: crypto.privateKey,
         clientIp:         crypto.vpnIp,
         serverPublicKey:  srv.public_key,
@@ -148,7 +166,37 @@ export async function GET(req: NextRequest) {
         serverPort:       srv.port,
         awgParams,
         serverPublicIp:   endpointIp.get(srv.endpoint),
-      })
+      }) : ''
+
+      // singbox：sb_enabled 节点下发(新客户端优先用)。含节点级参数 + 该设备全局凭证。
+      // 老客户端不认识此字段会忽略；新客户端有此字段则走 sing-box，否则回退 wg_conf。
+      const singbox = srv.sb_enabled ? {
+        reality: {
+          server: relayHost,
+          port:   srv.reality_port ?? 443,
+          uuid:   crypto.sbUuid,
+          pbk:    srv.reality_pbk ?? '',
+          sid:    srv.reality_sid ?? '',
+          sni:    srv.reality_sni || 'www.microsoft.com',
+          fp:     'chrome',
+        },
+        hy2: (srv.hy2_port) ? {
+          server:   relayHost,
+          port:     srv.hy2_port,
+          hop_min:  srv.hy2_hop_min ?? null,
+          hop_max:  srv.hy2_hop_max ?? null,
+          password: crypto.hy2Password,
+          obfs:     srv.hy2_obfs ?? null,      // salamander 密码；null=不加混淆
+          sni:      relayHost,                 // hy2 证书域名
+        } : null,
+        // ws(超级层)阶段2：cf_host 非空才下发
+        ws: (srv.cf_host) ? {
+          server: srv.cf_host,
+          uuid:   crypto.sbUuid,
+          path:   srv.ws_path ?? '/',
+          sni:    srv.cf_host,
+        } : null,
+      } : null
 
       return {
         id:           srv.id,
@@ -159,6 +207,7 @@ export async function GET(req: NextRequest) {
         relay_host:   relayHost,
         port:         srv.port,
         wg_conf:      wgConf,
+        singbox,
         port_secret:  srv.port_secret  ?? null,
         cf_relay_url: srv.cf_relay_url ?? null,
         active_peers: srv.active_peers ?? 0,
