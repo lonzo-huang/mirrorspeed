@@ -127,10 +127,17 @@ sing-box 一次性解决:**按应用 / 按域名(GeoSite)/ GeoIP / 广告域名�
 | 全节点铺开 | lonzo | ⬜ |
 | 2 个月后 sunset | 双方 | ⬜ |
 
-## 9. 待确认 / 开放问题
+## 9. 已定决策(2026-10-03)
 
-- **Reality 伪装 SNI 选哪个**(要选个在国内可达、TLS1.3、不属于你自己的大站,如 `www.microsoft.com`);
-- **hy2 端口跳跃范围**(如 20000-40000)与防火墙放行;
-- **超级层(CF-ws)**:复用现有 Cloudflare Tunnel,还是新建 CF 代理的 ws 域名?(没 CF 的节点可只发 快速+强力两层);
-- 后端(Vercel)的 **Apple 收据核验**现在在哪个路由?Google 内购核验将来也加在同处——与本迁移无关但顺带确认;
-- 客户端 3.0 的版本号/发布节奏。
+- ✅ **Reality 伪装 SNI**:默认 `www.microsoft.com`,**节点级可配置**(`vpn_servers.reality_sni`,为空则用默认)。
+- ✅ **hy2 端口跳跃范围**:**30000-49999**,与现有 WG 端口跳跃同一范围(见 `08-port-hopping-setup.sh`)。hy2 服务端监听一个固定 UDP 端口,iptables DNAT 把 30000-49999 重定向过去(复用现有机制)。
+- ✅ **本期范围(阶段 1)= 只做 快速(hy2)+ 强力(reality)两层**。**超级层(CF-ws)本期不真正实施**,只在 Supabase 预留 `ws_path`/`cf_host` 列(可空)、客户端/后端预留字段,**留到阶段 2 再开发部署**。
+- 其余(Apple/Google 内购核验路由、客户端 3.0 版本号)与本迁移解耦,后续单独处理。
+
+## 10. 节点侧待解决(写部署脚本前需确认)
+
+- **443 端口占用**:现有 `02-nginx-setup.sh` 让 **nginx 占了 443**(静态站 + `/secure-tunnel/` wstunnel)。而 **VLESS+Reality 要独占 TCP 443** 才像正常 HTTPS。三选一:
+  1. Reality 监听 443,把 nginx 静态站/wstunnel 挪到别的端口或由 Reality 的 fallback 接管(推荐,最像真站);
+  2. Reality 用非 443 端口(抗封效果打折,不推荐);
+  3. 试点阶段先在一台**干净节点**上只跑 sing-box(hy2+reality),不与旧 nginx/AWG 混部,验证通了再定混部方案。
+- 建议**试点用方案 3**(干净节点),跑通再决定存量节点怎么与 nginx/AWG 共存。
