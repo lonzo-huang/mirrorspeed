@@ -161,8 +161,8 @@ caps: ["singbox"]          // 新增；后端据此决定发不发 singbox 块
     // 快速层。缺失 = 该节点不提供快速模式
     "hysteria2": {
       "server": "82.223.165.88",
-      "port": 44443,
-      "ports": "20000-40000",  // 可空；端口跳跃范围
+      "port": 18443,           // sing-box 实际监听的 UDP 端口（固定）
+      "ports": "30000-49999",  // 可空；端口跳跃范围，交给 sing-box 原生跳跃
       "obfs_password": "..."   // 可空；salamander 混淆密码
     },
 
@@ -206,6 +206,26 @@ caps: ["singbox"]          // 新增；后端据此决定发不发 singbox 块
 ---
 
 ## 9. 已定决策(2026-10-03)
+
+### 端口跳跃：采用 sing-box 原生方案（定于 2026-10-03）
+
+**客户端不做任何端口计算**，范围由后端下发、交给 sing-box 原生跳跃。理由：iOS 发版
+要过审核，凡是可能调整的策略都不该固化进客户端，否则改个范围都得发版等审核。
+WG 那套 HMAC 每小时跳的机制双栈期保持不动，sunset 时一并删除。
+
+节点侧三件事（替代 WG 那套「7 条规则 + 每小时轮换」，不再需要定时任务）：
+
+1. sing-box 监听 **UDP 18443**（固定单端口）；
+2. nat 表整段重定向：
+   `iptables -t nat -A PREROUTING -p udp --dport 30000:49999 -j REDIRECT --to-port 18443`
+3. `enterprise-fw` input 链放行 **18443**（REDIRECT 发生在 filter INPUT 之前，
+   放行的是改写**后**的端口，不是那段范围）。
+
+> ⚠️ 双栈期顺序陷阱：WG 的 7 个跳变端口也落在 30000-49999 内。PREROUTING 里
+> `jump AWG_HOP` 必须排在上面那条整段规则**之前** —— WG 的 7 个端口在 AWG_HOP 里
+> 被 REDIRECT 到 51820（终结动作），匹配不上的才继续走到 hy2 这条。顺序反了会让
+> 所有 WG 老客户端连不上。
+
 
 - ✅ **Reality 伪装 SNI**:默认 `www.microsoft.com`,**节点级可配置**(`vpn_servers.reality_sni`,为空则用默认)。
 - ✅ **hy2 端口跳跃范围**:**30000-49999**,与现有 WG 端口跳跃同一范围(见 `08-port-hopping-setup.sh`)。hy2 服务端监听一个固定 UDP 端口,iptables DNAT 把 30000-49999 重定向过去(复用现有机制)。
