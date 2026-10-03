@@ -17,8 +17,11 @@ import 'screens/server_list_screen.dart';
 import 'theme.dart';
 import 'brand.dart';
 import 'services/ad_service.dart';
+import 'services/iap_service.dart';
+import 'services/free_node_service.dart';
 import 'services/desktop_tray.dart';
 import 'services/iap_service.dart';
+import 'services/free_node_service.dart';
 
 /// 全局 ScaffoldMessenger：用于在导航切换后仍能可靠弹出提示（如免费节点
 /// 「连上但不通外网」），不依赖某个已卸载页面的 context。
@@ -162,6 +165,10 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
     // 从后台/深度休眠恢复时，检查直连隧道是否在休眠期间因端口轮换+conntrack
     // 过期而失效；若已死则自动重连（见 VpnProvider.onAppResumed）。
     if (state == AppLifecycleState.resumed) {
+      // 切后台期间可能换了网络、甚至跨境漫游 → 出口国家判定作废，下次重新探测。
+      // 否则智能分流会按"上次在哪"的旧结论工作（在国外判定过、漫游回国内不重启
+      // App，国内流量就会继续全部走隧道）。
+      FreeNodeService.instance.resetEgressCache();
       _vpn.onAppResumed();
       // 免费用户每次从后台切回都展示开屏广告（会员被 AdService 内部 _enabled 屏蔽）。
       AdService.instance.showAppOpenIfAvailable();

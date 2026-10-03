@@ -5,6 +5,12 @@ import '../models/free_node.dart';
 /// 桌面(Windows/macOS)：sing-box.exe 自管 tun，需要 strict_route 堵漏。
 final bool _kIsDesktop = Platform.isWindows || Platform.isMacOS;
 
+/// Apple（iOS/macOS）：智能分流用 sing-box 的 rule_set 能力（geoip-cn + geosite-cn），
+/// 规则集随隧道扩展打包，路径占位符 `$RULESET_DIR` 由扩展换成真实 bundle 路径。
+/// 其它平台维持原状（Windows/安卓的免费节点仍是全局隧道，行为不变）。
+final bool _kIsApple = Platform.isIOS || Platform.isMacOS;
+const String _kRuleSetDir = r'$RULESET_DIR';
+
 /// 把单个免费节点的 outbound 组装成一份完整、可直接交给 sing-box(libbox)运行的
 /// 配置 JSON。含 tun 入站 + 路由规则 + DNS。
 ///
@@ -80,12 +86,30 @@ class SingboxConfig {
       // 桌面白名单：仅名单内进程走代理，其余一律直连（覆盖 smart/global 的 final）。
       route['rules'].add({'process_name': includeProcesses, 'outbound': 'proxy'});
       route['final'] = 'direct';
+    } else if (smart && _kIsApple) {
+      // Apple 智能模式：geosite-cn(域名) + geoip-cn(IP) 直连，其余走代理。
+      // 1.13 已移除 geoip/geosite 字段，必须用 rule_set；规则集随扩展打包（离线可用）。
+      route['rules'].add({
+        'rule_set': ['geosite-cn', 'geoip-cn'],
+        'outbound': 'direct',
+      });
+      route['final'] = 'proxy';
     } else if (smart) {
       // 智能模式:中国大陆 geoip 直连,其余走代理(final=proxy)
       route['rules'].add({'geoip': ['cn', 'private'], 'outbound': 'direct'});
       route['final'] = 'proxy';
     }
     // 全局模式:除上面的 dns/私网规则外,final=proxy 全走代理
+
+    // 本地规则集声明（仅 Apple 智能模式用到；其它情况不写，避免多余的文件依赖）
+    if (smart && _kIsApple && !adOnly && !hasWhiteProc) {
+      route['rule_set'] = [
+        {'type': 'local', 'tag': 'geosite-cn', 'format': 'binary',
+         'path': '$_kRuleSetDir/geosite-cn.srs'},
+        {'type': 'local', 'tag': 'geoip-cn', 'format': 'binary',
+         'path': '$_kRuleSetDir/geoip-cn.srs'},
+      ];
+    }
 
     return {
       'log': logPath != null

@@ -34,6 +34,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth    = context.read<AuthProvider>();
+      auth.ensurePublicServers();   // 启动时那次拉取失败的话，这里补拉
       final servers = auth.displayServers;
       context.read<VpnProvider>().measureLatencies(servers);
       // 列表打开即后台批量预热：在所有节点上提前建好 peer，点哪个都即时连。
@@ -44,6 +45,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
     // 延迟每 30 秒自动刷新一次（顶部仍保留手动刷新按钮）。
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted) return;
+      context.read<AuthProvider>().ensurePublicServers();
       final servers = context.read<AuthProvider>().displayServers;
       context.read<VpnProvider>().measureLatencies(servers, rounds: 1);
     });

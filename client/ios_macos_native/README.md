@@ -1,107 +1,81 @@
-# iOS / macOS 免费节点（sing-box / NetworkExtension）集成骨架
+# iOS / macOS 原生部分（两个 Packet Tunnel 扩展）
 
-本目录是**只写骨架**：Windows 开发机无 Mac/Xcode，无法编译。你在 Mac 上按下面步骤
-把这些源码接入 Xcode 工程，补齐 Libbox API 细节（标 `TODO` 处），即可编译测试。
+Flutter/Dart 层与 Android、Windows **完全共用**；Apple 平台只多了这里的原生代码。
 
-## 🚀 快速开始（先看这段，2026-09 更新）
+## 架构
 
-**Windows 侧已备好（你不用再弄的）：**
-- `ios/` `macos/` Flutter 工程已用 `flutter create` 生成，bundle id `com.mirrorspeed.mirrorspeedVpn`。
-- App Group / 扩展 bundle id 全部对齐为 `group.com.mirrorspeed.mirrorspeedVpn` / `…mirrorspeedVpn.PacketTunnel`。
-- **entitlements 已预置**：`ios/Runner/Runner.entitlements`（NE + App Group）、
-  `macos/Runner/DebugProfile.entitlements` 与 `Release.entitlements`（已加 NE + App Group + network client/server）。
-- 插件 podspec（ios/macos）、`SingboxFlutterPlugin.swift`、隧道扩展骨架 `PacketTunnelProvider.swift` 都在。
-- 优质节点（AmneziaWG）iOS 由 `amneziawg_flutter` 插件负责，**不需要 Libbox**。
-
-**你在 Mac 上必须自己搞定的两个前置（缺了免费节点跑不起来）：**
-1. **付费 Apple Developer 账号**（$99/年）——Network Extension + App Groups 的签名/描述文件必须它。
-2. **Go + gomobile**——把 sing-box 编成 `Libbox.xcframework`（下面第一步）。
-
-**推荐构建顺序（iOS 与 macOS 一起）：**
-1. 先跑通 **优质节点**：`cd client && flutter pub get && cd ios && pod install`，
-   Xcode 打开 `Runner.xcworkspace`，选真机，配好签名后 `flutter run` —— AmneziaWG 应能直接连
-   （不涉及 NE 扩展，先验证 App 本体 + 登录 + 优质节点在 Apple 上 OK）。
-2. 再做 **免费节点**：按下面「一～五」构建 Libbox、加 PacketTunnel 扩展、接骨架、补 TODO。
-3. macOS 同理：`cd macos && pod install`，加一个 macOS 的 NE 扩展 target（同一份 Swift 源），
-   注意 macOS 需 App Sandbox（entitlements 已配）。
-
-遇到编译/签名报错，把 Xcode 的报错贴给我，我远程帮你改。
-
-架构与 Android 一致：Flutter 侧完全复用 `lib/vpn/proxy_core_engine.dart`
-（MethodChannel `mirrorspeed/singbox` + EventChannel `mirrorspeed/singbox/stage`），
-无需改任何 Dart。Apple 平台由两块原生代码承担：
-
-| 角色 | 文件 | 说明 |
-|------|------|------|
-| App 侧插件 | `packages/singbox_flutter/ios/Classes/SingboxFlutterPlugin.swift` | 注册通道；用 `NETunnelProviderManager` 装配/启停隧道；映射系统状态→stage |
-| 隧道扩展 | `ios_macos_native/PacketTunnelProvider.swift` | **独立 NE target**，真正跑 libbox(sing-box)；实现 `openTun` |
-| 权限 | `ios_macos_native/PacketTunnel.entitlements`、`Runner.entitlements.additions` | Network Extension + App Group |
-
-> 插件的 podspec 已就绪（ios/macos 各一份，macOS 共用 iOS 的 Swift）。
-> `packages/singbox_flutter/pubspec.yaml` 已声明 ios/macos 平台。
-
-## 一、准备 Libbox.xcframework
-
-sing-box 的 Apple 库需要自己从源码构建（不像 Android 有 JitPack）：
-
-```bash
-# 需 Go + gomobile
-git clone https://github.com/SagerNet/sing-box
-cd sing-box
-make lib_install                       # 安装 gomobile
-# 与 Android 侧 libbox 版本对齐（当前 1.13.x）
-git checkout v1.13.x
-./gomobile bind -v -target ios,iossimulator,macos \
-  -tags 'with_gvisor,with_quic,with_utls,with_clash_api' \
-  -o Libbox.xcframework ./experimental/libbox
+```
+Runner (Flutter App)
+ ├─ amneziawg_flutter 插件 ──NETunnelProviderManager──▶ AWGTunnel.appex      优质节点
+ │   packages/amneziawg_flutter/darwin                   amneziawg-go + WireGuardKit
+ │                                                       bundle: <App>.AWGTunnel
+ └─ singbox_flutter 插件  ──NETunnelProviderManager──▶ SingboxTunnel.appex  免费/共享节点
+     packages/singbox_flutter/darwin                     libbox (sing-box 1.13.18)
+                                                         bundle: <App>.PacketTunnel
 ```
 
-把生成的 `Libbox.xcframework` 拖进 Xcode，同时链接到 **Runner** 与 **PacketTunnel** target
-（Embed & Sign 到扩展，App 里 Do Not Embed 即可）。
+- **为什么是两个扩展**：amneziawg-go 和 libbox 都是 Go 运行时，同一进程里只能有一个
+  （Android 上同样的问题靠 `:singbox` 独立进程解决）。iOS/macOS 一个扩展就是一个进程，
+  所以拆两个；系统同一时刻只允许一条 VPN，切换时会自动顶掉另一条。
+- 两个插件按 `providerBundleIdentifier` 只认自己的 manager，不会串台。
+- 通道契约与 Android 一致：`com.amneziawg.flutter/awgcontrol|awgstage`、
+  `mirrorspeed/singbox` + `mirrorspeed/singbox/stage`。`transferRxTx` 经
+  `sendProviderMessage("stats")` 由扩展返回（AWG 取 UAPI rx/tx，sing-box 取 utun 接口计数）。
+- 扩展 bundle id 由主 App bundle id 推导（`+ .AWGTunnel` / `+ .PacketTunnel`），
+  Dart 里的 `kProviderBundle` 已不再使用。
 
-## 二、新建 NetworkExtension 扩展 target
+| 目录/文件 | 说明 |
+|---|---|
+| `AWGTunnel/` | 优质节点扩展：`PacketTunnelProvider.swift` + vendored WireGuardKit（取自 amneziawg-apple，MIT，见 `COPYING`） |
+| `SingboxTunnel/` | 免费节点扩展：`PacketTunnelProvider.swift` + `SingboxPlatform.swift`（libbox 平台接口，参照 sing-box-for-apple） |
+| `wggo/` | amneziawg-go 的 C 桥（`api-apple.go`），已去掉 xray 以控制 iOS 扩展 50MB 内存上限 |
+| `build_apple_libs.sh` | 构建 `Frameworks/Libbox.xcframework`、`Frameworks/WireGuardKitGo.xcframework`（不入库） |
+| `setup_xcode_targets.rb` | 把两个扩展 target 接进 `ios/`、`macos/` 的 Runner 工程（已执行并提交，一般无需再跑） |
+| `Signing.xcconfig` | 填 Apple Developer Team ID，Runner 与两个扩展共用 |
 
-1. Xcode → File → New → Target → **Network Extension**（iOS）/ 同名（macOS）。
-   - Bundle id：`com.mirrorspeed.mirrorspeedVpn.PacketTunnel`（须与
-     `SingboxFlutterPlugin.kTunnelBundleId` 一致）。
-   - Provider 类型：Packet Tunnel。
-2. 删掉模板生成的 `PacketTunnelProvider.swift`，改为把本目录的
-   `PacketTunnelProvider.swift` 加入该 target 的 Compile Sources。
-   - macOS 用另一个扩展 target，但**同一份**源码即可加入两者。
-3. 该 target 的 `Info.plist` 里 `NSExtension` → `NEProviderClasses` 指向
-   `PacketTunnelProvider`（Xcode 模板通常已生成）。
+## 在 Mac 上构建
 
-## 三、Capabilities / entitlements
-
-对 **Runner** 与 **PacketTunnel** 两个 target 都要开：
-- **Network Extensions** → Packet Tunnel
-- **App Groups** → `group.com.mirrorspeed.mirrorspeedVpn`
-
-把 `PacketTunnel.entitlements` 用作扩展 target 的 entitlements；
-把 `Runner.entitlements.additions` 里的键并入 Runner 现有 entitlements。
-macOS 另需 App Sandbox + network client/server（见该文件注释）。
-
-改 App Group / bundle id 时，三处保持一致：
-`SingboxFlutterPlugin.kAppGroup`、`kTunnelBundleId`、`PacketTunnelProvider` 里的 group 名。
-
-## 四、补齐 TODO
-
-`PacketTunnelProvider.swift` 里标 `TODO(Libbox 版本)` 的地方，对照你构建出的
-`Libbox` 头文件核对方法签名（`LibboxSetup` / `LibboxNewService` /
-`LibboxTunOptionsProtocol` 的地址与 DNS 取法、平台接口其余成员）。不同版本略有差异。
-
-## 五、构建
+前置：Xcode、Flutter、CocoaPods、Go ≥ 1.26（`brew install cocoapods go` 或官方安装包）。
 
 ```bash
+cd client
+bash ios_macos_native/build_apple_libs.sh     # 首次约 20~40 分钟（sing-box 较大），之后跳过
 flutter pub get
-cd ios && pod install    # 或 cd macos
-flutter build ios        # 或 flutter build macos
+flutter build macos                           # 或 make build-macos（带 dart-define）
+flutter build ios --no-codesign               # 仅编译验证
 ```
 
-真机需在 Apple Developer 后台为 App id 和扩展 id 都启用 Network Extensions + App Groups，
-并生成对应 provisioning profile。
+`make build-ios / build-ipa / build-macos / run-ios / run-macos` 会自动先跑 `apple-libs`。
 
-## 分应用代理说明
+## 真机 / 本机运行 VPN（必须签名）
 
-iOS 的 NEPacketTunnelProvider **不支持**按 App 分流（那是 Android `include_package` 专属）。
-Dart 侧已把 `include_package` 限定仅 Android 注入，Apple 上走全局隧道，符合平台能力。
+Network Extension 是受限能力，**未签名或 ad-hoc 签名的包能编译但连不上 VPN**。
+
+1. 付费 Apple Developer 账号；把 Team ID 填进 `Signing.xcconfig` 的 `DEVELOPMENT_TEAM`。
+2. developer.apple.com 为下面 3 个 App ID 开启 **Network Extensions** 与 **App Groups**
+   （`group.com.mirrorspeed.mirrorspeedVpn`）。Xcode Automatic signing 通常会自动完成：
+   - `com.mirrorspeed.mirrorspeedVpn`
+   - `com.mirrorspeed.mirrorspeedVpn.AWGTunnel`
+   - `com.mirrorspeed.mirrorspeedVpn.PacketTunnel`
+3. `open ios/Runner.xcworkspace`（或 macos），确认三个 target 的 Signing 无报错，然后
+   `make run-ios` / `make run-macos`。首次连接系统会弹「添加 VPN 配置」。
+4. macOS 走 App Store 式 app extension（sandbox）。若将来要 Developer ID 站外分发，
+   需改成 System Extension（`packet-tunnel-provider-systemextension`），另议。
+
+调试扩展日志：Console.app 过滤 subsystem `com.mirrorspeed.AWGTunnel` / `com.mirrorspeed.SingboxTunnel`。
+
+## 版本/兼容
+
+- iOS ≥ 15.0；macOS ≥ 13.0（Go 1.27 运行时本身要求 macOS 13）。
+- sing-box 版本与 Android 对齐（`LIBBOX_VERSION=v1.13.18`）。Go ≥ 1.26 构建 1.13.x 需
+  `GOEXPERIMENT=nojsonv2`，脚本已处理。
+- 升级 amneziawg-go：改 `wggo/go.mod` 后 `bash build_apple_libs.sh wggo --force`。
+
+## 已知限制（Apple 平台能力所限）
+
+- **分应用代理**：NEPacketTunnelProvider 不支持按 App 分流，Apple 上隐藏该入口、走全局隧道。
+- **wstunnel/Cloudflare 中继兜底**：中继客户端跑在 App 进程里（`ws_relay_service.dart`），
+  iOS 切到后台后 App 会被挂起，中继随之中断；直连（AmneziaWG UDP）不受影响。
+- **广告**：Info.plist 的 `GADApplicationIdentifier` 暂用 Android 的 AdMob App ID 占位
+  （缺这个键 iOS 启动即崩）。上架前在 AdMob 建 iOS 应用，替换 App ID，并把
+  `lib/env.dart` 的广告位 ID 按平台区分。

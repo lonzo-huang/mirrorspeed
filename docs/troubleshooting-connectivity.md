@@ -93,6 +93,40 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:8443/peers/ens
 
 ---
 
+### 2.4 nftables 放行网段是否覆盖整个地址池
+
+`enterprise-fw` 的 forward 链 **policy 是 drop**，只靠一条 `ip saddr <网段> oif <wan> accept` 放行隧道流量。
+地址池历史上是 /24 → /21 → /16 扩容的，老节点的 `/etc/nftables.conf` 可能还停在旧网段：
+
+```bash
+nft list chain inet enterprise-fw forward | grep 10.200
+ip -br a show awg0                     # 对比 awg0 实际的掩码
+```
+
+放行网段窄于 awg0 掩码就是中招。**这个坑极其隐蔽**：握手走 INPUT 的 51820 不受影响，
+所以客户端显示"已连接"；老用户在旧网段内毫无感觉；只有用户数涨过 254、新用户分到
+`10.200.1.x` 之后才发作，且对该用户是**所有节点全挂**，很容易误判成客户端 bug。
+
+抓包特征（决定性）：
+
+```bash
+tcpdump -ni any 'net 10.200.0.0/16 and not port 51820' -c 60
+```
+
+只看到 `awg0 In` 的出向包、没有任何出口网卡的副本，且 `iptables -vnL FORWARD` 没有 DROP 计数
+—— 说明是 nft（与 iptables 并存的另一套）在丢。
+
+修复（任意节点、任意次数可重复执行，不重启服务）：
+
+```bash
+bash /opt/mirrorspeed/vpn/fix-subnet-acl.sh
+```
+
+> 不要用 `systemctl restart nftables` 来生效：那会 flush 整个 ruleset，连带删掉端口跳变的
+> `AWG_HOP` 链。上面的脚本是热插规则 + 改持久化文件，不重启。
+
+---
+
 ## 3. 配置一致性检查（强力都连不上 / 握手失败时）
 
 **核心原理**：客户端配置由 Portal 用 **Supabase 登记的值**生成；服务器**本机实际值**与 DB 不一致，
@@ -199,6 +233,7 @@ ipset list ms_free; ipset list ms_paid
 | 直连握手成功但**打不开网页**随即回退 | WG-in-WG 环路 / MTU 过大 | Portal 已 carve-out + MTU=1280；**重新登录**拉新配置 |
 | 后台"活跃 0 但快速 N"、握手负秒数 | vpn-api 握手时间没带时区(时区坑) | 第 7 节，已修 |
 | 付费却被限速 4M | ratelimit 把其 IP 分到 free（旧残留撞 IP） | GC 清残留 + ratelimit 只认 provisioned=true |
+| **握手成功但流量全不通**，同账号换节点/换设备/删号重建都一样，别人用同节点却正常 | nftables `enterprise-fw` forward 链放行网段比地址池窄（老节点停在 /24 或 /21，而 awg0 是 /16）→ 分到 `10.200.1.x` 之后的用户被静默丢包 | 第 2.4 节，跑 `vpn/fix-subnet-acl.sh` |
 
 ---
 
@@ -210,6 +245,7 @@ systemctl is-active nginx awg-quick@awg0 wstunnel nftables vpn-api
 ss -ulnp | grep 51820
 bash /opt/mirrorspeed/vpn/08-port-hopping-setup.sh status
 iptables -t nat -S | grep AWG_HOP
+nft list chain inet enterprise-fw forward | grep 10.200   # 放行网段须覆盖 awg0 掩码
 awg show awg0
 journalctl -u awg-quick@awg0 -n 50 --no-pager
 journalctl -u vpn-api -n 50 --no-pager

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:yaml/yaml.dart';
+import '../env.dart';
 import '../models/free_node.dart';
 
 /// 共享节点订阅：拉取(主/备 host 依次尝试)→ base64 解码 → 解析成 sing-box outbound。
@@ -30,16 +31,52 @@ class FreeNodeService {
   ];
   static const String _osToken = 'e1f4663359f4f29095d1f393';
 
-  // 裸 IP 归属地判定结果缓存（会话内只判定一次）。null=未判定/无法识别。
+  // 裸 IP 归属地判定结果缓存。null=未判定/无法识别。
+  // 不能缓存一整个会话：用户出国/回国、或从国外热点漫游到国内接入点时，出口国家
+  // 会变，沿用旧结论会让智能分流按错误的前提工作（实测：在国外判定过一次，漫游
+  // 回国内后不重启 App，国内流量继续全部走隧道）。故加 TTL + 多处主动失效。
   bool? _egressIsCn;
   bool  _egressResolved = false;
+  DateTime? _egressAt;
+  static const Duration _egressTtl = Duration(minutes: 10);
 
   /// 判定「裸 IP」（未经本 App VPN 的真实出口）是否在中国境内。
-  /// true=境内，false=境外，null=无法识别。用 Cloudflare trace（境内一般可达），
-  /// 解析 `loc=` 国家码。整个会话缓存一次；无法识别不缓存，下次可重试。
-  /// 公开：优质节点智能模式也据此决定是否用路由表分流（见 VpnProvider._applySmartRouting）。
+  /// true=境内，false=境外，null=无法识别。
+  ///
+  /// 先问自家接口 `/api/geo`（与 App 其余请求同域，国内可达，国家码由边缘节点按
+  /// 客户端 IP 注入），失败再退回 Cloudflare trace。
+  /// 原先只用 Cloudflare —— 该域名在国内经常不可达，探测失败返回 null，而智能模式
+  /// 对 null 的处理是「不分流」，于是退化成全局模式、国内流量也全进隧道。
+  ///
+  /// 只缓存成功结果；无法识别不缓存，下次可重试。调用方必须在**隧道未连接**时调用，
+  /// 否则量到的是节点出口而不是本机出口（见 VpnProvider._applySmartRouting）。
+  /// 公开：优质节点智能模式也据此决定是否用路由表分流。
   Future<bool?> egressInChina() async {
-    if (_egressResolved) return _egressIsCn;
+    if (_egressResolved &&
+        _egressAt != null &&
+        DateTime.now().difference(_egressAt!) < _egressTtl) {
+      return _egressIsCn;
+    }
+
+    // 1) 自家接口（国内可达）
+    for (final base in kApiBases) {
+      try {
+        final res = await http
+            .get(Uri.parse('$base/api/geo'))
+            .timeout(const Duration(seconds: 5));
+        if (res.statusCode == 200) {
+          final c = (jsonDecode(res.body) as Map)['country'];
+          if (c is String && c.isNotEmpty) {
+            _egressIsCn = (c == 'CN');
+            _egressResolved = true;
+            _egressAt = DateTime.now();
+            return _egressIsCn;
+          }
+        }
+      } catch (_) {/* 换下一个 base */}
+    }
+
+    // 2) 退回 Cloudflare trace
     try {
       final res = await http
           .get(Uri.parse('https://www.cloudflare.com/cdn-cgi/trace'))
@@ -49,11 +86,20 @@ class FreeNodeService {
         if (loc != null && loc.isNotEmpty) {
           _egressIsCn = (loc == 'CN');
           _egressResolved = true;
+          _egressAt = DateTime.now();
           return _egressIsCn;
         }
       }
     } catch (_) {/* 网络异常 → 无法识别 */}
     return null;   // 无法识别：按需求退回国内/兜底源
+  }
+
+  /// 清掉出口判定缓存。在隧道断开、以及 App 从后台恢复时调用：
+  /// 前者因为连接期间量到的是节点所在国，后者因为用户可能已经换网或跨境漫游。
+  void resetEgressCache() {
+    _egressIsCn = null;
+    _egressResolved = false;
+    _egressAt = null;
   }
 
   String _listPath(String token, bool top) =>

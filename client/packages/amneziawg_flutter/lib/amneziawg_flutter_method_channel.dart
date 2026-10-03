@@ -59,6 +59,23 @@ class AmneziawgFlutterMethodChannel extends AmneziawgFlutterInterface {
     }
   }
 
+  /// 隧道扩展写在 App Group 里的日志（仅 iOS/macOS）。
+  Future<String?> tunnelLog() async {
+    try {
+      return await _controlChannel.invokeMethod<String>('tunnelLog');
+    } catch (_) { return null; }
+  }
+
+  /// 隧道诊断 [rx, tx, 最后握手 unix 秒]；平台不支持返回 null。
+  /// 仅 iOS/macOS 实现，用于排查「显示已连接但流量不通」。
+  Future<List<int>?> tunnelStats() async {
+    try {
+      final v = await _controlChannel.invokeListMethod<int>('tunnelStats');
+      if (v != null && v.length >= 3) return v;   // [rx, tx, 握手, 状态码?]
+    } catch (_) { /* 平台未实现 */ }
+    return null;
+  }
+
   @override
   Future<List<int>> transferRxTx() async {
     try {

@@ -20,5 +20,7 @@ flutter:
         pluginClass: SingboxFlutterPlugin
       ios:
         pluginClass: SingboxFlutterPlugin
+        sharedDarwinSource: true
       macos:
         pluginClass: SingboxFlutterPlugin
+        sharedDarwinSource: true

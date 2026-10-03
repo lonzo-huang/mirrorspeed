@@ -12,3 +12,4 @@ PRODUCT_BUNDLE_IDENTIFIER = com.mirrorspeed.mirrorspeedVpn
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.mirrorspeed. All rights reserved.
+#include "../../../ios_macos_native/Signing.xcconfig"

@@ -65,6 +65,8 @@ dependencies:
 
   # ── 分应用代理（智能模式黑白名单：枚举已安装 App）──
   installed_apps: ^1.4.0
+  # iOS 广告 ATT 授权（个性化广告前必须征得「允许跟踪」）
+  app_tracking_transparency: ^2.0.7
   in_app_purchase: ^3.3.1
 
 dev_dependencies:
@@ -88,6 +90,11 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  # iOS/macOS 只用 CocoaPods：google_mobile_ads 仍是 CocoaPods 插件，而它依赖的
+  # webview_flutter_wkwebview 已迁到 SPM，两者混用 Flutter 会拒绝 pod install。
+  # 仅影响 Apple 平台构建，Android/Windows 无关。
+  config:
+    enable-swift-package-manager: false
   assets:
     - assets/images/
     - assets/lottie/

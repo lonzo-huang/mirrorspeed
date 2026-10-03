@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../env.dart';
 
@@ -16,6 +17,25 @@ class AdService {
   bool get _supported => _platformOk && _enabled;
   // 看完激励广告后的一段时间内，抑制开屏广告（避免手动看完广告紧接着又弹开屏，#2）。
   DateTime _suppressAppOpenUntil = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// iOS 14+：展示个性化广告前必须先征得「允许跟踪」授权（ATT）。
+  /// 必须在 MobileAds 初始化之前调用，否则本次启动只能投非个性化广告。
+  /// 用户拒绝也照常投放，只是变成非个性化（收入略低），不影响看广告加时长。
+  /// 安卓/桌面不需要，直接跳过。
+  Future<void> _requestTrackingAuthorizationIOS() async {
+    if (kIsWeb || !Platform.isIOS) return;
+    try {
+      var status = await AppTrackingTransparency.trackingAuthorizationStatus;
+      if (status == TrackingStatus.notDetermined) {
+        // 系统要求 App 进入前台后再弹，稍等一下更稳。
+        await Future.delayed(const Duration(milliseconds: 300));
+        status = await AppTrackingTransparency.requestTrackingAuthorization();
+      }
+      _attStatus = status.name;
+    } catch (e) {
+      debugPrint('[AD] ATT 请求失败(忽略): $e');
+    }
+  }
 
   /// 运行时启用/关闭所有广告（付费会员关闭，#3）。关闭时立即丢弃已加载的广告，
   /// 防止冷启动以"非会员"加载后、会员身份确认前残留的开屏/激励被展示。
@@ -37,6 +57,7 @@ class AdService {
   Future<void> initialize({bool enabled = true}) async {
     _enabled = enabled;
     if (!_platformOk || !enabled || _initialized) return;
+    await _requestTrackingAuthorizationIOS();
     try {
       await MobileAds.instance.initialize();
       _initialized = true;
@@ -62,6 +83,7 @@ class AdService {
         onAdFailedToLoad: (e) {
           _appOpenAd = null;
           debugPrint('[Ad] appOpen load failed: $e');
+          _noteAd('开屏广告', e);
           _retry(() => loadAppOpen(), _appOpenRetry++);
         },
       ),
@@ -116,16 +138,46 @@ class AdService {
             _rewardedInFlight--;
             _rewardedPool.add(ad);
             _rewardedRetry = 0;
+            _noteAd('激励广告', null);
           },
           onAdFailedToLoad: (e) {
             _rewardedInFlight--;
             debugPrint('[Ad] rewarded load failed: $e');
+            _noteAd('激励广告', e);
             _retry(() => loadRewarded(), _rewardedRetry++);
           },
         ),
       );
     }
   }
+
+  /// 最近一次广告加载结果，显示在「我的 → 错误信息」里。
+  /// TestFlight/正式包看不到控制台日志，而 AdMob 的失败原因决定了完全不同的处理：
+  ///   code 0 internal / 2 network  → 网络到不了 AdMob（国内直连被墙、代理没生效）
+  ///   code 1 invalid request       → 广告位 ID 或 App ID 不对
+  ///   code 3 no fill               → 请求正常但没广告可投（新广告位、应用未上架最常见）
+  ///   "No ad config"               → AdMob 后台该应用/广告位尚未就绪（多因未关联已上架应用）
+  String? lastAdReport;
+
+  void _noteAd(String kind, Object? err) {
+    final t = DateTime.now().toIso8601String().substring(11, 19);
+    lastAdReport = err == null
+        ? '[$t] $kind 加载成功（池 ${_rewardedPool.length}）'
+        : '[$t] $kind 失败：$err';
+  }
+
+  /// 诊断快照：ATT 授权状态 + 池子情况 + 最近一次结果。
+  String get diagnosticReport {
+    final parts = <String>[
+      '池=${_rewardedPool.length}/$_kRewardedPoolTarget 加载中=$_rewardedInFlight 开屏=${_appOpenAd != null ? '有' : '无'}'
+          '${kAdTestMode ? '（测试广告位）' : ''}',
+      'ATT=${_attStatus ?? '未知'}',
+      lastAdReport ?? '尚无加载记录',
+    ];
+    return parts.join('\n');
+  }
+
+  String? _attStatus;
 
   bool get rewardedReady => _supported && _rewardedPool.isNotEmpty;
   bool get appOpenReady  => _supported && _appOpenAd != null;

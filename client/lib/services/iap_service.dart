@@ -35,11 +35,30 @@ class IapService {
     });
   }
 
+  /// 最近一次商品查询的诊断信息（显示在「我的 → 错误信息」里，仅 iOS）。
+  /// TestFlight 包看不到控制台日志，排查「某个套餐不显示」全靠它：
+  /// 是 App Store 说「没这个商品」(notFound)，还是请求本身报错(error)。
+  String? lastQueryReport;
+
   Future<List<ProductDetails>> queryProducts() async {
-    if (!supported || !await _iap.isAvailable()) return [];
-    final res = await _iap.queryProductDetails(productIds);
-    if (kDebugMode && res.notFoundIDs.isNotEmpty) debugPrint('IAP 未找到商品: ${res.notFoundIDs}');
-    return res.productDetails;
+    if (!supported) return [];
+    final t = DateTime.now().toIso8601String().substring(11, 19);
+    if (!await _iap.isAvailable()) {
+      lastQueryReport = '[$t] App Store 不可用(isAvailable=false)';
+      return [];
+    }
+    try {
+      final res = await _iap.queryProductDetails(productIds);
+      final found = res.productDetails.map((d) => '${d.id}=${d.price}').join(', ');
+      lastQueryReport = '[$t] 找到: ${found.isEmpty ? '无' : found}'
+          '${res.notFoundIDs.isEmpty ? '' : '\n未找到: ${res.notFoundIDs.join(', ')}'}'
+          '${res.error == null ? '' : '\n错误: ${res.error!.code} ${res.error!.message}'}';
+      if (kDebugMode && res.notFoundIDs.isNotEmpty) debugPrint('IAP 未找到商品: ${res.notFoundIDs}');
+      return res.productDetails;
+    } catch (e) {
+      lastQueryReport = '[$t] 查询异常: $e';
+      rethrow;
+    }
   }
 
   String? get _userId => Supabase.instance.client.auth.currentUser?.id;

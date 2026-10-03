@@ -48,12 +48,19 @@ class SharedNodeProvider extends ChangeNotifier {
   SharedNodeProvider() {
     _stageSub = _engine.stageStream.listen((s) {
       _stage = s;
+      // 连上即开始采速率，断开停止（免费节点的上/下行计量）
+      if (s == VpnStage.connected) {
+        _startSpeedPolling();
+      } else if (s == VpnStage.disconnected) {
+        _stopSpeedPolling();
+      }
       notifyListeners();
     });
   }
 
   @override
   void dispose() {
+    _speedTimer?.cancel();
     _stageSub?.cancel();
     super.dispose();
   }
@@ -145,6 +152,76 @@ class SharedNodeProvider extends ChangeNotifier {
       _error = '该区域暂无可真正访问外网的免费节点，请刷新或换一个';
       notifyListeners();
     }
+  }
+
+  /// 免费节点是否启用智能分流（geosite-cn + geoip-cn 直连，其余走代理）。
+  ///
+  /// **仅 Apple（iOS/macOS）**：Windows/安卓的免费节点维持既有的全局隧道行为不变。
+  /// 跟随首页那个「智能 / 全局」开关（与优质节点同一个偏好键 routing_mode），
+  /// 且只在出口 IP 归属中国时才分流——境外出口全隧道即可，分流没有意义。
+  Future<bool> _appleSmartRouting() async {
+    if (!Platform.isIOS && !Platform.isMacOS) return false;
+    final prefs = await SharedPreferences.getInstance();
+    final mode = prefs.getString('routing_mode');
+    // 与 VpnProvider 的默认值保持一致：中文环境默认智能，其它默认全局。
+    final smart = mode == null ? _isZh() : mode == 'smart';
+    if (!smart) return false;
+    // 与优质节点一致：只有确知在境外才不分流，判定失败时仍按中国规则集分流。
+    return await FreeNodeService.instance.egressInChina() != false;
+  }
+
+  // ── 速率计量 ────────────────────────────────────────────────────
+  // 连接期间每 5 秒读一次隧道累计收发字节，算出瞬时速率。
+  // 原生未实现计量的平台(安卓/Windows)返回 [-1,-1]，speedAvailable=false，
+  // 界面继续显示「—」，行为不变。
+  Timer? _speedTimer;
+  int _lastRx = -1, _lastTx = -1, _lastSpeedMs = 0;
+  int _downBps = 0, _upBps = 0;
+  bool _speedAvailable = false;
+
+  bool   get speedAvailable   => _speedAvailable;
+  String get downloadSpeedStr => _fmtBps(_downBps);
+  String get uploadSpeedStr   => _fmtBps(_upBps);
+
+  void _startSpeedPolling() {
+    _speedTimer?.cancel();
+    _lastRx = _lastTx = -1;
+    _pollSpeed();
+    _speedTimer = Timer.periodic(const Duration(seconds: 5), (_) => _pollSpeed());
+  }
+
+  void _stopSpeedPolling() {
+    _speedTimer?.cancel();
+    _speedTimer = null;
+    _downBps = _upBps = 0;
+    _speedAvailable = false;
+  }
+
+  Future<void> _pollSpeed() async {
+    final r = await _engine.transferRxTx()
+        .timeout(const Duration(seconds: 3), onTimeout: () => const [-1, -1]);
+    final rx = r.isNotEmpty ? r[0] : -1, tx = r.length > 1 ? r[1] : -1;
+    if (rx < 0 || tx < 0) {
+      if (_speedAvailable) { _speedAvailable = false; notifyListeners(); }
+      return;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_lastRx >= 0 && _lastSpeedMs > 0) {
+      final dt = (now - _lastSpeedMs) / 1000.0;
+      if (dt >= 0.5) {
+        _downBps = ((rx - _lastRx) / dt).round().clamp(0, 1 << 40);
+        _upBps   = ((tx - _lastTx) / dt).round().clamp(0, 1 << 40);
+      }
+    }
+    _lastRx = rx; _lastTx = tx; _lastSpeedMs = now;
+    _speedAvailable = true;
+    notifyListeners();
+  }
+
+  static String _fmtBps(int b) {
+    if (b >= 1024 * 1024) return '${(b / 1024 / 1024).toStringAsFixed(1)} MB/s';
+    if (b >= 1024)        return '${(b / 1024).toStringAsFixed(0)} KB/s';
+    return '$b B/s';
   }
 
   static bool _isZh() => Platform.localeName.toLowerCase().startsWith('zh');
@@ -296,7 +373,7 @@ class SharedNodeProvider extends ChangeNotifier {
       // 仅当系统确有可用 IPv6 时才给 tun 加 v6 地址：IPv6 被禁用的机器上设 v6 地址会让
       // sing-box FATAL、整个隧道起不来（企业 Windows 常见）。桌面探测，Android 保持纯 IPv4。
       final ipv6 = await _hasGlobalIpv6();
-      final cfg = SingboxConfig.build(node, smart: false,
+      final cfg = SingboxConfig.build(node, smart: await _appleSmartRouting(),
           includePackages: inc, excludePackages: exc,
           includeProcesses: incProc, excludeProcesses: excProc,
           ipv6: ipv6);

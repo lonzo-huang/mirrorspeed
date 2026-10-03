@@ -7,6 +7,8 @@ import 'package:flutter/services.dart'; // PlatformException + rootBundle
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../vpn/vpn_engine.dart';
+import 'package:amneziawg_flutter/amneziawg_flutter.dart';
+import 'package:amneziawg_flutter/amneziawg_flutter_method_channel.dart';
 import '../vpn/amnezia_wg_engine.dart';
 import '../services/free_node_service.dart';
 import '../models/server_config.dart';
@@ -293,10 +295,12 @@ class VpnProvider extends ChangeNotifier {
           _status = VpnStatus.connected;
           _postConnectCheck(_activeServer); // 4 秒后验证直连流量
         }
+        _startDiagPolling();
       case VpnStage.connecting:
         _status = VpnStatus.connecting;
       case VpnStage.disconnected:
         _status = VpnStatus.disconnected;
+        _stopDiagPolling();
         _stopTimer();
         _usageTimer?.cancel();   // 隧道已断，停止用量轮询（不再有适配器可读）
         _stopConnectedPing();
@@ -355,7 +359,9 @@ class VpnProvider extends ChangeNotifier {
       // 0. 按需建 peer：确保该节点服务器上已添加本设备（on-demand provisioning）。
       //    尽力而为，不阻断连接（多数情况已由列表预热提前建好）。
       if (!server.isDisplayOnly) {
-        await ApiService.instance.ensurePeer(serverIds: [server.id]);
+        // 结果记下来：服务器端没配好 peer 时，表现正是「握手成功但数据全被丢」，
+        // 之前失败了也静默忽略，排查时完全看不出来。
+        _lastEnsurePeerOk = await ApiService.instance.ensurePeer(serverIds: [server.id]);
       }
 
       // 强制连接模式：强力/超级 跳过直连，直接走对应中继。
@@ -388,6 +394,7 @@ class VpnProvider extends ChangeNotifier {
       String wgConf = _routingMode == RoutingMode.smart
           ? await _applySmartRouting(server.wgConf, excludeIp: null)
           : server.wgConf;
+      wgConf = await _appleDefaultRouteWithExclusions(wgConf);
       wgConf = PortHoppingService.instance
           .rewriteEndpointPort(wgConf, effectivePort);
       wgConf = await _applyAppProxy(wgConf);   // Android 优质：智能模式下按应用
@@ -520,6 +527,9 @@ class VpnProvider extends ChangeNotifier {
       final localPort = await _relay.start(
           '$relayBaseUrl/secure-tunnel', _awgInternalPort);
       var relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
+      // 中继模式同样受益；serverIp 的回环排除已在 _buildRelayConf 里从 AllowedIPs 扣掉，
+      // 取补集后自然落进 ExcludedIPs，不会被默认路由重新吃回去。
+      relayConf = await _appleDefaultRouteWithExclusions(relayConf);
       relayConf = await _applyAppProxy(relayConf);   // Android 优质：智能模式下按应用
 
       await _engine.start(EngineStartParams(
@@ -650,6 +660,43 @@ class VpnProvider extends ChangeNotifier {
     return inserted ? out.join('\n') : wgConf;
   }
 
+  /// Apple 专用：把「拆分路由」改写成「默认路由 + 排除表」，语义等价。
+  ///
+  /// 为什么必须这么做：iOS 只对单条 `0.0.0.0/0` 的全局 VPN 做特殊处理，会让系统自己的
+  /// 联网探测照常工作。若交给它几十上千条普通拆分路由（服务器下发的 AllowedIPs 本就是
+  /// 0.0.0.0/5, 8.0.0.0/7 … 这种形式，智能模式更有上千条），WiFi 刚连上时系统在 WiFi
+  /// 接口上做的探测会被这些路由截走而失败 → 判定「WiFi 无互联网」→ 永不把 WiFi 提为
+  /// 主接口 → VPN 永远留在蜂窝上，用户看到"切到 5G 后再也回不去 WiFi"。
+  ///
+  /// 服务器 endpoint 无需在这里排除：Apple 扩展的 PacketTunnelSettingsGenerator 会自动
+  /// 把已解析的 endpoint 放进 excludedRoutes。
+  ///
+  /// 仅 Apple 生效；安卓/Windows 原样返回（`ExcludedIPs` 也只有本项目的 Apple 解析器认识）。
+  Future<String> _appleDefaultRouteWithExclusions(String wgConf) async {
+    if (kIsWeb || !(Platform.isIOS || Platform.isMacOS)) return wgConf;
+
+    final m = RegExp(r'AllowedIPs\s*=\s*([^\n]+)').firstMatch(wgConf);
+    if (m == null) return wgConf;
+    final current = m.group(1)!.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    // 已经是单条默认路由就不用动
+    if (current.length == 1 && current.first == '0.0.0.0/0') return wgConf;
+
+    // 排除表 = 全 IPv4 空间减去当前 AllowedIPs（即"原本就不走隧道"的那部分）。
+    // 智能模式下它就是中国 IP 段，全局模式下就是内网段 —— 两种模式共用一套逻辑。
+    final excluded = _computeComplementCidrs(current.where((c) => !c.contains(':')).toList());
+    if (excluded.isEmpty) return wgConf;
+
+    final hasV6 = current.any((c) => c.contains(':'));
+    var conf = wgConf.replaceAll(
+      RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
+      'AllowedIPs   = ${hasV6 ? '0.0.0.0/0, ::/0' : '0.0.0.0/0'}\n'
+      'ExcludedIPs  = ${excluded.join(', ')}',
+    );
+    debugPrint('[VPN] Apple 路由：${current.length} 条拆分路由 → 默认路由 + ${excluded.length} 条排除');
+    smartRoutingReport = '${smartRoutingReport ?? ''} → 默认路由+${excluded.length}条排除'.trim();
+    return conf;
+  }
+
   // ── 智能路由：将 AWG 配置的 AllowedIPs 改为非中国IP段 ────────────────────
   Future<String> _applySmartRouting(String wgConf, {required String? excludeIp}) async {
     // 智能模式按「裸 IP」归属地决定：
@@ -657,8 +704,17 @@ class VpnProvider extends ChangeNotifier {
     //  - 境外裸 IP / 无法识别：暂全隧道（AllowedIPs 保持 0.0.0.0/0）——占位，确保能连上；
     //    将来再做境外的智能分流优化（TODO）。
     final inCn = await FreeNodeService.instance.egressInChina();
-    if (inCn != true) return wgConf;
+    // 只有确知在境外才整条走隧道；判定失败(null)时仍按中国 IP 表分流。
+    // 之前 null 也跳过分流 —— 而国内恰恰最容易判定失败（原来探测的是
+    // cloudflare.com），结果智能模式悄悄退化成全局模式。分流本身对境外用户
+    // 也无害（国内 IP 直连而已），所以未知时分流是更安全的默认。
+    smartRoutingReport = '出口判定=${inCn == null ? '未知' : (inCn ? '国内' : '境外')}';
+    if (inCn == false) {
+      smartRoutingReport = '$smartRoutingReport → 全隧道';
+      return wgConf;
+    }
     final routes = await _getSmartRoutes(excludeIp: excludeIp);
+    smartRoutingReport = '$smartRoutingReport → 分流 ${routes.length} 段';
     var conf = wgConf.replaceAll(
       RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
       'AllowedIPs   = ${routes.join(', ')}',
@@ -669,6 +725,11 @@ class VpnProvider extends ChangeNotifier {
     conf = _setDns(conf, '1.1.1.1, 8.8.8.8');
     return conf;
   }
+
+  /// 最近一次智能分流的判定结果，显示在「我的 → 错误信息」里。
+  /// 智能模式是否真的生效，用户在界面上看不出来（全隧道和分流都能上网），
+  /// 只有国内网站绕道变慢才会察觉 —— 必须能直接读到。
+  String? smartRoutingReport;
 
   /// 获取智能模式的 AllowedIPs 列表（非中国IP段，可选排除指定IP）。
   /// 结果在会话内缓存，切换模式时自动清除。
@@ -1240,10 +1301,83 @@ class VpnProvider extends ChangeNotifier {
     await _pollUsage();   // 结算最后一段
   }
 
+  /// 最近一次 ensurePeer（在目标服务器上确保本机 peer 存在）的结果。
+  bool? _lastEnsurePeerOk;
+
+  /// Apple 隧道诊断串（错误信息弹窗展示）：收发字节 + 最后握手时间。
+  /// 握手「从未」= UDP 根本没通到服务器，此时即便界面显示已连接也不会有流量。
+  String? tunnelDiagnostic;
+
+  Timer? _diagTimer;
+
+  /// 隧道一建立就开始采集诊断（不等连通性验证——验证失败时更需要这份数据）。
+  void _startDiagPolling() {
+    _diagTimer?.cancel();
+    _updateTunnelDiagnostic();
+    _diagTimer = Timer.periodic(const Duration(seconds: 5), (_) => _updateTunnelDiagnostic());
+  }
+
+  void _stopDiagPolling() {
+    _diagTimer?.cancel();
+    _diagTimer = null;
+  }
+
+  /// 供「错误信息」弹窗主动拉取一次最新诊断。
+  Future<String?> refreshTunnelDiagnostic() async {
+    await _updateTunnelDiagnostic();
+    return tunnelDiagnostic;
+  }
+
+  Future<void> _updateTunnelDiagnostic() async {
+    if (kIsWeb || !(Platform.isIOS || Platform.isMacOS)) return;
+    if (_engine is! AmneziaWgEngine) return;
+    final base = AmneziawgFlutterInterface.instance;
+    final ch = base is AmneziawgFlutterMethodChannel ? base : null;
+    final st = ch == null ? null : await ch.tunnelStats();
+    if (st == null) { tunnelDiagnostic = '插件未响应'; return; }
+    final code = st.length >= 4 ? st[3] : 0;
+    if (code == 1) { tunnelDiagnostic = '系统 VPN 会话未连接（隧道没真正建立）'; return; }
+    if (code == 2) {
+      // 附上扩展自己写的最近几行日志，直接看出它卡在哪一步
+      final log = await ch?.tunnelLog();
+      final tail = (log ?? '').trim().split('\n').where((l) => l.isNotEmpty).toList();
+      final last = tail.isEmpty ? '（扩展没有写下任何日志）' : tail.sublist(tail.length > 4 ? tail.length - 4 : 0).join('\n');
+      tunnelDiagnostic = '扩展无响应（内核未启动或已崩溃）⚠️\n$last';
+      return;
+    }
+    if (code == 3) {
+      // 系统把网络判成不可用 → 扩展暂停了内核；看门狗会在 15 秒内强制恢复，
+      // 不必让用户手动重连（见 WireGuardAdapter.startResumeWatchdog）。
+      tunnelDiagnostic = '网络切换中，内核已暂停，正在自动恢复…';
+      return;
+    }
+    final hs = st[2];
+    final ago = hs > 0
+        ? '${DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000 - hs} 秒前'
+        : '从未握手 ⚠️';
+    // 附上本机隧道 IP 与节点端点：服务器上的 peer 若绑了别的 IP，
+    // 就会「握手成功但数据全被丢」——这两个值能直接对账。
+    final conf = _activeServer?.wgConf ?? '';
+    final myIp = RegExp(r'Address\s*=\s*([\d./]+)').firstMatch(conf)?.group(1) ?? '?';
+    tunnelDiagnostic = '收 ${_fmtBytes(st[0])} / 发 ${_fmtBytes(st[1])}，握手 $ago'
+        '\n本机隧道 IP $myIp'
+        '${_lastEnsurePeerOk == false ? '，⚠️ 服务器未确认 peer' : ''}'
+        '（${_protocol == VpnProtocol.relay ? '中继' : '直连'}'
+        '${_activeServer?.displayName != null ? ' · ${_activeServer!.displayName}' : ''}）';
+  }
+
+  static String _fmtBytes(int b) {
+    if (b < 0) return '?';
+    if (b < 1024) return '${b}B';
+    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(1)}KB';
+    return '${(b / 1024 / 1024).toStringAsFixed(1)}MB';
+  }
+
   Future<void> _pollUsage() async {
     // 取 rx/tx 分项：rx=下行(收)、tx=上行(发)。隧道未起/平台不支持返回 [-1,-1]。
     final rxtx = await _engine.transferRxTx()
         .timeout(const Duration(seconds: 3), onTimeout: () => const [-1, -1]);
+    unawaited(_updateTunnelDiagnostic());
     _rollDayIfNeeded();
     final rx = rxtx.isNotEmpty ? rxtx[0] : -1;
     final tx = rxtx.length > 1 ? rxtx[1] : -1;
@@ -1448,6 +1582,7 @@ class VpnProvider extends ChangeNotifier {
   void dispose() {
     _fallbackTimer?.cancel();
     _usageTimer?.cancel();
+    _diagTimer?.cancel();
     _trialTimer?.cancel();
     _pingTimer?.cancel();
     _stageSub?.cancel();

@@ -86,8 +86,8 @@ Google Play 走 AAB 按设备 ABI 分发，本就更小。
 |------|---------|-------------------|------|
 | Android | ✅ | ✅ 真机验证 | **已发布** |
 | Windows | ✅（已有） | ✅ `SingboxWindowsRunner` | 待放入 `sing-box.exe`+`wintun.dll`（见 `windows/singbox/README.md`）后 `flutter build windows` |
-| iOS | ✅（已有） | 🧩 骨架 | NEPacketTunnelProvider + libbox 骨架，待 Mac 编译（见 `ios_macos_native/README.md`） |
-| macOS | — | 🧩 骨架 | 同 iOS，共用 Swift 源 |
+| iOS | ✅ AWGTunnel 扩展 | ✅ SingboxTunnel 扩展 | 2026-09 已在 Mac 上完成并编译通过，待签名真机验证（见 `ios_macos_native/README.md`） |
+| macOS | ✅ 同 iOS | ✅ 同 iOS | 同上，共用 Swift 源；macOS ≥ 13 |
 
 ### Windows 免费节点
 `SingboxWindowsRunner` 用 `Process.start` 跑官方 `sing-box.exe`（自管 tun + wintun），

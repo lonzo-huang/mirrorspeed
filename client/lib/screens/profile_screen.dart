@@ -1,5 +1,9 @@
 import 'invite_screen.dart';
 import 'app_proxy_screen.dart';
+import '../services/iap_service.dart';
+import '../services/app_proxy_store.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -157,12 +161,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const InviteScreen())),
                 ),
-                _ActionRow(
-                  icon:  Icons.apps_rounded,
-                  label: tr('分应用代理（黑白名单）', 'Per-app proxy'),
-                  onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const AppProxyScreen())),
-                ),
+                if (AppProxyStore.supported)
+                  _ActionRow(
+                    icon:  Icons.apps_rounded,
+                    label: tr('分应用代理（黑白名单）', 'Per-app proxy'),
+                    onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const AppProxyScreen())),
+                  ),
                 _ActionRow(
                   icon:  Icons.error_outline_rounded,
                   label: vpn.error != null || auth.error != null
@@ -410,41 +415,94 @@ class _InfoRow extends StatelessWidget {
   );
 }
 
-// 「错误信息」弹窗：集中展示配置/登录与连接错误（不再打扰主页）。
+// 「错误信息」弹窗。
+//
+// 默认只展示用户看得懂、也能据此行动的错误（登录失败、连接失败）。隧道收发字节、
+// 扩展日志、AdMob 错误码、内购查询结果这些是排查用的，对用户没有意义、还显得像
+// 出了故障，因此藏在暗门后面：连点标题 5 次才展开。正式包同样可用，便于远程支持。
 void _showErrorInfo(BuildContext context) {
   final auth = context.read<AuthProvider>();
   final vpn  = context.read<VpnProvider>();
+
+  // 面向用户的错误
   final items = <String>[];
   if (auth.error != null) items.add('${tr('配置 / 登录', 'Config / Login')}：${auth.error}');
   if (vpn.error  != null) items.add('${tr('连接', 'Connection')}：${vpn.error}');
+
+  // 技术诊断（暗门内）
+  final debugItems = <String>[];
+  final iapReport = IapService.instance.lastQueryReport;
+  if (IapService.supported && iapReport != null) {
+    debugItems.add('${tr('内购', 'In-App Purchase')}：$iapReport');
+  }
+  final smartReport = vpn.smartRoutingReport;
+  if (smartReport != null) {
+    debugItems.add('${tr('智能分流', 'Smart routing')}：$smartReport');
+  }
+  debugItems.add('${tr('广告', 'Ads')}：${AdService.instance.diagnosticReport}');
+
   showDialog(
     context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: msNow.card,
-      // 调试暗门：有已加载且有效的广告(激励/开屏)时，标题前显示一个 ⓘ；否则不显示。
-      // 用来快速判断"广告是否已缓存到本地"，排查国内广告加载问题。
-      title: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (AdService.instance.hasReadyAd) ...[
-          Icon(Icons.error_outline, size: 16, color: msNow.brand),
-          const SizedBox(width: 6),
-        ],
-        Text(tr('错误信息', 'Error info'), style: const TextStyle(fontSize: 16)),
-      ]),
-      content: items.isEmpty
-          ? Text(tr('暂无错误信息 ✅', 'No errors ✅'),
-              style: TextStyle(color: msNow.textSecondary.withOpacity(0.7), fontSize: 13))
-          : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final e in items)
-                  Padding(padding: const EdgeInsets.only(bottom: 10),
-                    child: SelectableText(e, style: const TextStyle(color: Colors.orange, fontSize: 13))),
-              ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx),
-          child: Text(tr('关闭', 'Close'))),
-      ],
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) {
+        return AlertDialog(
+          backgroundColor: msNow.card,
+          title: GestureDetector(
+            // 暗门：连点 5 次标题展开技术诊断。
+            onTap: () {
+              _diagTaps++;
+              if (_diagTaps >= 5) setState(() {});
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(tr('错误信息', 'Error info'), style: const TextStyle(fontSize: 16)),
+              if (_diagTaps >= 5) ...[
+                const SizedBox(width: 6),
+                Icon(Icons.bug_report_outlined, size: 15, color: msNow.textSecondary),
+              ],
+            ]),
+          ),
+          content: _dialogBody(context, items,
+              debugItems: _diagTaps >= 5 ? debugItems : const []),
+          actions: [
+            TextButton(
+              onPressed: () { _diagTaps = 0; Navigator.pop(ctx); },
+              child: Text(tr('关闭', 'Close'))),
+          ],
+        );
+      },
     ),
   );
+}
+
+/// 暗门计数：连点「错误信息」标题 5 次展开技术诊断，关闭弹窗后归零。
+int _diagTaps = 0;
+
+// 错误信息弹窗正文。隧道诊断属于技术诊断，只在暗门展开后显示，
+// 且现取一次（不依赖后台轮询时机）。
+Widget _dialogBody(BuildContext context, List<String> items,
+    {List<String> debugItems = const []}) {
+  final vpn = context.read<VpnProvider>();
+  final showTunnel = debugItems.isNotEmpty &&
+      !kIsWeb && (Platform.isIOS || Platform.isMacOS) && vpn.isConnected;
+  return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    if (items.isEmpty && debugItems.isEmpty)
+      Text(tr('暂无错误信息 ✅', 'No errors ✅'),
+        style: TextStyle(color: msNow.textSecondary.withOpacity(0.7), fontSize: 13)),
+    for (final e in items)
+      Padding(padding: const EdgeInsets.only(bottom: 10),
+        child: SelectableText(e, style: const TextStyle(color: Colors.orange, fontSize: 13))),
+    for (final e in debugItems)
+      Padding(padding: const EdgeInsets.only(bottom: 10),
+        child: SelectableText(e, style: TextStyle(color: msNow.textSecondary, fontSize: 12))),
+    if (showTunnel)
+      FutureBuilder<String?>(
+        future: vpn.refreshTunnelDiagnostic(),
+        builder: (_, snap) => SelectableText(
+          '${tr('隧道', 'Tunnel')}：${snap.data ?? tr('读取中…', 'reading…')}',
+          style: TextStyle(color: msNow.textSecondary, fontSize: 12)),
+      ),
+  ]);
 }
 
 // ── 连接模式选择行 ───────────────────────────────────────────────

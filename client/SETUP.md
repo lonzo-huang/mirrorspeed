@@ -18,42 +18,12 @@ flutter run \
 
 ---
 
-## iOS 配置（必须）
+## iOS / macOS 配置
 
-### 1. Xcode — Network Extension 能力
-
-1. 打开 `ios/Runner.xcworkspace`
-2. Runner target → **Signing & Capabilities** → `+ Capability` → **Network Extensions**
-3. 勾选 **Packet Tunnel Provider**
-4. 同样添加 **App Groups**，创建组：`group.com.mirrorspeed.vpn`
-
-### 2. 创建 Network Extension Target
-
-1. File → New → Target → **Network Extension**
-2. Bundle ID：`com.mirrorspeed.vpn.network`（须与 `env.dart` 中的 `kProviderBundle` 一致）
-3. 在 Extension 的 `PacketTunnelProvider.swift` 中集成 WireGuardKit：
-   ```swift
-   import WireGuardKit
-   class PacketTunnelProvider: NEPacketTunnelProvider {
-       private var wgAdapter: WireGuardAdapter?
-       // ... 参考 wireguard-apple 官方示例
-   }
-   ```
-
-### 3. Info.plist — URL Scheme（OAuth 回调）
-
-在 `ios/Runner/Info.plist` 中添加：
-```xml
-<key>CFBundleURLTypes</key>
-<array>
-  <dict>
-    <key>CFBundleURLSchemes</key>
-    <array>
-      <string>mirrorspeed</string>
-    </array>
-  </dict>
-</array>
-```
+见 [ios_macos_native/README.md](ios_macos_native/README.md)：两个 Packet Tunnel 扩展
+（AmneziaWG / sing-box）已接入 `ios/`、`macos/` 工程，URL Scheme `mirrorspeed://` 已写入
+Info.plist。Mac 上先 `bash ios_macos_native/build_apple_libs.sh` 构建 Go 库，再在
+`ios_macos_native/Signing.xcconfig` 填 Team ID 即可签名运行。
 
 ---
 

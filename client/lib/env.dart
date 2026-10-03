@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 // ============================================================
 // 环境配置 — 替换为你的实际值
 // 生产环境可通过 --dart-define=SUPABASE_URL=xxx 注入
@@ -37,9 +39,35 @@ const String kAuthCallbackScheme = 'mirrorspeed';
 const String kAuthCallbackUrl    = '$kAuthCallbackScheme://login-callback';
 
 // ── AdMob 广告（仅 Android/iOS）──────────────────────────────────
-// App ID 同时写入 AndroidManifest / Info.plist。
-const String kAdMobAppId       = 'ca-app-pub-6444342069684995~8865360511';
-const String kAdRewardedUnitId = 'ca-app-pub-6444342069684995/6183660776'; // 激励视频 → 延长试用
-const String kAdAppOpenUnitId  = 'ca-app-pub-6444342069684995/6906245736'; // 开屏（可跳过）
+// AdMob 的 App ID / 广告位 ID 是分平台的，用错平台会被判为无效请求拿不到广告。
+// App ID 另需写入 AndroidManifest（安卓）/ Info.plist（iOS）。
+bool get _isIOS => !kIsWeb && Platform.isIOS;
+
+// 安卓
+const String _kAdMobAppIdAndroid       = 'ca-app-pub-6444342069684995~8865360511';
+const String _kAdRewardedUnitIdAndroid = 'ca-app-pub-6444342069684995/6183660776';
+const String _kAdAppOpenUnitIdAndroid  = 'ca-app-pub-6444342069684995/6906245736';
+// iOS
+const String _kAdMobAppIdIOS           = 'ca-app-pub-6444342069684995~4402982650';
+const String _kAdRewardedUnitIdIOS     = 'ca-app-pub-6444342069684995/5669806179';
+const String _kAdAppOpenUnitIdIOS      = 'ca-app-pub-6444342069684995/1263657308';
+
+// Google 官方测试广告位：100% 有填充，用于把「客户端接入是否正常」与「账号侧有没有
+// 库存」分开。真实广告位在新应用上初期常年 0 填充（iOS 的 code 1 就是 No Fill —— 注意
+// iOS 与安卓的错误码编号不同，安卓 1 才是无效请求），光看真实位分不清是哪一种。
+// 仅在打诊断包时加 --dart-define=AD_TEST=true，正式包不受影响。
+const bool kAdTestMode = bool.fromEnvironment('AD_TEST');
+const String _kAdRewardedUnitIdTestIOS     = 'ca-app-pub-3940256099942544/1712485313';
+const String _kAdAppOpenUnitIdTestIOS      = 'ca-app-pub-3940256099942544/5575463023';
+const String _kAdRewardedUnitIdTestAndroid = 'ca-app-pub-3940256099942544/5224354917';
+const String _kAdAppOpenUnitIdTestAndroid  = 'ca-app-pub-3940256099942544/9257395921';
+
+String get kAdMobAppId       => _isIOS ? _kAdMobAppIdIOS       : _kAdMobAppIdAndroid;
+String get kAdRewardedUnitId => kAdTestMode
+    ? (_isIOS ? _kAdRewardedUnitIdTestIOS : _kAdRewardedUnitIdTestAndroid)
+    : (_isIOS ? _kAdRewardedUnitIdIOS     : _kAdRewardedUnitIdAndroid);
+String get kAdAppOpenUnitId  => kAdTestMode
+    ? (_isIOS ? _kAdAppOpenUnitIdTestIOS : _kAdAppOpenUnitIdTestAndroid)
+    : (_isIOS ? _kAdAppOpenUnitIdIOS     : _kAdAppOpenUnitIdAndroid);
 // 每看完一条激励视频奖励的免费时长（分钟）
 const int    kAdRewardMinutes  = 30;
