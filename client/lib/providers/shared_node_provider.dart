@@ -373,7 +373,7 @@ class SharedNodeProvider extends ChangeNotifier {
       // 仅当系统确有可用 IPv6 时才给 tun 加 v6 地址：IPv6 被禁用的机器上设 v6 地址会让
       // sing-box FATAL、整个隧道起不来（企业 Windows 常见）。桌面探测，Android 保持纯 IPv4。
       final ipv6 = await _hasGlobalIpv6();
-      final cfg = SingboxConfig.build(node, smart: await _appleSmartRouting(),
+      final cfg = SingboxConfig.build(node.outbound, smart: await _appleSmartRouting(),
           includePackages: inc, excludePackages: exc,
           includeProcesses: incProc, excludeProcesses: excProc,
           ipv6: ipv6);

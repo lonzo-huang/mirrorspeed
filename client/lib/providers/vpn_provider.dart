@@ -10,8 +10,11 @@ import '../vpn/vpn_engine.dart';
 import 'package:amneziawg_flutter/amneziawg_flutter.dart';
 import 'package:amneziawg_flutter/amneziawg_flutter_method_channel.dart';
 import '../vpn/amnezia_wg_engine.dart';
+import '../vpn/proxy_core_engine.dart';
+import '../vpn/singbox_config.dart';
 import '../services/free_node_service.dart';
 import '../models/server_config.dart';
+import '../models/singbox_premium.dart';
 import '../services/ws_relay_service.dart';
 import '../services/port_hopping.dart';
 import '../services/api_service.dart';
@@ -39,8 +42,23 @@ enum ConnMode { auto, direct, relay, cloudflare }
 enum RoutingMode  { global, smart }
 
 class VpnProvider extends ChangeNotifier {
-  // VPN 引擎(引擎无关抽象)。当前只有 AmneziaWG;sing-box 之后按节点 tier 切换。
-  final VpnEngine _engine = AmneziaWgEngine();
+  // VPN 引擎(引擎无关抽象)。优质节点双栈期：节点已开通 sing-box（configs 下发 singbox 块）就用 sing-box，
+  // 否则沿用 AmneziaWG。两个引擎常驻，但同一时刻只有一个持有系统隧道
+  // （iOS/安卓单隧道限制），切换时必须先停旧的 —— 见 _useEngine。
+  final VpnEngine _awgEngine = AmneziaWgEngine();
+  final VpnEngine _sbEngine  = ProxyCoreEngine();
+  late VpnEngine _engine = _awgEngine;
+
+  /// 按节点切换引擎。两个引擎的 stage 流不同，切换时必须重订阅，否则界面会停在
+  /// 旧引擎的状态上不动。切换前先停旧引擎（系统同时只允许一条隧道）。
+  Future<void> _useEngine(VpnEngine next) async {
+    if (identical(_engine, next)) return;
+    try { await _engine.stop(); } catch (_) {}
+    _engine = next;
+    await _engine.initialize();
+    await _stageSub?.cancel();
+    _stageSub = _engine.stageStream.listen(_onStage);
+  }
 
   /// 连接前需要停掉的另一条隧道（共享节点 sing-box）。由 app 层注入，实现系统级互斥。
   Future<void> Function()? onBeforeConnect;
@@ -385,6 +403,15 @@ class VpnProvider extends ChangeNotifier {
         return;
       }
 
+      // 节点已开通 sing-box（后端下发了 singbox 块）→ 走 sing-box，否则沿用 AWG。
+      // 这是个纯数据开关：后端把某节点的 sb_enabled 置回 false，客户端下次拉配置
+      // 就自动回退，不需要发版 —— 迁移期的回滚底座（见 docs/singbox-migration.md §7）。
+      final sb = server.singbox;
+      if (sb != null && sb.usable) {
+        await _connectViaSingbox(server, sb);
+        return;
+      }
+
       // 1. 计算实际连接端口（端口跳变 or 固定端口），并钉死到本次会话。
       //    端口只在此处基于时间计算一次；连上后整个会话不再改变。
       final effectivePort = _computePort(server);
@@ -695,6 +722,52 @@ class VpnProvider extends ChangeNotifier {
     debugPrint('[VPN] Apple 路由：${current.length} 条拆分路由 → 默认路由 + ${excluded.length} 条排除');
     smartRoutingReport = '${smartRoutingReport ?? ''} → 默认路由+${excluded.length}条排除'.trim();
     return conf;
+  }
+
+  // ── 优质节点走 sing-box（迁移期）────────────────────────────────────────
+  /// 用 sing-box 连优质节点。协议层由后端下发的 singbox 块决定：
+  /// 快速=Hysteria2 / 强力=VLESS+Reality / 超级=VLESS+WS（阶段 2）。
+  ///
+  /// 路由、DNS、广告域名强制代理这些**完全复用免费节点那一套**（SingboxConfig），
+  /// 这正是迁移的主要收益：按域名分流取代按 IP 分流，三端一套逻辑。
+  ///
+  /// 端口跳跃不在这里算 —— 范围由后端放在 hysteria2.ports 里，交给 sing-box 原生
+  /// 完成（见 docs/singbox-migration.md §9）。
+  Future<void> _connectViaSingbox(ServerConfig server, SingboxPremium sb) async {
+    final outbound = _pickSingboxOutbound(sb);
+    if (outbound == null) {
+      _error = '该节点暂不支持当前连接模式';
+      _status = VpnStatus.disconnected;
+      notifyListeners();
+      return;
+    }
+
+    await _useEngine(_sbEngine);
+    final cfg = SingboxConfig.build(
+      outbound,
+      smart: _routingMode == RoutingMode.smart,
+    );
+    debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}');
+    await _engine.start(EngineStartParams(singboxConfig: cfg));
+
+    if (!_userInitiatedDisconnect && _status == VpnStatus.connecting) {
+      _status = VpnStatus.connected;
+      notifyListeners();
+    }
+  }
+
+  /// 按用户选择的连接模式挑一层协议；该层未下发则按 快速→强力→超级 顺序降级，
+  /// 保证"后端只开通了部分协议"时仍能连上。
+  Map<String, dynamic>? _pickSingboxOutbound(SingboxPremium sb) {
+    final hy2     = sb.hysteria2?.outbound(sb.hy2Password);
+    final reality = sb.reality?.outbound(sb.uuid);
+    final ws      = sb.ws?.outbound(sb.uuid);
+    switch (_connMode) {
+      case ConnMode.direct:     return hy2 ?? reality ?? ws;
+      case ConnMode.relay:      return reality ?? ws ?? hy2;
+      case ConnMode.cloudflare: return ws ?? reality ?? hy2;
+      case ConnMode.auto:       return hy2 ?? reality ?? ws;
+    }
   }
 
   // ── 智能路由：将 AWG 配置的 AllowedIPs 改为非中国IP段 ────────────────────

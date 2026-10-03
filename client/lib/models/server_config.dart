@@ -1,3 +1,5 @@
+import 'singbox_premium.dart';
+
 class ServerConfig {
   final String  id;
   final String  displayName;
@@ -13,6 +15,10 @@ class ServerConfig {
   /// HMAC-SHA256 secret used for server-side port hopping.
   /// Null means port hopping is disabled for this server (use [port] directly).
   final String? portSecret;
+  /// 优质节点的 sing-box 凭证与协议参数（迁移期可空 → 回退 AmneziaWG）。
+  /// 见 docs/singbox-migration.md §8.1。
+  final SingboxPremium? singbox;
+
   /// Cloudflare Tunnel WebSocket base URL, e.g. "wss://xxx.cfargotunnel.com".
   /// Used as tertiary relay if wstunnel on 443 fails.
   /// Null means Cloudflare relay is not configured for this server.
@@ -55,6 +61,7 @@ class ServerConfig {
 
   ServerConfig({
     required this.id,
+    this.singbox,
     required this.displayName,
     required this.flagEmoji,
     required this.location,
@@ -83,6 +90,7 @@ class ServerConfig {
     wgConf:      j['wg_conf']      as String,
     portSecret:  j['port_secret']  as String?,
     cfRelayUrl:  j['cf_relay_url'] as String?,
+    singbox:     SingboxPremium.fromJson(j['singbox'] as Map<String, dynamic>?),
     activePeers: (j['active_peers'] as num?)?.toInt() ?? 0,
     maxPeers:    (j['max_peers']    as num?)?.toInt() ?? 0,
     loadPercent: (j['load_percent'] as num?)?.toInt() ?? 0,

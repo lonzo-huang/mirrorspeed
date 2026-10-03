@@ -15,7 +15,9 @@ const String _kRuleSetDir = r'$RULESET_DIR';
 /// 配置 JSON。含 tun 入站 + 路由规则 + DNS。
 ///
 /// 参数：
-///   [node]        选中的共享节点(其 outbound 会被标 tag=proxy)
+///   [outbound]    选中节点的 sing-box outbound(会被标 tag=proxy)。免费节点来自
+///                 订阅解析，优质节点来自 /api/mobile/configs 的 singbox 块 ——
+///                 两者在这一层没有区别，所以共用同一套路由/DNS/分应用逻辑。
 ///   [smart]       true=智能分流(中国大陆/局域网直连,其余走代理);false=全局
 ///   [cnRuleSet]   中国 IP 规则集(智能分流用;为空则退化为仅按 geoip=cn 直连)
 ///   [adOnly]      true=广告受限隧道:只放行 Google 广告域名走代理,其余直连
@@ -31,7 +33,7 @@ class SingboxConfig {
   ];
 
   static Map<String, dynamic> build(
-    FreeNode node, {
+    Map<String, dynamic> outbound, {
     bool smart = true,
     bool adOnly = false,
     String? logPath,   // 非空则把 sing-box 日志(debug)写到该文件，供诊断
@@ -42,7 +44,7 @@ class SingboxConfig {
     bool ipv6 = false,               // 仅当系统确有可用 IPv6 时给 tun 加 v6 地址（见下）
   }) {
     // 选中节点的 outbound(强制 tag=proxy)
-    final proxy = Map<String, dynamic>.from(node.outbound)..['tag'] = 'proxy';
+    final proxy = Map<String, dynamic>.from(outbound)..['tag'] = 'proxy';
 
     final hasWhiteProc = includeProcesses != null && includeProcesses.isNotEmpty;
     final hasBlackProc = excludeProcesses != null && excludeProcesses.isNotEmpty;
@@ -164,5 +166,5 @@ class SingboxConfig {
 
   /// 便捷:直接产出配置的 JSON 字符串(交给原生 libbox)。
   static String buildJson(FreeNode node, {bool smart = true, bool adOnly = false}) =>
-      jsonEncode(build(node, smart: smart, adOnly: adOnly));
+      jsonEncode(build(node.outbound, smart: smart, adOnly: adOnly));
 }
