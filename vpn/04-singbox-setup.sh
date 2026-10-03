@@ -57,7 +57,8 @@ RK=$(sing-box generate reality-keypair)
 REALITY_PRIV=$(echo "$RK" | awk '/PrivateKey/{print $2}')
 REALITY_PBK=$(echo "$RK"  | awk '/PublicKey/{print $2}')
 REALITY_SID=$(sing-box generate rand --hex 8)
-HY2_OBFS=$(sing-box generate rand --base64 16 2>/dev/null || openssl rand -base64 16)
+# obfs 用 hex(URL 安全,避免 /+= 在分享链接里被编码搞挂)
+HY2_OBFS=$(sing-box generate rand --hex 16 2>/dev/null || openssl rand -hex 16)
 # 测试用户(供你先用 sing-box/v2ray 客户端验证；正式按用户发凭证由 vpn-api 负责)
 TEST_UUID=$(sing-box generate uuid)
 TEST_HY2PW=$(sing-box generate rand --base64 12 2>/dev/null || openssl rand -base64 12)
@@ -87,7 +88,7 @@ cat > "${SB_CONF}" <<JSON
       "tag": "reality-in",
       "listen": "::",
       "listen_port": ${REALITY_PORT},
-      "users": [ { "name": "test", "uuid": "${TEST_UUID}", "flow": "xtls-rprx-vision" } ],
+      "users": [ { "name": "test", "uuid": "${TEST_UUID}" } ],
       "tls": {
         "enabled": true,
         "server_name": "${REALITY_SNI}",
@@ -164,7 +165,7 @@ cat <<OUT
   VLESS UUID   = ${TEST_UUID}
   hy2 password = ${TEST_HY2PW}
 
-  强力(reality) 客户端连接要点：server=${DOMAIN}:443, uuid=上面, flow=xtls-rprx-vision,
+  强力(reality) 客户端连接要点：server=${DOMAIN}:443, uuid=上面,(无 flow)
     reality: pbk=${REALITY_PBK}, sid=${REALITY_SID}, sni=${REALITY_SNI}, fp=chrome
   快速(hy2)   客户端连接要点：server=${DOMAIN}:${HOP_MIN}-${HOP_MAX}(端口跳跃),
     password=上面, obfs=salamander/${HY2_OBFS}, tls sni=${DOMAIN}
