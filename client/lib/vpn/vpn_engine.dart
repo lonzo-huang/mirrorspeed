@@ -1,8 +1,8 @@
-import 'package:amneziawg_flutter/amneziawg_flutter.dart' show VpnStage;
-export 'package:amneziawg_flutter/amneziawg_flutter.dart' show VpnStage;
+/// 隧道阶段。原先从 amneziawg 包导出；纯 sing-box 客户端不再依赖 AWG，改为自有定义。
+enum VpnStage { disconnected, connecting, connected, disconnecting }
 
-/// VPN 引擎类型。节点按 tier 选引擎：付费/优质 → amneziawg；共享/免费机场 → singbox。
-enum EngineKind { amneziawg, singbox }
+/// VPN 引擎类型。现在只有 sing-box（优质+免费统一引擎）。
+enum EngineKind { singbox }
 
 /// 引擎启动参数。不同引擎读各自需要的字段，用一个统一载体，避免每加一个引擎就改
 /// VpnProvider 的调用签名。

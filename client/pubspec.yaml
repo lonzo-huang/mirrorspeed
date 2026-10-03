@@ -12,12 +12,10 @@ dependencies:
     sdk: flutter
 
   # ── AmneziaWG (drop-in replacement for wireguard_flutter) ───
-  # Adds AWG obfuscation params (Jc/Jmin/Jmax/S1/S2/H1-H4) +
-  # HMAC port hopping support. Covers Android, iOS, Windows.
-  amneziawg_flutter:
-    path: packages/amneziawg_flutter
+  # （已移除 amneziawg_flutter —— 纯 sing-box 客户端，优质+免费统一走 sing-box。
+  #   服务端仍为老客户端保留 AWG，见 docs/singbox-migration.md）
 
-  # ── sing-box 引擎（共享/免费机场节点用）───────────────────────
+  # ── sing-box 引擎（优质 + 免费机场节点统一用）───────────────────────
   # 自建原生插件，走 libbox；与 AmneziaWG 各自独立，同一时刻只跑一条隧道。
   singbox_flutter:
     path: packages/singbox_flutter

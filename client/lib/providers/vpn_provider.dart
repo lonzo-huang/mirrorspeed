@@ -7,21 +7,15 @@ import 'package:flutter/services.dart'; // PlatformException + rootBundle
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../vpn/vpn_engine.dart';
-import 'package:amneziawg_flutter/amneziawg_flutter.dart';
-import 'package:amneziawg_flutter/amneziawg_flutter_method_channel.dart';
-import '../vpn/amnezia_wg_engine.dart';
 import '../vpn/proxy_core_engine.dart';
 import '../vpn/singbox_config.dart';
-import '../services/free_node_service.dart';
 import '../models/server_config.dart';
 import '../models/singbox_premium.dart';
-import '../services/ws_relay_service.dart';
-import '../services/port_hopping.dart';
 import '../services/api_service.dart';
 import '../services/app_proxy_store.dart';
 import '../env.dart';
 
-export 'package:amneziawg_flutter/amneziawg_flutter.dart' show VpnStage;
+export '../vpn/vpn_engine.dart' show VpnStage;
 
 enum VpnStatus    { disconnected, connecting, connected, disconnecting, error }
 /// 连接通道：
@@ -45,9 +39,9 @@ class VpnProvider extends ChangeNotifier {
   // VPN 引擎(引擎无关抽象)。优质节点双栈期：节点已开通 sing-box（configs 下发 singbox 块）就用 sing-box，
   // 否则沿用 AmneziaWG。两个引擎常驻，但同一时刻只有一个持有系统隧道
   // （iOS/安卓单隧道限制），切换时必须先停旧的 —— 见 _useEngine。
-  final VpnEngine _awgEngine = AmneziaWgEngine();
+  // 纯 sing-box 引擎（优质 + 免费统一一套）。
   final VpnEngine _sbEngine  = ProxyCoreEngine();
-  late VpnEngine _engine = _awgEngine;
+  late VpnEngine _engine = _sbEngine;
 
   /// 按节点切换引擎。两个引擎的 stage 流不同，切换时必须重订阅，否则界面会停在
   /// 旧引擎的状态上不动。切换前先停旧引擎（系统同时只允许一条隧道）。
@@ -80,10 +74,12 @@ class VpnProvider extends ChangeNotifier {
   // 用户主动断开标志：置位后，任何挂起的连通性探测/回退计时器都不得再发起
   // 新的连接尝试（修复「手动断开后又自动切到下一模式」）。connect() 清零。
   bool               _userInitiatedDisconnect = false;
-  final WsRelayService _relay          = WsRelayService();
+
+  /// 智能分流诊断（AWG 时代用于「我的→错误信息」）。sing-box 的智能分流在
+  /// SingboxConfig 内完成，这里暂不产出，保留字段供 UI 读取（恒为 null）。
+  String? smartRoutingReport;
 
   RoutingMode        _routingMode      = RoutingMode.global;
-  List<String>?      _cachedNonCnRoutes;   // 懒加载，首次连接时计算并缓存
 
   // 会话级钉死端口：UDP 直连时在 connect() 时基于时间计算一次并保存。
   // 一旦连接建立，整个会话期间复用此端口，绝不重算——即使将来加入断线
@@ -288,7 +284,6 @@ class VpnProvider extends ChangeNotifier {
   Future<void> setRoutingMode(RoutingMode mode) async {
     if (_routingMode == mode) return;
     _routingMode       = mode;
-    _cachedNonCnRoutes = null; // 切换模式时清除缓存，强制重新计算
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('routing_mode', mode.name);
@@ -302,17 +297,9 @@ class VpnProvider extends ChangeNotifier {
         // 隧道接口已 UP，但流量未必通。一律先保持「连接中」，等连通性验证
         // 通过后再由 _postConnectCheck / _postRelayCheck 置为 connected（#5）。
         if (_userInitiatedDisconnect) break;  // 用户已断开，忽略迟到的 connected
-        // #3 乐观连接：隧道接口 UP 即显示「已连接」（秒连体验），后台仍验证真实流量；
-        // 验证失败再由 _postConnectCheck/_postRelayCheck 回退中继或断开。
-        if (_switchingToRelay) {
-          _fallbackTimer?.cancel();
-          _switchingToRelay = false;
-          _status = VpnStatus.connected;
-          _postRelayCheck(_activeServer);   // 5 秒后验证中继流量
-        } else {
-          _status = VpnStatus.connected;
-          _postConnectCheck(_activeServer); // 4 秒后验证直连流量
-        }
+        // sing-box 引擎上报 connected → 直接置已连接（sing-box 自己做连通性保障）。
+        _fallbackTimer?.cancel();
+        _status = VpnStatus.connected;
         _startDiagPolling();
       case VpnStage.connecting:
         _status = VpnStatus.connecting;
@@ -365,11 +352,8 @@ class VpnProvider extends ChangeNotifier {
     _error            = null;
     _status           = VpnStatus.connecting;
     _activeServer     = server;
-    _protocol         = VpnProtocol.direct;
-    _switchingToRelay = false;
     _userInitiatedDisconnect = false;  // 新的连接尝试，解除断开锁
     _fallbackTimer?.cancel();
-    _sessionPort      = null;   // 用户主动连接 = 一次重连，按当前时间重新算端口
     _statsBaseline    = null;   // 新隧道，用量基线重置（首个轮询重新建立基线）
     notifyListeners();
 
@@ -382,81 +366,22 @@ class VpnProvider extends ChangeNotifier {
         _lastEnsurePeerOk = await ApiService.instance.ensurePeer(serverIds: [server.id]);
       }
 
-      // 强制连接模式：强力/超级 跳过直连，直接走对应中继。
-      if (_connMode == ConnMode.relay || _connMode == ConnMode.cloudflare) {
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('last_server_id', server.id);
-        } catch (_) {}
-        if (_connMode == ConnMode.cloudflare) {
-          final cfUrl = server.cfRelayUrl;
-          // 该节点无 Cloudflare 线路时退回强力(wstunnel)。
-          await _switchToRelay(server,
-              relayBaseUrl: (cfUrl != null && cfUrl.isNotEmpty)
-                  ? cfUrl
-                  : 'wss://${server.relayHost}',
-              force: true);
-        } else {
-          await _switchToRelay(server,
-              relayBaseUrl: 'wss://${server.relayHost}', force: true);
-        }
-        return;
-      }
-
-      // 节点已开通 sing-box（后端下发了 singbox 块）→ 走 sing-box，否则沿用 AWG。
-      // 这是个纯数据开关：后端把某节点的 sb_enabled 置回 false，客户端下次拉配置
-      // 就自动回退，不需要发版 —— 迁移期的回滚底座（见 docs/singbox-migration.md §7）。
+      // 纯 sing-box 客户端：优质节点必须已开通 sing-box（后端下发 singbox 块）。
+      // 老的 AWG-only 节点不再支持 —— 服务端仍为老客户端保留 AWG，但本客户端只走 sing-box。
+      // 连接模式（快速/强力/超级）映射到 hy2/reality/ws 由 _pickSingboxOutbound 决定。
       final sb = server.singbox;
-      if (sb != null && sb.usable) {
-        await _connectViaSingbox(server, sb);
+      if (sb == null || !sb.usable) {
+        _error  = _isZh() ? '该节点暂不可用，请选择其它节点'
+                          : 'This node is unavailable, please pick another.';
+        _status = VpnStatus.error;
+        notifyListeners();
         return;
       }
-
-      // 1. 计算实际连接端口（端口跳变 or 固定端口），并钉死到本次会话。
-      //    端口只在此处基于时间计算一次；连上后整个会话不再改变。
-      final effectivePort = _computePort(server);
-      _sessionPort = effectivePort;
-
-      // 2. 将 AWG 配置中的端点端口替换为跳变端口
-      String wgConf = _routingMode == RoutingMode.smart
-          ? await _applySmartRouting(server.wgConf, excludeIp: null)
-          : server.wgConf;
-      wgConf = await _appleDefaultRouteWithExclusions(wgConf);
-      wgConf = PortHoppingService.instance
-          .rewriteEndpointPort(wgConf, effectivePort);
-      wgConf = await _applyAppProxy(wgConf);   // Android 优质：智能模式下按应用
-
-      debugPrint('[VPN] 直连 AmneziaWG，端口=$effectivePort');
-
-      await _engine.start(EngineStartParams(
-        serverAddress:  '${server.endpoint}:$effectivePort',
-        wgQuickConfig:  wgConf,
-        providerBundle: kProviderBundle,
-      ));
-
-      // #2 前台乐观连接：start() 返回即显示「已连接」，获得与免费节点一致的秒连体验，
-      // 不必等 WireGuard 首次握手上报 VpnStage.connected（那正是优质节点慢几秒的原因）。
-      // 真实流量仍由 stage.connected→_postConnectCheck（4s 多探测）与下面 16s 兜底继续
-      // 验证，不通则自动降级中继/断开，故乐观显示不会掩盖真实故障。
-      if (!_userInitiatedDisconnect && _status == VpnStatus.connecting) {
-        _status = VpnStatus.connected;
-        notifyListeners();
-      }
-
-      // 直连兜底：到时仍未确认连通 → 切换 wstunnel 443 中继（层 2）。
-      // 16s 给 _postConnectCheck 的多次探测（约 4+5+1+5s）留足时间，避免
-      // 在直连其实可用、只是数据面稍慢稳定时被过早切走。
-      // 使用 relayHost（域名）而非 endpoint（可能为 IP），确保 TLS 证书匹配。
-      // 仅「自动」模式下才在直连超时后降级；「快速」模式只直连，不降级。
-      if (_connMode == ConnMode.auto) {
-        _fallbackTimer = Timer(
-          const Duration(seconds: 16),
-          () => _switchToRelay(server, relayBaseUrl: 'wss://${server.relayHost}'),
-        );
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('last_server_id', server.id);
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_server_id', server.id);
+      } catch (_) {}
+      await _connectViaSingbox(server, sb);
     } on PlatformException catch (e) {
       if (e.code == 'Permissions are not given' ||
           (e.message ?? '').contains('Permissions are not given')) {
@@ -478,252 +403,6 @@ class VpnProvider extends ChangeNotifier {
     }
   }
 
-  /// 计算端口（端口跳变 or 固定端口）。
-  ///
-  /// 本次会话已钉死端口时（_sessionPort 非空）直接复用，确保连接建立后
-  /// 即便 connect() 被再次进入（如断线自动重连）也不会跨小时窗口换端口。
-  /// 只有在主动 disconnect() 清空 _sessionPort 后，才会重新基于时间计算。
-  int _computePort(ServerConfig server) {
-    if (_sessionPort != null) return _sessionPort!;
-    if (server.portSecret == null || server.portSecret!.isEmpty) {
-      return server.port;
-    }
-    // 尝试当前 hour，连通性验证失败后 fallback 到 wstunnel，不在此处遍历 ±1
-    return PortHoppingService.instance
-        .computePort(server.portSecret!, hourOffset: 0);
-  }
-
-  // AWG 在服务器上的内部监听端口（wstunnel --restrict-to 匹配此端口）。
-  // 注意：server.port 是对外暴露的端口（可能经过 iptables DNAT），
-  // 而 wstunnel 直接连接 AWG 内部端口（不经过 DNAT），因此必须用固定值 51820。
-  static const int _awgInternalPort = 51820;
-
-  // ── 中继回退（层 2 = wstunnel 443，层 3 = Cloudflare Tunnel）─────────────────
-  //
-  // [relayBaseUrl]  中继服务器 WebSocket 基础 URL，不含路径（如 wss://host.com）
-  //                 ws_relay_service 会自动追加 /secure-tunnel/v1/events
-  // [force]         true = 由连通性验证失败强制触发
-  //
-  Future<void> _switchToRelay(
-    ServerConfig server, {
-    required String relayBaseUrl,
-    bool force = false,
-  }) async {
-    // 立即取消定时器：防止 _postConnectCheck 和定时器同时触发时的竞争条件
-    // （两者都可能在 T≈12s 时触发，并发调用会导致 _localPort 被清零后再 ! 解引用）
-    _fallbackTimer?.cancel();
-    _fallbackTimer = null;
-
-    // 用户已主动断开：绝不再自动尝试下一模式（#4）。
-    if (_userInitiatedDisconnect || _aborted) return;
-    if (!force && _status == VpnStatus.connected) return; // 直连已成功，无需切换
-
-    final primaryBase = 'wss://${server.relayHost}';
-    final isCf        = relayBaseUrl != primaryBase;
-    debugPrint('[VPN] 切换到${isCf ? ' Cloudflare' : ' wstunnel-443'} 中继: $relayBaseUrl');
-
-    _switchingToRelay = true;
-    // 强力模式 = wstunnel 443；暴力模式 = Cloudflare（#3）
-    _protocol         = isCf ? VpnProtocol.cloudflare : VpnProtocol.relay;
-    _status           = VpnStatus.connecting;
-    _error            = null;
-    notifyListeners();
-
-    // 停止正在进行的隧道
-    try { await _engine.stop(); } catch (_) {}
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    // 解析服务器 IP，用于在 AllowedIPs 中排除（防止 WebSocket 中继回环）
-    String? serverIp;
-    try {
-      final addrs = await InternetAddress.lookup(server.endpoint)
-          .timeout(const Duration(seconds: 5));
-      serverIp = addrs
-          .firstWhere((a) => a.type == InternetAddressType.IPv4,
-              orElse: () => addrs.first)
-          .address;
-      debugPrint('[VPN] 服务器 IP 解析成功: $serverIp');
-    } catch (e) {
-      debugPrint('[VPN] 服务器 IP 解析失败，使用子网回退模式: $e');
-    }
-
-    try {
-      // ws_relay_service 追加 /v1/events；nginx 代理 /secure-tunnel/ → wstunnel
-      // JWT 中的 rp 必须等于 AWG 内部监听端口（51820），与 wstunnel --restrict-to 一致。
-      // server.port 是对外暴露端口（可能经 iptables DNAT），不适合此处。
-      final localPort = await _relay.start(
-          '$relayBaseUrl/secure-tunnel', _awgInternalPort);
-      var relayConf = await _buildRelayConf(server.wgConf, localPort, serverIp);
-      // 中继模式同样受益；serverIp 的回环排除已在 _buildRelayConf 里从 AllowedIPs 扣掉，
-      // 取补集后自然落进 ExcludedIPs，不会被默认路由重新吃回去。
-      relayConf = await _appleDefaultRouteWithExclusions(relayConf);
-      relayConf = await _applyAppProxy(relayConf);   // Android 优质：智能模式下按应用
-
-      await _engine.start(EngineStartParams(
-        serverAddress:  '127.0.0.1:$localPort',
-        wgQuickConfig:  relayConf,
-        providerBundle: kProviderBundle,
-      ));
-
-      // 等 20 秒确认连通；超时则尝试下一层
-      _fallbackTimer = Timer(const Duration(seconds: 20), () async {
-        if (_status != VpnStatus.connected) {
-          await _relay.stop();
-          final cfUrl = server.cfRelayUrl;
-          if (_connMode == ConnMode.auto && !isCf && cfUrl != null) {
-            // 层 3：wstunnel-443 超时 → 尝试 Cloudflare Tunnel（仅自动模式降级）
-            await _switchToRelay(server, relayBaseUrl: cfUrl, force: true);
-          } else {
-            // 所有层均失败
-            _error  = '无法连接到 VPN（全部线路尝试失败，请检查网络后重试）';
-            _status = VpnStatus.error;
-            notifyListeners();
-          }
-        }
-      });
-    } on PlatformException catch (e) {
-      await _relay.stop();
-      _error  = e.message ?? e.toString();
-      _status = VpnStatus.error;
-      notifyListeners();
-    } catch (e) {
-      await _relay.stop();
-      _error  = '中继连接失败: $e';
-      _status = VpnStatus.error;
-      notifyListeners();
-    }
-  }
-
-  /// 将直连配置改写为中继模式配置。
-  ///
-  /// 路由策略：
-  ///   A) serverIp 已解析（正常情况）→ 全隧道模式
-  ///      AllowedIPs = 0.0.0.0/0 排除 serverIp/32
-  ///      - 所有流量（含 DNS）走 VPN，由 VPN 服务器代理访问互联网
-  ///      - WebSocket 中继流量发往 serverIp → 走物理网卡 → 不回环
-  ///      - DNS 走 VPN 隧道，不存在污染问题，无需修改 DNS 配置
-  ///
-  ///   B) serverIp 解析失败（极少见）→ 子网回退模式
-  ///      AllowedIPs = VPN 子网（10.200.0.0/24）
-  ///      - 仅 VPN 内网流量走隧道，互联网流量走物理网卡
-  ///      - DNS 走物理网卡，国内 DNS 会污染境外域名
-  ///      - 降级为国内 DNS（114.114.114.114）以保证基本可用
-  Future<String> _buildRelayConf(String wgConf, int relayPort, String? serverIp) async {
-    // 1. Endpoint 改为本地中继端口
-    var conf = wgConf.replaceAll(
-      RegExp(r'Endpoint\s*=\s*\S+'),
-      'Endpoint     = 127.0.0.1:$relayPort',
-    );
-
-    // 2. AllowedIPs（根据路由模式 + serverIp 可用性决定）
-    String allowedIps;
-    if (serverIp != null) {
-      if (_routingMode == RoutingMode.smart) {
-        // 智能模式：排除中国IP + 服务器IP（防 WebSocket 中继回环）
-        final routes = await _getSmartRoutes(excludeIp: serverIp);
-        allowedIps = routes.join(', ');
-        // 强制海外公共 DNS（同 _applySmartRouting）：避免智能模式下 DNS 走直连被污染
-        // 导致境外域名(含广告)解析失败。
-        conf = _setDns(conf, '1.1.1.1, 8.8.8.8');
-      } else {
-        // 全局模式：0.0.0.0/0 排除服务器IP
-        allowedIps = _ipv4AllExcept(serverIp).join(', ');
-      }
-    } else {
-      // 无法解析服务器 IP → 退化为仅路由 VPN 子网
-      final addrMatch = RegExp(r'Address\s*=\s*([\d.]+)/').firstMatch(conf);
-      final vpnSubnet = addrMatch != null
-          ? '${addrMatch.group(1)!.split('.').take(3).join('.')}.0/24'
-          : '10.200.0.0/24';
-      allowedIps = vpnSubnet;
-      // 子网模式下 DNS 走物理网卡，必须用国内 DNS 否则境外域名被污染
-      conf = _setDns(conf, '114.114.114.114, 223.5.5.5');
-    }
-    conf = conf.replaceAll(
-      RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
-      'AllowedIPs   = $allowedIps',
-    );
-
-    return conf;
-  }
-
-  // ── 优质节点分应用（仅 Android）────────────────────────────────────────
-  // 「能按应用就按应用」：Android 优质节点(WireGuard)在智能模式下套按应用白/黑名单
-  // （插件解析 Included/ExcludedApplications 调 addAllowed/DisallowedApplication）。
-  // Windows 优质节点做不到按应用（需 WFP 驱动），故此函数在非 Android 直接返回，
-  // Windows 优质只按 GeoIP-CN/全局分流。按应用列表与免费节点共用 AppProxyStore。
-  Future<String> _applyAppProxy(String wgConf) async {
-    if (!Platform.isAndroid) return wgConf;              // Windows 优质：不按应用
-    if (_routingMode != RoutingMode.smart) return wgConf; // 全局模式不做分应用过滤
-    final pkgs = (await AppProxyStore.loadPkgs()).toList();
-    if (pkgs.isEmpty) return wgConf;   // 名单空则不限制，避免死隧道
-    final mode = await AppProxyStore.loadMode();
-    // 广告要能加载,白名单必须含:本 App(SDK 在本进程) + Google Play 服务
-    // (AdMob 请求实际由 com.google.android.gms 承载)。否则其广告流量走直连、
-    // 国内被墙 → LoadAdError network error。黑名单则须剔除这两者。
-    const selfPkg = 'com.mirrorspeed.vpn';
-    const gmsPkg  = 'com.google.android.gms';
-    if (mode == 'white') {
-      for (final p in [selfPkg, gmsPkg]) {
-        if (!pkgs.contains(p)) pkgs.add(p);
-      }
-    } else {
-      pkgs.removeWhere((p) => p == selfPkg || p == gmsPkg);
-      if (pkgs.isEmpty) return wgConf;   // 黑名单剔除后为空 → 不做限制
-    }
-    final key  = mode == 'white' ? 'IncludedApplications' : 'ExcludedApplications';
-    final line = '$key = ${pkgs.join(', ')}';
-    final lines = wgConf.split('\n');
-    final out = <String>[];
-    var inserted = false;
-    for (final l in lines) {
-      out.add(l);
-      if (!inserted && l.trim().toLowerCase() == '[interface]') {
-        out.add(line);
-        inserted = true;
-      }
-    }
-    debugPrint('[APPPROXY] mode=$mode inject=$inserted pkgs=${pkgs.length} → $line');
-    return inserted ? out.join('\n') : wgConf;
-  }
-
-  /// Apple 专用：把「拆分路由」改写成「默认路由 + 排除表」，语义等价。
-  ///
-  /// 为什么必须这么做：iOS 只对单条 `0.0.0.0/0` 的全局 VPN 做特殊处理，会让系统自己的
-  /// 联网探测照常工作。若交给它几十上千条普通拆分路由（服务器下发的 AllowedIPs 本就是
-  /// 0.0.0.0/5, 8.0.0.0/7 … 这种形式，智能模式更有上千条），WiFi 刚连上时系统在 WiFi
-  /// 接口上做的探测会被这些路由截走而失败 → 判定「WiFi 无互联网」→ 永不把 WiFi 提为
-  /// 主接口 → VPN 永远留在蜂窝上，用户看到"切到 5G 后再也回不去 WiFi"。
-  ///
-  /// 服务器 endpoint 无需在这里排除：Apple 扩展的 PacketTunnelSettingsGenerator 会自动
-  /// 把已解析的 endpoint 放进 excludedRoutes。
-  ///
-  /// 仅 Apple 生效；安卓/Windows 原样返回（`ExcludedIPs` 也只有本项目的 Apple 解析器认识）。
-  Future<String> _appleDefaultRouteWithExclusions(String wgConf) async {
-    if (kIsWeb || !(Platform.isIOS || Platform.isMacOS)) return wgConf;
-
-    final m = RegExp(r'AllowedIPs\s*=\s*([^\n]+)').firstMatch(wgConf);
-    if (m == null) return wgConf;
-    final current = m.group(1)!.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-    // 已经是单条默认路由就不用动
-    if (current.length == 1 && current.first == '0.0.0.0/0') return wgConf;
-
-    // 排除表 = 全 IPv4 空间减去当前 AllowedIPs（即"原本就不走隧道"的那部分）。
-    // 智能模式下它就是中国 IP 段，全局模式下就是内网段 —— 两种模式共用一套逻辑。
-    final excluded = _computeComplementCidrs(current.where((c) => !c.contains(':')).toList());
-    if (excluded.isEmpty) return wgConf;
-
-    final hasV6 = current.any((c) => c.contains(':'));
-    var conf = wgConf.replaceAll(
-      RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
-      'AllowedIPs   = ${hasV6 ? '0.0.0.0/0, ::/0' : '0.0.0.0/0'}\n'
-      'ExcludedIPs  = ${excluded.join(', ')}',
-    );
-    debugPrint('[VPN] Apple 路由：${current.length} 条拆分路由 → 默认路由 + ${excluded.length} 条排除');
-    smartRoutingReport = '${smartRoutingReport ?? ''} → 默认路由+${excluded.length}条排除'.trim();
-    return conf;
-  }
-
   // ── 优质节点走 sing-box（迁移期）────────────────────────────────────────
   /// 用 sing-box 连优质节点。协议层由后端下发的 singbox 块决定：
   /// 快速=Hysteria2 / 强力=VLESS+Reality / 超级=VLESS+WS（阶段 2）。
@@ -743,11 +422,37 @@ class VpnProvider extends ChangeNotifier {
     }
 
     await _useEngine(_sbEngine);
+
+    // 按应用分流：与免费节点一致。智能模式才读黑白名单；全局模式不读(全走节点)。
+    // 白名单必须含本 App + Google Play 服务(承载 AdMob)，否则广告走直连被墙。
+    List<String>? inc, exc, incProc, excProc;
+    if (_routingMode == RoutingMode.smart) {
+      final pkgs = (await AppProxyStore.loadPkgs()).toList();
+      if (pkgs.isNotEmpty) {
+        final white = await AppProxyStore.loadMode() == 'white';
+        if (Platform.isAndroid)      { if (white) inc = pkgs; else exc = pkgs; }
+        else if (Platform.isWindows) { if (white) incProc = pkgs; else excProc = pkgs; }
+      }
+      const selfPkg = 'com.mirrorspeed.vpn';
+      const gmsPkg  = 'com.google.android.gms';
+      if (Platform.isAndroid) {
+        if (inc != null) {
+          var l = inc;
+          for (final p in [selfPkg, gmsPkg]) { if (!l.contains(p)) l = [...l, p]; }
+          inc = l;
+        }
+        if (exc != null) exc = exc.where((p) => p != selfPkg && p != gmsPkg).toList();
+      }
+    }
+
     final cfg = SingboxConfig.build(
       outbound,
       smart: _routingMode == RoutingMode.smart,
+      includePackages: inc, excludePackages: exc,
+      includeProcesses: incProc, excludeProcesses: excProc,
     );
-    debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}');
+    debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}'
+        '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}');
     await _engine.start(EngineStartParams(singboxConfig: cfg));
 
     if (!_userInitiatedDisconnect && _status == VpnStatus.connecting) {
@@ -770,208 +475,6 @@ class VpnProvider extends ChangeNotifier {
     }
   }
 
-  // ── 智能路由：将 AWG 配置的 AllowedIPs 改为非中国IP段 ────────────────────
-  Future<String> _applySmartRouting(String wgConf, {required String? excludeIp}) async {
-    // 智能模式按「裸 IP」归属地决定：
-    //  - 境内裸 IP：路由表分流（AllowedIPs=非中国 IP 段互补集，中国直连、境外走 VPN）；
-    //  - 境外裸 IP / 无法识别：暂全隧道（AllowedIPs 保持 0.0.0.0/0）——占位，确保能连上；
-    //    将来再做境外的智能分流优化（TODO）。
-    final inCn = await FreeNodeService.instance.egressInChina();
-    // 只有确知在境外才整条走隧道；判定失败(null)时仍按中国 IP 表分流。
-    // 之前 null 也跳过分流 —— 而国内恰恰最容易判定失败（原来探测的是
-    // cloudflare.com），结果智能模式悄悄退化成全局模式。分流本身对境外用户
-    // 也无害（国内 IP 直连而已），所以未知时分流是更安全的默认。
-    smartRoutingReport = '出口判定=${inCn == null ? '未知' : (inCn ? '国内' : '境外')}';
-    if (inCn == false) {
-      smartRoutingReport = '$smartRoutingReport → 全隧道';
-      return wgConf;
-    }
-    final routes = await _getSmartRoutes(excludeIp: excludeIp);
-    smartRoutingReport = '$smartRoutingReport → 分流 ${routes.length} 段';
-    var conf = wgConf.replaceAll(
-      RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
-      'AllowedIPs   = ${routes.join(', ')}',
-    );
-    // 智能模式强制海外公共 DNS：其 IP 属「非中国段」→ 跟着走隧道 → DNS 不被污染。
-    // 否则若配置用国内 DNS，智能模式下 DNS 查询走直连被污染，境外域名(含 AdMob/
-    // googleads)解析成假 IP → network error（全局模式因 DNS 也走隧道故正常）。
-    conf = _setDns(conf, '1.1.1.1, 8.8.8.8');
-    return conf;
-  }
-
-  /// 最近一次智能分流的判定结果，显示在「我的 → 错误信息」里。
-  /// 智能模式是否真的生效，用户在界面上看不出来（全隧道和分流都能上网），
-  /// 只有国内网站绕道变慢才会察觉 —— 必须能直接读到。
-  String? smartRoutingReport;
-
-  /// 获取智能模式的 AllowedIPs 列表（非中国IP段，可选排除指定IP）。
-  /// 结果在会话内缓存，切换模式时自动清除。
-  Future<List<String>> _getSmartRoutes({required String? excludeIp}) async {
-    if (_cachedNonCnRoutes == null) {
-      final text = await rootBundle.loadString('assets/routes/cn_cidr.txt');
-      final cnCidrs = text
-          .split('\n')
-          .map((l) => l.trim())
-          .where((l) => l.isNotEmpty && !l.startsWith('#'))
-          .toList();
-      _cachedNonCnRoutes = _computeComplementCidrs(cnCidrs);
-      debugPrint('[VPN] 智能路由：加载 ${cnCidrs.length} 条中国IP段，计算 ${_cachedNonCnRoutes!.length} 条 AllowedIPs');
-    }
-
-    if (excludeIp == null) return _cachedNonCnRoutes!;
-
-    // 从已有路由中再排除服务器IP（防中继回环）
-    return _subtractIp(_cachedNonCnRoutes!, excludeIp);
-  }
-
-  /// 计算 CIDR 列表的互补集（全 IPv4 空间 MINUS 给定 CIDRs）。
-  static List<String> _computeComplementCidrs(List<String> excludeCidrs) {
-    // 1. 解析为 (start, end) 闭区间
-    final ranges = <(int, int)>[];
-    for (final cidr in excludeCidrs) {
-      final slash = cidr.indexOf('/');
-      if (slash < 0) continue;
-      final ipParts = cidr.substring(0, slash).split('.');
-      if (ipParts.length != 4) continue;
-      try {
-        final ip     = (int.parse(ipParts[0]) << 24) |
-                       (int.parse(ipParts[1]) << 16) |
-                       (int.parse(ipParts[2]) << 8)  |
-                        int.parse(ipParts[3]);
-        final prefix = int.parse(cidr.substring(slash + 1));
-        final mask   = prefix == 0 ? 0 : (0xFFFFFFFF - ((1 << (32 - prefix)) - 1));
-        final start  = ip & mask;
-        final size   = prefix == 0 ? 0x100000000 : (1 << (32 - prefix));
-        ranges.add((start, start + size - 1));
-      } catch (_) { continue; }
-    }
-
-    // 2. 排序 + 合并重叠区间
-    ranges.sort((a, b) => a.$1.compareTo(b.$1));
-    final merged = <(int, int)>[];
-    for (final r in ranges) {
-      if (merged.isEmpty || r.$1 > merged.last.$2 + 1) {
-        merged.add(r);
-      } else {
-        final last = merged.removeLast();
-        merged.add((last.$1, r.$2 > last.$2 ? r.$2 : last.$2));
-      }
-    }
-
-    // 3. 收集"空隙"作为结果
-    final result = <String>[];
-    int cursor   = 0;
-    for (final (start, end) in merged) {
-      if (cursor < start) result.addAll(_rangeToCidrs(cursor, start - 1));
-      cursor = end + 1;
-      if (cursor > 0xFFFFFFFF) break;
-    }
-    if (cursor <= 0xFFFFFFFF) result.addAll(_rangeToCidrs(cursor, 0xFFFFFFFF));
-    return result;
-  }
-
-  /// 从 CIDR 列表中裁减掉单个 /32 IP（用于排除 VPN 服务器IP）。
-  static List<String> _subtractIp(List<String> cidrs, String ip) {
-    final parts = ip.split('.');
-    if (parts.length != 4) return cidrs;
-    final target = (int.parse(parts[0]) << 24) |
-                   (int.parse(parts[1]) << 16) |
-                   (int.parse(parts[2]) << 8)  |
-                    int.parse(parts[3]);
-
-    final result = <String>[];
-    for (final cidr in cidrs) {
-      final slash   = cidr.indexOf('/');
-      if (slash < 0) { result.add(cidr); continue; }
-      final ipParts = cidr.substring(0, slash).split('.');
-      if (ipParts.length != 4) { result.add(cidr); continue; }
-      try {
-        final netIp  = (int.parse(ipParts[0]) << 24) |
-                       (int.parse(ipParts[1]) << 16) |
-                       (int.parse(ipParts[2]) << 8)  |
-                        int.parse(ipParts[3]);
-        final prefix = int.parse(cidr.substring(slash + 1));
-        final mask   = prefix == 0 ? 0 : (0xFFFFFFFF - ((1 << (32 - prefix)) - 1));
-        if ((target & mask) != (netIp & mask)) {
-          result.add(cidr); // target 不在此 CIDR 中，直接保留
-        } else {
-          // target 在此 CIDR 中，用 _ipv4AllExcept 拆分
-          result.addAll(_ipv4AllExcept(ip).where((r) {
-            // 只保留与原 CIDR 交集的部分（防止拆分超出原范围）
-            final rSlash  = r.indexOf('/');
-            final rParts  = r.substring(0, rSlash).split('.');
-            final rIp     = (int.parse(rParts[0]) << 24) |
-                            (int.parse(rParts[1]) << 16) |
-                            (int.parse(rParts[2]) << 8)  |
-                             int.parse(rParts[3]);
-            final rPrefix = int.parse(r.substring(rSlash + 1));
-            final rMask   = rPrefix == 0 ? 0 : (0xFFFFFFFF - ((1 << (32 - rPrefix)) - 1));
-            // r 的网络地址必须在原 CIDR 内
-            return (rIp & mask) == (netIp & mask);
-          }));
-        }
-      } catch (_) { result.add(cidr); }
-    }
-    return result;
-  }
-
-  /// 将连续 IP 区间 [start, end] 拆分为最精简的 CIDR 列表。
-  static List<String> _rangeToCidrs(int start, int end) {
-    if (start > end) return [];
-    final cidrs = <String>[];
-    int curr = start;
-    while (curr <= end) {
-      int prefix = 32;
-      for (int p = 0; p <= 32; p++) {
-        final blockSize = p == 0 ? 0x100000000 : (1 << (32 - p));
-        if (curr % blockSize == 0 && curr + blockSize - 1 <= end) {
-          prefix = p;
-          break;
-        }
-      }
-      cidrs.add('${_intToIp(curr)}/$prefix');
-      final blockSize = prefix == 0 ? 0x100000000 : (1 << (32 - prefix));
-      curr = curr + blockSize;
-      if (curr > 0xFFFFFFFF) break;
-    }
-    return cidrs;
-  }
-
-  /// 替换或插入 WireGuard 配置中的 DNS 行
-  static String _setDns(String conf, String dnsServers) {
-    final line = 'DNS          = $dnsServers';
-    if (conf.contains(RegExp(r'^\s*DNS\s*=', multiLine: true))) {
-      return conf.replaceAll(
-          RegExp(r'^\s*DNS\s*=\s*[^\n]+', multiLine: true), line);
-    }
-    return conf.replaceFirst(RegExp(r'\[Peer\]'), '$line\n\n[Peer]');
-  }
-
-  /// 计算覆盖整个 IPv4 地址空间但排除指定 /32 的 CIDR 列表（共 32 条）。
-  static List<String> _ipv4AllExcept(String excludeIp) {
-    final parts = excludeIp.split('.');
-    if (parts.length != 4) return ['0.0.0.0/0'];
-
-    final target = ((int.tryParse(parts[0]) ?? 0) & 0xFF) << 24 |
-                   ((int.tryParse(parts[1]) ?? 0) & 0xFF) << 16 |
-                   ((int.tryParse(parts[2]) ?? 0) & 0xFF) << 8  |
-                   ((int.tryParse(parts[3]) ?? 0) & 0xFF);
-
-    final routes = <String>[];
-    for (int pl = 0; pl < 32; pl++) {
-      final bitPos  = 31 - pl;
-      final bit     = (target >> bitPos) & 1;
-      final prefix  = pl == 0 ? 0 : ((0xFFFFFFFF << (32 - pl)) & 0xFFFFFFFF);
-      final sibling = (target & prefix) | ((1 - bit) << bitPos);
-      final netMask = (0xFFFFFFFF << (32 - (pl + 1))) & 0xFFFFFFFF;
-      routes.add('${_intToIp(sibling & netMask)}/${pl + 1}');
-    }
-    return routes;
-  }
-
-  static String _intToIp(int n) =>
-      '${(n >> 24) & 0xFF}.${(n >> 16) & 0xFF}.${(n >> 8) & 0xFF}.${n & 0xFF}';
-
   // ── 断开 ────────────────────────────────────────────────────
   Future<void> disconnect() async {
     _userInitiatedDisconnect = true;  // 手动断开即断开，禁止任何自动回退（#4）
@@ -990,8 +493,6 @@ class VpnProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('[VPN] stopVpn error: $e');
     }
-    try { await _relay.stop(); } catch (_) {}
-    _protocol = VpnProtocol.direct;
     _status   = VpnStatus.disconnected;   // 明确置为已断开（不依赖 stage 事件）
     notifyListeners();
   }
@@ -1118,93 +619,6 @@ class VpnProvider extends ChangeNotifier {
     await disconnect();                                  // 清空 _sessionPort
     await Future.delayed(const Duration(milliseconds: 400));
     await connect(server);                               // 重新派生端口并连接
-  }
-
-  // ── 连通性验证（直连模式握手后约 4 秒执行）──────────────────
-  // AWG UDP 被 GFW 过滤时，Android VPN 接口仍会报 connected，
-  // 但实际流量无法通过。通过请求外网地址判断隧道是否真正打通。
-  Future<void> _postConnectCheck(ServerConfig? server) async {
-    await Future.delayed(const Duration(seconds: 4));
-    // 用户已断开 / 已切换中继，跳过
-    if (server == null || _aborted || _protocol != VpnProtocol.direct || _switchingToRelay) return;
-
-    // 直连握手成功后，数据面（路由/防火墙）可能需要一两秒才稳定，首个探测
-    // 偶尔会误判为不通。多探测几次再决定，避免把其实可用的直连错误回退到中继。
-    bool ok = false;
-    for (var attempt = 1; attempt <= 2; attempt++) {
-      ok = await _probeConnectivity();
-      if (ok) break;
-      if (_aborted || _protocol != VpnProtocol.direct || _switchingToRelay) return;
-      if (attempt < 2) await Future.delayed(const Duration(seconds: 1));
-    }
-    if (_aborted) return;
-
-    if (ok) {
-      _fallbackTimer?.cancel(); // 流量畅通，取消中继切换计时器
-      _status = VpnStatus.connected;   // 验证通过才显示已连接（#5）
-      _startUsagePolling();
-      _startTrialTracking();
-      _startConnectedPing();           // 连上后每 30s 刷新展示延迟
-      notifyListeners();
-      debugPrint('[VPN] 连通性验证成功，保持直连（快速模式）');
-    } else {
-      // UDP 握手失败或流量被墙，切换 wstunnel 443 中继（层 2）
-      debugPrint('[VPN] 连通性多次验证失败，切换 wstunnel 443 中继');
-      await _switchToRelay(
-        server,
-        relayBaseUrl: 'wss://${server.relayHost}',  // 域名，确保 TLS 匹配
-        force: true,
-      );
-    }
-  }
-
-  // ── 连通性验证（中继模式，握手后约 5 秒执行）────────────────
-  // 中继模式下 AWG 握手可能成功（ICMP/UDP 层通了），但 WebSocket
-  // 出口侧流量仍可能不通（如 wstunnel 路由配置错误）。
-  // 5 秒后用同一个 HTTP 204 检测实际网络可达性；
-  // 失败则尝试层 3（Cloudflare Tunnel），或报错。
-  Future<void> _postRelayCheck(ServerConfig? server) async {
-    await Future.delayed(const Duration(seconds: 5));
-    // 中继尝试中（relay=强力 / cloudflare=暴力），用户未断开
-    if (server == null || _aborted || _protocol == VpnProtocol.direct) return;
-
-    bool ok = false;
-    try {
-      final res = await http.get(
-        Uri.parse('https://connectivitycheck.gstatic.com/generate_204'),
-      ).timeout(const Duration(seconds: 8));
-      ok = res.statusCode == 204 || res.statusCode < 400;
-    } catch (_) {}
-    if (_aborted) return;
-
-    if (ok) {
-      _status = VpnStatus.connected;   // 验证通过才显示已连接（#5）
-      _startUsagePolling();
-      _startTrialTracking();
-      _startConnectedPing();           // 连上后每 30s 刷新展示延迟
-      notifyListeners();
-      debugPrint('[VPN] 中继连通性验证成功（$modeLabel）');
-    } else {
-      debugPrint('[VPN] 中继连通性验证失败，尝试 Cloudflare Tunnel（暴力模式）');
-      await _relay.stop();
-      final cfUrl = server.cfRelayUrl;
-      // 仅当尚未处于 Cloudflare（暴力）模式时才升级，避免无限循环
-      if (cfUrl != null && cfUrl.isNotEmpty && _protocol != VpnProtocol.cloudflare) {
-        await _switchToRelay(server, relayBaseUrl: cfUrl, force: true);
-      } else {
-        // 中继也不通且无 Cloudflare 兜底：必须彻底拆除隧道，否则残留的路由表
-        // 会把用户全部流量导入死隧道（黑洞），普通用户完全无法理解。
-        // 错误态下也一定要清掉路由。
-        try { await _engine.stop(); } catch (_) {}
-        try { await _relay.stop(); } catch (_) {}
-        _protocol = VpnProtocol.direct;
-        _error  = _isZh()
-            ? '已连接但流量不通，请稍后重试或更换节点'
-            : 'Connected but no traffic. Please retry or switch node.';
-        _status = VpnStatus.error;
-        notifyListeners();
-      }
-    }
   }
 
   // ── 延迟测量（请求各自服务器的 health 端点）──────────────────
@@ -1402,41 +816,8 @@ class VpnProvider extends ChangeNotifier {
   }
 
   Future<void> _updateTunnelDiagnostic() async {
-    if (kIsWeb || !(Platform.isIOS || Platform.isMacOS)) return;
-    if (_engine is! AmneziaWgEngine) return;
-    final base = AmneziawgFlutterInterface.instance;
-    final ch = base is AmneziawgFlutterMethodChannel ? base : null;
-    final st = ch == null ? null : await ch.tunnelStats();
-    if (st == null) { tunnelDiagnostic = '插件未响应'; return; }
-    final code = st.length >= 4 ? st[3] : 0;
-    if (code == 1) { tunnelDiagnostic = '系统 VPN 会话未连接（隧道没真正建立）'; return; }
-    if (code == 2) {
-      // 附上扩展自己写的最近几行日志，直接看出它卡在哪一步
-      final log = await ch?.tunnelLog();
-      final tail = (log ?? '').trim().split('\n').where((l) => l.isNotEmpty).toList();
-      final last = tail.isEmpty ? '（扩展没有写下任何日志）' : tail.sublist(tail.length > 4 ? tail.length - 4 : 0).join('\n');
-      tunnelDiagnostic = '扩展无响应（内核未启动或已崩溃）⚠️\n$last';
-      return;
-    }
-    if (code == 3) {
-      // 系统把网络判成不可用 → 扩展暂停了内核；看门狗会在 15 秒内强制恢复，
-      // 不必让用户手动重连（见 WireGuardAdapter.startResumeWatchdog）。
-      tunnelDiagnostic = '网络切换中，内核已暂停，正在自动恢复…';
-      return;
-    }
-    final hs = st[2];
-    final ago = hs > 0
-        ? '${DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000 - hs} 秒前'
-        : '从未握手 ⚠️';
-    // 附上本机隧道 IP 与节点端点：服务器上的 peer 若绑了别的 IP，
-    // 就会「握手成功但数据全被丢」——这两个值能直接对账。
-    final conf = _activeServer?.wgConf ?? '';
-    final myIp = RegExp(r'Address\s*=\s*([\d./]+)').firstMatch(conf)?.group(1) ?? '?';
-    tunnelDiagnostic = '收 ${_fmtBytes(st[0])} / 发 ${_fmtBytes(st[1])}，握手 $ago'
-        '\n本机隧道 IP $myIp'
-        '${_lastEnsurePeerOk == false ? '，⚠️ 服务器未确认 peer' : ''}'
-        '（${_protocol == VpnProtocol.relay ? '中继' : '直连'}'
-        '${_activeServer?.displayName != null ? ' · ${_activeServer!.displayName}' : ''}）';
+    // 纯 sing-box 客户端：AWG 的 iOS 内核诊断已移除；sing-box 诊断留待后续按需补。
+    return;
   }
 
   static String _fmtBytes(int b) {
@@ -1598,8 +979,6 @@ class VpnProvider extends ChangeNotifier {
     try {
       await _engine.stop().timeout(const Duration(seconds: 6), onTimeout: () {});
     } catch (_) {}
-    try { await _relay.stop(); } catch (_) {}
-    _protocol = VpnProtocol.direct;
     _status   = VpnStatus.disconnected;
     notifyListeners();
   }
