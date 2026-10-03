@@ -168,33 +168,31 @@ export async function GET(req: NextRequest) {
         serverPublicIp:   endpointIp.get(srv.endpoint),
       }) : ''
 
-      // singbox：sb_enabled 节点下发(新客户端优先用)。含节点级参数 + 该设备全局凭证。
-      // 老客户端不认识此字段会忽略；新客户端有此字段则走 sing-box，否则回退 wg_conf。
+      // singbox：sb_enabled 节点下发(新客户端优先用)。严格对齐客户端 SingboxPremium.fromJson：
+      //   uuid/hy2_password 在顶层；键名 hysteria2/reality/ws；参数名 ports/obfs_password/
+      //   public_key/short_id/host。老客户端不认识此字段会忽略，继续用 wg_conf。
       const singbox = srv.sb_enabled ? {
-        reality: {
-          server: relayHost,
-          port:   srv.reality_port ?? 443,
-          uuid:   crypto.sbUuid,
-          pbk:    srv.reality_pbk ?? '',
-          sid:    srv.reality_sid ?? '',
-          sni:    srv.reality_sni || 'www.microsoft.com',
-          fp:     'chrome',
-        },
-        hy2: (srv.hy2_port) ? {
-          server:   relayHost,
-          port:     srv.hy2_port,
-          hop_min:  srv.hy2_hop_min ?? null,
-          hop_max:  srv.hy2_hop_max ?? null,
-          password: crypto.hy2Password,
-          obfs:     srv.hy2_obfs ?? null,      // salamander 密码；null=不加混淆
-          sni:      relayHost,                 // hy2 证书域名
+        uuid:         crypto.sbUuid,
+        hy2_password: crypto.hy2Password,
+        hysteria2: (srv.hy2_port) ? {
+          server:        relayHost,
+          port:          srv.hy2_port,
+          ports:         (srv.hy2_hop_min && srv.hy2_hop_max) ? `${srv.hy2_hop_min}-${srv.hy2_hop_max}` : null,
+          obfs_password: srv.hy2_obfs ?? null,   // null/空 = 不加混淆
+        } : null,
+        reality: (srv.reality_pbk) ? {
+          server:     relayHost,
+          port:       srv.reality_port ?? 443,
+          public_key: srv.reality_pbk,
+          short_id:   srv.reality_sid ?? '',
+          sni:        srv.reality_sni || 'www.microsoft.com',
+          // flow 不下发（已去掉 vision flow，兼容性最好）
         } : null,
         // ws(超级层)阶段2：cf_host 非空才下发
         ws: (srv.cf_host) ? {
-          server: srv.cf_host,
-          uuid:   crypto.sbUuid,
-          path:   srv.ws_path ?? '/',
-          sni:    srv.cf_host,
+          host: srv.cf_host,
+          port: 443,
+          path: srv.ws_path ?? '/',
         } : null,
       } : null
 
