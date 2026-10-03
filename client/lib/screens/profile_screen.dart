@@ -427,6 +427,12 @@ void _showErrorInfo(BuildContext context) {
   if (IapService.supported && iapReport != null) {
     items.add('${tr('内购', 'In-App Purchase')}：$iapReport');
   }
+  // 智能分流诊断：全隧道和分流在界面上看不出区别（都能上网），只有国内网站
+  // 绕道变慢才会察觉，必须能直接读到判定结果。
+  final smartReport = vpn.smartRoutingReport;
+  if (smartReport != null) {
+    items.add('${tr('智能分流', 'Smart routing')}：$smartReport');
+  }
   // 广告诊断：AdMob 的失败原因决定完全不同的处理（没广告可投 / 网络到不了 /
   // 广告位 ID 不对），正式包看不到控制台日志，只能显示出来。
   items.add('${tr('广告', 'Ads')}：${AdService.instance.diagnosticReport}');

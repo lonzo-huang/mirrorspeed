@@ -693,6 +693,7 @@ class VpnProvider extends ChangeNotifier {
       'ExcludedIPs  = ${excluded.join(', ')}',
     );
     debugPrint('[VPN] Apple 路由：${current.length} 条拆分路由 → 默认路由 + ${excluded.length} 条排除');
+    smartRoutingReport = '${smartRoutingReport ?? ''} → 默认路由+${excluded.length}条排除'.trim();
     return conf;
   }
 
@@ -703,8 +704,17 @@ class VpnProvider extends ChangeNotifier {
     //  - 境外裸 IP / 无法识别：暂全隧道（AllowedIPs 保持 0.0.0.0/0）——占位，确保能连上；
     //    将来再做境外的智能分流优化（TODO）。
     final inCn = await FreeNodeService.instance.egressInChina();
-    if (inCn != true) return wgConf;
+    // 只有确知在境外才整条走隧道；判定失败(null)时仍按中国 IP 表分流。
+    // 之前 null 也跳过分流 —— 而国内恰恰最容易判定失败（原来探测的是
+    // cloudflare.com），结果智能模式悄悄退化成全局模式。分流本身对境外用户
+    // 也无害（国内 IP 直连而已），所以未知时分流是更安全的默认。
+    smartRoutingReport = '出口判定=${inCn == null ? '未知' : (inCn ? '国内' : '境外')}';
+    if (inCn == false) {
+      smartRoutingReport = '$smartRoutingReport → 全隧道';
+      return wgConf;
+    }
     final routes = await _getSmartRoutes(excludeIp: excludeIp);
+    smartRoutingReport = '$smartRoutingReport → 分流 ${routes.length} 段';
     var conf = wgConf.replaceAll(
       RegExp(r'AllowedIPs\s*=\s*[^\n]+'),
       'AllowedIPs   = ${routes.join(', ')}',
@@ -715,6 +725,11 @@ class VpnProvider extends ChangeNotifier {
     conf = _setDns(conf, '1.1.1.1, 8.8.8.8');
     return conf;
   }
+
+  /// 最近一次智能分流的判定结果，显示在「我的 → 错误信息」里。
+  /// 智能模式是否真的生效，用户在界面上看不出来（全隧道和分流都能上网），
+  /// 只有国内网站绕道变慢才会察觉 —— 必须能直接读到。
+  String? smartRoutingReport;
 
   /// 获取智能模式的 AllowedIPs 列表（非中国IP段，可选排除指定IP）。
   /// 结果在会话内缓存，切换模式时自动清除。

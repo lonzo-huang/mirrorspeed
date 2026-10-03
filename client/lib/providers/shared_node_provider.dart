@@ -166,7 +166,8 @@ class SharedNodeProvider extends ChangeNotifier {
     // 与 VpnProvider 的默认值保持一致：中文环境默认智能，其它默认全局。
     final smart = mode == null ? _isZh() : mode == 'smart';
     if (!smart) return false;
-    return await FreeNodeService.instance.egressInChina() == true;
+    // 与优质节点一致：只有确知在境外才不分流，判定失败时仍按中国规则集分流。
+    return await FreeNodeService.instance.egressInChina() != false;
   }
 
   // ── 速率计量 ────────────────────────────────────────────────────

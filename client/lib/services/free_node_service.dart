@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:yaml/yaml.dart';
+import '../env.dart';
 import '../models/free_node.dart';
 
 /// 共享节点订阅：拉取(主/备 host 依次尝试)→ base64 解码 → 解析成 sing-box outbound。
@@ -35,11 +36,37 @@ class FreeNodeService {
   bool  _egressResolved = false;
 
   /// 判定「裸 IP」（未经本 App VPN 的真实出口）是否在中国境内。
-  /// true=境内，false=境外，null=无法识别。用 Cloudflare trace（境内一般可达），
-  /// 解析 `loc=` 国家码。整个会话缓存一次；无法识别不缓存，下次可重试。
-  /// 公开：优质节点智能模式也据此决定是否用路由表分流（见 VpnProvider._applySmartRouting）。
+  /// true=境内，false=境外，null=无法识别。
+  ///
+  /// 先问自家接口 `/api/geo`（与 App 其余请求同域，国内可达，国家码由边缘节点按
+  /// 客户端 IP 注入），失败再退回 Cloudflare trace。
+  /// 原先只用 Cloudflare —— 该域名在国内经常不可达，探测失败返回 null，而智能模式
+  /// 对 null 的处理是「不分流」，于是退化成全局模式、国内流量也全进隧道。
+  ///
+  /// 只缓存成功结果；无法识别不缓存，下次可重试。调用方必须在**隧道未连接**时调用，
+  /// 否则量到的是节点出口而不是本机出口（见 VpnProvider._applySmartRouting）。
+  /// 公开：优质节点智能模式也据此决定是否用路由表分流。
   Future<bool?> egressInChina() async {
     if (_egressResolved) return _egressIsCn;
+
+    // 1) 自家接口（国内可达）
+    for (final base in kApiBases) {
+      try {
+        final res = await http
+            .get(Uri.parse('$base/api/geo'))
+            .timeout(const Duration(seconds: 5));
+        if (res.statusCode == 200) {
+          final c = (jsonDecode(res.body) as Map)['country'];
+          if (c is String && c.isNotEmpty) {
+            _egressIsCn = (c == 'CN');
+            _egressResolved = true;
+            return _egressIsCn;
+          }
+        }
+      } catch (_) {/* 换下一个 base */}
+    }
+
+    // 2) 退回 Cloudflare trace
     try {
       final res = await http
           .get(Uri.parse('https://www.cloudflare.com/cdn-cgi/trace'))
@@ -54,6 +81,13 @@ class FreeNodeService {
       }
     } catch (_) {/* 网络异常 → 无法识别 */}
     return null;   // 无法识别：按需求退回国内/兜底源
+  }
+
+  /// 清掉出口判定缓存。隧道连上过之后再判定会量到节点所在国，所以断开时重置，
+  /// 避免把"境外"错误地记一整个会话。
+  void resetEgressCache() {
+    _egressIsCn = null;
+    _egressResolved = false;
   }
 
   String _listPath(String token, bool top) =>
