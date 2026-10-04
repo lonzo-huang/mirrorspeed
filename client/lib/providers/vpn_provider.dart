@@ -445,11 +445,16 @@ class VpnProvider extends ChangeNotifier {
       }
     }
 
+    // 智能模式加载中国 IP 段(ip_cidr 直连)，非 Apple 用（Apple 走打包的 .srs rule_set）。
+    List<String>? cnCidrs;
+    if (_routingMode == RoutingMode.smart) cnCidrs = await _loadCnCidrs();
+
     final cfg = SingboxConfig.build(
       outbound,
       smart: _routingMode == RoutingMode.smart,
       includePackages: inc, excludePackages: exc,
       includeProcesses: incProc, excludeProcesses: excProc,
+      cnCidrs: cnCidrs,
     );
     debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}'
         '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}');
@@ -459,6 +464,20 @@ class VpnProvider extends ChangeNotifier {
       _status = VpnStatus.connected;
       notifyListeners();
     }
+  }
+
+  List<String>? _cnCidrsCache;
+  /// 加载并缓存中国 IP 段(assets/routes/cn_cidr.txt)，供智能模式 ip_cidr 直连。
+  Future<List<String>> _loadCnCidrs() async {
+    if (_cnCidrsCache != null) return _cnCidrsCache!;
+    try {
+      final txt = await rootBundle.loadString('assets/routes/cn_cidr.txt');
+      _cnCidrsCache = txt.split('\n').map((l) => l.trim())
+          .where((l) => l.isNotEmpty && !l.startsWith('#')).toList();
+    } catch (_) {
+      _cnCidrsCache = const [];
+    }
+    return _cnCidrsCache!;
   }
 
   /// 按用户选择的连接模式挑一层协议；该层未下发则按 快速→强力→超级 顺序降级，

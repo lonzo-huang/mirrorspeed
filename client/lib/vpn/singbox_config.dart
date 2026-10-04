@@ -41,6 +41,7 @@ class SingboxConfig {
     List<String>? excludePackages,   // 分应用(Android)：这些 App 绕过隧道(黑名单)
     List<String>? includeProcesses,  // 分应用(桌面)：只有这些进程走代理(白名单，process_name)
     List<String>? excludeProcesses,  // 分应用(桌面)：这些进程直连(黑名单，process_name)
+    List<String>? cnCidrs,           // 中国 IP 段(assets/routes/cn_cidr.txt)：非 Apple 智能模式直连用
     bool ipv6 = false,               // 仅当系统确有可用 IPv6 时给 tun 加 v6 地址（见下）
   }) {
     // 选中节点的 outbound(强制 tag=proxy)
@@ -97,8 +98,11 @@ class SingboxConfig {
       });
       route['final'] = 'proxy';
     } else if (smart) {
-      // 智能模式:中国大陆 geoip 直连,其余走代理(final=proxy)
-      route['rules'].add({'geoip': ['cn', 'private'], 'outbound': 'direct'});
+      // 非 Apple 智能模式：geoip 数据库在 sing-box 1.12 已移除，改用本地 cn_cidr 列表
+      // (ip_cidr)直连中国 IP，其余走代理。cn_cidr 由调用方从 assets 加载后传入。
+      if (cnCidrs != null && cnCidrs.isNotEmpty) {
+        route['rules'].add({'ip_cidr': cnCidrs, 'outbound': 'direct'});
+      }
       route['final'] = 'proxy';
     }
     // 全局模式:除上面的 dns/私网规则外,final=proxy 全走代理
@@ -128,7 +132,9 @@ class SingboxConfig {
           {'tag': 'system', 'address': 'local',     'detour': 'direct'},
         ],
         'rules': [
-          if (smart && !adOnly) {'geoip': 'cn', 'server': 'local'},
+          // geoip 数据库已移除：仅 Apple(有 .srs rule_set)用 geoip-cn 把国内域名解析走本地
+          // DNS。非 Apple 不加此规则，国内域名经代理 DNS 解析(略慢但可用)。
+          if (smart && !adOnly && _kIsApple) {'rule_set': 'geoip-cn', 'server': 'local'},
         ],
         'final': adOnly ? 'local' : 'remote',
         'strategy': 'ipv4_only',
