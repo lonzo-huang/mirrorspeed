@@ -183,18 +183,36 @@ systemctl restart sing-box
 sleep 2
 systemctl is-active --quiet sing-box && echo "    sing-box 运行中" || { echo "✗ sing-box 未起来，看 journalctl -u sing-box"; exit 1; }
 
+# 重启 vpn-api,确保 git pull 下来的合并版 main.py(带 /peers/ensure + /singbox/user/*)已加载。
+# 【坑】旧 main.py 没有 /peers/ensure → portal 调它得 405 → 短路 → singbox 凭证永不下发。
+if systemctl list-unit-files 2>/dev/null | grep -q '^vpn-api\.service'; then
+  echo "==> [7.5/8] 重启 vpn-api 加载按需下发端点 ..."
+  systemctl restart vpn-api && sleep 2
+  if systemctl is-active --quiet vpn-api; then
+    CODE=$(curl -sk -o /dev/null -w '%{http_code}' -X POST https://127.0.0.1:8443/peers/ensure \
+             -H 'content-type: application/json' -d '{}' 2>/dev/null || echo 000)
+    if [[ "$CODE" == "405" ]]; then
+      echo "    ✗ vpn-api 仍返回 405：/peers/ensure 缺失(main.py 不是合并版)。请确认已 git pull 到含该端点的版本后重启。"
+    else
+      echo "    vpn-api 运行中，/peers/ensure 就绪(HTTP ${CODE}，401/403/422 均正常)"
+    fi
+  else
+    echo "    ✗ vpn-api 未起来，看 journalctl -u vpn-api"
+  fi
+fi
+
 # 自动读本机 vpn-api 的真实 api_secret(避免手填占位符)；NODE_NAME 为 vpn_servers.name。
 API_SECRET=$(grep -m1 '^VPN_API_SECRET=' /opt/mirrorspeed/vpn-api/.env 2>/dev/null | cut -d= -f2-)
 NODE_NAME="${NODE_NAME:-<填该节点在 vpn_servers 的 name>}"
-if [[ "${NGINX_FALLBACK:-0}" == "1" ]]; then
-  # 回落模式:vpn-api 仍在原处(经 Reality 回落到 nginx),api_url/api_secret 不变。
-  API_URL="https://${DOMAIN}/vpn-api"
-  API_LINES="  -- api_url / api_secret 保持原值(存量节点不变，经 Reality 回落到 nginx 照常可达)"
-else
-  API_URL="https://${DOMAIN}:8443/"
-  [[ -z "$API_SECRET" ]] && API_SECRET="<vpn-api 未装/未读到 .env，先装 vpn-api 再看>"
+# portal 一律直连 vpn-api 的 8443(无尾斜杠,与 us02 一致)。
+# 【坑】不要用经 nginx 的 https://域名/vpn-api —— nginx 以 http 反代 https 的 8443 会 502,
+# 导致 portal 的 /peers/ensure 失败 → 短路 → singbox 凭证永不下发 → 新客户端"已连接上不了网"。
+API_URL="https://${DOMAIN}:8443"
+if [[ -n "$API_SECRET" ]]; then
   API_LINES="  api_url      = '${API_URL}',
   api_secret   = '${API_SECRET}',"
+else
+  API_LINES="  api_url      = '${API_URL}',  -- vpn-api 未读到 .env,api_secret 请自行核对与节点一致"
 fi
 
 echo "==> [8/8] 完成。下面是【可直接粘贴到 Supabase SQL】的语句(值已全部填好)："
