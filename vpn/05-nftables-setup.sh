@@ -73,6 +73,11 @@ table inet enterprise-fw {
             add @udp51820_connlimit { ip saddr ct count over 10 } drop
         udp dport 51820 accept
 
+        # ── sing-box 多协议(迁移双栈;Reality 走上面的 443)─────────────────
+        tcp dport 8443 ct state new accept      # vpn-api 独立 TLS
+        udp dport 18443 accept                  # hy2 监听(端口跳跃经 nat redirect 到此)
+        udp dport 50000-60000 accept            # hy2 端口跳跃范围(避开 AWG 的 30000-49999)
+
         # 其余全部丢弃（policy drop 已覆盖，此行为明确意图）
         drop
     }
