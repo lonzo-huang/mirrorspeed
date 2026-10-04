@@ -49,11 +49,19 @@ if ! command -v sing-box >/dev/null; then
 fi
 echo "    sing-box: $(sing-box version | head -1)"
 
-echo "==> [2/8] 签 hy2 的 TLS 证书(certbot standalone, 80)..."
-# Reality 不需要证书；hy2 需要。用 standalone 占用 80 完成 http-01。
+echo "==> [2/8] 准备 hy2 的 TLS 证书..."
+# Reality 不需要证书；hy2 需要。存量节点一般已有 *.mirrorspeed.com 证书 → 直接复用，
+# 不再 certbot(certbot standalone 需 DNS 指向本机 + 80 可达，存量节点常不满足)。
 if [[ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]]; then
-  certbot certonly --standalone -d "${DOMAIN}" --email "${EMAIL}" \
-    --agree-tos -n --preferred-challenges http-01
+  FOUND=$(ls /etc/letsencrypt/live/ 2>/dev/null | grep 'mirrorspeed\.com' | head -1)
+  if [[ -n "$FOUND" ]]; then
+    echo "    传入 DOMAIN=${DOMAIN} 无证书，自动复用本机已有证书: ${FOUND}"
+    DOMAIN="$FOUND"
+  else
+    echo "    本机无现成证书，certbot standalone 申请(需 DNS 指向本机 + 80 对公网开放)..."
+    certbot certonly --standalone -d "${DOMAIN}" --email "${EMAIL}" \
+      --agree-tos -n --preferred-challenges http-01
+  fi
 fi
 CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
 KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
