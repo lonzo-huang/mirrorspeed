@@ -16,14 +16,20 @@
 #   sudo DOMAIN=us02.dedione.mirrorspeed.com EMAIL=admin@mirrorspeed.com bash 04-singbox-setup.sh
 # 可选覆盖：REALITY_SNI(默认 www.microsoft.com) HY2_PORT(默认 18443)
 #   NODE_NAME=<vpn_servers.name>  → 结尾生成的 SQL 自动填好 WHERE，直接粘贴即可
-#   存量节点升级：STOP_NGINX=1 HOP_MIN=50000 HOP_MAX=60000 NODE_NAME=german01
+#   存量节点升级(推荐,老客户端零影响)：
+#     NGINX_FALLBACK=1 HOP_MIN=50000 HOP_MAX=60000 NODE_NAME=german01 \
+#       DOMAIN=<该节点域名> bash vpn/04-singbox-setup.sh
+#     (Reality 占 443 并把非 Reality 流量回落给本机 nginx → 老客户端健康探测/强力/vpn-api 照常)
 set -euo pipefail
 [[ $EUID -ne 0 ]] && { echo "请用 root 运行：sudo bash $0"; exit 1; }
 
 DOMAIN="${DOMAIN:?必须设置 DOMAIN，如 us02.dedione.mirrorspeed.com}"
 EMAIL="${EMAIL:-admin@mirrorspeed.com}"
 REALITY_SNI="${REALITY_SNI:-www.microsoft.com}"   # 伪装目标(国内可达、TLS1.3、非自有大站)
-REALITY_PORT=443
+HS_SERVER="${REALITY_SNI}"; HS_PORT=443           # Reality handshake/fallback 目标(默认外部大站)
+# Reality 监听端口。干净节点默认 443;存量节点为不碰 nginx(保老客户端健康探测/强力/vpn-api)，
+# 传 REALITY_PORT=8444 之类的非 443 端口，并【不要】传 STOP_NGINX。
+REALITY_PORT="${REALITY_PORT:-443}"
 HY2_PORT="${HY2_PORT:-18443}"                      # hy2 固定监听 UDP 端口
 # 端口跳跃范围。干净节点默认 30000-49999；存量节点(AWG 已占 30000-49999)升级时
 # 必须传不重叠的范围，如 HOP_MIN=50000 HOP_MAX=60000，否则与 AWG 端口跳跃撞车。
@@ -64,35 +70,21 @@ systemctl restart sing-box 2>/dev/null || true
 HOOK
 chmod +x /etc/letsencrypt/renewal-hooks/deploy/restart-singbox.sh
 
-# 存量节点升级(STOP_NGINX=1):先把 vpn-api 挪到独立 TLS :8443(复用上面的证书)，
-# 再停 nginx 释放 443。顺序很重要——先挪再停，/vpn-api 不中断，老客户端 AWG 发 peer 不受影响。
-if [[ "${STOP_NGINX:-0}" == "1" ]]; then
-  if [[ -x /opt/mirrorspeed/vpn-api/venv/bin/uvicorn && -f /opt/mirrorspeed/vpn-api/.env ]]; then
-    echo "==> [2.5/8] 升级模式:vpn-api 改独立 TLS :8443(复用证书 ${DOMAIN})..."
-    cat > /etc/systemd/system/vpn-api.service <<EOF
-[Unit]
-After=network.target
-[Service]
-WorkingDirectory=/opt/mirrorspeed/vpn-api
-EnvironmentFile=/opt/mirrorspeed/vpn-api/.env
-ExecStart=/opt/mirrorspeed/vpn-api/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8443 --ssl-certfile ${CERT} --ssl-keyfile ${KEY}
-Restart=always
-[Install]
-WantedBy=multi-user.target
-EOF
-    systemctl daemon-reload
-    systemctl restart vpn-api
-    sleep 1
-    systemctl is-active --quiet vpn-api && echo "    vpn-api 已在 :8443(记得安全组放行 TCP 8443)" \
-      || echo "    ⚠️ vpn-api 未起来，看 journalctl -u vpn-api"
-  else
-    echo "    ⚠️ 未找到 /opt/mirrorspeed/vpn-api(venv/.env)，跳过 vpn-api 挪迁。"
-    echo "       若这是存量节点,请先跑 07-vpnapi-setup.sh;否则停 nginx 会断掉 /vpn-api!"
-  fi
-  if systemctl is-active --quiet nginx; then
-    echo "==> [2.6/8] 停用 nginx(释放 443 给 Reality；牺牲老客户端 wstunnel 强力)..."
-    systemctl disable --now nginx || true
-  fi
+# 存量节点升级(NGINX_FALLBACK=1):一步到位、老客户端零影响。
+# 把 nginx 从公网 443 挪到本机 127.0.0.1:8080;Reality 占 443,并把「非 Reality 的流量」
+# (老客户端健康探测 / wstunnel 强力 / vpn-api 这些普通 HTTPS)透明回落给本机 nginx。
+# 于是:新客户端走 Reality；老客户端经 Reality 回落到 nginx,健康探测/强力/vpn-api 全部照常。
+# vpn-api、api_url、api_secret 都不用改。
+if [[ "${NGINX_FALLBACK:-0}" == "1" ]]; then
+  echo "==> [2.5/8] NGINX_FALLBACK:nginx 443 → 127.0.0.1:8080，Reality 回落给它(老客户端零影响)..."
+  SITE=$(grep -rl 'listen 443 ssl' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | head -1)
+  [[ -z "$SITE" ]] && { echo "✗ 未找到 nginx 的 443 配置,无法回落。确认本机有 nginx 且监听 443。"; exit 1; }
+  sed -i 's/listen 443 ssl[^;]*;/listen 127.0.0.1:8080 ssl;/' "$SITE"
+  sed -i '/listen \[::\]:443 ssl/d' "$SITE"
+  nginx -t && systemctl reload nginx || { echo "✗ nginx 改 8080 后校验失败,看 nginx -t"; exit 1; }
+  HS_SERVER="127.0.0.1"; HS_PORT=8080
+  REALITY_SNI="${DOMAIN}"   # 回落给本机 nginx → 用本节点自己的证书 → SNI 用本域名
+  echo "    nginx 已在 127.0.0.1:8080;Reality(443)将把非认证流量回落给它。"
 fi
 
 echo "==> [3/8] 生成 Reality 密钥 / short_id / hy2 obfs / 测试凭证 ..."
@@ -137,7 +129,7 @@ cat > "${SB_CONF}" <<JSON
         "server_name": "${REALITY_SNI}",
         "reality": {
           "enabled": true,
-          "handshake": { "server": "${REALITY_SNI}", "server_port": 443 },
+          "handshake": { "server": "${HS_SERVER}", "server_port": ${HS_PORT} },
           "private_key": "${REALITY_PRIV}",
           "short_id": ["${REALITY_SID}"]
         }
@@ -191,8 +183,16 @@ systemctl is-active --quiet sing-box && echo "    sing-box 运行中" || { echo 
 # 自动读本机 vpn-api 的真实 api_secret(避免手填占位符)；NODE_NAME 为 vpn_servers.name。
 API_SECRET=$(grep -m1 '^VPN_API_SECRET=' /opt/mirrorspeed/vpn-api/.env 2>/dev/null | cut -d= -f2-)
 NODE_NAME="${NODE_NAME:-<填该节点在 vpn_servers 的 name>}"
-API_URL="https://${DOMAIN}:8443/"
-[[ -z "$API_SECRET" ]] && API_SECRET="<vpn-api 未装/未读到 .env，先装 vpn-api 再看>"
+if [[ "${NGINX_FALLBACK:-0}" == "1" ]]; then
+  # 回落模式:vpn-api 仍在原处(经 Reality 回落到 nginx),api_url/api_secret 不变。
+  API_URL="https://${DOMAIN}/vpn-api"
+  API_LINES="  -- api_url / api_secret 保持原值(存量节点不变，经 Reality 回落到 nginx 照常可达)"
+else
+  API_URL="https://${DOMAIN}:8443/"
+  [[ -z "$API_SECRET" ]] && API_SECRET="<vpn-api 未装/未读到 .env，先装 vpn-api 再看>"
+  API_LINES="  api_url      = '${API_URL}',
+  api_secret   = '${API_SECRET}',"
+fi
 
 echo "==> [8/8] 完成。下面是【可直接粘贴到 Supabase SQL】的语句(值已全部填好)："
 cat <<OUT
@@ -200,8 +200,7 @@ cat <<OUT
 ══════════ 存量节点升级 → 直接粘贴执行(未传 NODE_NAME 时改一下 WHERE 的 name) ══════════
 UPDATE vpn_servers SET
   sb_enabled   = true,
-  api_url      = '${API_URL}',
-  api_secret   = '${API_SECRET}',
+${API_LINES}
   reality_pbk  = '${REALITY_PBK}',
   reality_sid  = '${REALITY_SID}',
   reality_sni  = '${REALITY_SNI}',
