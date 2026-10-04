@@ -15,6 +15,8 @@
 # 用法(root)：
 #   sudo DOMAIN=us02.dedione.mirrorspeed.com EMAIL=admin@mirrorspeed.com bash 04-singbox-setup.sh
 # 可选覆盖：REALITY_SNI(默认 www.microsoft.com) HY2_PORT(默认 18443)
+#   NODE_NAME=<vpn_servers.name>  → 结尾生成的 SQL 自动填好 WHERE，直接粘贴即可
+#   存量节点升级：STOP_NGINX=1 HOP_MIN=50000 HOP_MAX=60000 NODE_NAME=german01
 set -euo pipefail
 [[ $EUID -ne 0 ]] && { echo "请用 root 运行：sudo bash $0"; exit 1; }
 
@@ -156,31 +158,45 @@ systemctl restart sing-box
 sleep 2
 systemctl is-active --quiet sing-box && echo "    sing-box 运行中" || { echo "✗ sing-box 未起来，看 journalctl -u sing-box"; exit 1; }
 
-echo "==> [8/8] 完成。以下参数写回 Supabase vpn_servers(该节点行)："
+# 自动读本机 vpn-api 的真实 api_secret(避免手填占位符)；NODE_NAME 为 vpn_servers.name。
+API_SECRET=$(grep -m1 '^VPN_API_SECRET=' /opt/mirrorspeed/vpn-api/.env 2>/dev/null | cut -d= -f2-)
+NODE_NAME="${NODE_NAME:-<填该节点在 vpn_servers 的 name>}"
+API_URL="https://${DOMAIN}:8443/"
+[[ -z "$API_SECRET" ]] && API_SECRET="<vpn-api 未装/未读到 .env，先装 vpn-api 再看>"
+
+echo "==> [8/8] 完成。下面是【可直接粘贴到 Supabase SQL】的语句(值已全部填好)："
 cat <<OUT
 
-────────── 写回 vpn_servers(节点级) ──────────
-  sb_enabled   = true
-  reality_pbk  = ${REALITY_PBK}
-  reality_sid  = ${REALITY_SID}
-  reality_sni  = ${REALITY_SNI}
-  reality_port = ${REALITY_PORT}
-  hy2_port     = ${HY2_PORT}
-  hy2_obfs     = ${HY2_OBFS}
-  hy2_hop_min  = ${HOP_MIN}
+══════════ 存量节点升级 → 直接粘贴执行(未传 NODE_NAME 时改一下 WHERE 的 name) ══════════
+UPDATE vpn_servers SET
+  sb_enabled   = true,
+  api_url      = '${API_URL}',
+  api_secret   = '${API_SECRET}',
+  reality_pbk  = '${REALITY_PBK}',
+  reality_sid  = '${REALITY_SID}',
+  reality_sni  = '${REALITY_SNI}',
+  reality_port = ${REALITY_PORT},
+  hy2_port     = ${HY2_PORT},
+  hy2_obfs     = NULL,
+  hy2_hop_min  = ${HOP_MIN},
   hy2_hop_max  = ${HOP_MAX}
-  (ws_path / cf_host 阶段2再填，本期留空)
+WHERE name = '${NODE_NAME}';
+-- awg_enabled 不动(存量节点保持 true，老客户端「快速」还要用)
 
-────────── 测试用户(先用客户端验证连通；正式由 vpn-api 发) ──────────
-  域名/SNI     = ${DOMAIN}  (hy2 证书域名) / ${REALITY_SNI} (reality 伪装)
-  VLESS UUID   = ${TEST_UUID}
-  hy2 password = ${TEST_HY2PW}
+══════════ 若该节点在 vpn_servers 还没有行 → 改用 INSERT(人类字段按需改) ══════════
+INSERT INTO vpn_servers
+  (name, display_name, country_code, flag_emoji, location, is_active, sort_order,
+   endpoint, port, public_key, api_url, api_secret,
+   sb_enabled, awg_enabled,
+   reality_pbk, reality_sid, reality_sni, reality_port,
+   hy2_port, hy2_obfs, hy2_hop_min, hy2_hop_max)
+VALUES
+  ('${NODE_NAME}', '改成展示名', 'US', '🇺🇸', 'Location', true, 100,
+   '${DOMAIN}', 443, '', '${API_URL}', '${API_SECRET}',
+   true, false,
+   '${REALITY_PBK}', '${REALITY_SID}', '${REALITY_SNI}', ${REALITY_PORT},
+   ${HY2_PORT}, NULL, ${HOP_MIN}, ${HOP_MAX});
 
-  强力(reality) 客户端连接要点：server=${DOMAIN}:443, uuid=上面,(无 flow)
-    reality: pbk=${REALITY_PBK}, sid=${REALITY_SID}, sni=${REALITY_SNI}, fp=chrome
-  快速(hy2)   客户端连接要点：server=${DOMAIN}:${HOP_MIN}-${HOP_MAX}(端口跳跃),
-    password=上面, obfs=salamander/${HY2_OBFS}, tls sni=${DOMAIN}
-───────────────────────────────────────────────
-
-提示：这些密钥/密码是敏感信息，记录到安全处；不要提交进 git。
+── 测试用户(手动验证用；正式由 vpn-api 自动发) VLESS UUID=${TEST_UUID}  hy2 pwd=${TEST_HY2PW}
+提示：以上含密钥/密码，复制到安全处，别提交进 git。
 OUT
