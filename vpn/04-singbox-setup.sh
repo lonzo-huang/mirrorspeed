@@ -209,7 +209,7 @@ ${API_LINES}
   reality_sni  = '${REALITY_SNI}',
   reality_port = ${REALITY_PORT},
   hy2_port     = ${HY2_PORT},
-  hy2_obfs     = NULL,
+  hy2_obfs     = '${HY2_OBFS}',
   hy2_hop_min  = ${HOP_MIN},
   hy2_hop_max  = ${HOP_MAX}
 WHERE name = '${NODE_NAME}';
@@ -227,7 +227,7 @@ VALUES
    '${DOMAIN}', 443, '', '${API_URL}', '${API_SECRET}',
    true, false,
    '${REALITY_PBK}', '${REALITY_SID}', '${REALITY_SNI}', ${REALITY_PORT},
-   ${HY2_PORT}, NULL, ${HOP_MIN}, ${HOP_MAX});
+   ${HY2_PORT}, '${HY2_OBFS}', ${HOP_MIN}, ${HOP_MAX});
 
 ── 测试用户(手动验证用；正式由 vpn-api 自动发) VLESS UUID=${TEST_UUID}  hy2 pwd=${TEST_HY2PW}
 提示：以上含密钥/密码，复制到安全处，别提交进 git。
