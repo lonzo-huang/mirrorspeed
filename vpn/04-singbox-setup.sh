@@ -30,15 +30,6 @@ HY2_PORT="${HY2_PORT:-18443}"                      # hy2 固定监听 UDP 端口
 HOP_MIN="${HOP_MIN:-30000}"; HOP_MAX="${HOP_MAX:-49999}"
 SB_CONF="/etc/sing-box/config.json"
 
-# 存量节点(nginx 占着 443)升级双栈时:停 nginx 让 Reality 占 443。
-# ⚠️ 前提:必须【先】把 vpn-api 挪到独立端口(:8443 直连 TLS)并更新 DB api_url，
-#    否则停 nginx 会连带断掉 /vpn-api，老客户端 AWG 发 peer 也会失败。见 docs/singbox-migration.md。
-# 默认不停(干净节点无 nginx)；存量节点升级传 STOP_NGINX=1。
-if [[ "${STOP_NGINX:-0}" == "1" ]] && systemctl is-active --quiet nginx; then
-  echo "==> [0/8] STOP_NGINX=1:停用 nginx(释放 443 给 Reality；牺牲老客户端 wstunnel 强力)..."
-  systemctl disable --now nginx || true
-fi
-
 echo "==> [1/8] 安装 sing-box + certbot ..."
 apt-get update -qq
 apt-get install -y curl ca-certificates nftables certbot >/dev/null
@@ -72,6 +63,37 @@ cat > /etc/letsencrypt/renewal-hooks/deploy/restart-singbox.sh <<'HOOK'
 systemctl restart sing-box 2>/dev/null || true
 HOOK
 chmod +x /etc/letsencrypt/renewal-hooks/deploy/restart-singbox.sh
+
+# 存量节点升级(STOP_NGINX=1):先把 vpn-api 挪到独立 TLS :8443(复用上面的证书)，
+# 再停 nginx 释放 443。顺序很重要——先挪再停，/vpn-api 不中断，老客户端 AWG 发 peer 不受影响。
+if [[ "${STOP_NGINX:-0}" == "1" ]]; then
+  if [[ -x /opt/mirrorspeed/vpn-api/venv/bin/uvicorn && -f /opt/mirrorspeed/vpn-api/.env ]]; then
+    echo "==> [2.5/8] 升级模式:vpn-api 改独立 TLS :8443(复用证书 ${DOMAIN})..."
+    cat > /etc/systemd/system/vpn-api.service <<EOF
+[Unit]
+After=network.target
+[Service]
+WorkingDirectory=/opt/mirrorspeed/vpn-api
+EnvironmentFile=/opt/mirrorspeed/vpn-api/.env
+ExecStart=/opt/mirrorspeed/vpn-api/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8443 --ssl-certfile ${CERT} --ssl-keyfile ${KEY}
+Restart=always
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl restart vpn-api
+    sleep 1
+    systemctl is-active --quiet vpn-api && echo "    vpn-api 已在 :8443(记得安全组放行 TCP 8443)" \
+      || echo "    ⚠️ vpn-api 未起来，看 journalctl -u vpn-api"
+  else
+    echo "    ⚠️ 未找到 /opt/mirrorspeed/vpn-api(venv/.env)，跳过 vpn-api 挪迁。"
+    echo "       若这是存量节点,请先跑 07-vpnapi-setup.sh;否则停 nginx 会断掉 /vpn-api!"
+  fi
+  if systemctl is-active --quiet nginx; then
+    echo "==> [2.6/8] 停用 nginx(释放 443 给 Reality；牺牲老客户端 wstunnel 强力)..."
+    systemctl disable --now nginx || true
+  fi
+fi
 
 echo "==> [3/8] 生成 Reality 密钥 / short_id / hy2 obfs / 测试凭证 ..."
 RK=$(sing-box generate reality-keypair)
