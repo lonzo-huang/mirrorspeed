@@ -23,7 +23,9 @@ EMAIL="${EMAIL:-admin@mirrorspeed.com}"
 REALITY_SNI="${REALITY_SNI:-www.microsoft.com}"   # 伪装目标(国内可达、TLS1.3、非自有大站)
 REALITY_PORT=443
 HY2_PORT="${HY2_PORT:-18443}"                      # hy2 固定监听 UDP 端口
-HOP_MIN=30000; HOP_MAX=49999                       # 端口跳跃范围(同现有 WG)
+# 端口跳跃范围。干净节点默认 30000-49999；存量节点(AWG 已占 30000-49999)升级时
+# 必须传不重叠的范围，如 HOP_MIN=50000 HOP_MAX=60000，否则与 AWG 端口跳跃撞车。
+HOP_MIN="${HOP_MIN:-30000}"; HOP_MAX="${HOP_MAX:-49999}"
 SB_CONF="/etc/sing-box/config.json"
 
 # 存量节点(nginx 占着 443)升级双栈时:停 nginx 让 Reality 占 443。
