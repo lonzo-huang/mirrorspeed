@@ -423,6 +423,13 @@ class VpnProvider extends ChangeNotifier {
 
     await _useEngine(_sbEngine);
 
+    // 按实际选中的协议设模式标签：hy2=快速 / reality=强力 / ws=超级（供 modeLabel 显示）。
+    final obType = outbound['type'];
+    final isWs = (outbound['transport'] as Map?)?['type'] == 'ws';
+    _protocol = obType == 'hysteria2'
+        ? VpnProtocol.direct
+        : (isWs ? VpnProtocol.cloudflare : VpnProtocol.relay);
+
     // 按应用分流：与免费节点一致。智能模式才读黑白名单；全局模式不读(全走节点)。
     // 白名单必须含本 App + Google Play 服务(承载 AdMob)，否则广告走直连被墙。
     List<String>? inc, exc, incProc, excProc;
@@ -652,37 +659,24 @@ class VpnProvider extends ChangeNotifier {
     // 已连接时「冻结」连接前测得的延迟：探测包会走隧道（你→VPN节点→目标节点），
     // 导致其他节点延迟暴涨且失真。连接期间不重测，沿用连接前的值。
     if (isConnected) return;
-    // 用 relayHost（= api_url 域名，证书有效）而非 endpoint：部分节点的 endpoint
-    // 是另一个域名/裸 IP，HTTPS 健康检查会一直失败导致 UI 永久转圈（如西班牙节点）。
-    Uri urlOf(ServerConfig s) =>
-        Uri.parse('https://${s.relayHost}/vpn-api/health');
-
-    // 持久 Client：复用 TCP+TLS 连接（keep-alive）。先「预热」一轮建立连接（丢弃，
-    // 不计样本），之后的样本只含 1 个 RTT，避免每次新建连接的 TLS 握手把真实延迟
-    // 放大数倍（30ms ping 曾被测成 ~250ms）。
-    final client = http.Client();
-    try {
+    // 用 TCP 握手 RTT 测可达性/延迟：对 nginx(AWG 节点 443) 和 Reality(sing-box 节点 443)
+    // 都有效——而原来的 HTTPS GET /vpn-api/health 对 Reality 节点必失败(443 是裸 TCP 不是
+    // HTTP)，导致 sing-box 节点永远测不到延迟、误显示离线。只连一下即断，纯测 1 个 RTT。
+    for (int r = 0; r < rounds; r++) {
       await Future.wait(servers.map((s) async {
         try {
-          await client.get(urlOf(s)).timeout(const Duration(seconds: 4));
-        } catch (_) {}
+          final sw = Stopwatch()..start();
+          final sock = await Socket.connect(s.relayHost, 443,
+              timeout: const Duration(seconds: 3));
+          sw.stop();
+          sock.destroy();
+          s.addLatencySample(sw.elapsedMilliseconds);
+        } catch (_) {
+          s.addLatencySample(null);
+        }
+        notifyListeners();
       }));
-      for (int r = 0; r < rounds; r++) {
-        await Future.wait(servers.map((s) async {
-          try {
-            final sw = Stopwatch()..start();
-            await client.get(urlOf(s)).timeout(const Duration(seconds: 3));
-            sw.stop();
-            s.addLatencySample(sw.elapsedMilliseconds);
-          } catch (_) {
-            s.addLatencySample(null);
-          }
-          notifyListeners();
-        }));
-        if (r < rounds - 1) await Future.delayed(gap);
-      }
-    } finally {
-      client.close();
+      if (r < rounds - 1) await Future.delayed(gap);
     }
   }
 
