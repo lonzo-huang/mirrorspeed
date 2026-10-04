@@ -70,7 +70,8 @@ class Hysteria2Params {
     'type': 'hysteria2',
     'server': server,
     'server_port': port,
-    if (ports != null) 'server_ports': [ports],
+    // sing-box 的 server_ports 用冒号 "start:end"(后端可能发连字符 "start-end"，这里统一）。
+    if (ports != null) 'server_ports': [ports!.replaceAll('-', ':')],
     'password': password,
     if (obfsPassword != null && obfsPassword!.isNotEmpty)
       'obfs': {'type': 'salamander', 'password': obfsPassword},
