@@ -77,8 +77,11 @@ chmod +x /etc/letsencrypt/renewal-hooks/deploy/restart-singbox.sh
 # vpn-api、api_url、api_secret 都不用改。
 if [[ "${NGINX_FALLBACK:-0}" == "1" ]]; then
   echo "==> [2.5/8] NGINX_FALLBACK:nginx 443 → 127.0.0.1:8080，Reality 回落给它(老客户端零影响)..."
-  SITE=$(grep -rl 'listen 443 ssl' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | head -1)
+  # -R 跟随 sites-enabled 里的符号链接;|| true 防止 grep 无匹配时触发 set -e 无声退出
+  SITE=$(grep -Rl 'listen 443 ssl' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ /etc/nginx/nginx.conf 2>/dev/null | head -1 || true)
   [[ -z "$SITE" ]] && { echo "✗ 未找到 nginx 的 443 配置,无法回落。确认本机有 nginx 且监听 443。"; exit 1; }
+  SITE=$(readlink -f "$SITE")   # sites-enabled 多为符号链接,解析成真实文件(sites-available)再改
+  echo "    改写 nginx 配置文件: ${SITE}"
   sed -i 's/listen 443 ssl[^;]*;/listen 127.0.0.1:8080 ssl;/' "$SITE"
   sed -i '/listen \[::\]:443 ssl/d' "$SITE"
   nginx -t && systemctl reload nginx || { echo "✗ nginx 改 8080 后校验失败,看 nginx -t"; exit 1; }
