@@ -26,6 +26,15 @@ HY2_PORT="${HY2_PORT:-18443}"                      # hy2 固定监听 UDP 端口
 HOP_MIN=30000; HOP_MAX=49999                       # 端口跳跃范围(同现有 WG)
 SB_CONF="/etc/sing-box/config.json"
 
+# 存量节点(nginx 占着 443)升级双栈时:停 nginx 让 Reality 占 443。
+# ⚠️ 前提:必须【先】把 vpn-api 挪到独立端口(:8443 直连 TLS)并更新 DB api_url，
+#    否则停 nginx 会连带断掉 /vpn-api，老客户端 AWG 发 peer 也会失败。见 docs/singbox-migration.md。
+# 默认不停(干净节点无 nginx)；存量节点升级传 STOP_NGINX=1。
+if [[ "${STOP_NGINX:-0}" == "1" ]] && systemctl is-active --quiet nginx; then
+  echo "==> [0/8] STOP_NGINX=1:停用 nginx(释放 443 给 Reality；牺牲老客户端 wstunnel 强力)..."
+  systemctl disable --now nginx || true
+fi
+
 echo "==> [1/8] 安装 sing-box + certbot ..."
 apt-get update -qq
 apt-get install -y curl ca-certificates nftables certbot >/dev/null

@@ -239,3 +239,54 @@ WG 那套 HMAC 每小时跳的机制双栈期保持不动，sunset 时一并删�
   2. Reality 用非 443 端口(抗封效果打折,不推荐);
   3. 试点阶段先在一台**干净节点**上只跑 sing-box(hy2+reality),不与旧 nginx/AWG 混部,验证通了再定混部方案。
 - 建议**试点用方案 3**(干净节点),跑通再决定存量节点怎么与 nginx/AWG 共存。
+
+## 11. 存量 AWG 节点升级为双栈（Reality 占 443，牺牲 wstunnel 强力）
+
+决策(2026-10-04)：存量节点让 **Reality 占 443**，牺牲老客户端的 **wstunnel 强力**；
+老客户端的 **AWG 快速(直连 UDP)仍保留**，不受影响。
+
+⚠️ 关键：存量节点的 `vpn-api` 原本挂在 nginx 443 后面(`https://节点/vpn-api`)。停 nginx 前
+**必须先把 vpn-api 挪到独立端口 :8443 直连 TLS 并更新 DB api_url**，否则停 nginx 会连带断掉
+`/vpn-api` → 连老客户端的 AWG 发 peer 都失败。
+
+### 每台存量节点的升级步骤(以 german01 为例，其余照做)
+
+```bash
+# ① 拉最新代码(含 vpn-api 的 /singbox 接口)
+cd /opt/mirrorspeed && git pull
+
+# ② vpn-api 改为独立 TLS :8443(复用该节点已有证书)。先找到证书域名：
+DOMAIN=$(ls /etc/letsencrypt/live/ | grep -m1 'mirrorspeed\.com')
+# 读出该节点现有的 VPN_API_SECRET(保持不变，全节点通常共用)
+grep VPN_API_SECRET /opt/mirrorspeed/vpn-api/.env
+# 改 systemd 让 uvicorn 直接上 TLS、对外 8443：
+cat > /etc/systemd/system/vpn-api.service <<EOF
+[Unit]
+After=network.target
+[Service]
+WorkingDirectory=/opt/mirrorspeed/vpn-api
+EnvironmentFile=/opt/mirrorspeed/vpn-api/.env
+ExecStart=/opt/mirrorspeed/vpn-api/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8443 \
+  --ssl-certfile /etc/letsencrypt/live/${DOMAIN}/fullchain.pem \
+  --ssl-keyfile /etc/letsencrypt/live/${DOMAIN}/privkey.pem
+Restart=always
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload && systemctl restart vpn-api
+# 安全组放行 TCP 8443
+
+# ③ 更新 DB：api_url 指向 :8443（这样 AWG 和 sing-box 发凭证都走新端口，AWG 不断）
+#    Supabase SQL：
+#    UPDATE vpn_servers SET api_url='https://<该节点域名>:8443/' WHERE name='<node>';
+
+# ④ 部署 sing-box（停 nginx 让 Reality 占 443，复用已有证书，AWG 不动）
+sudo STOP_NGINX=1 DOMAIN=${DOMAIN} EMAIL=admin@mirrorspeed.com bash vpn/04-singbox-setup.sh
+# 安全组放行 UDP 30000-49999 和 18443
+
+# ⑤ 把脚本打印的参数写回 DB：sb_enabled=true（awg_enabled 保持 true 不改！），
+#    reality_pbk/sid/sni、reality_port=443、hy2_port/hop、api_secret 保持该节点原值。
+```
+
+升级后该节点：老客户端 **AWG 快速仍可用**（AWG 未动 + 发 peer 走 :8443）；老客户端 wstunnel
+**强力失效**(已接受)；新客户端走 **sing-box(reality 443 / hy2)**。双栈并存。
