@@ -668,3 +668,78 @@ def set_peer_status(peer_name: str, req: SetActiveRequest, _key: str = Security(
             )
             WG_CONF.write_text(new_text)
             awg_apply_peer(pub_key, "0.0.0.0")           # 运行态即时挂起（O(1)）
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# sing-box 按用户发/删凭证：改 /etc/sing-box/config.json 各 inbound 的 users 后 reload。
+# 幂等：已存在且一致则不改、不 reload（避免无谓抖动）。与上面的 AWG 接口并存(双栈节点)。
+# ══════════════════════════════════════════════════════════════════════════
+import json as _json
+
+SB_CONF  = Path(os.getenv("SB_CONFIG", "/etc/sing-box/config.json"))
+_sb_lock = threading.Lock()
+
+def _sb_load() -> dict:
+    if not SB_CONF.exists():
+        raise HTTPException(status_code=501, detail="sing-box not configured on this node")
+    return _json.loads(SB_CONF.read_text())
+
+def _sb_save_reload(cfg: dict) -> None:
+    tmp = SB_CONF.with_suffix(".json.tmp")
+    tmp.write_text(_json.dumps(cfg, indent=2))
+    os.replace(tmp, SB_CONF)
+    # 优先 reload（SIGHUP，官方 unit 带 ExecReload）；失败再 restart 兜底。
+    r = subprocess.run(["systemctl", "reload", "sing-box"], capture_output=True, text=True)
+    if r.returncode != 0:
+        subprocess.run(["systemctl", "restart", "sing-box"], capture_output=True, text=True)
+
+class SingboxUserRequest(BaseModel):
+    name:         str = Field(..., pattern=r"[a-zA-Z0-9_\-]{1,64}")
+    uuid:         str = Field(..., min_length=1)   # VLESS(reality/ws 共用)
+    hy2_password: str = Field(..., min_length=1)   # Hysteria2
+
+class SingboxUserRemove(BaseModel):
+    name: str = Field(..., pattern=r"[a-zA-Z0-9_\-]{1,64}")
+
+@app.post("/singbox/user/ensure", status_code=200)
+def singbox_user_ensure(req: SingboxUserRequest, _key: str = Security(verify_api_key)):
+    """按用户把凭证写进各 inbound：vless(reality/ws)=uuid，hysteria2=password。幂等。"""
+    with _sb_lock:
+        cfg = _sb_load()
+        changed = False
+        for ib in cfg.get("inbounds", []):
+            t = ib.get("type")
+            if t not in ("vless", "trojan", "hysteria2"):
+                continue
+            users = ib.setdefault("users", [])
+            cur = next((u for u in users if u.get("name") == req.name), None)
+            if t in ("vless", "trojan"):
+                if cur is None:
+                    users.append({"name": req.name, "uuid": req.uuid}); changed = True
+                elif cur.get("uuid") != req.uuid:
+                    cur["uuid"] = req.uuid; changed = True
+            else:  # hysteria2
+                if cur is None:
+                    users.append({"name": req.name, "password": req.hy2_password}); changed = True
+                elif cur.get("password") != req.hy2_password:
+                    cur["password"] = req.hy2_password; changed = True
+        if changed:
+            _sb_save_reload(cfg)
+    return {"ok": True, "changed": changed}
+
+@app.post("/singbox/user/remove", status_code=200)
+def singbox_user_remove(req: SingboxUserRemove, _key: str = Security(verify_api_key)):
+    """从所有 inbound 移除该用户（退订/封禁）。幂等。"""
+    with _sb_lock:
+        cfg = _sb_load()
+        changed = False
+        for ib in cfg.get("inbounds", []):
+            users = ib.get("users")
+            if not isinstance(users, list):
+                continue
+            kept = [u for u in users if u.get("name") != req.name]
+            if len(kept) != len(users):
+                ib["users"] = kept; changed = True
+        if changed:
+            _sb_save_reload(cfg)
+    return {"ok": True, "changed": changed}
