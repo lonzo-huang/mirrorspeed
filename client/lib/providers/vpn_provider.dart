@@ -10,7 +10,6 @@ import '../vpn/vpn_engine.dart';
 import '../vpn/proxy_core_engine.dart';
 import '../vpn/singbox_config.dart';
 import '../utils/rule_set_assets.dart';
-import '../utils/dns_region.dart';
 import '../models/server_config.dart';
 import '../models/singbox_premium.dart';
 import '../services/api_service.dart';
@@ -479,12 +478,9 @@ class VpnProvider extends ChangeNotifier {
 
     // 智能模式：airlane-cn 规则集(域名+IP 级)优先；Apple 走扩展打包，其它平台释放到磁盘后传路径。
     // 释放失败再回退 cn_cidr(ip_cidr，仅 IP 级)。
-    // DNS 第一期：海外方案(auto 且确知境外 / 手动海外)不加 geo-cn 条件——不加载 CN 规则集，
-    // 国内外都经节点、DNS 从简(无 GFW 无需防污染)。
-    final overseas = await DnsRegionStore.effectiveOverseas();
     List<String>? cnCidrs;
     String? cnRsPath;
-    if (_routingMode == RoutingMode.smart && !overseas) {
+    if (_routingMode == RoutingMode.smart) {
       if (!(Platform.isIOS || Platform.isMacOS)) {
         cnRsPath = await RuleSetAssets.cnRuleSetPath();
       }
@@ -496,7 +492,7 @@ class VpnProvider extends ChangeNotifier {
       smart: _routingMode == RoutingMode.smart,
       includePackages: inc, excludePackages: exc,
       includeProcesses: incProc, excludeProcesses: excProc,
-      cnCidrs: cnCidrs, cnRuleSetPath: cnRsPath, overseas: overseas,
+      cnCidrs: cnCidrs, cnRuleSetPath: cnRsPath,
     );
     debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}'
         '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}'

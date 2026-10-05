@@ -43,19 +43,15 @@ class SingboxConfig {
     List<String>? excludeProcesses,  // 分应用(桌面)：这些进程直连(黑名单，process_name)
     List<String>? cnCidrs,           // 回退：中国 IP 段(assets/routes/cn_cidr.txt)，仅 IP 级
     String? cnRuleSetPath,           // 首选：airlane-cn.srs 的本地绝对路径(域名+IP 级)；非 Apple 由调用方释放后传入
-    bool overseas = false,           // 海外方案：不加 airlane-cn 的国内直连条件(无 GFW 无需防污染分流)
     bool ipv6 = false,               // 仅当系统确有可用 IPv6 时给 tun 加 v6 地址（见下）
   }) {
     // 选中节点的 outbound(强制 tag=proxy)
     final proxy = Map<String, dynamic>.from(outbound)..['tag'] = 'proxy';
 
     // airlane-cn 规则集(域名+IP 级 CN 直连，三端统一)：Apple 走扩展占位符，其它平台用调用方
-    // 释放到磁盘后传入的绝对路径。海外方案(overseas)一律不启用——国内外都经节点。
-    final bool useCnRuleSet = !overseas &&
-        (_kIsApple || (cnRuleSetPath != null && cnRuleSetPath.isNotEmpty));
-    final String? cnRsPath = !useCnRuleSet
-        ? null
-        : (_kIsApple ? '$_kRuleSetDir/airlane-cn.srs' : cnRuleSetPath);
+    // 释放到磁盘后传入的绝对路径；两者都没有则回退 cnCidrs(ip_cidr，仅 IP 级)。
+    final String? cnRsPath = _kIsApple ? '$_kRuleSetDir/airlane-cn.srs' : cnRuleSetPath;
+    final bool useCnRuleSet = cnRsPath != null && cnRsPath.isNotEmpty;
 
     final hasWhiteProc = includeProcesses != null && includeProcesses.isNotEmpty;
     final hasBlackProc = excludeProcesses != null && excludeProcesses.isNotEmpty;

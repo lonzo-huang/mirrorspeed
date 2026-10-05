@@ -7,7 +7,6 @@ import '../services/free_node_service.dart';
 import '../vpn/proxy_core_engine.dart';
 import '../vpn/singbox_config.dart';
 import '../utils/rule_set_assets.dart';
-import '../utils/dns_region.dart';
 import '../vpn/vpn_engine.dart';
 import '../services/app_proxy_store.dart';
 
@@ -376,17 +375,15 @@ class SharedNodeProvider extends ChangeNotifier {
       // sing-box FATAL、整个隧道起不来（企业 Windows 常见）。桌面探测，Android 保持纯 IPv4。
       final ipv6 = await _hasGlobalIpv6();
       // airlane-cn 规则集(域名+IP 级 CN 直连)：Apple 走扩展打包，其它平台释放到磁盘后传路径。
-      // DNS 第一期：海外方案(auto 且确知境外 / 手动海外)不加 geo-cn 条件。
-      final overseas = await DnsRegionStore.effectiveOverseas();
       final smartFlag = await _appleSmartRouting();
       String? cnRsPath;
-      if (smartFlag && !overseas && !(Platform.isIOS || Platform.isMacOS)) {
+      if (smartFlag && !(Platform.isIOS || Platform.isMacOS)) {
         cnRsPath = await RuleSetAssets.cnRuleSetPath();
       }
       final cfg = SingboxConfig.build(node.outbound, smart: smartFlag,
           includePackages: inc, excludePackages: exc,
           includeProcesses: incProc, excludeProcesses: excProc,
-          cnRuleSetPath: cnRsPath, overseas: overseas,
+          cnRuleSetPath: cnRsPath,
           ipv6: ipv6);
       await _engine.start(EngineStartParams(singboxConfig: cfg));
     } catch (e) {
