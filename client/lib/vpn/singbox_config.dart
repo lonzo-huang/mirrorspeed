@@ -58,10 +58,12 @@ class SingboxConfig {
 
     final route = <String, dynamic>{
       'auto_detect_interface': true,
-      // 节点服务器域名用【系统 DNS】解析(bootstrap)，避免"要连节点先解析域名、解析域名又要
-      // 先连上节点"的死锁。改用 system(设备自身 DNS)而非固定 223.5.5.5 —— 后者在境外(如欧洲)
-      // 访问阿里 DNS 常要等数秒，是"点连接后 4-5 秒才连上"的元凶；system 全球都快且必达。
-      'default_domain_resolver': 'system',
+      // 节点服务器域名用【local=223.5.5.5 直连】解析(bootstrap)，避免"要连节点先解析域名、
+      // 解析域名又要先连上节点"的死锁。
+      // 【切勿用 'system'】sing-box 的 system/address:'local' 在安卓 libbox 上会去查
+      // 127.0.0.1:53 / [::1]:53(无人监听)→ connection refused → 节点域名永远解析不了 →
+      // 代理拨不通 → "已连接却上不了网"。223.5.5.5 全球可达(境外略慢但必成)。
+      'default_domain_resolver': 'local',
       'final': adOnly ? 'direct' : 'proxy',
       'rules': <Map<String, dynamic>>[
         // 域名嗅探(sing-box 1.12+ 用 route action，不再放 inbound)
@@ -119,8 +121,7 @@ class SingboxConfig {
     return {
       'log': logPath != null
           ? {'level': 'debug', 'output': logPath, 'timestamp': true}
-          // 临时诊断：开 debug 级，libbox 内部日志经 writeDebugMessage 进 logcat(singbox 标签)。
-          : {'level': 'debug', 'timestamp': true},
+          : {'level': 'warn', 'timestamp': true},
       'dns': {
         'servers': [
           // 代理侧解析：用 TCP plain DNS(而非 DoH)——坏节点常对 DoH 回 403/证书错，

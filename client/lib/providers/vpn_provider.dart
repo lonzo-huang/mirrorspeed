@@ -487,20 +487,12 @@ class VpnProvider extends ChangeNotifier {
       cnCidrs = await _loadCnCidrs();
     }
 
-    // 临时诊断：把 sing-box debug 日志写到外部可 adb pull 的文件(app 专属外部目录)。
-    String? logPath;
-    try {
-      final d = await getExternalStorageDirectory();   // /sdcard/Android/data/<pkg>/files
-      if (d != null) logPath = '${d.path}/singbox.log';
-    } catch (_) {}
-
     final cfg = SingboxConfig.build(
       outbound,
       smart: _routingMode == RoutingMode.smart,
       includePackages: inc, excludePackages: exc,
       includeProcesses: incProc, excludeProcesses: excProc,
       cnCidrs: cnCidrs, cnRuleSetPath: cnRsPath,
-      logPath: logPath,
     );
     debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}'
         '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}'
