@@ -8,6 +8,7 @@ import 'sub_page.dart';
 import 'invite_screen.dart';
 import 'app_proxy_screen.dart';
 import '../services/app_proxy_store.dart';
+import '../utils/dns_region.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -21,7 +22,7 @@ class SettingsScreen extends StatelessWidget {
         child: Column(children: [
           _group(tr('协议', 'Protocol'), [
             _row(tr('协议', 'Protocol'), 'MirrorTunnel V1.0', locked: true),
-            _row('DNS', tr('智能 DNS', 'Smart DNS'), locked: true),
+            const DnsRegionRow(),
             _row('IPv6', tr('已保护', 'Protected'), locked: true),
           ]),
           _group(tr('安全', 'Security'), [
@@ -85,6 +86,84 @@ class SettingsScreen extends StatelessWidget {
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: msNow.textSecondary.withOpacity(0.04)))),
       child: Row(children: [
         Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
+        Icon(Icons.chevron_right_rounded, size: 18, color: msNow.textSecondary.withOpacity(0.35)),
+      ]),
+    ),
+  );
+}
+
+/// DNS 方案选择行（第一期）：自动 / 中国大陆 / 海外。点开底部选择，存 DnsRegionStore。
+class DnsRegionRow extends StatefulWidget {
+  const DnsRegionRow({super.key});
+  @override
+  State<DnsRegionRow> createState() => _DnsRegionRowState();
+}
+
+class _DnsRegionRowState extends State<DnsRegionRow> {
+  DnsRegion _r = DnsRegion.auto;
+
+  @override
+  void initState() { super.initState(); _load(); }
+  Future<void> _load() async {
+    final r = await DnsRegionStore.load();
+    if (mounted) setState(() => _r = r);
+  }
+
+  String _label(DnsRegion r) {
+    switch (r) {
+      case DnsRegion.auto:     return tr('自动', 'Auto');
+      case DnsRegion.china:    return tr('中国大陆', 'China');
+      case DnsRegion.overseas: return tr('海外', 'Overseas');
+    }
+  }
+  String _desc(DnsRegion r) {
+    switch (r) {
+      case DnsRegion.auto:     return tr('按当前网络环境自动选择', 'Auto by network');
+      case DnsRegion.china:    return tr('国内直连 + 防污染分流', 'CN direct + anti-pollution');
+      case DnsRegion.overseas: return tr('全部经节点，不做国内分流', 'All via node');
+    }
+  }
+
+  Future<void> _choose() async {
+    final sel = await showModalBottomSheet<DnsRegion>(
+      context: context,
+      backgroundColor: msNow.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Align(alignment: Alignment.centerLeft,
+            child: Text(tr('DNS 方案', 'DNS scheme'),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)))),
+        for (final r in DnsRegion.values)
+          ListTile(
+            title: Text(_label(r)),
+            subtitle: Text(_desc(r), style: const TextStyle(fontSize: 11)),
+            trailing: _r == r ? Icon(Icons.check_rounded, color: msNow.accentOn) : null,
+            onTap: () => Navigator.pop(ctx, r),
+          ),
+        const SizedBox(height: 8),
+      ])),
+    );
+    if (sel != null) {
+      await DnsRegionStore.save(sel);
+      if (mounted) setState(() => _r = sel);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: _choose,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: msNow.textSecondary.withOpacity(0.04)))),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(tr('DNS 方案', 'DNS scheme'), style: const TextStyle(fontSize: 14)),
+          Padding(padding: const EdgeInsets.only(top: 2),
+            child: Text(_desc(_r), style: TextStyle(fontSize: 11, color: msNow.textSecondary.withOpacity(0.4)))),
+        ])),
+        Text(_label(_r), style: TextStyle(fontSize: 12, color: msNow.textSecondary.withOpacity(0.5))),
         Icon(Icons.chevron_right_rounded, size: 18, color: msNow.textSecondary.withOpacity(0.35)),
       ]),
     ),
