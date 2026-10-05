@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
 import '../models/free_node.dart';
 import '../services/free_node_service.dart';
 import '../vpn/proxy_core_engine.dart';
@@ -140,9 +139,12 @@ class SharedNodeProvider extends ChangeNotifier {
       if (_abort) break;
       _tryingName = cand.name; notifyListeners();
       await connect(cand);
-      final up = await _waitStage(VpnStage.connected, const Duration(seconds: 9));
+      // 尽力等 stage(两 provider 共用原生服务,EventChannel 单监听,事件可能被另一条抢走),
+      // 但最终以 egress 探测为准：探测通过=隧道确实在工作,显式置 connected(修 UI 卡"连接中")。
+      await _waitStage(VpnStage.connected, const Duration(seconds: 6));
       if (_abort) break;
-      if (up && await _probeEgress()) {
+      if (await _probeEgress()) {
+        _stage = VpnStage.connected;
         _autoTrying = false; _tryingName = null; notifyListeners();
         return;   // 找到能用的
       }
@@ -252,9 +254,14 @@ class SharedNodeProvider extends ChangeNotifier {
     _abort = false;
     _error = null; notifyListeners();
     await connect(node);
-    final up = await _waitStage(VpnStage.connected, const Duration(seconds: 9));
+    // 尽力等 stage,但最终以 egress 探测为准：两 provider 共用原生服务,EventChannel 单监听,
+    // 另一条引擎(优质)连过后会抢走 stage 事件 sink,免费收不到 'connected' → UI 卡"连接中";
+    // 隧道其实在工作。故探测通过就显式置 connected,不再依赖那条会被抢走的事件流。
+    final up = await _waitStage(VpnStage.connected, const Duration(seconds: 6));
     if (_abort) return false;   // 用户中途断开
-    if (up && await _probeEgress()) {
+    if (await _probeEgress()) {
+      _stage = VpnStage.connected;
+      _startSpeedPolling();
       _error = null; notifyListeners();
       return true;   // 连上且真能翻墙
     }
@@ -381,17 +388,10 @@ class SharedNodeProvider extends ChangeNotifier {
       if (smartFlag && !(Platform.isIOS || Platform.isMacOS)) {
         cnRsPath = await RuleSetAssets.cnRuleSetPath();
       }
-      // 临时诊断(v17)：免费节点 sing-box debug 日志写到外部可 adb pull 的文件。
-      String? logPath;
-      try {
-        final d = await getExternalStorageDirectory();
-        if (d != null) logPath = '${d.path}/singbox-free.log';
-      } catch (_) {}
       final cfg = SingboxConfig.build(node.outbound, smart: smartFlag,
           includePackages: inc, excludePackages: exc,
           includeProcesses: incProc, excludeProcesses: excProc,
           cnRuleSetPath: cnRsPath,
-          logPath: logPath,
           ipv6: ipv6);
       await _engine.start(EngineStartParams(singboxConfig: cfg));
     } catch (e) {
