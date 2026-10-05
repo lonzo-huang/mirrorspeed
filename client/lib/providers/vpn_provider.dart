@@ -68,6 +68,8 @@ class VpnProvider extends ChangeNotifier {
   Timer?        _timer;
   Timer?        _fallbackTimer;
   Stopwatch?    _connectSw;   // 连接耗时诊断(从点连接到引擎 start 返回)
+  int?          lastEngineStartMs;   // 点连接→原生引擎 start 返回(Dart 侧耗时)
+  int?          lastConnectedMs;     // 点连接→真正显示已连接(含原生 libbox 起隧道)
   StreamSubscription<VpnStage>? _stageSub;
 
   VpnProtocol        _protocol         = VpnProtocol.direct;
@@ -301,6 +303,9 @@ class VpnProvider extends ChangeNotifier {
         if (_userInitiatedDisconnect) break;  // 用户已断开，忽略迟到的 connected
         // sing-box 引擎上报 connected → 直接置已连接（sing-box 自己做连通性保障）。
         _fallbackTimer?.cancel();
+        if (_connectSw != null && lastConnectedMs == null) {
+          lastConnectedMs = _connectSw!.elapsedMilliseconds;
+        }
         _status = VpnStatus.connected;
         _startDiagPolling();
       case VpnStage.connecting:
@@ -360,6 +365,8 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
 
     _connectSw = Stopwatch()..start();
+    lastEngineStartMs = null;
+    lastConnectedMs = null;
     try {
       // 0. 按需建 peer：确保该节点服务器上已添加本设备（on-demand provisioning）。
       //    【提速】不再 await 阻塞连接 —— 往返 Vercel 再调节点 vpn-api 要数秒，而节点列表
@@ -480,7 +487,8 @@ class VpnProvider extends ChangeNotifier {
         '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}'
         '，配置就绪耗时=${_connectSw?.elapsedMilliseconds}ms');
     await _engine.start(EngineStartParams(singboxConfig: cfg));
-    debugPrint('[VPN] sing-box 引擎 start 返回，总耗时=${_connectSw?.elapsedMilliseconds}ms');
+    lastEngineStartMs = _connectSw?.elapsedMilliseconds;
+    debugPrint('[VPN] sing-box 引擎 start 返回，总耗时=${lastEngineStartMs}ms');
 
     if (!_userInitiatedDisconnect && _status == VpnStatus.connecting) {
       _status = VpnStatus.connected;

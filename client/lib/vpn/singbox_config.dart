@@ -58,9 +58,10 @@ class SingboxConfig {
 
     final route = <String, dynamic>{
       'auto_detect_interface': true,
-      // 节点服务器域名用本地直连 DNS 解析(bootstrap)，避免"要连节点先解析域名、
-      // 解析域名又要先连上节点"的死锁。
-      'default_domain_resolver': 'local',
+      // 节点服务器域名用【系统 DNS】解析(bootstrap)，避免"要连节点先解析域名、解析域名又要
+      // 先连上节点"的死锁。改用 system(设备自身 DNS)而非固定 223.5.5.5 —— 后者在境外(如欧洲)
+      // 访问阿里 DNS 常要等数秒，是"点连接后 4-5 秒才连上"的元凶；system 全球都快且必达。
+      'default_domain_resolver': 'system',
       'final': adOnly ? 'direct' : 'proxy',
       'rules': <Map<String, dynamic>>[
         // 域名嗅探(sing-box 1.12+ 用 route action，不再放 inbound)

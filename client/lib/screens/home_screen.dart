@@ -97,6 +97,7 @@ class HomeScreen extends StatelessWidget {
            : connecting ? tr('正 在 建 立 安 全 隧 道', 'ESTABLISHING SECURE TUNNEL')
            : tr('未 连 接', 'DISCONNECTED'))
         : (vpn.isConnected ? '${tr('已连接', 'Connected')} · ${vpn.statusLine}'
+              '${vpn.lastConnectedMs != null ? ' · ⏱${(vpn.lastConnectedMs! / 1000).toStringAsFixed(1)}s(start ${vpn.lastEngineStartMs ?? '-'}ms)' : ''}'
            : disconnecting ? tr('断 开 中', 'DISCONNECTING')
            : connecting ? tr('正 在 建 立 安 全 隧 道', 'ESTABLISHING SECURE TUNNEL')
            : tr('未 连 接', 'DISCONNECTED'));
