@@ -119,7 +119,8 @@ class SingboxConfig {
     return {
       'log': logPath != null
           ? {'level': 'debug', 'output': logPath, 'timestamp': true}
-          : {'level': 'warn', 'timestamp': true},
+          // 临时诊断：开 debug 级，libbox 内部日志经 writeDebugMessage 进 logcat(singbox 标签)。
+          : {'level': 'debug', 'timestamp': true},
       'dns': {
         'servers': [
           // 代理侧解析：用 TCP plain DNS(而非 DoH)——坏节点常对 DoH 回 403/证书错，
