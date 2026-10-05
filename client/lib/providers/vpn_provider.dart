@@ -72,6 +72,7 @@ class VpnProvider extends ChangeNotifier {
   int?          lastConnectedMs;     // 点连接→真正显示已连接(含原生 libbox 起隧道)
   int?          lastPreConnectMs;    // 点击节点→connect() 进入(导航/预处理耗时)
   int?          lastUsableMs;        // 点连接→首次探测真正能上网
+  String?       lastNativeDiag;      // 原生起隧道分步计时(setup/check/cmd/reload)
   DateTime?     _tapAt;              // 用户点击连接的时刻(UI 层标记)
   /// UI 在点击连接的最开始调用，用于测「点击→connect() 进入」这段(导航等)的耗时。
   void markTap() { _tapAt = DateTime.now(); }
@@ -311,6 +312,7 @@ class VpnProvider extends ChangeNotifier {
         if (_connectSw != null && lastConnectedMs == null) {
           lastConnectedMs = _connectSw!.elapsedMilliseconds;
         }
+        lastNativeDiag = ProxyCoreEngine.lastConnectedDiag;
         _status = VpnStatus.connected;
         _startDiagPolling();
       case VpnStage.connecting:

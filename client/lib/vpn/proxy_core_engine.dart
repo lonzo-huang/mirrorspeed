@@ -71,8 +71,14 @@ class ProxyCoreEngine implements VpnEngine {
 
   VpnStage _mapStage(dynamic e) => _mapStageName('$e');
 
+  /// 原生随 "connected setup=.. check=.. cmd=.. reload=.." 上报的起隧道分步计时(诊断用)。
+  static String? lastConnectedDiag;
+
   VpnStage _mapStageName(String s) {
-    switch (s) {
+    final sp = s.indexOf(' ');
+    final head = sp >= 0 ? s.substring(0, sp) : s;
+    if (head == 'connected' && sp >= 0) lastConnectedDiag = s.substring(sp + 1);
+    switch (head) {
       case 'connecting':    return VpnStage.connecting;
       case 'connected':     return VpnStage.connected;
       case 'disconnecting': return VpnStage.disconnecting;

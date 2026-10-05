@@ -112,6 +112,7 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
         setStage("connecting")
         startForeground(NOTI_ID, buildNotification())
         try {
+            val t0 = System.currentTimeMillis()
             if (!didSetup) {
                 val base = filesDir.absolutePath
                 Libbox.setup(SetupOptions().apply {
@@ -122,13 +123,18 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
                 })
                 didSetup = true
             }
+            val tSetup = System.currentTimeMillis()
             // 先校验配置，schema/字段错误在这里就能拿到明确报错
             Libbox.checkConfig(config)
+            val tCheck = System.currentTimeMillis()
             val srv = CommandServer(this, this)
             srv.start()
+            val tCmd = System.currentTimeMillis()
             srv.startOrReloadService(config, OverrideOptions())
+            val tReload = System.currentTimeMillis()
             server = srv
-            setStage("connected")
+            // 分步计时随 connected 一起上报(Dart 解析显示),定位起隧道 6.5s 卡在哪步。
+            setStage("connected setup=${tSetup - t0} check=${tCheck - tSetup} cmd=${tCmd - tCheck} reload=${tReload - tCmd}")
         } catch (e: Exception) {
             android.util.Log.e("singbox", "start failed", e)
             try {
