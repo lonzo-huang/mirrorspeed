@@ -380,14 +380,14 @@ class VpnProvider extends ChangeNotifier {
 
     try {
       // 0. 按需建 peer：确保该节点服务器上已添加本设备（on-demand provisioning）。
-      //    【提速】不再 await 阻塞连接 —— 往返 Vercel 再调节点 vpn-api 要数秒，而节点列表
-      //    打开时已预热 provision 过(server_list_screen)，这里绝大多数是冗余的。改为后台
-      //    触发：隧道立即起；幂等保证即使没预热过，sing-box 首次握手重试一拍也能连上。
-      //    结果仍记入 _lastEnsurePeerOk 供诊断("握手成功但数据全被丢"= peer 没配好)。
+      //    【必须 await】首连/重装后设备是新的 sb_uuid，若不等它下发到节点就起隧道，
+      //    节点不认识该 UUID → 隧道起来但 unknown UUID → "显示已连接却上不了网"。
+      //    只花 1-2 秒(往返 Vercel 再调节点 vpn-api);真正的 6 秒卡顿是 teardown 空等,已单独修。
+      //    幂等：已下发过则很快返回。失败也继续(best-effort),结果记入 _lastEnsurePeerOk 供诊断。
       if (!server.isDisplayOnly) {
-        ApiService.instance.ensurePeer(serverIds: [server.id])
-            .then((ok) { _lastEnsurePeerOk = ok; })
-            .catchError((_) { _lastEnsurePeerOk = false; });
+        try {
+          _lastEnsurePeerOk = await ApiService.instance.ensurePeer(serverIds: [server.id]);
+        } catch (_) { _lastEnsurePeerOk = false; }
       }
 
       // 纯 sing-box 客户端：优质节点必须已开通 sing-box（后端下发 singbox 块）。
