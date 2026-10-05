@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../vpn/vpn_engine.dart';
 import '../vpn/proxy_core_engine.dart';
 import '../vpn/singbox_config.dart';
+import '../utils/rule_set_assets.dart';
 import '../models/server_config.dart';
 import '../models/singbox_premium.dart';
 import '../services/api_service.dart';
@@ -457,16 +458,23 @@ class VpnProvider extends ChangeNotifier {
       }
     }
 
-    // 智能模式加载中国 IP 段(ip_cidr 直连)，非 Apple 用（Apple 走打包的 .srs rule_set）。
+    // 智能模式：airlane-cn 规则集(域名+IP 级)优先；Apple 走扩展打包，其它平台释放到磁盘后传路径。
+    // 释放失败再回退 cn_cidr(ip_cidr，仅 IP 级)。
     List<String>? cnCidrs;
-    if (_routingMode == RoutingMode.smart) cnCidrs = await _loadCnCidrs();
+    String? cnRsPath;
+    if (_routingMode == RoutingMode.smart) {
+      if (!(Platform.isIOS || Platform.isMacOS)) {
+        cnRsPath = await RuleSetAssets.cnRuleSetPath();
+      }
+      cnCidrs = await _loadCnCidrs();
+    }
 
     final cfg = SingboxConfig.build(
       outbound,
       smart: _routingMode == RoutingMode.smart,
       includePackages: inc, excludePackages: exc,
       includeProcesses: incProc, excludeProcesses: excProc,
-      cnCidrs: cnCidrs,
+      cnCidrs: cnCidrs, cnRuleSetPath: cnRsPath,
     );
     debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}'
         '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}'

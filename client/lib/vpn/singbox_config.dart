@@ -41,11 +41,17 @@ class SingboxConfig {
     List<String>? excludePackages,   // 分应用(Android)：这些 App 绕过隧道(黑名单)
     List<String>? includeProcesses,  // 分应用(桌面)：只有这些进程走代理(白名单，process_name)
     List<String>? excludeProcesses,  // 分应用(桌面)：这些进程直连(黑名单，process_name)
-    List<String>? cnCidrs,           // 中国 IP 段(assets/routes/cn_cidr.txt)：非 Apple 智能模式直连用
+    List<String>? cnCidrs,           // 回退：中国 IP 段(assets/routes/cn_cidr.txt)，仅 IP 级
+    String? cnRuleSetPath,           // 首选：airlane-cn.srs 的本地绝对路径(域名+IP 级)；非 Apple 由调用方释放后传入
     bool ipv6 = false,               // 仅当系统确有可用 IPv6 时给 tun 加 v6 地址（见下）
   }) {
     // 选中节点的 outbound(强制 tag=proxy)
     final proxy = Map<String, dynamic>.from(outbound)..['tag'] = 'proxy';
+
+    // airlane-cn 规则集(域名+IP 级 CN 直连，三端统一)：Apple 走扩展占位符，其它平台用调用方
+    // 释放到磁盘后传入的绝对路径；两者都没有则回退 cnCidrs(ip_cidr，仅 IP 级)。
+    final String? cnRsPath = _kIsApple ? '$_kRuleSetDir/airlane-cn.srs' : cnRuleSetPath;
+    final bool useCnRuleSet = cnRsPath != null && cnRsPath.isNotEmpty;
 
     final hasWhiteProc = includeProcesses != null && includeProcesses.isNotEmpty;
     final hasBlackProc = excludeProcesses != null && excludeProcesses.isNotEmpty;
@@ -89,17 +95,12 @@ class SingboxConfig {
       // 桌面白名单：仅名单内进程走代理，其余一律直连（覆盖 smart/global 的 final）。
       route['rules'].add({'process_name': includeProcesses, 'outbound': 'proxy'});
       route['final'] = 'direct';
-    } else if (smart && _kIsApple) {
-      // Apple 智能模式：geosite-cn(域名) + geoip-cn(IP) 直连，其余走代理。
-      // 1.13 已移除 geoip/geosite 字段，必须用 rule_set；规则集随扩展打包（离线可用）。
-      route['rules'].add({
-        'rule_set': ['geosite-cn', 'geoip-cn'],
-        'outbound': 'direct',
-      });
+    } else if (smart && useCnRuleSet) {
+      // 智能模式：airlane-cn 规则集(域名+IP 级)直连国内，其余走代理。三端统一。
+      route['rules'].add({'rule_set': ['airlane-cn'], 'outbound': 'direct'});
       route['final'] = 'proxy';
     } else if (smart) {
-      // 非 Apple 智能模式：geoip 数据库在 sing-box 1.12 已移除，改用本地 cn_cidr 列表
-      // (ip_cidr)直连中国 IP，其余走代理。cn_cidr 由调用方从 assets 加载后传入。
+      // 回退：拿不到 airlane-cn 路径(释放失败)时，用本地 cn_cidr 列表(ip_cidr，仅 IP 级)直连。
       if (cnCidrs != null && cnCidrs.isNotEmpty) {
         route['rules'].add({'ip_cidr': cnCidrs, 'outbound': 'direct'});
       }
@@ -107,13 +108,10 @@ class SingboxConfig {
     }
     // 全局模式:除上面的 dns/私网规则外,final=proxy 全走代理
 
-    // 本地规则集声明（仅 Apple 智能模式用到；其它情况不写，避免多余的文件依赖）
-    if (smart && _kIsApple && !adOnly && !hasWhiteProc) {
+    // 本地规则集声明（智能模式且拿到 airlane-cn 路径时；其它情况不写，避免多余文件依赖）。
+    if (smart && useCnRuleSet && !adOnly && !hasWhiteProc) {
       route['rule_set'] = [
-        {'type': 'local', 'tag': 'geosite-cn', 'format': 'binary',
-         'path': '$_kRuleSetDir/geosite-cn.srs'},
-        {'type': 'local', 'tag': 'geoip-cn', 'format': 'binary',
-         'path': '$_kRuleSetDir/geoip-cn.srs'},
+        {'type': 'local', 'tag': 'airlane-cn', 'format': 'binary', 'path': cnRsPath},
       ];
     }
 
@@ -132,9 +130,9 @@ class SingboxConfig {
           {'tag': 'system', 'address': 'local',     'detour': 'direct'},
         ],
         'rules': [
-          // geoip 数据库已移除：仅 Apple(有 .srs rule_set)用 geoip-cn 把国内域名解析走本地
-          // DNS。非 Apple 不加此规则，国内域名经代理 DNS 解析(略慢但可用)。
-          if (smart && !adOnly && _kIsApple) {'rule_set': 'geoip-cn', 'server': 'local'},
+          // 智能模式且有 airlane-cn 规则集时，国内域名走本地 DNS 解析（避免经代理 DNS 绕路）。
+          // 回退(无 rule_set)时不加此规则，国内域名经代理 DNS 解析(略慢但可用)。
+          if (smart && !adOnly && useCnRuleSet) {'rule_set': 'airlane-cn', 'server': 'local'},
         ],
         'final': adOnly ? 'local' : 'remote',
         'strategy': 'ipv4_only',

@@ -6,6 +6,7 @@ import '../models/free_node.dart';
 import '../services/free_node_service.dart';
 import '../vpn/proxy_core_engine.dart';
 import '../vpn/singbox_config.dart';
+import '../utils/rule_set_assets.dart';
 import '../vpn/vpn_engine.dart';
 import '../services/app_proxy_store.dart';
 
@@ -373,9 +374,16 @@ class SharedNodeProvider extends ChangeNotifier {
       // 仅当系统确有可用 IPv6 时才给 tun 加 v6 地址：IPv6 被禁用的机器上设 v6 地址会让
       // sing-box FATAL、整个隧道起不来（企业 Windows 常见）。桌面探测，Android 保持纯 IPv4。
       final ipv6 = await _hasGlobalIpv6();
-      final cfg = SingboxConfig.build(node.outbound, smart: await _appleSmartRouting(),
+      // airlane-cn 规则集(域名+IP 级 CN 直连)：Apple 走扩展打包，其它平台释放到磁盘后传路径。
+      final smartFlag = await _appleSmartRouting();
+      String? cnRsPath;
+      if (smartFlag && !(Platform.isIOS || Platform.isMacOS)) {
+        cnRsPath = await RuleSetAssets.cnRuleSetPath();
+      }
+      final cfg = SingboxConfig.build(node.outbound, smart: smartFlag,
           includePackages: inc, excludePackages: exc,
           includeProcesses: incProc, excludeProcesses: excProc,
+          cnRuleSetPath: cnRsPath,
           ipv6: ipv6);
       await _engine.start(EngineStartParams(singboxConfig: cfg));
     } catch (e) {

@@ -31,8 +31,9 @@ EXTENSIONS = [
     bundle_suffix: 'PacketTunnel',
     sources: ['PacketTunnelProvider.swift', 'SingboxPlatform.swift', '../Shared/TunnelLog.swift'],
     xcframework: 'Libbox.xcframework',
-    # geoip-cn / geosite-cn 规则集随扩展打包（智能分流用，离线可用）
-    resources: ['../RuleSets/geoip-cn.srs', '../RuleSets/geosite-cn.srs'],
+    # 规则集随扩展打包（智能分流用，离线可用）。airlane-cn 为当前统一规则集(域名+IP 级)；
+    # geoip-cn/geosite-cn 保留兼容旧配置，可后续移除。
+    resources: ['../RuleSets/airlane-cn.srs', '../RuleSets/geoip-cn.srs', '../RuleSets/geosite-cn.srs'],
     frameworks: ['SystemConfiguration'],
     # iOS 版 libbox 含 Chromium(naive 出站)代码，引用 UIApplication 后台任务符号。
     ios_frameworks: ['UIKit'],
