@@ -426,6 +426,13 @@ class SharedNodeProvider extends ChangeNotifier {
   /// 拆除当前隧道并把状态确定性地带到 disconnected。connectSmart 换节点时内部复用
   /// （不置 _abort，故不会打断自身循环）。
   Future<void> _teardown() async {
+    // 本来就没有活动隧道(stage 已 disconnected)：无需拆除。更关键——绝不能进下面那段
+    // 空等 disconnected 事件的循环：没有服务在跑就不会有原生 onDestroy 广播,会白等满 6 秒。
+    // 这正是"点连接前先断开"在未连接时也卡 6 秒(优质 conn 6.5s / 免费先断开中再失败)的根因。
+    if (_stage == VpnStage.disconnected) {
+      _active = null;
+      return;
+    }
     // 立即反映「断开中」，避免拆除等待期间点了没反应。
     _stage = VpnStage.disconnecting;
     notifyListeners();
