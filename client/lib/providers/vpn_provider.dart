@@ -554,6 +554,15 @@ class VpnProvider extends ChangeNotifier {
   // ── 断开 ────────────────────────────────────────────────────
   Future<void> disconnect() async {
     _userInitiatedDisconnect = true;  // 手动断开即断开，禁止任何自动回退（#4）
+    // 【修复免费节点被误拆】本 App 只有一条原生 sing-box 服务,优质/免费两 provider 共用它。
+    // 连免费时会调 onNeedStopOther=_vpn.disconnect() 停优质;若优质本就没在跑,这里绝不能再
+    // 发原生 stop —— 否则 stopBox(后台线程)可能在免费 START 之后才执行,把免费刚建好的 tun
+    // 关掉 → "write tun: I/O error" → 免费 egress 探测失败、判定连不上。与 _teardown 的守卫对称。
+    if (_status == VpnStatus.disconnected && !_switchingToRelay) {
+      _fallbackTimer?.cancel();
+      notifyListeners();
+      return;
+    }
     // 先把会卡住的计时器停掉（不要 await 任何原生调用，否则若平台调用挂起会卡死断开）。
     _fallbackTimer?.cancel();
     _usageTimer?.cancel();

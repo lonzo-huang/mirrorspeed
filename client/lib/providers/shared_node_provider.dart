@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
 import '../models/free_node.dart';
 import '../services/free_node_service.dart';
 import '../vpn/proxy_core_engine.dart';
@@ -381,17 +380,10 @@ class SharedNodeProvider extends ChangeNotifier {
       if (smartFlag && !(Platform.isIOS || Platform.isMacOS)) {
         cnRsPath = await RuleSetAssets.cnRuleSetPath();
       }
-      // 临时诊断：免费节点 sing-box debug 日志写到外部可 adb pull 的文件。
-      String? logPath;
-      try {
-        final d = await getExternalStorageDirectory();
-        if (d != null) logPath = '${d.path}/singbox-free.log';
-      } catch (_) {}
       final cfg = SingboxConfig.build(node.outbound, smart: smartFlag,
           includePackages: inc, excludePackages: exc,
           includeProcesses: incProc, excludeProcesses: excProc,
           cnRuleSetPath: cnRsPath,
-          logPath: logPath,
           ipv6: ipv6);
       await _engine.start(EngineStartParams(singboxConfig: cfg));
     } catch (e) {
