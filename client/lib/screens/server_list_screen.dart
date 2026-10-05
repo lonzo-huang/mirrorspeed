@@ -277,6 +277,7 @@ class _ServerListScreenState extends State<ServerListScreen> {
                   server:   server,
                   isActive: !vpn.autoSelect && vpn.activeServer?.id == server.id,
                   onTap: () async {
+                    vpn.markTap();   // 诊断：标记点击时刻(含下面的导航/setAutoSelect 耗时)
                     // 未登录或仅展示节点：连接前先登录（#1）
                     if (!auth.isLoggedIn || server.isDisplayOnly) {
                       context.go('/login');

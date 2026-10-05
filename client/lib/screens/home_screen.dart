@@ -77,6 +77,7 @@ class HomeScreen extends StatelessWidget {
         }
         return;
       }
+      vpn.markTap();   // 诊断：标记点击时刻，measure 点击→connect() 的导航/预处理耗时
       if (vpn.isConnected) {
         await vpn.disconnect();
       } else if (!auth.isLoggedIn) {
@@ -97,7 +98,7 @@ class HomeScreen extends StatelessWidget {
            : connecting ? tr('正 在 建 立 安 全 隧 道', 'ESTABLISHING SECURE TUNNEL')
            : tr('未 连 接', 'DISCONNECTED'))
         : (vpn.isConnected ? '${tr('已连接', 'Connected')} · ${vpn.statusLine}'
-              '${vpn.lastConnectedMs != null ? ' · ⏱${(vpn.lastConnectedMs! / 1000).toStringAsFixed(1)}s(start ${vpn.lastEngineStartMs ?? '-'}ms)' : ''}'
+              ' · ⏱pre${vpn.lastPreConnectMs ?? '-'} conn${vpn.lastConnectedMs ?? '-'} net${vpn.lastUsableMs ?? '…'}ms'
            : disconnecting ? tr('断 开 中', 'DISCONNECTING')
            : connecting ? tr('正 在 建 立 安 全 隧 道', 'ESTABLISHING SECURE TUNNEL')
            : tr('未 连 接', 'DISCONNECTED'));

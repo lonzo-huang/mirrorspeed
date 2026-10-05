@@ -70,6 +70,11 @@ class VpnProvider extends ChangeNotifier {
   Stopwatch?    _connectSw;   // 连接耗时诊断(从点连接到引擎 start 返回)
   int?          lastEngineStartMs;   // 点连接→原生引擎 start 返回(Dart 侧耗时)
   int?          lastConnectedMs;     // 点连接→真正显示已连接(含原生 libbox 起隧道)
+  int?          lastPreConnectMs;    // 点击节点→connect() 进入(导航/预处理耗时)
+  int?          lastUsableMs;        // 点连接→首次探测真正能上网
+  DateTime?     _tapAt;              // 用户点击连接的时刻(UI 层标记)
+  /// UI 在点击连接的最开始调用，用于测「点击→connect() 进入」这段(导航等)的耗时。
+  void markTap() { _tapAt = DateTime.now(); }
   StreamSubscription<VpnStage>? _stageSub;
 
   VpnProtocol        _protocol         = VpnProtocol.direct;
@@ -342,6 +347,9 @@ class VpnProvider extends ChangeNotifier {
     _connectSw = Stopwatch()..start();
     lastEngineStartMs = null;
     lastConnectedMs = null;
+    lastUsableMs = null;
+    lastPreConnectMs = _tapAt != null ? DateTime.now().difference(_tapAt!).inMilliseconds : null;
+    _tapAt = null;
     // 免费时长已用尽：禁止任何新连接（不管从主页还是节点列表点的）。#1
     if (quotaExceeded) {
       _trialExceeded = true;   // 同步缓存标志
@@ -494,6 +502,22 @@ class VpnProvider extends ChangeNotifier {
     if (!_userInitiatedDisconnect && _status == VpnStatus.connecting) {
       _status = VpnStatus.connected;
       notifyListeners();
+    }
+    _measureUsable();   // 打点：隧道起来后多久能真正通网(不阻塞)
+  }
+
+  /// 诊断：从点连接到首次「能真正上网」(探测 generate_204 成功)的耗时。不阻塞连接。
+  Future<void> _measureUsable() async {
+    final sw = _connectSw;
+    if (sw == null) return;
+    for (int i = 0; i < 30; i++) {           // 最多 ~15s
+      if (_status != VpnStatus.connected || _userInitiatedDisconnect) return;
+      if (await _probeConnectivity()) {
+        lastUsableMs = sw.elapsedMilliseconds;
+        notifyListeners();
+        return;
+      }
+      await Future.delayed(const Duration(milliseconds: 500));
     }
   }
 
