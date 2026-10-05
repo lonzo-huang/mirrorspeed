@@ -66,6 +66,7 @@ class VpnProvider extends ChangeNotifier {
   String?       _error;
   Timer?        _timer;
   Timer?        _fallbackTimer;
+  Stopwatch?    _connectSw;   // 连接耗时诊断(从点连接到引擎 start 返回)
   StreamSubscription<VpnStage>? _stageSub;
 
   VpnProtocol        _protocol         = VpnProtocol.direct;
@@ -357,13 +358,17 @@ class VpnProvider extends ChangeNotifier {
     _statsBaseline    = null;   // 新隧道，用量基线重置（首个轮询重新建立基线）
     notifyListeners();
 
+    _connectSw = Stopwatch()..start();
     try {
       // 0. 按需建 peer：确保该节点服务器上已添加本设备（on-demand provisioning）。
-      //    尽力而为，不阻断连接（多数情况已由列表预热提前建好）。
+      //    【提速】不再 await 阻塞连接 —— 往返 Vercel 再调节点 vpn-api 要数秒，而节点列表
+      //    打开时已预热 provision 过(server_list_screen)，这里绝大多数是冗余的。改为后台
+      //    触发：隧道立即起；幂等保证即使没预热过，sing-box 首次握手重试一拍也能连上。
+      //    结果仍记入 _lastEnsurePeerOk 供诊断("握手成功但数据全被丢"= peer 没配好)。
       if (!server.isDisplayOnly) {
-        // 结果记下来：服务器端没配好 peer 时，表现正是「握手成功但数据全被丢」，
-        // 之前失败了也静默忽略，排查时完全看不出来。
-        _lastEnsurePeerOk = await ApiService.instance.ensurePeer(serverIds: [server.id]);
+        ApiService.instance.ensurePeer(serverIds: [server.id])
+            .then((ok) { _lastEnsurePeerOk = ok; })
+            .catchError((_) { _lastEnsurePeerOk = false; });
       }
 
       // 纯 sing-box 客户端：优质节点必须已开通 sing-box（后端下发 singbox 块）。
@@ -464,8 +469,10 @@ class VpnProvider extends ChangeNotifier {
       cnCidrs: cnCidrs,
     );
     debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}'
-        '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}');
+        '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}'
+        '，配置就绪耗时=${_connectSw?.elapsedMilliseconds}ms');
     await _engine.start(EngineStartParams(singboxConfig: cfg));
+    debugPrint('[VPN] sing-box 引擎 start 返回，总耗时=${_connectSw?.elapsedMilliseconds}ms');
 
     if (!_userInitiatedDisconnect && _status == VpnStatus.connecting) {
       _status = VpnStatus.connected;
