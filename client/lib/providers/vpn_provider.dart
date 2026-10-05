@@ -338,6 +338,10 @@ class VpnProvider extends ChangeNotifier {
   //  层 3：Cloudflare Tunnel（服务器 IP 完全隐藏，GFW 无从封锁）
   //
   Future<void> connect(ServerConfig server) async {
+    // 连接耗时计时：放在最顶端，连 onBeforeConnect(停免费引擎)/预停旧隧道一起计入。
+    _connectSw = Stopwatch()..start();
+    lastEngineStartMs = null;
+    lastConnectedMs = null;
     // 免费时长已用尽：禁止任何新连接（不管从主页还是节点列表点的）。#1
     if (quotaExceeded) {
       _trialExceeded = true;   // 同步缓存标志
@@ -364,9 +368,6 @@ class VpnProvider extends ChangeNotifier {
     _statsBaseline    = null;   // 新隧道，用量基线重置（首个轮询重新建立基线）
     notifyListeners();
 
-    _connectSw = Stopwatch()..start();
-    lastEngineStartMs = null;
-    lastConnectedMs = null;
     try {
       // 0. 按需建 peer：确保该节点服务器上已添加本设备（on-demand provisioning）。
       //    【提速】不再 await 阻塞连接 —— 往返 Vercel 再调节点 vpn-api 要数秒，而节点列表
@@ -726,14 +727,17 @@ class VpnProvider extends ChangeNotifier {
   /// 智能分配并连接（先快速测一轮延迟以便评分）。
   Future<void> connectAuto(List<ServerConfig> servers) async {
     await setAutoSelect(true);
-    // 快速单轮测一遍延迟，让评分有数据（不阻塞太久）
-    await measureLatencies(servers, rounds: 1);
+    // 【提速】不再同步测速阻塞连接 —— 原来这里 await measureLatencies 要对每个节点 TCP 连
+    // 443、超时 3s，Future.wait 等最慢的那个,境外/有离线节点时整整几秒都耗在点连接之前(没被
+    // _connectSw 计到)。改用列表页/启动时已测好的延迟样本直接挑(pickAutoServer 无样本时按
+    // 负载也能挑),立即连接;测速丢后台刷新供下次用。
     final best = pickAutoServer(servers);
     if (best == null) {
       _error = _isZh() ? '暂无可用节点' : 'No nodes available';
       notifyListeners();
       return;
     }
+    measureLatencies(servers, rounds: 1);   // 后台刷新,不 await
     await connect(best);
   }
 
