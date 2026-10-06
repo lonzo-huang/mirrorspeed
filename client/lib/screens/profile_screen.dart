@@ -2,6 +2,7 @@ import 'invite_screen.dart';
 import 'app_proxy_screen.dart';
 import '../services/iap_service.dart';
 import '../services/app_proxy_store.dart';
+import '../utils/dns_region.dart';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -144,6 +145,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // ── 连接设置（只读信息，合并自原「设置」页）──────────
               _InfoCard(children: [
                 _ConnModeRow(vpn: vpn),
+                const _DnsRegionRow(),
                 _InfoRow(icon: Icons.shield_outlined,    label: tr('加速协议', 'Acceleration protocol'),     value: 'MirrorTunnel V1.0'),
                 _InfoRow(icon: Icons.lock_outline,       label: tr('加密', 'Encryption'),   value: 'ChaCha20'),
                 _InfoRow(icon: Icons.blur_on_rounded,    label: tr('流量混淆', 'Obfuscation'), value: tr('已开启', 'On')),
@@ -506,6 +508,93 @@ Widget _dialogBody(BuildContext context, List<String> items,
 }
 
 // ── 连接模式选择行 ───────────────────────────────────────────────
+/// DNS 方案选择行（自动/中国大陆/海外），风格对齐 _ConnModeRow。存 DnsRegionStore。
+class _DnsRegionRow extends StatefulWidget {
+  const _DnsRegionRow();
+  @override
+  State<_DnsRegionRow> createState() => _DnsRegionRowState();
+}
+
+class _DnsRegionRowState extends State<_DnsRegionRow> {
+  DnsRegion _r = DnsRegion.auto;
+
+  @override
+  void initState() { super.initState(); _load(); }
+  Future<void> _load() async {
+    final r = await DnsRegionStore.load();
+    if (mounted) setState(() => _r = r);
+  }
+
+  String _label(DnsRegion r) {
+    switch (r) {
+      case DnsRegion.auto:     return tr('自动', 'Auto');
+      case DnsRegion.china:    return tr('中国大陆', 'China');
+      case DnsRegion.overseas: return tr('海外', 'Overseas');
+    }
+  }
+  String _desc(DnsRegion r) {
+    switch (r) {
+      case DnsRegion.auto:     return tr('按当前网络环境自动选择', 'Auto by network');
+      case DnsRegion.china:    return tr('国内直连 + 防污染分流', 'CN direct + anti-pollution');
+      case DnsRegion.overseas: return tr('全部经节点，不做国内分流', 'All via node');
+    }
+  }
+
+  void _pick(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: msNow.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+            child: Align(alignment: Alignment.centerLeft,
+              child: Text(tr('DNS 方案', 'DNS scheme'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+          ),
+          for (final r in DnsRegion.values)
+            ListTile(
+              leading: Icon(
+                r == _r ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                color: r == _r ? msNow.brand : msNow.textMuted, size: 22),
+              title: Text(_label(r),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              subtitle: Text(_desc(r),
+                style: TextStyle(fontSize: 12, color: msNow.textSecondary.withOpacity(0.45))),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await DnsRegionStore.save(r);
+                if (mounted) setState(() => _r = r);
+              },
+            ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: () => _pick(context),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      child: Row(children: [
+        Icon(Icons.dns_outlined, size: 17, color: msNow.textMuted),
+        const SizedBox(width: 12),
+        Text(tr('DNS 方案', 'DNS scheme'),
+          style: TextStyle(color: msNow.textSecondary, fontSize: 14)),
+        const Spacer(),
+        Text(_label(_r),
+          style: TextStyle(color: msNow.brand, fontSize: 14, fontWeight: FontWeight.w600)),
+        const SizedBox(width: 4),
+        Icon(Icons.chevron_right_rounded, size: 18, color: msNow.textSecondary.withOpacity(0.3)),
+      ]),
+    ),
+  );
+}
+
 class _ConnModeRow extends StatelessWidget {
   final VpnProvider vpn;
   const _ConnModeRow({required this.vpn});
