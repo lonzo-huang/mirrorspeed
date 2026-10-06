@@ -48,6 +48,9 @@ class SharedNodeProvider extends ChangeNotifier {
 
   SharedNodeProvider() {
     _stageSub = _engine.stageStream.listen((s) {
+      // 归属守卫：仅当隧道明确归「优质」时忽略这些 stage 事件(优质连接时免费不要误判自己
+      // 也连上/断开)。null/free 时维持原行为。
+      if (ProxyCoreEngine.activeOwner == 'premium') return;
       _stage = s;
       // 连上即开始采速率，断开停止（免费节点的上/下行计量）
       if (s == VpnStage.connected) {
@@ -393,6 +396,7 @@ class SharedNodeProvider extends ChangeNotifier {
           includeProcesses: incProc, excludeProcesses: excProc,
           cnRuleSetPath: cnRsPath,
           ipv6: ipv6);
+      ProxyCoreEngine.activeOwner = 'free';   // 本条隧道归免费,优质 provider 据此忽略这些 stage 事件
       await _engine.start(EngineStartParams(singboxConfig: cfg));
     } catch (e) {
       _error = '$e';

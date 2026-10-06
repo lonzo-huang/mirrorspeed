@@ -302,6 +302,9 @@ class VpnProvider extends ChangeNotifier {
   }
 
   void _onStage(VpnStage stage) {
+    // 归属守卫：仅当隧道明确归「免费」时忽略这些 stage 事件(免费连接时优质不要误判自己
+    // 也连上/断开)。null/premium 时维持原行为,不影响冷启动接管等逻辑。
+    if (ProxyCoreEngine.activeOwner == 'free') return;
     switch (stage) {
       case VpnStage.connected:
         // 隧道接口已 UP，但流量未必通。一律先保持「连接中」，等连通性验证
@@ -497,6 +500,7 @@ class VpnProvider extends ChangeNotifier {
     debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}'
         '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}'
         '，配置就绪耗时=${_connectSw?.elapsedMilliseconds}ms');
+    ProxyCoreEngine.activeOwner = 'premium';   // 本条隧道归优质,免费 provider 据此忽略这些 stage 事件
     await _engine.start(EngineStartParams(singboxConfig: cfg));
     lastEngineStartMs = _connectSw?.elapsedMilliseconds;
     debugPrint('[VPN] sing-box 引擎 start 返回，总耗时=${lastEngineStartMs}ms');

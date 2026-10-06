@@ -29,10 +29,22 @@ class ProxyCoreEngine implements VpnEngine {
     await _control.invokeMethod('init');
   }
 
+  /// 当前隧道归属：'premium'(优质/VpnProvider) | 'free'(免费/SharedNodeProvider) | null。
+  /// 两个 provider 共用同一个原生 sing-box 服务与同一条 stage 流,各自据此只处理「属于自己」
+  /// 的 stage 事件,避免互相串扰(一方连接时另一方误判自己也连上/断开)。连接前由各 provider 置位。
+  static String? activeOwner;
+
+  /// 全局唯一的 stage 广播流：只向原生 EventChannel listen 一次,多个 provider 共享。
+  /// (之前每个 ProxyCoreEngine 实例各自 receiveBroadcastStream → 同一 channel 被重复 listen,
+  ///  后注册者抢走事件 sink,导致另一方收不到 connected/disconnected → UI 卡死 + 断开空等。)
+  static Stream<VpnStage>? _sharedStageStream;
+
   @override
-  Stream<VpnStage> get stageStream => _useDesktopRunner
-      ? _win!.stageStream
-      : _stage.receiveBroadcastStream().map(_mapStage);
+  Stream<VpnStage> get stageStream {
+    if (_useDesktopRunner) return _win!.stageStream;
+    return _sharedStageStream ??=
+        _stage.receiveBroadcastStream().map(_mapStageStatic).asBroadcastStream();
+  }
 
   @override
   Future<VpnStage> stage() async {
@@ -69,12 +81,13 @@ class ProxyCoreEngine implements VpnEngine {
     return [(r[0] as num).toInt(), (r[1] as num).toInt()];
   }
 
-  VpnStage _mapStage(dynamic e) => _mapStageName('$e');
-
   /// 原生随 "connected setup=.. check=.. cmd=.. reload=.." 上报的起隧道分步计时(诊断用)。
   static String? lastConnectedDiag;
 
-  VpnStage _mapStageName(String s) {
+  VpnStage _mapStageName(String s) => _mapStageStatic(s);
+
+  static VpnStage _mapStageStatic(dynamic e) {
+    final s = '$e';
     final sp = s.indexOf(' ');
     final head = sp >= 0 ? s.substring(0, sp) : s;
     if (head == 'connected' && sp >= 0) lastConnectedDiag = s.substring(sp + 1);
