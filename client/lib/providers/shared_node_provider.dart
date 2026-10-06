@@ -275,7 +275,8 @@ class SharedNodeProvider extends ChangeNotifier {
   static bool _isZh() => Platform.localeName.toLowerCase().startsWith('zh');
 
   Future<bool> _hasGlobalIpv6() async {
-    if (Platform.isAndroid) return false;
+    // 安卓一律让 tun 接管 ::/0，堵 IPv6 泄漏(双栈站点如 ip.sb 否则走真实 v6 绕过隧道)。
+    if (Platform.isAndroid) return true;
     try {
       final ifaces = await NetworkInterface.list(
           type: InternetAddressType.IPv6,

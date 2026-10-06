@@ -492,6 +492,7 @@ class VpnProvider extends ChangeNotifier {
       includePackages: inc, excludePackages: exc,
       includeProcesses: incProc, excludeProcesses: excProc,
       cnCidrs: cnCidrs, cnRuleSetPath: cnRsPath, overseas: overseas,
+      ipv6: await _tunIpv6(),   // 让 tun 接管 ::/0，堵 IPv6 泄漏(否则 ip.sb 等双栈站走真实 v6 绕过隧道)
     );
     debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}'
         '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}'
@@ -508,6 +509,22 @@ class VpnProvider extends ChangeNotifier {
       notifyListeners();
     }
     _measureUsable();   // 打点：隧道起来后多久能真正通网(不阻塞)
+  }
+
+  /// tun 是否声明 IPv6(接管 ::/0)。安卓一律声明——否则双栈站点(如 ip.sb)的 IPv6 流量会
+  /// 绕过 IPv4-only 隧道直连、泄漏真实 IP；声明后 v6 要么进隧道、要么 fail-closed，绝不泄漏。
+  /// Windows/Apple 需真有可用 v6 才声明：在 IPv6 被禁用的机器上给 tun 设 v6 地址会 FATAL。
+  Future<bool> _tunIpv6() async {
+    if (Platform.isAndroid) return true;
+    try {
+      final ifaces = await NetworkInterface.list(
+          type: InternetAddressType.IPv6,
+          includeLinkLocal: false, includeLoopback: false);
+      for (final i in ifaces) {
+        if (i.addresses.any((a) => !a.isLoopback && !a.isLinkLocal)) return true;
+      }
+    } catch (_) {}
+    return false;
   }
 
   /// 诊断：从点连接到首次「能真正上网」(探测 generate_204 成功)的耗时。不阻塞连接。
