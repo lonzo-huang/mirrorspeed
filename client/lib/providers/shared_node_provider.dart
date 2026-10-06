@@ -141,7 +141,7 @@ class SharedNodeProvider extends ChangeNotifier {
       await connect(cand);
       // 尽力等 stage(两 provider 共用原生服务,EventChannel 单监听,事件可能被另一条抢走),
       // 但最终以 egress 探测为准：探测通过=隧道确实在工作,显式置 connected(修 UI 卡"连接中")。
-      await _waitStage(VpnStage.connected, const Duration(seconds: 6));
+      await _waitStage(VpnStage.connected, const Duration(seconds: 3));
       if (_abort) break;
       if (await _probeEgress()) {
         _stage = VpnStage.connected;
@@ -257,7 +257,7 @@ class SharedNodeProvider extends ChangeNotifier {
     // 尽力等 stage,但最终以 egress 探测为准：两 provider 共用原生服务,EventChannel 单监听,
     // 另一条引擎(优质)连过后会抢走 stage 事件 sink,免费收不到 'connected' → UI 卡"连接中";
     // 隧道其实在工作。故探测通过就显式置 connected,不再依赖那条会被抢走的事件流。
-    final up = await _waitStage(VpnStage.connected, const Duration(seconds: 6));
+    final up = await _waitStage(VpnStage.connected, const Duration(seconds: 3));
     if (_abort) return false;   // 用户中途断开
     if (await _probeEgress()) {
       _stage = VpnStage.connected;
@@ -447,17 +447,11 @@ class SharedNodeProvider extends ChangeNotifier {
     try {
       await _engine.stop();
     } catch (_) {}
-    // "disconnected" 事件正常由原生 onDestroy 发出 = sing-box 的 VpnService 已被系统
-    // 完全销毁、VPN 已释放。必须等到这个信号再返回（VpnProvider.connect 据此才启动
-    // WireGuard），否则 WG 会和系统的 VPN 拆除回调在主线程撞车 → App 被强杀。
-    final deadline = DateTime.now().add(const Duration(seconds: 6));
-    while (_stage != VpnStage.disconnected && DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(const Duration(milliseconds: 80));
-    }
+    // 【提速】原生 stopBox 立即关掉 tun fd(VPN 即时释放)。原来在这里空等最多 6 秒的
+    // 'disconnected' 事件,是为了防止旧版 WireGuard 与系统拆除回调在主线程撞车——但现在
+    // 客户端已是纯 sing-box、WG 早已移除,该理由不再成立。只给极短时间让 tun 真正释放,
+    // 随后强制归位,断开立即完成。
     await Future<void>.delayed(const Duration(milliseconds: 300));
-    // 兜底：即便始终没收到原生 disconnected 事件（跨进程 :singbox 广播在连续
-    // start/stop 后可能丢失），也强制把状态归位到 disconnected——否则 UI 会永远卡在
-    // 「连接中/断开中」busy 态，既不能断也不能重连（本次修复的正是这个卡死）。
     _stage  = VpnStage.disconnected;
     _active = null;
     notifyListeners();
