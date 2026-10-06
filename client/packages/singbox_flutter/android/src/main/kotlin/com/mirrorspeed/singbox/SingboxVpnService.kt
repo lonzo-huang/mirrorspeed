@@ -103,6 +103,21 @@ class SingboxVpnService : VpnService(), PlatformInterface, CommandServerHandler 
     }
 
     private fun startBox(config: String) {
+        // 热重载(切换节点)：已有运行中的实例时,直接 reload 新配置,不拆 tun、不新建 CommandServer。
+        // 避免"先 stop 旧再 start 新"的时序竞争——旧 stopBox(后台线程)在新 start 之后才执行会把
+        // 新 tun 关掉,表现为"切换后显示已连接、过会儿又断开"。reload 由 libbox 原地换 outbound/路由。
+        val existing = server
+        if (existing != null && !stopping) {
+            try {
+                Libbox.checkConfig(config)
+                existing.startOrReloadService(config, OverrideOptions())
+                setStage("connected reload=1")
+                return
+            } catch (e: Exception) {
+                android.util.Log.e("singbox", "reload failed, fall back to full restart", e)
+                // 落到下面全量重启
+            }
+        }
         // 复位停止闸：切换节点是「先 stop 再 start」复用同一 service 实例。上一次
         // stopBox 置 stopping=true 后，若服务没真正销毁（stopSelf 被随后的 START 顶掉，
         // onDestroy 未跑），本实例 stopping 会一直是 true → 之后所有 stopBox 幂等 return

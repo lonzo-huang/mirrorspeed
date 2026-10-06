@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart'; // PlatformException + rootBundle
 import 'package:http/http.dart' as http;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../vpn/vpn_engine.dart';
 import '../vpn/proxy_core_engine.dart';
@@ -388,9 +389,8 @@ class VpnProvider extends ChangeNotifier {
     // ② 若本引擎(WireGuard)上一次还有残留隧道，先停掉再起新的，防止残留连接与
     //    其它客户端相互干扰。Android 上建立新隧道也会自动顶替其它 App 的现有 VPN。
     try { await onBeforeConnect?.call(); } catch (_) {}
-    if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
-      try { await _engine.stop(); } catch (_) {}
-    }
+    // 不先 stop 当前隧道：原生会在已有实例时【热重载】新配置,避免 stop/start 时序竞争
+    // (旧 stopBox 线程在新 start 后才跑会把新 tun 关掉)。首连时无实例 → 原生全量启动。
     _error            = null;
     _status           = VpnStatus.connecting;
     _source           = ConnSource.premium;   // 优质连接：本条隧道归优质
@@ -616,10 +616,7 @@ class VpnProvider extends ChangeNotifier {
   /// 由免费侧 egress 探测通过后调 [markSharedConnected]。
   Future<void> runSharedTunnel(Map<String, dynamic> cfg, {FreeNode? node}) async {
     _userInitiatedDisconnect = false;
-    // 停当前隧道(优质或上一个免费节点)。
-    if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
-      try { await _engine.stop().timeout(const Duration(seconds: 6), onTimeout: () {}); } catch (_) {}
-    }
+    // 不先 stop 当前隧道：原生在已有实例时热重载新配置(切换免费节点无缝,无 stop/start 竞争)。
     _stopConnectedPing();
     _fallbackTimer?.cancel();
     _source        = ConnSource.free;
@@ -643,16 +640,15 @@ class VpnProvider extends ChangeNotifier {
   /// 免费侧读隧道累计收发字节(速率计量用)，走同一引擎。
   Future<List<int>> sharedTransferRxTx() => _engine.transferRxTx();
 
-  /// 快而糙的网络预检：有无可用(非回环/非链路本地)网卡。WiFi+移动数据都关时返回 false。
+  /// 网络预检：有无可用网络(WiFi/移动数据/以太网)。WiFi+移动数据都关时返回 false。
+  /// 用 connectivity_plus(可靠)——安卓的网卡列表即使没网也常残留 rmnet/dummy 带地址,不可信。
   /// 探测异常一律放行(返回 true),避免误伤。供连接前拦截"没网却显示已连接"。
   static Future<bool> hasActiveNetwork() async {
     try {
-      final ifaces = await NetworkInterface.list(
-          includeLoopback: false, includeLinkLocal: false);
-      for (final i in ifaces) {
-        if (i.addresses.any((a) => !a.isLoopback && !a.isLinkLocal)) return true;
-      }
-      return false;
+      final r = await Connectivity().checkConnectivity()
+          .timeout(const Duration(seconds: 2));
+      // connectivity_plus 6.x 返回 List;仅 none(或空)= 无网络。
+      return r.any((e) => e != ConnectivityResult.none);
     } catch (_) {
       return true;
     }
@@ -660,8 +656,9 @@ class VpnProvider extends ChangeNotifier {
 
   // ── 切换服务器 ───────────────────────────────────────────────
   Future<void> switchServer(ServerConfig server) async {
-    if (isConnected) await disconnect();
-    await Future.delayed(const Duration(milliseconds: 500));
+    // 不先 disconnect：直接 connect,原生检测到已有实例会【热重载】新配置(不拆 tun)。
+    // 旧的"disconnect 再 connect"会让旧会话的 stopSelf→onDestroy 延迟广播 disconnected,
+    // 在新连接之后才到 → 把状态打回断开(表现为"切换后连上又断")。
     await connect(server);
   }
 

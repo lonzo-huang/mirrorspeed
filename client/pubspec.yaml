@@ -66,6 +66,8 @@ dependencies:
   # iOS 广告 ATT 授权（个性化广告前必须征得「允许跟踪」）
   app_tracking_transparency: ^2.0.7
   in_app_purchase: ^3.3.1
+  # 连接前判断是否有可用网络(WiFi/移动数据)——网卡探测在安卓不可靠(残留 rmnet/dummy)。
+  connectivity_plus: ^6.0.5
 
 dev_dependencies:
   flutter_test:
