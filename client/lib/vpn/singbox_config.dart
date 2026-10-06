@@ -122,6 +122,13 @@ class SingboxConfig {
       'log': logPath != null
           ? {'level': 'debug', 'output': logPath, 'timestamp': true}
           : {'level': 'warn', 'timestamp': true},
+      // clash_api：仅为启用流量统计跟踪器(command server 的 StatusMessage 上下行字节靠它;
+      //   不开它 trafficAvailable=false、速率恒 0)。不设 external_controller=不监听任何端口。
+      // cache_file：持久化 DNS/fakeip 缓存到 work 目录,切换节点(reload)后 DNS 不清空 → 平滑。
+      'experimental': {
+        'clash_api': <String, dynamic>{},
+        'cache_file': {'enabled': true, 'path': 'cache.db', 'store_fakeip': false},
+      },
       'dns': {
         'servers': [
           // 代理侧解析：用 TCP plain DNS(而非 DoH)——坏节点常对 DoH 回 403/证书错，

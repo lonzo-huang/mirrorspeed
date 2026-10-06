@@ -62,7 +62,10 @@ class SingboxFlutterPlugin :
         override fun writeLogs(messageList: LogIterator?) {}
         override fun setDefaultLogLevel(level: Int) {}
         override fun writeStatus(message: StatusMessage?) {
-            if (message != null) { lastDownTotal = message.downlinkTotal; lastUpTotal = message.uplinkTotal }
+            if (message != null) {
+                lastDownTotal = message.downlinkTotal; lastUpTotal = message.uplinkTotal
+                android.util.Log.d("singbox", "status down=$lastDownTotal up=$lastUpTotal avail=${message.trafficAvailable}")
+            }
         }
         override fun writeGroups(message: OutboundGroupIterator?) {}
         override fun writeConnectionEvents(message: ConnectionEvents?) {}
@@ -92,7 +95,7 @@ class SingboxFlutterPlugin :
                 for (i in 0 until 10) {
                     try { client.connect(); ok = true; break } catch (_: Throwable) { Thread.sleep(500) }
                 }
-                if (!ok) android.util.Log.w("singbox", "status client connect failed")
+                android.util.Log.d("singbox", "status client connect ok=$ok")
             } catch (e: Throwable) {
                 android.util.Log.e("singbox", "ensureStatusClient error", e)
             }
