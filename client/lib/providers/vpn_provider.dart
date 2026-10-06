@@ -11,6 +11,7 @@ import '../vpn/proxy_core_engine.dart';
 import '../vpn/singbox_config.dart';
 import '../utils/rule_set_assets.dart';
 import '../models/server_config.dart';
+import '../models/free_node.dart';
 import '../models/singbox_premium.dart';
 import '../services/api_service.dart';
 import '../services/app_proxy_store.dart';
@@ -36,6 +37,9 @@ enum ConnMode { auto, direct, relay, cloudflare }
 /// - [smart] ：智能模式，中国大陆 IP 直连，境外流量走 VPN
 enum RoutingMode  { global, smart }
 
+/// 当前隧道来源：优质(后端下发 singbox)或免费(订阅节点)。合并后两者共用同一状态机。
+enum ConnSource { premium, free }
+
 class VpnProvider extends ChangeNotifier {
   // VPN 引擎(引擎无关抽象)。优质节点双栈期：节点已开通 sing-box（configs 下发 singbox 块）就用 sing-box，
   // 否则沿用 AmneziaWG。两个引擎常驻，但同一时刻只有一个持有系统隧道
@@ -60,6 +64,11 @@ class VpnProvider extends ChangeNotifier {
 
   VpnStatus     _status        = VpnStatus.disconnected;
   ServerConfig? _activeServer;
+  /// 当前隧道来源(合并后统一状态机)：免费连接经 runSharedTunnel 置为 free。
+  ConnSource    _source        = ConnSource.premium;
+  ConnSource get source => _source;
+  /// 免费节点当前连的是哪个(供 UI 展示)；优质连接时清空。
+  FreeNode?     activeFreeNode;
   /// 用户上次选择的是「智能分配」(true) 还是某台具体节点(false)。持久化。
   bool          _autoSelect    = true;
   bool   get autoSelect => _autoSelect;
@@ -365,6 +374,15 @@ class VpnProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    // #1 网络预检(快而糙)：WiFi/移动数据都没有时直接提示,不进连接流程(否则 sing-box 仍会
+    // 把 tun 建起来、UI 误显示已连接)。
+    if (!await VpnProvider.hasActiveNetwork()) {
+      _error  = _isZh() ? '无网络连接，请检查 WiFi 或移动数据'
+                        : 'No network. Check WiFi or mobile data.';
+      _status = VpnStatus.disconnected;
+      notifyListeners();
+      return;
+    }
     // 兜底：进入连接前先断开系统上所有本 App VPN——
     // ① 停掉另一条引擎(共享 sing-box)，系统级只允许一条隧道；
     // ② 若本引擎(WireGuard)上一次还有残留隧道，先停掉再起新的，防止残留连接与
@@ -375,6 +393,8 @@ class VpnProvider extends ChangeNotifier {
     }
     _error            = null;
     _status           = VpnStatus.connecting;
+    _source           = ConnSource.premium;   // 优质连接：本条隧道归优质
+    activeFreeNode    = null;
     _activeServer     = server;
     _userInitiatedDisconnect = false;  // 新的连接尝试，解除断开锁
     _fallbackTimer?.cancel();
@@ -583,7 +603,59 @@ class VpnProvider extends ChangeNotifier {
       debugPrint('[VPN] stopVpn error: $e');
     }
     _status   = VpnStatus.disconnected;   // 明确置为已断开（不依赖 stage 事件）
+    _source   = ConnSource.premium;
+    activeFreeNode = null;
     notifyListeners();
+  }
+
+  // ── 免费节点复用同一引擎/状态机(合并) ───────────────────────────
+  // SharedNodeProvider 负责"挑哪个节点/测速/自动换/egress 校验",但隧道的启停与连接状态
+  // 全部经这里,保证全 App 只有一个"已连接"真相(根治优质/免费状态打架)。cfg 由免费侧构建
+  // (含分应用黑白名单 + airlane-cn 规则集)。
+  /// 用给定 sing-box 配置启动免费隧道：先停当前隧道(无论来源),再起;不乐观置连接——
+  /// 由免费侧 egress 探测通过后调 [markSharedConnected]。
+  Future<void> runSharedTunnel(Map<String, dynamic> cfg, {FreeNode? node}) async {
+    _userInitiatedDisconnect = false;
+    // 停当前隧道(优质或上一个免费节点)。
+    if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
+      try { await _engine.stop().timeout(const Duration(seconds: 6), onTimeout: () {}); } catch (_) {}
+    }
+    _stopConnectedPing();
+    _fallbackTimer?.cancel();
+    _source        = ConnSource.free;
+    _activeServer  = null;
+    activeFreeNode = node;
+    _error         = null;
+    _status        = VpnStatus.connecting;
+    notifyListeners();
+    await _useEngine(_sbEngine);
+    ProxyCoreEngine.activeOwner = 'free';
+    await _engine.start(EngineStartParams(singboxConfig: cfg));
+  }
+
+  /// 免费侧 egress 探测通过 → 显式置「已连接」(免费不走乐观连接,以真实出网为准)。
+  void markSharedConnected() {
+    if (_userInitiatedDisconnect || _source != ConnSource.free) return;
+    _status = VpnStatus.connected;
+    notifyListeners();
+  }
+
+  /// 免费侧读隧道累计收发字节(速率计量用)，走同一引擎。
+  Future<List<int>> sharedTransferRxTx() => _engine.transferRxTx();
+
+  /// 快而糙的网络预检：有无可用(非回环/非链路本地)网卡。WiFi+移动数据都关时返回 false。
+  /// 探测异常一律放行(返回 true),避免误伤。供连接前拦截"没网却显示已连接"。
+  static Future<bool> hasActiveNetwork() async {
+    try {
+      final ifaces = await NetworkInterface.list(
+          includeLoopback: false, includeLinkLocal: false);
+      for (final i in ifaces) {
+        if (i.addresses.any((a) => !a.isLoopback && !a.isLinkLocal)) return true;
+      }
+      return false;
+    } catch (_) {
+      return true;
+    }
   }
 
   // ── 切换服务器 ───────────────────────────────────────────────

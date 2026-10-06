@@ -67,8 +67,7 @@ class DesktopTray {
     final free = freeAll.take(_kFreeInMenu).toList();
 
     // 免费节点连着时，整体状态以它为准（两条隧道互斥，同一时刻只有一条）。
-    final sharedStage = shared?.stage;
-    final sharedBusy = sharedStage == VpnStage.connecting;
+    final sharedBusy = shared?.isConnecting ?? false;
     final sharedOn = shared?.isConnected ?? false;
 
     final status = sharedOn
@@ -136,7 +135,7 @@ class DesktopTray {
         if (shared == null || id == null) return null;
         for (final n in shared.nodes) {
           if (n.fingerprint == id) {
-            await shared.connect(n);
+            await shared.connectVerified(n);
             break;
           }
         }
