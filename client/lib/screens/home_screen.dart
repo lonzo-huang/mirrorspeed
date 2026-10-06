@@ -143,7 +143,7 @@ class HomeScreen extends StatelessWidget {
                     child: _CurrentNodeCard(
                       label: showShared
                           ? '${tr('当前节点', 'Current')} · ${tr('免费节点', 'Free')} · ${tr('动态刷新', 'Dynamic')}'
-                          : '${tr('当前节点', 'Current')} · ${tr('优质节点', 'Premium')} · ${vpn.routingMode == RoutingMode.smart ? tr('智能模式', 'Smart') : tr('全局模式', 'Global')}',
+                          : '${tr('当前节点', 'Current')} · ${tr('优质节点', 'Premium')}',
                       title: showShared
                           ? ((shared.active ?? shared.selected) != null
                               ? _sharedNodeTitle((shared.active ?? shared.selected)!)
@@ -188,27 +188,6 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
 
-                  if (Brand.showSmartRouting) ...[
-                    const SizedBox(height: 14),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Opacity(
-                        opacity: (connected || connecting) ? 0.45 : 1.0,
-                        child: _RoutingModeToggle(
-                          mode: vpn.routingMode,
-                          onChanged: (m) {
-                            if (connected || connecting) {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text(tr('请先断开连接再切换模式', 'Disconnect first to switch mode')),
-                                duration: const Duration(seconds: 2)));
-                              return;
-                            }
-                            vpn.setRoutingMode(m);
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
 
                   // 免费时长卡片（正常 / 用完两种态）——非会员且非超流量挂起时显示。
                   if (vpn.isFreeTrial || (vpn.quotaExceeded && !vpn.isConnected)) ...[
@@ -477,54 +456,6 @@ class _StatsRow extends StatelessWidget {
         div,
         item(tr('下载', 'Download'), down[0], down[1]),
       ]),
-    );
-  }
-}
-
-// ── 智能 / 全局 模式切换（两张并排卡片）───────────────────────────────────
-class _RoutingModeToggle extends StatelessWidget {
-  final RoutingMode mode;
-  final ValueChanged<RoutingMode> onChanged;
-  const _RoutingModeToggle({required this.mode, required this.onChanged});
-  @override
-  Widget build(BuildContext context) {
-    return Row(children: [
-      Expanded(child: _ToggleItem(
-        label: tr('智能模式', 'Smart'), subtitle: tr('按黑/白名单规则代理', 'Rule-based proxy'),
-        selected: mode == RoutingMode.smart, onTap: () => onChanged(RoutingMode.smart))),
-      const SizedBox(width: 12),
-      Expanded(child: _ToggleItem(
-        label: tr('全局模式', 'Global'), subtitle: tr('所有流量代理', 'All traffic proxied'),
-        selected: mode == RoutingMode.global, onTap: () => onChanged(RoutingMode.global))),
-    ]);
-  }
-}
-
-class _ToggleItem extends StatelessWidget {
-  final String label, subtitle;
-  final bool selected;
-  final VoidCallback onTap;
-  const _ToggleItem({required this.label, required this.subtitle, required this.selected, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    final ms = context.ms;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-        decoration: BoxDecoration(
-          color: selected ? ms.brand.withOpacity(0.14) : ms.card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selected ? ms.brand : ms.cardBorder, width: selected ? 1.4 : 1),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
-            color: selected ? ms.brand : ms.textPrimary)),
-          const SizedBox(height: 1),
-          Text(subtitle, style: TextStyle(fontSize: 11, color: ms.textSecondary)),
-        ]),
-      ),
     );
   }
 }

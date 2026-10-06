@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/free_node.dart';
 import '../services/free_node_service.dart';
 import '../services/app_proxy_store.dart';
@@ -234,11 +233,9 @@ class SharedNodeProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    // 分应用黑白名单对免费节点生效（与合并前一致）。
-    final rmode = (await SharedPreferences.getInstance()).getString('routing_mode');
-    final isGlobal = rmode == 'global';
+    // 分应用黑白名单始终生效（纯 sing-box：路由=规则集 + 应用黑白名单，不再有智能/全局模式）。
     List<String>? inc, exc, incProc, excProc;
-    if (applyAppProxy && !isGlobal) {
+    if (applyAppProxy) {
       final pkgs = (await AppProxyStore.loadPkgs()).toList();
       if (pkgs.isNotEmpty) {
         final white = await AppProxyStore.loadMode() == 'white';
@@ -261,28 +258,18 @@ class SharedNodeProvider extends ChangeNotifier {
       if (exc != null) exc = exc.where((p) => p != selfPkg && p != gmsPkg).toList();
     }
     final ipv6 = await _hasGlobalIpv6();
+    // 路由分流只看 DNS 方案：中国大陆/自动(境内) → airlane-cn 国内直连；海外 → 全走节点。
     final overseas = await DnsRegionStore.effectiveOverseas();
-    final smartFlag = await _appleSmartRouting();
     String? cnRsPath;
-    if (smartFlag && !overseas && !(Platform.isIOS || Platform.isMacOS)) {
+    if (!overseas && !(Platform.isIOS || Platform.isMacOS)) {
       cnRsPath = await RuleSetAssets.cnRuleSetPath();
     }
-    final cfg = SingboxConfig.build(node.outbound, smart: smartFlag,
+    final cfg = SingboxConfig.build(node.outbound, smart: !overseas,
         includePackages: inc, excludePackages: exc,
         includeProcesses: incProc, excludeProcesses: excProc,
         cnRuleSetPath: cnRsPath, overseas: overseas,
         ipv6: ipv6);
     await _vpn.runSharedTunnel(cfg, node: node);
-  }
-
-  /// 免费节点是否启用智能分流（仅 Apple；其它平台全局隧道，行为不变）。
-  Future<bool> _appleSmartRouting() async {
-    if (!Platform.isIOS && !Platform.isMacOS) return false;
-    final prefs = await SharedPreferences.getInstance();
-    final mode = prefs.getString('routing_mode');
-    final smart = mode == null ? _isZh() : mode == 'smart';
-    if (!smart) return false;
-    return await FreeNodeService.instance.egressInChina() != false;
   }
 
   static bool _isZh() => Platform.localeName.toLowerCase().startsWith('zh');
