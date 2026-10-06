@@ -328,6 +328,7 @@ class VpnProvider extends ChangeNotifier {
         lastNativeDiag = ProxyCoreEngine.lastConnectedDiag;
         _status = VpnStatus.connected;
         _startDiagPolling();
+        _startUsagePolling();   // 速率轮询(优质)——幂等,确保速度能显示
       case VpnStage.connecting:
         _status = VpnStatus.connecting;
       case VpnStage.disconnected:
@@ -527,6 +528,8 @@ class VpnProvider extends ChangeNotifier {
 
     if (!_userInitiatedDisconnect && _status == VpnStatus.connecting) {
       _status = VpnStatus.connected;
+      _statsBaseline = null;
+      _startUsagePolling();   // 优质节点也启动速率轮询(读 transferRxTx 算上下行)——否则速度恒 0
       notifyListeners();
     }
     _measureUsable();   // 打点：隧道起来后多久能真正通网(不阻塞)
