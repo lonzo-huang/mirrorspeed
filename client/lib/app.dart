@@ -56,12 +56,10 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
       }
     });
     _vpn  = VpnProvider()..initialize();
-    _shared = SharedNodeProvider();
-    // 两条隧道系统级互斥：连一条前先停另一条。
-    _shared.onNeedStopOther = _vpn.disconnect;
-    _vpn.onBeforeConnect    = () async {
+    _shared = SharedNodeProvider(_vpn);   // 合并：免费节点编排,连接/状态委托给同一个 VpnProvider
+    // 合并后全 App 单一引擎/状态机：连一条前由 connect 内部停掉当前隧道,无需再互相 onNeedStopOther。
+    _vpn.onBeforeConnect = () async {
       _shared.clearPreferShared();   // 用户改连优质节点 → 切回优质档
-      await _shared.disconnect();
     };
     // 广告加载不到（国内直连被墙）时，经随机共享节点把广告请求代理出去。
     AdService.instance.onNeedProxyForAds = () async {

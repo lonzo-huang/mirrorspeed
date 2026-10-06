@@ -286,7 +286,9 @@ class _ServerListScreenState extends State<ServerListScreen> {
                     if (blockedByQuota()) return;
                     context.go('/home');   // 切回主页查看连接状态
                     await vpn.setAutoSelect(false);   // 手动选择
-                    if (vpn.isConnected) {
+                    // 仅当当前已连的是【优质】才用 switchServer(优质节点间切换)；
+                    // 若当前连的是免费(或未连),一律走全新 connect(内部会先停掉当前隧道)。
+                    if (vpn.isConnected && vpn.source == ConnSource.premium) {
                       await vpn.switchServer(server);
                     } else {
                       await vpn.connect(server);

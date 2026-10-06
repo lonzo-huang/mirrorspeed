@@ -5,12 +5,14 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart'; // PlatformException + rootBundle
 import 'package:http/http.dart' as http;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../vpn/vpn_engine.dart';
 import '../vpn/proxy_core_engine.dart';
 import '../vpn/singbox_config.dart';
 import '../utils/rule_set_assets.dart';
 import '../models/server_config.dart';
+import '../models/free_node.dart';
 import '../models/singbox_premium.dart';
 import '../services/api_service.dart';
 import '../services/app_proxy_store.dart';
@@ -36,6 +38,9 @@ enum ConnMode { auto, direct, relay, cloudflare }
 /// - [smart] ：智能模式，中国大陆 IP 直连，境外流量走 VPN
 enum RoutingMode  { global, smart }
 
+/// 当前隧道来源：优质(后端下发 singbox)或免费(订阅节点)。合并后两者共用同一状态机。
+enum ConnSource { premium, free }
+
 class VpnProvider extends ChangeNotifier {
   // VPN 引擎(引擎无关抽象)。优质节点双栈期：节点已开通 sing-box（configs 下发 singbox 块）就用 sing-box，
   // 否则沿用 AmneziaWG。两个引擎常驻，但同一时刻只有一个持有系统隧道
@@ -60,6 +65,11 @@ class VpnProvider extends ChangeNotifier {
 
   VpnStatus     _status        = VpnStatus.disconnected;
   ServerConfig? _activeServer;
+  /// 当前隧道来源(合并后统一状态机)：免费连接经 runSharedTunnel 置为 free。
+  ConnSource    _source        = ConnSource.premium;
+  ConnSource get source => _source;
+  /// 免费节点当前连的是哪个(供 UI 展示)；优质连接时清空。
+  FreeNode?     activeFreeNode;
   /// 用户上次选择的是「智能分配」(true) 还是某台具体节点(false)。持久化。
   bool          _autoSelect    = true;
   bool   get autoSelect => _autoSelect;
@@ -302,6 +312,9 @@ class VpnProvider extends ChangeNotifier {
   }
 
   void _onStage(VpnStage stage) {
+    // 归属守卫：仅当隧道明确归「免费」时忽略这些 stage 事件(免费连接时优质不要误判自己
+    // 也连上/断开)。null/premium 时维持原行为,不影响冷启动接管等逻辑。
+    if (ProxyCoreEngine.activeOwner == 'free') return;
     switch (stage) {
       case VpnStage.connected:
         // 隧道接口已 UP，但流量未必通。一律先保持「连接中」，等连通性验证
@@ -362,16 +375,26 @@ class VpnProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    // #1 网络预检(快而糙)：WiFi/移动数据都没有时直接提示,不进连接流程(否则 sing-box 仍会
+    // 把 tun 建起来、UI 误显示已连接)。
+    if (!await VpnProvider.hasActiveNetwork()) {
+      _error  = _isZh() ? '无网络连接，请检查 WiFi 或移动数据'
+                        : 'No network. Check WiFi or mobile data.';
+      _status = VpnStatus.disconnected;
+      notifyListeners();
+      return;
+    }
     // 兜底：进入连接前先断开系统上所有本 App VPN——
     // ① 停掉另一条引擎(共享 sing-box)，系统级只允许一条隧道；
     // ② 若本引擎(WireGuard)上一次还有残留隧道，先停掉再起新的，防止残留连接与
     //    其它客户端相互干扰。Android 上建立新隧道也会自动顶替其它 App 的现有 VPN。
     try { await onBeforeConnect?.call(); } catch (_) {}
-    if (_status == VpnStatus.connected || _status == VpnStatus.connecting) {
-      try { await _engine.stop(); } catch (_) {}
-    }
+    // 不先 stop 当前隧道：原生会在已有实例时【热重载】新配置,避免 stop/start 时序竞争
+    // (旧 stopBox 线程在新 start 后才跑会把新 tun 关掉)。首连时无实例 → 原生全量启动。
     _error            = null;
     _status           = VpnStatus.connecting;
+    _source           = ConnSource.premium;   // 优质连接：本条隧道归优质
+    activeFreeNode    = null;
     _activeServer     = server;
     _userInitiatedDisconnect = false;  // 新的连接尝试，解除断开锁
     _fallbackTimer?.cancel();
@@ -497,6 +520,7 @@ class VpnProvider extends ChangeNotifier {
     debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}'
         '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}'
         '，配置就绪耗时=${_connectSw?.elapsedMilliseconds}ms');
+    ProxyCoreEngine.activeOwner = 'premium';   // 本条隧道归优质,免费 provider 据此忽略这些 stage 事件
     await _engine.start(EngineStartParams(singboxConfig: cfg));
     lastEngineStartMs = _connectSw?.elapsedMilliseconds;
     debugPrint('[VPN] sing-box 引擎 start 返回，总耗时=${lastEngineStartMs}ms');
@@ -579,13 +603,62 @@ class VpnProvider extends ChangeNotifier {
       debugPrint('[VPN] stopVpn error: $e');
     }
     _status   = VpnStatus.disconnected;   // 明确置为已断开（不依赖 stage 事件）
+    _source   = ConnSource.premium;
+    activeFreeNode = null;
     notifyListeners();
+  }
+
+  // ── 免费节点复用同一引擎/状态机(合并) ───────────────────────────
+  // SharedNodeProvider 负责"挑哪个节点/测速/自动换/egress 校验",但隧道的启停与连接状态
+  // 全部经这里,保证全 App 只有一个"已连接"真相(根治优质/免费状态打架)。cfg 由免费侧构建
+  // (含分应用黑白名单 + airlane-cn 规则集)。
+  /// 用给定 sing-box 配置启动免费隧道：先停当前隧道(无论来源),再起;不乐观置连接——
+  /// 由免费侧 egress 探测通过后调 [markSharedConnected]。
+  Future<void> runSharedTunnel(Map<String, dynamic> cfg, {FreeNode? node}) async {
+    _userInitiatedDisconnect = false;
+    // 不先 stop 当前隧道：原生在已有实例时热重载新配置(切换免费节点无缝,无 stop/start 竞争)。
+    _stopConnectedPing();
+    _fallbackTimer?.cancel();
+    _source        = ConnSource.free;
+    _activeServer  = null;
+    activeFreeNode = node;
+    _error         = null;
+    _status        = VpnStatus.connecting;
+    notifyListeners();
+    await _useEngine(_sbEngine);
+    ProxyCoreEngine.activeOwner = 'free';
+    await _engine.start(EngineStartParams(singboxConfig: cfg));
+  }
+
+  /// 免费侧 egress 探测通过 → 显式置「已连接」(免费不走乐观连接,以真实出网为准)。
+  void markSharedConnected() {
+    if (_userInitiatedDisconnect || _source != ConnSource.free) return;
+    _status = VpnStatus.connected;
+    notifyListeners();
+  }
+
+  /// 免费侧读隧道累计收发字节(速率计量用)，走同一引擎。
+  Future<List<int>> sharedTransferRxTx() => _engine.transferRxTx();
+
+  /// 网络预检：有无可用网络(WiFi/移动数据/以太网)。WiFi+移动数据都关时返回 false。
+  /// 用 connectivity_plus(可靠)——安卓的网卡列表即使没网也常残留 rmnet/dummy 带地址,不可信。
+  /// 探测异常一律放行(返回 true),避免误伤。供连接前拦截"没网却显示已连接"。
+  static Future<bool> hasActiveNetwork() async {
+    try {
+      final r = await Connectivity().checkConnectivity()
+          .timeout(const Duration(seconds: 2));
+      // connectivity_plus 6.x 返回 List;仅 none(或空)= 无网络。
+      return r.any((e) => e != ConnectivityResult.none);
+    } catch (_) {
+      return true;
+    }
   }
 
   // ── 切换服务器 ───────────────────────────────────────────────
   Future<void> switchServer(ServerConfig server) async {
-    if (isConnected) await disconnect();
-    await Future.delayed(const Duration(milliseconds: 500));
+    // 不先 disconnect：直接 connect,原生检测到已有实例会【热重载】新配置(不拆 tun)。
+    // 旧的"disconnect 再 connect"会让旧会话的 stopSelf→onDestroy 延迟广播 disconnected,
+    // 在新连接之后才到 → 把状态打回断开(表现为"切换后连上又断")。
     await connect(server);
   }
 
