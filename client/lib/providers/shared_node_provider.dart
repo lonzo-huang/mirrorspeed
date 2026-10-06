@@ -7,6 +7,7 @@ import '../services/free_node_service.dart';
 import '../services/app_proxy_store.dart';
 import '../vpn/singbox_config.dart';
 import '../utils/rule_set_assets.dart';
+import '../utils/dns_region.dart';
 import 'vpn_provider.dart';
 
 /// 「免费节点」的**数据/编排层**（节点清单、测速、自动换节点）。
@@ -260,15 +261,16 @@ class SharedNodeProvider extends ChangeNotifier {
       if (exc != null) exc = exc.where((p) => p != selfPkg && p != gmsPkg).toList();
     }
     final ipv6 = await _hasGlobalIpv6();
+    final overseas = await DnsRegionStore.effectiveOverseas();
     final smartFlag = await _appleSmartRouting();
     String? cnRsPath;
-    if (smartFlag && !(Platform.isIOS || Platform.isMacOS)) {
+    if (smartFlag && !overseas && !(Platform.isIOS || Platform.isMacOS)) {
       cnRsPath = await RuleSetAssets.cnRuleSetPath();
     }
     final cfg = SingboxConfig.build(node.outbound, smart: smartFlag,
         includePackages: inc, excludePackages: exc,
         includeProcesses: incProc, excludeProcesses: excProc,
-        cnRuleSetPath: cnRsPath,
+        cnRuleSetPath: cnRsPath, overseas: overseas,
         ipv6: ipv6);
     await _vpn.runSharedTunnel(cfg, node: node);
   }
