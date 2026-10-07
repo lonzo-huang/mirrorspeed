@@ -18,6 +18,7 @@ import '../models/free_node.dart';
 import '../models/singbox_premium.dart';
 import '../services/api_service.dart';
 import '../services/app_proxy_store.dart';
+import '../services/free_node_service.dart';
 import '../env.dart';
 
 export '../vpn/vpn_engine.dart' show VpnStage;
@@ -339,6 +340,9 @@ class VpnProvider extends ChangeNotifier {
       case VpnStage.disconnected:
         _status = VpnStatus.disconnected;
         _appliedTunScope = null;   // 隧道已断，下次启动按首启处理(无需比对旧分应用范围)
+        // 隧道断开 → 作废出口地区判定：连接期间(App 自身也进隧道)量到的是节点所在国，
+        // 不重置会让免费源选择/自动 DNS 分流继续按"上次连的海外节点"工作(总拉海外源)。
+        FreeNodeService.instance.resetEgressCache();
         _stopDiagPolling();
         _stopTimer();
         _usageTimer?.cancel();   // 隧道已断，停止用量轮询（不再有适配器可读）

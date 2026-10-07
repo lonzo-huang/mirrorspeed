@@ -71,6 +71,12 @@ class SharedNodeProvider extends ChangeNotifier {
   Future<void> load() async {
     _loading = true; _error = null; notifyListeners();
     try {
+      // 免费源按【真实(非 VPN)出口】选择地区。默认"直连名单+空"下 App 自身也进隧道，
+      // 若之前连着海外节点量过出口，会缓存成 overseas → 之后总拉海外源。故：当前未连隧道时
+      // 强制重新探测真实出口，拿到本机真实所在地区再选源(境内→国内源/境外→土耳其源)。
+      if (_vpn.status == VpnStatus.disconnected) {
+        FreeNodeService.instance.resetEgressCache();
+      }
       _nodes = await FreeNodeService.instance.fetch(top: true);
       if (_nodes.isEmpty) _error = '未获取到节点';
     } catch (e) {
