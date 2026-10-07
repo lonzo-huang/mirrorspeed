@@ -184,17 +184,34 @@ sleep 2
 systemctl is-active --quiet sing-box && echo "    sing-box 运行中" || { echo "✗ sing-box 未起来，看 journalctl -u sing-box"; exit 1; }
 
 # 重启 vpn-api,确保 git pull 下来的合并版 main.py(带 /peers/ensure + /singbox/user/*)已加载。
-# 【坑】旧 main.py 没有 /peers/ensure → portal 调它得 405 → 短路 → singbox 凭证永不下发。
+# 【坑1】旧 main.py 没有 /peers/ensure → portal 调它得 405 → 短路 → singbox 凭证永不下发。
+# 【坑2】存量节点的 vpn-api 多是老配置(07 脚本:uvicorn 明文 http + 只绑 127.0.0.1)，而
+#        api_url=https://域名:8443 是直连 → portal 连不上(000)。这里用 drop-in 强制改成
+#        「直接 TLS + 绑 0.0.0.0」，幂等(SG01 踩过:健康/ensure 全 000,就是这个原因)。
 if systemctl list-unit-files 2>/dev/null | grep -q '^vpn-api\.service'; then
-  echo "==> [7.5/8] 重启 vpn-api 加载按需下发端点 ..."
+  echo "==> [7.5/8] 修正并重启 vpn-api(直连 TLS + 加载按需下发端点) ..."
+  if [[ -f "$CERT" && -f "$KEY" ]]; then
+    mkdir -p /etc/systemd/system/vpn-api.service.d
+    cat > /etc/systemd/system/vpn-api.service.d/tls.conf <<DROPIN
+[Service]
+ExecStart=
+ExecStart=/opt/mirrorspeed/vpn-api/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8443 --ssl-certfile ${CERT} --ssl-keyfile ${KEY}
+DROPIN
+    systemctl daemon-reload
+    echo "    已写入 vpn-api TLS drop-in(0.0.0.0:8443 + ${DOMAIN} 证书)"
+  else
+    echo "    WARN: 未找到 ${DOMAIN} 证书，跳过 vpn-api TLS 修正(portal 直连 8443 需 TLS)"
+  fi
   systemctl restart vpn-api && sleep 2
   if systemctl is-active --quiet vpn-api; then
     CODE=$(curl -sk -o /dev/null -w '%{http_code}' -X POST https://127.0.0.1:8443/peers/ensure \
              -H 'content-type: application/json' -d '{}' 2>/dev/null || echo 000)
     if [[ "$CODE" == "405" ]]; then
-      echo "    ✗ vpn-api 仍返回 405：/peers/ensure 缺失(main.py 不是合并版)。请确认已 git pull 到含该端点的版本后重启。"
+      echo "    ✗ vpn-api 返回 405：/peers/ensure 缺失(main.py 不是合并版)。git pull 到含该端点的版本后重跑。"
+    elif [[ "$CODE" == "000" ]]; then
+      echo "    ✗ vpn-api 连不上(000)：多半 TLS/绑定没生效，看 journalctl -u vpn-api 与 ss -ltnp|grep 8443。"
     else
-      echo "    vpn-api 运行中，/peers/ensure 就绪(HTTP ${CODE}，401/403/422 均正常)"
+      echo "    vpn-api 运行中，直连 TLS /peers/ensure 就绪(HTTP ${CODE}，401/403/422 均正常)"
     fi
   else
     echo "    ✗ vpn-api 未起来，看 journalctl -u vpn-api"

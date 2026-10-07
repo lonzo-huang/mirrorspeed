@@ -35,8 +35,13 @@ NGINX_FALLBACK=1 HOP_MIN=50000 HOP_MAX=60000 \
 ```
 
 脚本结尾打印的 **UPDATE SQL**（已自动填好 reality 参数、真实 obfs、`api_url=https://<域名>:8443`、
-真实 api_secret）→ 贴进 Supabase SQL Editor 执行，**确认提示 “1 row affected”**（不是 "No rows returned"，
-否则是 name 大小写错了）。
+真实 api_secret）→ 贴进 Supabase SQL Editor 执行。**只跑 UPDATE，不要跑它下面的 INSERT**（INSERT 是“库里没这行”才用的备选，两个都跑会多插一条重复行）。
+
+> ⚠️ Supabase 对 UPDATE（无 RETURNING）**一律显示 “Success. No rows returned”**，这【不代表 0 行】，
+> 别被它误导（本文旧版说法有误）。要确认命中，用：
+> `SELECT name, endpoint, sb_enabled FROM vpn_servers WHERE endpoint ILIKE '%<域名前缀>%';`
+> 看到那行 `sb_enabled=true` 且 `name` 与你 WHERE 的大小写一致，即成功。若那行 `name` 和你 UPDATE 的
+> `WHERE name='...'` 大小写/取值不符，才是真没命中——改对 WHERE 再跑。
 
 ```bash
 # 3. 验证(节点上)
@@ -86,3 +91,23 @@ grep -E '"name"|"uuid"' /etc/sing-box/config.json
    别照抄（曾在 US01 上误用 german01 参数导致 404）。用每台**自己**的域名。
 
 8. **手动加的 `manualtest`/测试用户**无害，自动下发正常后可留可删。正式凭证一律由 portal 自动下发。
+
+9. **vpn-api 还是老配置（明文 http + 只绑 127.0.0.1）→ portal 连不上（curl health/ensure 全 000）**：
+   早期用 `07-vpnapi-setup.sh` 装的存量节点，vpn-api 的 systemd `ExecStart` 是
+   `uvicorn ... --host 127.0.0.1 --port 8443`（**明文、仅本机**），靠 nginx `/vpn-api/` 反代对外。
+   而新模型 api_url=`https://<域名>:8443` 是**直连**，要求 vpn-api 自己终止 TLS、绑 `0.0.0.0`。
+   两者不符 → 节点上 `curl https://<域名>:8443/health` 和 `curl -sk https://127.0.0.1:8443/peers/ensure`
+   都返回 **000**（日志里常见 `Invalid HTTP request received`、`Uvicorn running on http://127.0.0.1:8443`）。
+   **04 脚本的 [7.5/8] 已自动用 drop-in 修正**（写 `/etc/systemd/system/vpn-api.service.d/tls.conf`，
+   改成 `--host 0.0.0.0 --ssl-certfile <该域名 fullchain> --ssl-keyfile <privkey>`）；`07` 新装也已改成直接 TLS。
+   手动修（老脚本/旧节点）：
+   ```bash
+   mkdir -p /etc/systemd/system/vpn-api.service.d && cat > /etc/systemd/system/vpn-api.service.d/tls.conf <<EOF
+   [Service]
+   ExecStart=
+   ExecStart=/opt/mirrorspeed/vpn-api/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8443 --ssl-certfile /etc/letsencrypt/live/<域名>/fullchain.pem --ssl-keyfile /etc/letsencrypt/live/<域名>/privkey.pem
+   EOF
+   systemctl daemon-reload && systemctl restart vpn-api
+   ```
+   验证：`ss -ltnp | grep :8443` 应是 `0.0.0.0:8443`；`curl https://<域名>:8443/health` = 200；
+   `curl -sk -X POST https://127.0.0.1:8443/peers/ensure ...` = 401/403/422（不是 000/405）。

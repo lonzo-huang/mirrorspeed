@@ -21,6 +21,16 @@ VPNAPI_DIR="/opt/mirrorspeed/vpn-api"
 VENV_DIR="${VPNAPI_DIR}/venv"
 NGINX_CONF="/etc/nginx/sites-available/enterprise-vpn"
 
+# vpn-api 以【直接 TLS 监听 0.0.0.0:8443】对外(portal 直连 https://<域名>:8443，无尾斜杠)。
+# 不再经 nginx /vpn-api/ 反代——nginx 以 http 反代 https 的 8443 会 502，且绑 127.0.0.1 外网不可达。
+DOMAIN="${DOMAIN:-$(grep -oP '(?<=server_name )[\w.-]+' "${NGINX_CONF}" 2>/dev/null | head -1)}"
+if [[ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]]; then
+    FOUND=$(ls /etc/letsencrypt/live/ 2>/dev/null | grep -E 'mirrorspeed\.com|mirrorquant\.com' | head -1)
+    [[ -n "$FOUND" ]] && DOMAIN="$FOUND"
+fi
+CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
+
 # ── 参数检查 ─────────────────────────────────────────────────────────────────
 [[ -z "${VPN_API_SECRET:-}" ]] && {
     echo "ERROR: 请设置环境变量 VPN_API_SECRET"
@@ -52,6 +62,16 @@ echo "VPN_API_SECRET=${VPN_API_SECRET}" > "${VPNAPI_DIR}/.env"
 chmod 600 "${VPNAPI_DIR}/.env"
 
 echo "[5/5] 创建 systemd 服务并启动..."
+# 有证书→直接 TLS 绑 0.0.0.0(正式)；无证书→退回 http+localhost 并告警(补证书后重跑本脚本)。
+if [[ -f "$CERT" && -f "$KEY" ]]; then
+    UVICORN_ARGS="--host 0.0.0.0 --port 8443 --ssl-certfile ${CERT} --ssl-keyfile ${KEY}"
+    LISTEN_DESC="0.0.0.0:8443 (TLS, 证书 ${DOMAIN})"
+else
+    echo "  WARN: 未找到 ${DOMAIN} 证书，vpn-api 暂以 http://127.0.0.1:8443 启动。"
+    echo "        portal 直连 https://<域名>:8443 需要 TLS——补好证书后请重跑本脚本。"
+    UVICORN_ARGS="--host 127.0.0.1 --port 8443"
+    LISTEN_DESC="127.0.0.1:8443 (http, 临时)"
+fi
 cat > /etc/systemd/system/vpn-api.service << UNITEOF
 [Unit]
 Description=MirrorSpeed VPN Management API
@@ -63,7 +83,7 @@ Type=simple
 User=root
 WorkingDirectory=${VPNAPI_DIR}
 EnvironmentFile=${VPNAPI_DIR}/.env
-ExecStart=${VENV_DIR}/bin/uvicorn main:app --host 127.0.0.1 --port 8443
+ExecStart=${VENV_DIR}/bin/uvicorn main:app ${UVICORN_ARGS}
 Restart=always
 RestartSec=3
 StandardOutput=journal
@@ -82,26 +102,19 @@ systemctl is-active --quiet vpn-api || {
     journalctl -u vpn-api -n 30 --no-pager
     exit 1
 }
-echo "  vpn-api 已启动，监听 127.0.0.1:8443"
+echo "  vpn-api 已启动，监听 ${LISTEN_DESC}"
 
-# ── 在 Nginx 添加 /vpn-api/ 反代路径（幂等，已存在则跳过）──────────────────
-echo "[*] 配置 Nginx /vpn-api/ 反代..."
-if ! grep -q "location /vpn-api/" "${NGINX_CONF}" 2>/dev/null; then
-    sed -i '/location \/secure-tunnel\//i\    # ── VPN 管理 API ──────────────────────────────────────────────────────────────────\n    location \/vpn-api\/ {\n        proxy_pass         http:\/\/127.0.0.1:8443\/;\n        proxy_http_version 1.1;\n        proxy_set_header   Host \$host;\n        proxy_set_header   X-Real-IP \$remote_addr;\n        proxy_read_timeout 30s;\n    }\n' "${NGINX_CONF}"
-    nginx -t && systemctl reload nginx
-    echo "  Nginx /vpn-api/ 反代已添加"
-else
-    echo "  Nginx /vpn-api/ 已存在，跳过"
-fi
+# 注：不再添加 nginx /vpn-api/ 反代。portal 直连 https://<域名>:8443(vpn_servers.api_url)。
+# 老节点若残留该反代块无害，但 api_url 一律用 :8443 直连，勿用 /vpn-api 路径(会 502)。
 
 # ── 输出结果 ─────────────────────────────────────────────────────────────────
-DOMAIN=$(grep -oP '(?<=server_name )[\w.-]+' "${NGINX_CONF}" 2>/dev/null | head -1 || echo "your-domain.com")
 WG_PUBKEY=$(cat /etc/wireguard/server-public.key 2>/dev/null || echo "（未找到，WireGuard 未安装）")
 
 echo ""
 echo "vpn-api 部署完成："
-echo "  本地健康检查: curl http://127.0.0.1:8443/health"
-echo "  公网健康检查: curl https://${DOMAIN}/vpn-api/health"
+echo "  本地健康检查: curl -sk https://127.0.0.1:8443/health   (无证书临时模式用 http://)"
+echo "  公网健康检查: curl https://${DOMAIN}:8443/health"
+echo "  vpn_servers.api_url 应为: https://${DOMAIN}:8443  (无尾斜杠)"
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
 echo "  注册到 Portal（Supabase vpn_servers 表）时需要以下信息："
