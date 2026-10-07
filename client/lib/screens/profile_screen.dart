@@ -151,6 +151,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _InfoRow(icon: Icons.blur_on_rounded,    label: tr('流量混淆', 'Obfuscation'), value: tr('已开启', 'On')),
                 _InfoRow(icon: Icons.block_rounded,      label: tr('断网保护', 'Kill switch'), value: 'ON'),
                 const _AppearanceRow(),
+                const _LanguageRow(),
               ]),
 
               const SizedBox(height: 16),
@@ -166,7 +167,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (AppProxyStore.supported)
                   _ActionRow(
                     icon:  Icons.apps_rounded,
-                    label: tr('分应用代理（黑白名单）', 'Per-app proxy'),
+                    label: tr('分应用代理', 'Per-app proxy'),
                     onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const AppProxyScreen())),
                   ),
@@ -593,6 +594,76 @@ class _DnsRegionRowState extends State<_DnsRegionRow> {
       ]),
     ),
   );
+}
+
+/// 语言选择行（跟随系统 / 中文 / English），风格对齐 _DnsRegionRow。存 LocaleController。
+class _LanguageRow extends StatelessWidget {
+  const _LanguageRow();
+
+  String _label(String? o) {
+    if (o == 'zh') return '中文';
+    if (o == 'en') return 'English';
+    return tr('跟随系统', 'System');
+  }
+
+  void _pick(BuildContext context, LocaleController lc) {
+    final opts = <MapEntry<String?, String>>[
+      MapEntry(null, tr('跟随系统', 'System')),
+      const MapEntry('zh', '中文'),
+      const MapEntry('en', 'English'),
+    ];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: msNow.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+            child: Align(alignment: Alignment.centerLeft,
+              child: Text(tr('语言', 'Language'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+          ),
+          for (final e in opts)
+            ListTile(
+              leading: Icon(
+                e.key == lc.override ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                color: e.key == lc.override ? msNow.brand : msNow.textMuted, size: 22),
+              title: Text(e.value,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await lc.setOverride(e.key);
+              },
+            ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lc = context.watch<LocaleController>();
+    return InkWell(
+      onTap: () => _pick(context, lc),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(children: [
+          Icon(Icons.language_rounded, size: 17, color: msNow.textMuted),
+          const SizedBox(width: 12),
+          Text(tr('语言', 'Language'),
+            style: TextStyle(color: msNow.textSecondary, fontSize: 14)),
+          const Spacer(),
+          Text(_label(lc.override),
+            style: TextStyle(color: msNow.brand, fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 4),
+          Icon(Icons.chevron_right_rounded, size: 18, color: msNow.textSecondary.withOpacity(0.3)),
+        ]),
+      ),
+    );
+  }
 }
 
 class _ConnModeRow extends StatelessWidget {

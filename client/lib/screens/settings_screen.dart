@@ -32,7 +32,7 @@ class SettingsScreen extends StatelessWidget {
           ]),
           if (AppProxyStore.supported)
             _group(tr('智能模式', 'Smart mode'), [
-              _link(context, tr('分应用代理（黑白名单）', 'Per-app proxy'),
+              _link(context, tr('分应用代理', 'Per-app proxy'),
                   onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const AppProxyScreen()))),
             ]),

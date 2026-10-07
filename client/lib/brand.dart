@@ -24,6 +24,16 @@ class LocaleController extends ChangeNotifier {
       await (await SharedPreferences.getInstance()).setString(_kKey, _override!);
     } catch (_) {}
   }
+
+  /// 设置语言：null=跟随系统 / 'zh'=中文 / 'en'=English。切换后顶层 Consumer 重建。
+  Future<void> setOverride(String? v) async {
+    _override = v;
+    notifyListeners();
+    try {
+      final p = await SharedPreferences.getInstance();
+      if (v == null) { await p.remove(_kKey); } else { await p.setString(_kKey, v); }
+    } catch (_) {}
+  }
 }
 
 /// 双壳品牌抽象（单 App，运行时按设备语言切壳）。
