@@ -28,7 +28,7 @@ class _ProxyItem {
 class _AppProxyScreenState extends State<AppProxyScreen> {
   // 分应用代理只是「配置黑白名单」，没有独立启用开关：是否生效只由连接模式决定
   // （智能模式读名单、全局模式不读；Windows 下仅对免费节点生效）。
-  String _mode = 'white';          // white=白名单 / black=黑名单
+  String _mode = 'black';          // white=代理名单 / black=直连名单(默认)
   Set<String> _selected = {};
   List<_ProxyItem> _items = [];
   bool _loading = true;
