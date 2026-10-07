@@ -479,10 +479,10 @@ class VpnProvider extends ChangeNotifier {
         ? VpnProtocol.direct
         : (isWs ? VpnProtocol.cloudflare : VpnProtocol.relay);
 
-    // 按应用分流：与免费节点一致。智能模式才读黑白名单；全局模式不读(全走节点)。
-    // 白名单必须含本 App + Google Play 服务(承载 AdMob)，否则广告走直连被墙。
+    // 分应用(代理名单/直连名单)始终生效，与路由模式(智能/全局)正交——名单决定"哪些 App 进隧道"，
+    // 模式/地区决定"进了隧道怎么走"。代理名单必须含本 App + Google Play 服务(承载 AdMob)，否则广告被墙。
     List<String>? inc, exc, incProc, excProc;
-    if (_routingMode == RoutingMode.smart) {
+    {
       final pkgs = (await AppProxyStore.loadPkgs()).toList();
       if (pkgs.isNotEmpty) {
         final white = await AppProxyStore.loadMode() == 'white';

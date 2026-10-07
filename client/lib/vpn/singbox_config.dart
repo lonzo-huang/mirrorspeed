@@ -57,11 +57,13 @@ class SingboxConfig {
         ? null
         : (_kIsApple ? '$_kRuleSetDir/airlane-cn.srs' : cnRuleSetPath);
 
+    // 分应用两种名单(代理名单/直连名单)：
+    //   • Android：由 tun 的 include/exclude_package 在系统层面限定(见 inbounds)，此处【不】下发
+    //     package_name 路由规则——那需对每条连接反查归属 App，MIUI 报「绕过安全防护」且反查不可靠。
+    //   • 桌面(process_name)：反查可靠无警告，用路由规则实现(代理名单用 invert=非名单直连)。
+    // 不论哪种，“进了隧道”的流量都继续按下面的规则集/final 走(智能=airlane 分流，海外/全局=全代理)。
     final hasWhiteProc = includeProcesses != null && includeProcesses.isNotEmpty;
     final hasBlackProc = excludeProcesses != null && excludeProcesses.isNotEmpty;
-    // Android 白名单(include_package)：名单内 App 全程走代理、忽略 airlane-cn(白名单 > 规则集 > DNS)；
-    // 名单外 App 根本不进隧道=直连。黑名单(exclude_package)不在此列——名单外 App 仍走规则集分流。
-    final hasWhitePkg = includePackages != null && includePackages.isNotEmpty;
 
     final route = <String, dynamic>{
       'auto_detect_interface': true,
@@ -89,11 +91,6 @@ class SingboxConfig {
       route['rules'].add({'domain_suffix': _adDomains, 'outbound': 'proxy'});
     }
 
-    // 桌面分应用(process_name)：黑名单进程直连，放在最前，优先于地区/最终规则。
-    if (hasBlackProc) {
-      route['rules'].add({'process_name': excludeProcesses, 'outbound': 'direct'});
-    }
-
     if (adOnly) {
       // 广告模式:只有广告域名走代理,其余全直连
       route['rules'].add({
@@ -101,29 +98,25 @@ class SingboxConfig {
         'outbound': 'proxy',
       });
       route['final'] = 'direct';
-    } else if (hasWhiteProc) {
-      // 桌面白名单：仅名单内进程走代理，其余一律直连（覆盖 smart/global 的 final）。
-      route['rules'].add({'process_name': includeProcesses, 'outbound': 'proxy'});
-      route['final'] = 'direct';
-    } else if (hasWhitePkg) {
-      // Android 白名单：名单内 App 是唯一进隧道者，全部走代理、不应用 airlane-cn
-      // （白名单优先级最高，不被规则集拉回直连）。名单外 App 已被 tun 排除=直连。
-      route['final'] = 'proxy';
-    } else if (smart && useCnRuleSet) {
-      // 智能模式：airlane-cn 规则集(域名+IP 级)直连国内，其余走代理。三端统一。
-      route['rules'].add({'rule_set': ['airlane-cn'], 'outbound': 'direct'});
-      route['final'] = 'proxy';
-    } else if (smart) {
-      // 回退：拿不到 airlane-cn 路径(释放失败)时，用本地 cn_cidr 列表(ip_cidr，仅 IP 级)直连。
-      if (cnCidrs != null && cnCidrs.isNotEmpty) {
+    } else {
+      // 桌面分应用(process_name)，放在规则集之前：
+      //   代理名单：非名单进程直连(invert)——仅名单内进程继续走规则集/final。
+      //   直连名单：名单内进程直连——其余继续走规则集/final。
+      // Android 不在此加包名规则(由 tun include/exclude_package 完成)。
+      if (hasWhiteProc) route['rules'].add({'process_name': includeProcesses, 'invert': true, 'outbound': 'direct'});
+      if (hasBlackProc) route['rules'].add({'process_name': excludeProcesses, 'outbound': 'direct'});
+      // 规则集(智能模式)：airlane-cn 域名+IP 级国内直连；拿不到规则集时回退 cn_cidr(仅 IP 级)。
+      // 海外/全局不加 → 落到 final 全代理。进了隧道、未被上面命中的流量走到这里。
+      if (smart && useCnRuleSet) {
+        route['rules'].add({'rule_set': ['airlane-cn'], 'outbound': 'direct'});
+      } else if (smart && cnCidrs != null && cnCidrs.isNotEmpty) {
         route['rules'].add({'ip_cidr': cnCidrs, 'outbound': 'direct'});
       }
       route['final'] = 'proxy';
     }
-    // 全局模式:除上面的 dns/私网规则外,final=proxy 全走代理
 
     // 本地规则集声明（智能模式且拿到 airlane-cn 路径时；其它情况不写，避免多余文件依赖）。
-    if (smart && useCnRuleSet && !adOnly && !hasWhiteProc && !hasWhitePkg) {
+    if (smart && useCnRuleSet && !adOnly) {
       route['rule_set'] = [
         {'type': 'local', 'tag': 'airlane-cn', 'format': 'binary', 'path': cnRsPath},
       ];
@@ -153,7 +146,7 @@ class SingboxConfig {
         'rules': [
           // 智能模式且有 airlane-cn 规则集时，国内域名走本地 DNS 解析（避免经代理 DNS 绕路）。
           // 回退(无 rule_set)时不加此规则，国内域名经代理 DNS 解析(略慢但可用)。
-          if (smart && !adOnly && useCnRuleSet && !hasWhitePkg) {'rule_set': 'airlane-cn', 'server': 'local'},
+          if (smart && !adOnly && useCnRuleSet) {'rule_set': 'airlane-cn', 'server': 'local'},
         ],
         'final': adOnly ? 'local' : 'remote',
         'strategy': 'ipv4_only',

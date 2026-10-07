@@ -210,17 +210,15 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     );
   }
 
-  // 说明条：解释「黑白名单何时生效」。没有独立启用开关——生效与否只看连接模式。
+  // 说明条：分应用名单与「智能/全局」模式正交——名单决定哪些 App 进隧道，模式/地区决定进隧道后怎么走。
   Widget _infoNote() {
-    final text = _isWin
-        ? tr('优质节点按连接模式分流：智能模式＝中国大陆直连、境外走节点(GeoIP-CN)；'
-             '全局模式＝全部走节点。优质节点不支持按应用。\n'
-             '当前版本：下面的黑/白名单只对「免费节点」生效。',
-             'Premium nodes route by connection mode: Smart = mainland China direct, '
-             'overseas via node (GeoIP-CN); Global = all via node. Premium has no per-app.\n'
-             'Current version: the black/white list below applies to free nodes only.')
-        : tr('智能模式下按下面的黑/白名单分流；全局模式下全部流量走 VPN。',
-             'In Smart mode, traffic is split by the list below; in Global mode all traffic goes via VPN.');
+    final text = tr(
+        '分应用名单与「智能/全局」模式独立，对优质和免费节点都生效：\n'
+        '• 代理名单：只有勾选的应用走 VPN，其余直连；\n'
+        '• 直连名单：勾选的应用直连，其余应用进隧道、再按「智能/全局＋地区」走。',
+        'The per-app list is independent of Smart/Global and applies to both premium and free nodes:\n'
+        '• Proxy list: only selected apps use the VPN, the rest go direct;\n'
+        '• Direct list: selected apps go direct, the rest enter the tunnel and follow Smart/Global + region.');
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 14),
@@ -246,13 +244,11 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
         _infoNote(),
         // 白/黑名单切换（始终可配，无启用开关）
         Row(children: [
-          _modeChip('white', tr('白名单', 'Whitelist'),
-              _isWin ? tr('只有勾选的应用走 VPN', 'Only selected use VPN')
-                     : tr('只有勾选的 App 走 VPN', 'Only selected use VPN')),
+          _modeChip('white', tr('代理名单', 'Proxy list'),
+              tr('只有勾选的走 VPN', 'Only selected use VPN')),
           const SizedBox(width: 10),
-          _modeChip('black', tr('黑名单', 'Blacklist'),
-              _isWin ? tr('勾选的应用不走 VPN', 'Selected bypass VPN')
-                     : tr('勾选的 App 不走 VPN', 'Selected bypass VPN')),
+          _modeChip('black', tr('直连名单', 'Direct list'),
+              tr('勾选的直连，其余走 VPN', 'Selected go direct')),
         ]),
         if (_isWin) ...[
           const SizedBox(height: 8),

@@ -234,11 +234,9 @@ class SharedNodeProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    // 分应用黑白名单对免费节点生效（与合并前一致）。
-    final rmode = (await SharedPreferences.getInstance()).getString('routing_mode');
-    final isGlobal = rmode == 'global';
+    // 分应用(代理名单/直连名单)始终生效，与路由模式正交(名单决定"哪些 App 进隧道")。
     List<String>? inc, exc, incProc, excProc;
-    if (applyAppProxy && !isGlobal) {
+    if (applyAppProxy) {
       final pkgs = (await AppProxyStore.loadPkgs()).toList();
       if (pkgs.isNotEmpty) {
         final white = await AppProxyStore.loadMode() == 'white';
