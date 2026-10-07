@@ -35,6 +35,9 @@ enum VpnProtocol  { direct, relay, cloudflare }
 /// - [cloudflare] 超级：直接走 Cloudflare 中继
 enum ConnMode { auto, direct, relay, cloudflare }
 /// 路由模式
+/// - [global]：全局模式，所有流量走 VPN（0.0.0.0/0）
+/// - [smart] ：智能模式，中国大陆 IP 直连，境外流量走 VPN
+enum RoutingMode  { global, smart }
 
 /// 当前隧道来源：优质(后端下发 singbox)或免费(订阅节点)。合并后两者共用同一状态机。
 enum ConnSource { premium, free }
@@ -97,6 +100,7 @@ class VpnProvider extends ChangeNotifier {
   /// SingboxConfig 内完成，这里暂不产出，保留字段供 UI 读取（恒为 null）。
   String? smartRoutingReport;
 
+  RoutingMode        _routingMode      = RoutingMode.global;
 
   // 会话级钉死端口：UDP 直连时在 connect() 时基于时间计算一次并保存。
   // 一旦连接建立，整个会话期间复用此端口，绝不重算——即使将来加入断线
@@ -142,6 +146,7 @@ class VpnProvider extends ChangeNotifier {
   VpnProtocol   get protocol     => _protocol;
   ConnMode      get connMode     => _connMode;
   bool          get isRelayMode  => _protocol != VpnProtocol.direct;
+  RoutingMode   get routingMode  => _routingMode;
 
   bool get isConnected => _status == VpnStatus.connected;
   bool get isBusy      => _status == VpnStatus.connecting ||
@@ -230,9 +235,21 @@ class VpnProvider extends ChangeNotifier {
     await _engine.initialize();
     _stageSub = _engine.stageStream.listen(_onStage);
 
-    // 纯 sing-box：不再有智能/全局路由模式。分流统一由 DNS 方案(DnsRegionStore)决定
-    // (中国大陆/自动境内 → airlane-cn 国内直连；海外 → 全走节点) + 应用黑白名单始终生效。
+    // 恢复上次选择的路由模式；首次无记录时：中文用户默认「智能」，其它默认「全局」。
     final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('routing_mode');
+    if (saved == RoutingMode.global.name) {
+      _routingMode = RoutingMode.global;
+    } else if (saved == RoutingMode.smart.name) {
+      _routingMode = RoutingMode.smart;
+    } else {
+      // 首次安装、无记录：中文用户默认「智能」（境内直连/境外走 VPN + 分应用白名单）；
+      // 非中文用户默认「全局」（所有流量进隧道，海外用户预期）。智能/全局切换现已
+      // 国内外都显示，用户可自行切换；但分应用白名单仍仅中文壳生效（见 _applyAppProxy
+      // 的 isZh 门控），故非中文即使切到智能也是全隧道、不会只放 26 个 App。
+      _routingMode = _isZh() ? RoutingMode.smart : RoutingMode.global;
+    }
+    notifyListeners();
     // 恢复「智能分配 / 手动选择」偏好（默认智能）
     _autoSelect = prefs.getBool('auto_select') ?? true;
     // 恢复「连接模式」偏好（默认自动）
@@ -282,6 +299,17 @@ class VpnProvider extends ChangeNotifier {
     final id = prefs.getString('last_server_id');
     _activeServer = real.firstWhere((s) => s.id == id, orElse: () => real.first);
     notifyListeners();
+  }
+
+  // ── 切换路由模式 ─────────────────────────────────────────
+  Future<void> setRoutingMode(RoutingMode mode) async {
+    if (_routingMode == mode) return;
+    _routingMode       = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('routing_mode', mode.name);
+    // 注：不再联动分应用设置。优质节点只按 GeoIP-CN(智能)/全局分流，不做按应用；
+    // 按应用分流归免费节点(见 AppProxyStore + SharedNodeProvider.connect)。
   }
 
   void _onStage(VpnStage stage) {
@@ -451,10 +479,10 @@ class VpnProvider extends ChangeNotifier {
         ? VpnProtocol.direct
         : (isWs ? VpnProtocol.cloudflare : VpnProtocol.relay);
 
-    // 按应用分流：与免费节点一致，始终读黑白名单（纯 sing-box 无智能/全局之分）。
+    // 按应用分流：与免费节点一致。智能模式才读黑白名单；全局模式不读(全走节点)。
     // 白名单必须含本 App + Google Play 服务(承载 AdMob)，否则广告走直连被墙。
     List<String>? inc, exc, incProc, excProc;
-    {
+    if (_routingMode == RoutingMode.smart) {
       final pkgs = (await AppProxyStore.loadPkgs()).toList();
       if (pkgs.isNotEmpty) {
         final white = await AppProxyStore.loadMode() == 'white';
@@ -473,13 +501,13 @@ class VpnProvider extends ChangeNotifier {
       }
     }
 
-    // 分流只看 DNS 方案：中国大陆/自动(境内) → airlane-cn 规则集(域名+IP 级)国内直连，
-    // 其余走节点；海外 → 全走节点(不加 airlane-cn)。Apple 走扩展打包，其它平台释放到
-    // 磁盘后传路径；释放失败再回退 cn_cidr(ip_cidr，仅 IP 级)。
+    // 智能模式：airlane-cn 规则集(域名+IP 级)优先；Apple 走扩展打包，其它平台释放到磁盘后传路径。
+    // 释放失败再回退 cn_cidr(ip_cidr，仅 IP 级)。
+    // DNS 地区方案：海外(auto 确知境外 / 手动海外)不加 airlane-cn 国内直连。
     final overseas = await DnsRegionStore.effectiveOverseas();
     List<String>? cnCidrs;
     String? cnRsPath;
-    if (!overseas) {
+    if (_routingMode == RoutingMode.smart && !overseas) {
       if (!(Platform.isIOS || Platform.isMacOS)) {
         cnRsPath = await RuleSetAssets.cnRuleSetPath();
       }
@@ -488,7 +516,7 @@ class VpnProvider extends ChangeNotifier {
 
     final cfg = SingboxConfig.build(
       outbound,
-      smart: !overseas,
+      smart: _routingMode == RoutingMode.smart,
       includePackages: inc, excludePackages: exc,
       includeProcesses: incProc, excludeProcesses: excProc,
       cnCidrs: cnCidrs, cnRuleSetPath: cnRsPath, overseas: overseas,
