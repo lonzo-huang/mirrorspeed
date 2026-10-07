@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../brand.dart';
 import '../models/free_node.dart';
 import '../services/free_node_service.dart';
@@ -261,27 +260,19 @@ class SharedNodeProvider extends ChangeNotifier {
     }
     final ipv6 = await _hasGlobalIpv6();
     final overseas = await DnsRegionStore.effectiveOverseas();
-    final smartFlag = await _appleSmartRouting();
+    // 免费节点与优质节点一致：按真实路由模式(智能/全局)决定是否 airlane 分流，三端统一。
+    // (以前仅 Apple 才 smart、安卓恒全局 → 安卓免费节点 ip.cn 也走代理，与优质不一致。)
+    final smart = _vpn.routingMode == RoutingMode.smart;
     String? cnRsPath;
-    if (smartFlag && !overseas && !(Platform.isIOS || Platform.isMacOS)) {
+    if (smart && !overseas && !(Platform.isIOS || Platform.isMacOS)) {
       cnRsPath = await RuleSetAssets.cnRuleSetPath();
     }
-    final cfg = SingboxConfig.build(node.outbound, smart: smartFlag,
+    final cfg = SingboxConfig.build(node.outbound, smart: smart,
         includePackages: inc, excludePackages: exc,
         includeProcesses: incProc, excludeProcesses: excProc,
         cnRuleSetPath: cnRsPath, overseas: overseas,
         ipv6: ipv6);
     await _vpn.runSharedTunnel(cfg, node: node);
-  }
-
-  /// 免费节点是否启用智能分流（仅 Apple；其它平台全局隧道，行为不变）。
-  Future<bool> _appleSmartRouting() async {
-    if (!Platform.isIOS && !Platform.isMacOS) return false;
-    final prefs = await SharedPreferences.getInstance();
-    final mode = prefs.getString('routing_mode');
-    final smart = mode == null ? _isZh() : mode == 'smart';
-    if (!smart) return false;
-    return await FreeNodeService.instance.egressInChina() != false;
   }
 
   static bool _isZh() => Brand.isZh;   // 尊重用户语言覆盖(LocaleController)，错误文案随之切换
