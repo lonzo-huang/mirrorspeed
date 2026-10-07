@@ -7,6 +7,7 @@ import 'package:flutter/services.dart'; // PlatformException + rootBundle
 import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../brand.dart';
 import '../vpn/vpn_engine.dart';
 import '../vpn/proxy_core_engine.dart';
 import '../vpn/singbox_config.dart';
@@ -195,7 +196,9 @@ class VpnProvider extends ChangeNotifier {
       _status == VpnStatus.disconnecting ||
       _status == VpnStatus.disconnected;
 
-  static bool _isZh() => Platform.localeName.toLowerCase().startsWith('zh');
+  // 显示语言：尊重用户在设置里的语言覆盖(LocaleController)，而非只看设备 locale，
+  // 否则中文设备切英文后 statusLine/modeLabel/错误文案仍是中文。
+  static bool _isZh() => Brand.isZh;
 
   /// 当前模式的对外名称（按系统语言本地化）。
   String get modeLabel {
@@ -330,10 +333,12 @@ class VpnProvider extends ChangeNotifier {
         _status = VpnStatus.connected;
         _startDiagPolling();
         _startUsagePolling();   // 速率轮询(优质)——幂等,确保速度能显示
+        _startTrialTracking();  // 连上即开始免费时长倒计时(付费用户内部 no-op)
       case VpnStage.connecting:
         _status = VpnStatus.connecting;
       case VpnStage.disconnected:
         _status = VpnStatus.disconnected;
+        _appliedTunScope = null;   // 隧道已断，下次启动按首启处理(无需比对旧分应用范围)
         _stopDiagPolling();
         _stopTimer();
         _usageTimer?.cancel();   // 隧道已断，停止用量轮询（不再有适配器可读）
@@ -526,7 +531,7 @@ class VpnProvider extends ChangeNotifier {
         '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}'
         '，配置就绪耗时=${_connectSw?.elapsedMilliseconds}ms');
     ProxyCoreEngine.activeOwner = 'premium';   // 本条隧道归优质,免费 provider 据此忽略这些 stage 事件
-    await _engine.start(EngineStartParams(singboxConfig: cfg));
+    await _startEngine(cfg);
     lastEngineStartMs = _connectSw?.elapsedMilliseconds;
     debugPrint('[VPN] sing-box 引擎 start 返回，总耗时=${lastEngineStartMs}ms');
 
@@ -534,6 +539,7 @@ class VpnProvider extends ChangeNotifier {
       _status = VpnStatus.connected;
       _statsBaseline = null;
       _startUsagePolling();   // 优质节点也启动速率轮询(读 transferRxTx 算上下行)——否则速度恒 0
+      _startTrialTracking();  // 连上即开始免费时长倒计时(付费用户内部 no-op)
       notifyListeners();
     }
     _measureUsable();   // 打点：隧道起来后多久能真正通网(不阻塞)
@@ -553,6 +559,28 @@ class VpnProvider extends ChangeNotifier {
       }
     } catch (_) {}
     return false;
+  }
+
+  // 分应用范围(include/exclude_package)的指纹。Android VpnService 的 allowed/disallowed
+  // apps 在 sing-box 热重载时【无法变更】，故范围一旦变化必须整条停→起，让 VpnService 带
+  // 新名单重建；否则改了分应用再(热重载)连接，新名单不生效(尤其默认空名单起隧道后再加名单)。
+  String? _appliedTunScope;
+  String _tunScopeOf(Map<String, dynamic> cfg) {
+    final inbs = cfg['inbounds'];
+    final tun = (inbs is List && inbs.isNotEmpty && inbs.first is Map)
+        ? inbs.first as Map : const {};
+    return jsonEncode({'i': tun['include_package'], 'e': tun['exclude_package']});
+  }
+
+  /// 统一的引擎启动入口：分应用范围变了就先整条停再起(不能热重载)，否则照常(热重载/首启)。
+  Future<void> _startEngine(Map<String, dynamic> cfg) async {
+    final scope = _tunScopeOf(cfg);
+    if (_appliedTunScope != null && _appliedTunScope != scope) {
+      try { await _engine.stop(); } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+    await _engine.start(EngineStartParams(singboxConfig: cfg));
+    _appliedTunScope = scope;
   }
 
   /// 诊断：从点连接到首次「能真正上网」(探测 generate_204 成功)的耗时。不阻塞连接。
@@ -650,7 +678,7 @@ class VpnProvider extends ChangeNotifier {
     notifyListeners();
     await _useEngine(_sbEngine);
     ProxyCoreEngine.activeOwner = 'free';
-    await _engine.start(EngineStartParams(singboxConfig: cfg));
+    await _startEngine(cfg);
   }
 
   /// 免费侧 egress 探测通过 → 显式置「已连接」(免费不走乐观连接,以真实出网为准)。

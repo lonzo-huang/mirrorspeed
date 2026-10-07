@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../brand.dart';
 import '../models/free_node.dart';
 import '../services/free_node_service.dart';
 import '../services/app_proxy_store.dart';
@@ -283,7 +284,7 @@ class SharedNodeProvider extends ChangeNotifier {
     return await FreeNodeService.instance.egressInChina() != false;
   }
 
-  static bool _isZh() => Platform.localeName.toLowerCase().startsWith('zh');
+  static bool _isZh() => Brand.isZh;   // 尊重用户语言覆盖(LocaleController)，错误文案随之切换
 
   Future<bool> _hasGlobalIpv6() async {
     // 安卓一律让 tun 接管 ::/0，堵 IPv6 泄漏(双栈站点如 ip.sb 否则走真实 v6 绕过隧道)。
