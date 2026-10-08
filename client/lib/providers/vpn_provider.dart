@@ -85,6 +85,7 @@ class VpnProvider extends ChangeNotifier {
   int?          lastConnectedMs;     // 点连接→真正显示已连接(含原生 libbox 起隧道)
   int?          lastPreConnectMs;    // 点击节点→connect() 进入(导航/预处理耗时)
   int?          lastUsableMs;        // 点连接→首次探测真正能上网
+  int?          lastEnsurePeerMs;    // ensurePeer(往返 Vercel 再调节点 vpn-api 下发设备凭证)耗时
   String?       lastNativeDiag;      // 原生起隧道分步计时(setup/check/cmd/reload)
   DateTime?     _tapAt;              // 用户点击连接的时刻(UI 层标记)
   /// UI 在点击连接的最开始调用，用于测「点击→connect() 进入」这段(导航等)的耗时。
@@ -419,9 +420,11 @@ class VpnProvider extends ChangeNotifier {
       //    只花 1-2 秒(往返 Vercel 再调节点 vpn-api);真正的 6 秒卡顿是 teardown 空等,已单独修。
       //    幂等：已下发过则很快返回。失败也继续(best-effort),结果记入 _lastEnsurePeerOk 供诊断。
       if (!server.isDisplayOnly) {
+        final esw = Stopwatch()..start();
         try {
           _lastEnsurePeerOk = await ApiService.instance.ensurePeer(serverIds: [server.id]);
         } catch (_) { _lastEnsurePeerOk = false; }
+        lastEnsurePeerMs = esw.elapsedMilliseconds;
       }
 
       // 纯 sing-box 客户端：优质节点必须已开通 sing-box（后端下发 singbox 块）。

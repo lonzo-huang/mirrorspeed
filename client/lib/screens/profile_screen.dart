@@ -444,6 +444,12 @@ void _showErrorInfo(BuildContext context) {
     debugItems.add('${tr('智能分流', 'Smart routing')}：$smartReport');
   }
   debugItems.add('${tr('广告', 'Ads')}：${AdService.instance.diagnosticReport}');
+  // 连接耗时分解(排查"某些节点连接慢"):各阶段毫秒数 + 原生起隧道分步。
+  debugItems.add('连接耗时: ensure=${vpn.lastEnsurePeerMs ?? '-'}ms'
+      ' engineStart=${vpn.lastEngineStartMs ?? '-'}ms'
+      ' connected=${vpn.lastConnectedMs ?? '-'}ms'
+      ' usable=${vpn.lastUsableMs ?? '-'}ms');
+  if (vpn.lastNativeDiag != null) debugItems.add('原生起隧道: ${vpn.lastNativeDiag}');
   final egReport = FreeNodeService.instance.lastEgressReport;
   if (egReport != null) {
     debugItems.add('${tr('免费源', 'Free source')}：$egReport');
