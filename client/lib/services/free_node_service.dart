@@ -40,6 +40,9 @@ class FreeNodeService {
   DateTime? _egressAt;
   static const Duration _egressTtl = Duration(minutes: 10);
 
+  /// 最近一次出口判定 + 选源的可读报告（供「我的 → 错误信息」暗门排查"免费列表选错源"）。
+  String? lastEgressReport;
+
   /// 判定「裸 IP」（未经本 App VPN 的真实出口）是否在中国境内。
   /// true=境内，false=境外，null=无法识别。
   ///
@@ -70,10 +73,16 @@ class FreeNodeService {
             _egressIsCn = (c == 'CN');
             _egressResolved = true;
             _egressAt = DateTime.now();
+            lastEgressReport = 'api/geo=$c @ $base → ${_egressIsCn! ? '境内' : '境外'}';
             return _egressIsCn;
           }
+          lastEgressReport = 'api/geo=200 但 country 空 @ $base';
+        } else {
+          lastEgressReport = 'api/geo=HTTP ${res.statusCode} @ $base';
         }
-      } catch (_) {/* 换下一个 base */}
+      } catch (e) {
+        lastEgressReport = 'api/geo 异常 @ $base: $e';
+      }
     }
 
     // 2) 退回 Cloudflare trace
@@ -87,10 +96,12 @@ class FreeNodeService {
           _egressIsCn = (loc == 'CN');
           _egressResolved = true;
           _egressAt = DateTime.now();
+          lastEgressReport = '${lastEgressReport ?? ''}; cf loc=$loc → ${_egressIsCn! ? '境内' : '境外'}';
           return _egressIsCn;
         }
       }
-    } catch (_) {/* 网络异常 → 无法识别 */}
+    } catch (e) { lastEgressReport = '${lastEgressReport ?? ''}; cf 异常: $e'; }
+    lastEgressReport = '${lastEgressReport ?? ''}; 均未识别→无法识别(退国内/兜底源)';
     return null;   // 无法识别：按需求退回国内/兜底源
   }
 
@@ -128,8 +139,10 @@ class FreeNodeService {
   /// 无法识别 → 国内/兜底源。全部失败返回空列表。
   Future<List<FreeNode>> fetch({bool top = false}) async {
     final inCn = await egressInChina();
+    final useOs = inCn == false;
+    lastEgressReport = '${lastEgressReport ?? ''} → 源=${useOs ? '土耳其(海外)' : '国内/兜底'}';
     String? body;
-    if (inCn == false) {
+    if (useOs) {
       // 境外：优先土耳其源；万一不通，兜底回国内源，保证总能拿到点。
       body = await _download(_osHosts, _osToken, top)
           ?? await _download(_cnHosts, _cnToken, top);

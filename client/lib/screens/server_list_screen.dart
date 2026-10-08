@@ -150,7 +150,9 @@ class _ServerListScreenState extends State<ServerListScreen> {
             name: freeLineName(n.name, n.server),
             latency: ms, dead: dead,
             connected: active && p.isConnected, active: active,
-            onTap: dead ? null : () {
+            // 「爆满」(dead=实测超时)只是不被「智能选择」自动选中，仍允许手动点连——
+            // 实测 ping 失败不等于协议连不上(端口/ICMP 被挡也会超时)，给用户手动尝试的权利。
+            onTap: () {
               // 手动点选：只连该节点、不自动跳转（跳转是「智能选择」的行为）。
               final shared = context.read<SharedNodeProvider>();
               context.go('/home');

@@ -16,6 +16,7 @@ import '../providers/auth_provider.dart';
 import '../providers/vpn_provider.dart';
 import '../services/api_service.dart';
 import '../services/ad_service.dart';
+import '../services/free_node_service.dart';
 import '../brand.dart';
 import '../theme.dart';
 import '../widgets/ms_top_controls.dart';
@@ -443,6 +444,10 @@ void _showErrorInfo(BuildContext context) {
     debugItems.add('${tr('智能分流', 'Smart routing')}：$smartReport');
   }
   debugItems.add('${tr('广告', 'Ads')}：${AdService.instance.diagnosticReport}');
+  final egReport = FreeNodeService.instance.lastEgressReport;
+  if (egReport != null) {
+    debugItems.add('${tr('免费源', 'Free source')}：$egReport');
+  }
 
   showDialog(
     context: context,
