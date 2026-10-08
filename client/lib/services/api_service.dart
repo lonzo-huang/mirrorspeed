@@ -168,6 +168,9 @@ class ApiService {
       final res = await _post('/api/mobile/ensure-peer', {
         if (deviceId != null)  'device_id':  deviceId,
         if (serverIds != null) 'server_ids': serverIds,
+        // 本客户端 100% 走 sing-box，不用 AWG → 让 portal 跳过 AWG /peers/ensure，
+        // 避免每次连接白等存量节点那 ~8s 的 AWG 往返(见 ensure-peer 路由)。
+        'singbox_only': true,
       });
       if (res.statusCode != 200) return false;
       final body = jsonDecode(res.body) as Map<String, dynamic>;

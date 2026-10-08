@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const user = await getUserFromBearer(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  let body: { device_id?: string; server_ids?: string[] } = {}
+  let body: { device_id?: string; server_ids?: string[]; singbox_only?: boolean } = {}
   try { body = await req.json() } catch { /* empty body ok */ }
 
   const admin = createAdminClient()
@@ -77,8 +77,10 @@ export async function POST(req: NextRequest) {
       }
       const headers = { 'Content-Type': 'application/json', 'X-API-Secret': srv.api_secret }
 
-      // 1a) AWG：awg set 该公钥(存量节点；纯 sing-box 节点 awg_enabled=false 跳过)
-      if (srv.awg_enabled !== false) {
+      // 1a) AWG：awg set 该公钥(存量节点；纯 sing-box 节点 awg_enabled=false 跳过)。
+      // singbox_only=true(新版纯 sing-box 客户端)时也跳过：新客户端不用 AWG，避免每次连接
+      // 白等这 8s(存量节点 AWG /peers/ensure 往返常达 ~8s)。老 AWG 客户端不带此标记，照常。
+      if (srv.awg_enabled !== false && !body.singbox_only) {
         try {
           const resp = await fetch(`${srv.api_url}/peers/ensure`, {
             method: 'POST', headers,
