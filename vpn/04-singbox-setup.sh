@@ -79,15 +79,24 @@ if [[ "${NGINX_FALLBACK:-0}" == "1" ]]; then
   echo "==> [2.5/8] NGINX_FALLBACK:nginx 443 → 127.0.0.1:8080，Reality 回落给它(老客户端零影响)..."
   # -R 跟随 sites-enabled 里的符号链接;|| true 防止 grep 无匹配时触发 set -e 无声退出
   SITE=$(grep -Rl 'listen 443 ssl' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ /etc/nginx/nginx.conf 2>/dev/null | head -1 || true)
-  [[ -z "$SITE" ]] && { echo "✗ 未找到 nginx 的 443 配置,无法回落。确认本机有 nginx 且监听 443。"; exit 1; }
-  SITE=$(readlink -f "$SITE")   # sites-enabled 多为符号链接,解析成真实文件(sites-available)再改
-  echo "    改写 nginx 配置文件: ${SITE}"
-  sed -i 's/listen 443 ssl[^;]*;/listen 127.0.0.1:8080 ssl;/' "$SITE"
-  sed -i '/listen \[::\]:443 ssl/d' "$SITE"
-  nginx -t && systemctl reload nginx || { echo "✗ nginx 改 8080 后校验失败,看 nginx -t"; exit 1; }
+  if [[ -z "$SITE" ]]; then
+    # 幂等:上次可能已把 443→8080(重跑本脚本，或先前误用别的域名跑过)。已有 8080 回落即视为就绪，
+    # 跳过搬迁，继续往下用 HK01/本节点参数重写 sing-box 配置(覆盖旧 reality 密钥/SNI)。
+    if grep -Rlq 'listen 127.0.0.1:8080 ssl' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ /etc/nginx/nginx.conf 2>/dev/null; then
+      echo "    nginx 已在 127.0.0.1:8080(上次已搬迁)，跳过搬迁。"
+    else
+      echo "✗ 未找到 nginx 的 443 配置,无法回落。确认本机有 nginx 且监听 443。"; exit 1
+    fi
+  else
+    SITE=$(readlink -f "$SITE")   # sites-enabled 多为符号链接,解析成真实文件(sites-available)再改
+    echo "    改写 nginx 配置文件: ${SITE}"
+    sed -i 's/listen 443 ssl[^;]*;/listen 127.0.0.1:8080 ssl;/' "$SITE"
+    sed -i '/listen \[::\]:443 ssl/d' "$SITE"
+    nginx -t && systemctl reload nginx || { echo "✗ nginx 改 8080 后校验失败,看 nginx -t"; exit 1; }
+    echo "    nginx 已在 127.0.0.1:8080;Reality(443)将把非认证流量回落给它。"
+  fi
   HS_SERVER="127.0.0.1"; HS_PORT=8080
   REALITY_SNI="${DOMAIN}"   # 回落给本机 nginx → 用本节点自己的证书 → SNI 用本域名
-  echo "    nginx 已在 127.0.0.1:8080;Reality(443)将把非认证流量回落给它。"
 fi
 
 echo "==> [3/8] 生成 Reality 密钥 / short_id / hy2 obfs / 测试凭证 ..."
