@@ -197,7 +197,7 @@ systemctl is-active --quiet sing-box && echo "    sing-box 运行中" || { echo 
 # 【坑2】存量节点的 vpn-api 多是老配置(07 脚本:uvicorn 明文 http + 只绑 127.0.0.1)，而
 #        api_url=https://域名:8443 是直连 → portal 连不上(000)。这里用 drop-in 强制改成
 #        「直接 TLS + 绑 0.0.0.0」，幂等(SG01 踩过:健康/ensure 全 000,就是这个原因)。
-if systemctl list-unit-files 2>/dev/null | grep -q '^vpn-api\.service'; then
+if systemctl cat vpn-api >/dev/null 2>&1; then   # 用 cat 判存在：避免 `list-unit-files|grep -q` 在 pipefail 下因 SIGPIPE(141) 误判为不存在而跳过本步
   echo "==> [7.5/8] 修正并重启 vpn-api(直连 TLS + 加载按需下发端点) ..."
   if [[ -f "$CERT" && -f "$KEY" ]]; then
     mkdir -p /etc/systemd/system/vpn-api.service.d
