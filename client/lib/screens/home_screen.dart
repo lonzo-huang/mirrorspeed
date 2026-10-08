@@ -552,14 +552,26 @@ class _FreeTimeCardState extends State<_FreeTimeCard> {
 
   Future<void> _watchAd() async {
     if (_adBusy) return;
-    setState(() => _adBusy = true);
     final vpn = context.read<VpnProvider>();
+    final shared = context.read<SharedNodeProvider>();
     final messenger = ScaffoldMessenger.of(context);
+    final connected = vpn.isConnected || shared.isConnected;
     if (!AdService.instance.rewardedReady) {
+      // 不自动连 VPN：未连接且广告没就绪 → 提示用户【自己先连免费节点】，连上后广告会在
+      // 后台自动下载好，再回来看广告加时长。（国内直连 AdMob 被墙，必须经隧道才能下载。）
+      if (!connected) {
+        messenger.showSnackBar(SnackBar(
+          content: Text(tr('看广告需先下载广告。请先连接免费节点，连上后广告会自动在后台准备好，再回来看广告加时长。',
+                           'To watch an ad, connect a free node first — ads download in the background once connected.')),
+          duration: const Duration(seconds: 6)));
+        return;
+      }
+      // 已连接但池子还没满 → 正在后台下载,请稍候。
       messenger.showSnackBar(SnackBar(
-        content: Text(tr('广告加载中，国内将自动通过共享节点加速加载，请稍候…', 'Loading ad, please wait…')),
-        duration: const Duration(seconds: 20)));
+        content: Text(tr('广告正在后台下载，请稍候…', 'Loading ad, please wait…')),
+        duration: const Duration(seconds: 15)));
     }
+    setState(() => _adBusy = true);
     await AdService.instance.showRewardedForReward(
       onEarned: () async {
         messenger.hideCurrentSnackBar();
@@ -574,8 +586,9 @@ class _FreeTimeCardState extends State<_FreeTimeCard> {
         setState(() => _adBusy = false);
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(SnackBar(
-          content: Text(tr('当前网络无法加载广告，可稍后重试或升级会员', 'Ads can\'t load now — try later or go Premium')),
-          backgroundColor: context.ms.danger, duration: const Duration(seconds: 3)));
+          content: Text(tr('广告暂时没准备好。请确认已连接节点（连上后会自动后台下载），稍后重试，或升级会员免广告。',
+                           'Ad not ready. Make sure you\'re connected (ads download in the background), then retry — or go Premium.')),
+          backgroundColor: context.ms.danger, duration: const Duration(seconds: 4)));
       },
     );
   }

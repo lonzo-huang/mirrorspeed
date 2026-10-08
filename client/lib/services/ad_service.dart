@@ -193,10 +193,10 @@ class AdService {
 
   // ── 隧道连通期的广告预热 + 周期刷新 ─────────────────────────────
   // 国内直连 AdMob 被墙，必须趁隧道连通(Google 可达)把广告灌进 SDK 缓存。
-  // 激励广告缓存有效期约 1 小时，故连通期间每 50 分钟刷新一次，保证用户随时有
-  // 有效广告可看。
+  // 激励广告缓存有效期约 1 小时，故连通期间每 45 分钟刷新一次(留足重试余量)，
+  // 保证用户随时有有效广告可看。
   Timer? _refreshTimer;
-  static const Duration _kAdRefreshEvery = Duration(minutes: 50);
+  static const Duration _kAdRefreshEvery = Duration(minutes: 45);
 
   /// 隧道刚连通：稍等隧道底层就绪后预热，并启动每 50 分钟一次的周期刷新。
   /// 连上那一瞬间隧道还没完全 ready，立刻发广告请求常被 reset（code 0 连接中断），

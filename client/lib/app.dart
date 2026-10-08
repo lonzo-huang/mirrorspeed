@@ -61,11 +61,10 @@ class _MirrorSpeedAppState extends State<MirrorSpeedApp>
     _vpn.onBeforeConnect = () async {
       _shared.clearPreferShared();   // 用户改连优质节点 → 切回优质档
     };
-    // 广告加载不到（国内直连被墙）时，经随机共享节点把广告请求代理出去。
-    AdService.instance.onNeedProxyForAds = () async {
-      if (_vpn.isConnected) return;   // 已有优质隧道就不折腾
-      await _shared.connectRandomForAd();
-    };
+    // 【不自动连 VPN 拉广告】——用户没主动连接时,App 绝不自己连(否则状态栏 VPN 图标
+    // 无故亮起,用户会觉得蹊跷/怀疑偷跑流量)。广告只在用户【已连接】时后台预热;用户点
+    // 「看广告」若没就绪且未连接,由 UI 提示其先连免费节点(见 home_screen._watchAd)。
+    // 故不再设置 onNeedProxyForAds(保持为 null,ad_service 据此不做任何自动连接)。
     // 桌面托盘（macOS 菜单栏 / Windows 通知区）：状态与节点列表推给原生菜单，
     // 移动端此调用为空操作。
     DesktopTray.instance.attach(auth: _auth, vpn: _vpn, shared: _shared);
