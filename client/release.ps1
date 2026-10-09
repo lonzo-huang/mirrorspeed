@@ -31,11 +31,9 @@ $ErrorActionPreference = 'Stop'
 # Secrets come from environment variables - never hardcode them here.
 # Set before running (PowerShell profile or a local, gitignored script):
 #   $env:MS_SUPABASE_ANON = '<supabase anon key>'          # baked into the app build
-#   $env:MS_CRON_SECRET   = '<portal admin/cron secret>'   # PRIVATE - keep out of git
 $SUPABASE_URL  = 'https://yqckjzfwibklwokialac.supabase.co'
 $SUPABASE_ANON = $env:MS_SUPABASE_ANON
 $API_BASE      = 'https://www.mirrorspeed.com'
-$CRON_SECRET   = $env:MS_CRON_SECRET
 $GITHUB_REPO   = 'lonzo-huang/mirrorspeed'
 $TAG           = "v$Version"
 
@@ -384,17 +382,10 @@ if ((-not $SkipWindows) -and (Test-Path $WIN_DST)) {
 }
 
 # 国内下载已改为 GitHub Releases + ghproxy（见 /api/releases/latest），无需再传 Vercel Blob。
-
-# --- Trigger Vercel cache revalidation ---------------------------------------
-Step "Revalidating Vercel download page"
-
-try {
-    $url  = "$API_BASE/api/revalidate?token=$CRON_SECRET&path=/download"
-    $resp = Invoke-RestMethod -Uri $url -Method POST -ErrorAction Stop
-    Ok "Cache revalidated"
-} catch {
-    Warn "Revalidation failed (release is still live): $_"
-}
+#
+# 不再调用 /api/revalidate：/download 页是客户端组件，运行时用
+# fetch('/api/releases/latest', {cache:'no-store'}) 实时取数据，而该 API 本身
+# force-dynamic + no-store，两处都无缓存可清，revalidate 纯属多余。
 
 # --- Done --------------------------------------------------------------------
 Write-Host ""
