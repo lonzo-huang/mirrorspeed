@@ -95,6 +95,23 @@ class VpnProvider extends ChangeNotifier {
   VpnProtocol        _protocol         = VpnProtocol.direct;
   ConnMode           _connMode         = ConnMode.auto;   // 用户「连接模式」偏好
   bool               _switchingToRelay = false;
+
+  /// 已成功下发过本机凭证的节点 id(持久化)。连这些节点时 ensurePeer 改【后台刷新、不阻塞】起隧道，
+  /// 避免每次都白等 Vercel→节点往返(个别节点该往返达 ~8-10s)。节点凭证写在其 config 里是持久的。
+  /// 首次连某节点仍阻塞等下发成功(否则节点不认 UUID → 连上却不通)。重装 App 会清空(data 清掉)。
+  final Set<String>  _provisionedServerIds = {};
+  Future<void> _persistProvisioned() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setStringList('provisioned_servers', _provisionedServerIds.toList());
+    } catch (_) {}
+  }
+  /// 列表页预热(对所有节点 ensurePeer)成功后调用，把这些节点标记为已下发 → 后续首连也不阻塞。
+  void markServersProvisioned(Iterable<String> ids) {
+    final before = _provisionedServerIds.length;
+    _provisionedServerIds.addAll(ids);
+    if (_provisionedServerIds.length != before) _persistProvisioned();
+  }
   // 用户主动断开标志：置位后，任何挂起的连通性探测/回退计时器都不得再发起
   // 新的连接尝试（修复「手动断开后又自动切到下一模式」）。connect() 清零。
   bool               _userInitiatedDisconnect = false;
@@ -255,6 +272,8 @@ class VpnProvider extends ChangeNotifier {
       _routingMode = _isZh() ? RoutingMode.smart : RoutingMode.global;
     }
     notifyListeners();
+    // 恢复已下发凭证的节点缓存(连接时据此决定 ensurePeer 要不要阻塞起隧道)。
+    _provisionedServerIds.addAll(prefs.getStringList('provisioned_servers') ?? const []);
     // 恢复「智能分配 / 手动选择」偏好（默认智能）
     _autoSelect = prefs.getBool('auto_select') ?? true;
     // 恢复「连接模式」偏好（默认自动）
@@ -420,11 +439,20 @@ class VpnProvider extends ChangeNotifier {
       //    只花 1-2 秒(往返 Vercel 再调节点 vpn-api);真正的 6 秒卡顿是 teardown 空等,已单独修。
       //    幂等：已下发过则很快返回。失败也继续(best-effort),结果记入 _lastEnsurePeerOk 供诊断。
       if (!server.isDisplayOnly) {
-        final esw = Stopwatch()..start();
-        try {
-          _lastEnsurePeerOk = await ApiService.instance.ensurePeer(serverIds: [server.id]);
-        } catch (_) { _lastEnsurePeerOk = false; }
-        lastEnsurePeerMs = esw.elapsedMilliseconds;
+        if (_provisionedServerIds.contains(server.id)) {
+          // 已对该节点下发过 → 后台幂等刷新,不阻塞起隧道(省去 Vercel→节点往返的几~十秒)。
+          lastEnsurePeerMs = 0;
+          ApiService.instance.ensurePeer(serverIds: [server.id])
+              .then((ok) { if (ok) _lastEnsurePeerOk = true; }).catchError((_) => false);
+        } else {
+          // 首次连该节点:必须等凭证下发成功再起隧道,否则节点不认 UUID → 连上却不通。
+          final esw = Stopwatch()..start();
+          try {
+            _lastEnsurePeerOk = await ApiService.instance.ensurePeer(serverIds: [server.id]);
+          } catch (_) { _lastEnsurePeerOk = false; }
+          lastEnsurePeerMs = esw.elapsedMilliseconds;
+          if (_lastEnsurePeerOk == true) { _provisionedServerIds.add(server.id); _persistProvisioned(); }
+        }
       }
 
       // 纯 sing-box 客户端：优质节点必须已开通 sing-box（后端下发 singbox 块）。
