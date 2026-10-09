@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'vpn_engine.dart';
+import 'singbox_config.dart' show kDesktopClashApiPort;
 
 /// Windows 上的 sing-box 运行器：用官方 `sing-box.exe` 子进程 + wintun 网卡。
 /// sing-box.exe 自行管理 tun，无需像 Android 那样写 VpnService。
@@ -36,6 +37,30 @@ class SingboxWindowsRunner {
   void _pushTail(String line) {
     _tail.add(line);
     if (_tail.length > 40) _tail.removeAt(0);
+  }
+
+  /// 读累计上下行字节 [down, up]：查 sing-box clash_api 的 /connections(仅本机)。
+  /// 失败(未连/端口未起)返回 [-1,-1]，上层据此显示 0。端口与 singbox_config 一致(9595)。
+  Future<List<int>> transferRxTx() async {
+    if (_stage != VpnStage.connected) return const [-1, -1];
+    HttpClient? c;
+    try {
+      c = HttpClient()..connectionTimeout = const Duration(seconds: 2);
+      final req = await c
+          .getUrl(Uri.parse('http://127.0.0.1:$kDesktopClashApiPort/connections'))
+          .timeout(const Duration(seconds: 2));
+      final resp = await req.close().timeout(const Duration(seconds: 2));
+      if (resp.statusCode != 200) return const [-1, -1];
+      final body = await resp.transform(utf8.decoder).join();
+      final j = jsonDecode(body) as Map<String, dynamic>;
+      final down = (j['downloadTotal'] as num?)?.toInt() ?? -1;
+      final up = (j['uploadTotal'] as num?)?.toInt() ?? -1;
+      return [down, up];
+    } catch (_) {
+      return const [-1, -1];
+    } finally {
+      c?.close(force: true);
+    }
   }
 
   /// 去掉 tun inbound 里的 IPv6 地址（含 ':' 的条目）——用于「设 v6 地址 FATAL」时

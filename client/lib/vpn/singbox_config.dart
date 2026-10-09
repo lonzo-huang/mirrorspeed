@@ -4,6 +4,8 @@ import '../models/free_node.dart';
 
 /// 桌面(Windows/macOS)：sing-box.exe 自管 tun，需要 strict_route 堵漏。
 final bool _kIsDesktop = Platform.isWindows || Platform.isMacOS;
+/// 桌面 clash_api 仅本机监听端口(供 Windows runner 读流量统计)。SingboxWindowsRunner 用同一端口。
+const int kDesktopClashApiPort = 9595;
 
 /// Apple（iOS/macOS）：智能分流用 sing-box 的 rule_set 能力（geoip-cn + geosite-cn），
 /// 规则集随隧道扩展打包，路径占位符 `$RULESET_DIR` 由扩展换成真实 bundle 路径。
@@ -130,7 +132,12 @@ class SingboxConfig {
       //   不开它 trafficAvailable=false、速率恒 0)。不设 external_controller=不监听任何端口。
       // cache_file：持久化 DNS/fakeip 缓存到 work 目录,切换节点(reload)后 DNS 不清空 → 平滑。
       'experimental': {
-        'clash_api': <String, dynamic>{},
+        // clash_api：开启流量统计跟踪器。桌面(Windows)额外在【仅本机】开一个 external_controller，
+        // 供 SingboxWindowsRunner 通过 /connections 读上下行字节(否则桌面无 libbox CommandClient，
+        // 速率恒 0/不显示)。移动端走原生 CommandClient，不需要 external_controller。
+        'clash_api': _kIsDesktop
+            ? <String, dynamic>{'external_controller': '127.0.0.1:$kDesktopClashApiPort'}
+            : <String, dynamic>{},
         'cache_file': {'enabled': true, 'path': 'cache.db', 'store_fakeip': false},
       },
       'dns': {

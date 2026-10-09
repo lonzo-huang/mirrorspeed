@@ -75,7 +75,7 @@ class ProxyCoreEngine implements VpnEngine {
 
   @override
   Future<List<int>> transferRxTx() async {
-    if (_useDesktopRunner) return const [-1, -1];
+    if (_useDesktopRunner) return _win!.transferRxTx();
     final r = await _control.invokeMethod<List<dynamic>>('transferRxTx');
     if (r == null || r.length < 2) return const [-1, -1];
     return [(r[0] as num).toInt(), (r[1] as num).toInt()];
