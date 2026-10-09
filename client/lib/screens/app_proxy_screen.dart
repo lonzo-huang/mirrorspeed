@@ -2,8 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:installed_apps/installed_apps.dart';
 import '../services/app_proxy_store.dart';
+import '../providers/vpn_provider.dart';
+import '../providers/shared_node_provider.dart';
 import '../brand.dart';
 import '../theme.dart';
 
@@ -159,6 +162,9 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(children: [
+              if (context.watch<VpnProvider>().isConnected ||
+                  context.watch<SharedNodeProvider>().isConnected)
+                _reconnectHint(),
               _header(),
               const Divider(height: 1),
               Expanded(child: ListView.builder(
@@ -211,6 +217,26 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
   }
 
   // 说明条：分应用名单与「智能/全局」模式正交——名单决定哪些 App 进隧道，模式/地区决定进隧道后怎么走。
+  // 已连接时的醒目提示：分应用名单在连接那一刻写进配置，改了要断开重连才生效。
+  Widget _reconnectHint() => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: msNow.danger.withOpacity(0.12),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: msNow.danger.withOpacity(0.35)),
+    ),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(Icons.sync_problem_rounded, size: 16, color: msNow.danger),
+      const SizedBox(width: 8),
+      Expanded(child: Text(
+        tr('当前已连接：修改分应用名单后，需【断开再重新连接】才会生效。',
+           'Connected: changes to the per-app list take effect only after you disconnect and reconnect.'),
+        style: TextStyle(fontSize: 11, height: 1.4, color: msNow.danger, fontWeight: FontWeight.w600))),
+    ]),
+  );
+
   Widget _infoNote() {
     final text = tr(
         '分应用名单与「智能/全局」模式独立，对优质和免费节点都生效：\n'
