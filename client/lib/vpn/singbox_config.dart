@@ -175,9 +175,10 @@ class SingboxConfig {
           'auto_route': true,
           // 桌面(Windows)开 strict_route：强制所有流量进隧道、堵住泄漏。
           'strict_route': _kIsDesktop,
-          // TUN 协议栈：安卓用 system(内核栈)——启动更快、吞吐更高，解决"点连接后 4-5 秒
-          // 才起隧道"的卡顿；gvisor(用户态栈)启动重。Apple/桌面保持 gvisor(更稳，可回退)。
-          'stack': Platform.isAndroid ? 'system' : 'gvisor',
+          // TUN 协议栈：安卓 + Windows 用 system(系统/内核栈)——吞吐高。gvisor(用户态栈)在
+          // Windows 上 TCP 吞吐很差(能连、大流量几乎跑不动，同一节点手机秒开、Windows 打不开)。
+          // Apple(iOS/macOS)扩展里仍用 gvisor(系统栈在 NE 下不可用)。
+          'stack': (Platform.isAndroid || Platform.isWindows) ? 'system' : 'gvisor',
           // 分应用：白名单只放这些 App 进隧道；黑名单让这些 App 绕过。
           if (includePackages != null && includePackages.isNotEmpty)
             'include_package': includePackages,
