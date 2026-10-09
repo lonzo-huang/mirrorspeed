@@ -170,6 +170,10 @@ cat > /etc/systemd/system/ms-singbox-nft.service <<'UNIT'
 [Unit]
 Description=MirrorSpeed sing-box nftables (hy2 port-hopping redirect)
 After=network.target nftables.service
+Wants=nftables.service
+# nftables 一重启(其 /etc/nftables.conf 带 flush ruleset，会清掉本重定向)就跟着重跑本服务，
+# 自动把 hy2 端口跳跃重定向补回——否则重跑 05/重载防火墙后快速模式连上却没数据、几十秒断一次。
+PartOf=nftables.service
 [Service]
 Type=oneshot
 ExecStart=/usr/sbin/nft -f /etc/sing-box/nftables.nft

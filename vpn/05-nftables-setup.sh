@@ -124,6 +124,13 @@ nft -f /etc/nftables.conf
 systemctl enable --now nftables
 systemctl restart nftables
 
+# flush ruleset 会清掉 ms-singbox-nft 的 hy2 端口跳跃重定向 → 立即补回(存在才重启)，
+# 否则快速(hy2)连上却没数据、几十秒断一次(重跑 05 的坑)。
+if systemctl cat ms-singbox-nft >/dev/null 2>&1; then
+  systemctl restart ms-singbox-nft 2>/dev/null || true
+  echo "  已重载 ms-singbox-nft（恢复 hy2 端口跳跃重定向）"
+fi
+
 echo ""
 echo "nftables 防火墙策略已部署（持久化至 /etc/nftables.conf）："
 echo "  入站放行端口: TCP 22 (SSH 限速), TCP 80 (HTTP/certbot), TCP 443 (HTTPS), UDP 51820 (AmneziaWG 内部)"
