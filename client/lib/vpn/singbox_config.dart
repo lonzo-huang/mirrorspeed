@@ -169,6 +169,9 @@ class SingboxConfig {
           // （很多企业 Windows），sing-box 设 v6 地址会 FATAL「set ipv6 address: Element not
           // found」→ 整个隧道起不来。故由上层探测后用 [ipv6] 控制，无 v6 环境退回纯 IPv4。
           'address': ipv6 ? ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'] : ['172.19.0.1/30'],
+          // 桌面(gvisor+wintun)把 tun MTU 收到隧道安全值：默认 9000 时大响应分片在用户态栈里
+          // 卡住 → 页面/IP 能显示但浏览器一直转圈(大数据包过不去)。安卓内核栈处理得好，不设。
+          if (_kIsDesktop) 'mtu': 1400,
           'auto_route': true,
           // 桌面(Windows)开 strict_route：强制所有流量进隧道、堵住泄漏。
           'strict_route': _kIsDesktop,
