@@ -885,7 +885,7 @@ class VpnProvider extends ChangeNotifier {
         try {
           final sw = Stopwatch()..start();
           final sock = await Socket.connect(s.relayHost, 443,
-              timeout: const Duration(seconds: 3));
+              timeout: const Duration(seconds: 2));
           sw.stop();
           sock.destroy();
           s.addLatencySample(sw.elapsedMilliseconds);

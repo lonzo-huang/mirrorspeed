@@ -36,7 +36,8 @@ class _ServerListScreenState extends State<ServerListScreen> {
       final auth    = context.read<AuthProvider>();
       auth.ensurePublicServers();   // 启动时那次拉取失败的话，这里补拉
       final servers = auth.displayServers;
-      context.read<VpnProvider>().measureLatencies(servers);
+      // 初次只测 1 轮(每节点并行、2s 超时)→ 列表秒出；之后 30s 定时刷新(也 1 轮)再精修。
+      context.read<VpnProvider>().measureLatencies(servers, rounds: 1);
       // 列表打开即后台批量预热：在所有节点上提前建好 peer，点哪个都即时连。
       // 预热成功后把这些节点标记为"已下发" → 连接时 ensurePeer 不再阻塞起隧道(秒连)。
       if (auth.isLoggedIn) {
