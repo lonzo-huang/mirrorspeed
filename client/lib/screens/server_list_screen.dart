@@ -39,13 +39,8 @@ class _ServerListScreenState extends State<ServerListScreen> {
       // 初次只测 1 轮(每节点并行、2s 超时)→ 列表秒出；之后 30s 定时刷新(也 1 轮)再精修。
       context.read<VpnProvider>().measureLatencies(servers, rounds: 1);
       // 列表打开即后台批量预热：在所有节点上提前建好 peer，点哪个都即时连。
-      // 预热成功后把这些节点标记为"已下发" → 连接时 ensurePeer 不再阻塞起隧道(秒连)。
       if (auth.isLoggedIn) {
-        final vpn = context.read<VpnProvider>();
-        final realIds = servers.where((s) => !s.isDisplayOnly).map((s) => s.id).toList();
-        ApiService.instance.ensurePeer().then((ok) {
-          if (ok && realIds.isNotEmpty) vpn.markServersProvisioned(realIds);
-        }).catchError((_) => false);
+        ApiService.instance.ensurePeer();   // serverIds 省略 = 全部活跃节点
       }
     });
     // 延迟每 30 秒自动刷新一次（顶部仍保留手动刷新按钮）。
