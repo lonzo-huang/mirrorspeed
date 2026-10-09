@@ -338,6 +338,7 @@ class VpnProvider extends ChangeNotifier {
         _startUsagePolling();   // 速率轮询(优质)——幂等,确保速度能显示
         _startTrialTracking();  // 连上即开始免费时长倒计时(付费用户内部 no-op)
       case VpnStage.connecting:
+        if (_userInitiatedDisconnect) break;  // 用户已点断开，忽略迟到的 connecting(否则 UI 刷回"正在连接")
         _status = VpnStatus.connecting;
       case VpnStage.disconnected:
         _status = VpnStatus.disconnected;
