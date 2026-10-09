@@ -14,10 +14,15 @@ param(
     # Re-release ONLY the Windows artifact for an already-published tag:
     # skips Android, skips the version bump, and reuses the existing GitHub
     # Release + tag (clobber-uploads the new zip + refreshes the CN mirror).
-    [switch]$WindowsOnly
+    [switch]$WindowsOnly,
+    # Skip `flutter clean` + `flutter pub get` and build with `--no-pub` (use the
+    # already-resolved .dart_tool). Use when the machine can't reach pub.dev
+    # (e.g. advisories endpoint returns 403) but deps are unchanged + cached.
+    [switch]$NoPub
 )
 
 if ($WindowsOnly) { $SkipAndroid = $true }
+$PUB = if ($NoPub) { @('--no-pub') } else { @() }
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -149,11 +154,15 @@ if (Test-Path $androidGradlew) {
 Get-Process java -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-$ErrorActionPreference = 'Continue'; flutter clean;   $ec = $LASTEXITCODE; $ErrorActionPreference = 'Stop'
-if ($ec -ne 0) { Fail "flutter clean failed" }
-$ErrorActionPreference = 'Continue'; flutter pub get; $ec = $LASTEXITCODE; $ErrorActionPreference = 'Stop'
-if ($ec -ne 0) { Fail "flutter pub get failed" }
-Ok "Clean done"
+if ($NoPub) {
+    Warn "NoPub: skipping 'flutter clean' + 'flutter pub get' (building with --no-pub against cached .dart_tool)"
+} else {
+    $ErrorActionPreference = 'Continue'; flutter clean;   $ec = $LASTEXITCODE; $ErrorActionPreference = 'Stop'
+    if ($ec -ne 0) { Fail "flutter clean failed" }
+    $ErrorActionPreference = 'Continue'; flutter pub get; $ec = $LASTEXITCODE; $ErrorActionPreference = 'Stop'
+    if ($ec -ne 0) { Fail "flutter pub get failed" }
+    Ok "Clean done"
+}
 
 # --- Build Android APK (clean arm64-v8a via abiFilters) + App Bundle (Play) --
 if (-not $SkipAndroid) {
@@ -164,7 +173,7 @@ if (-not $SkipAndroid) {
     $t0 = Get-Date
 
     $ErrorActionPreference = 'Continue'
-    flutter build apk --release --split-per-abi --no-tree-shake-icons @DEFINES
+    flutter build apk --release --split-per-abi --no-tree-shake-icons @PUB @DEFINES
     $ec = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($ec -ne 0) { Fail "flutter build apk failed" }
@@ -181,7 +190,7 @@ if (-not $SkipAndroid) {
     Step "Building Android App Bundle (.aab - Google Play)"
     $t0 = Get-Date
     $ErrorActionPreference = 'Continue'
-    flutter build appbundle --release --no-tree-shake-icons @DEFINES
+    flutter build appbundle --release --no-tree-shake-icons @PUB @DEFINES
     $ec = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($ec -ne 0) { Fail "flutter build appbundle failed" }
@@ -202,7 +211,7 @@ if (-not $SkipWindows) {
     # --obfuscate replaces Dart class/function names with random identifiers
     # --split-debug-info keeps debug symbols separate (required with --obfuscate)
     $ErrorActionPreference = 'Continue'
-    flutter build windows --release --no-tree-shake-icons --obfuscate --split-debug-info=build/debug_symbols/windows @DEFINES
+    flutter build windows --release --no-tree-shake-icons --obfuscate --split-debug-info=build/debug_symbols/windows @PUB @DEFINES
     $ec = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($ec -ne 0) { Fail "flutter build windows failed" }
@@ -317,8 +326,12 @@ Step "Creating GitHub Release: $TAG"
 
 $notes = "## MirrorSpeed VPN v$Version`n`n" +
          "### What's new`n" +
-         "- Rewarded / open ads now load reliably from within China: ad traffic (incl. Google Play services that carry it) is always routed through the tunnel, ads are preloaded on connect and refreshed periodically, and Smart mode uses a clean DNS so ad domains resolve correctly`n" +
-         "- Fewer failed ad loads and less wasted proxying`n" +
+         "- Per-app proxy (分应用代理): choose a 代理名单 (only these apps go through the tunnel) or a 直连名单 (these apps bypass it); works on Android and Windows. Changes take effect after reconnecting — the app now shows a reminder`n" +
+         "- Faster connections across all nodes (connect handshake no longer waits on legacy setup)`n" +
+         "- Language switch in Settings: Follow system / 中文 / English`n" +
+         "- IPv6 leak fixed — dual-stack sites no longer bypass the tunnel`n" +
+         "- Windows: much better throughput, plus live upload/download speed in the status bar`n" +
+         "- More reliable connect/disconnect, with fixes for the occasional stuck 'connecting' state`n" +
          "### Install`n" +
          "**Android**: download the APK and install (allow unknown sources)`n" +
          "**Windows**: download the ZIP, extract, and run mirrorspeed_vpn.exe (right-click → Run as administrator on first launch)"
