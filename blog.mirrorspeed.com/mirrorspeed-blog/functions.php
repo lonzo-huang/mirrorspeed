@@ -416,3 +416,19 @@ if (!function_exists('ms_seo_meta')) {
         echo '<script type="application/ld+json">' . wp_json_encode($ld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>' . "\n";
     }
 }
+
+// ── snippet「pll-disable-cookie-redirect」（线上激活中）────────────
+// 修复：zh 访客从 /zh/ 点「English」→ / 被 Polylang 302 弹回 /zh/（x-redirect-by: Polylang）。
+// 原因：Polylang「记住语言」pll_language cookie，在 plugins_loaded 就被读取决定
+// preferred_language，init 阶段再删 cookie 太晚 → 三层拦截：
+unset($_COOKIE['pll_language']);                                  // 顶层执行，尽量早
+add_action('plugins_loaded', function () { unset($_COOKIE['pll_language']); }, 0);
+add_filter('pll_preferred_language', '__return_false');           // 禁「首选语言」探测
+add_filter('pll_check_canonical_url', '__return_false');          // 禁 Polylang canonical 重定向
+// 兜底：仅当访问 / 而目标是 /zh/ 时取消重定向（wp_redirect 返 false = 不发 location）
+add_filter('wp_redirect', function ($loc) {
+    if ($loc && strpos($loc, '/zh') !== false &&
+        isset($_SERVER['REQUEST_URI']) && preg_match('#^/?(\?.*)?$#', $_SERVER['REQUEST_URI']))
+        return false;
+    return $loc;
+});
