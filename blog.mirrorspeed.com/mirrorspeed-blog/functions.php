@@ -47,6 +47,14 @@ function mirrorspeed_read_time($post_id = null) {
     return max(1, (int) ceil($count / 250));
 }
 
+// ── 微信图片防盗链 ────────────────────────────────────────────
+// 生产环境通过 Code Snippets snippet id=6 运行（与下面全文补全 id=5 分开）。
+// mmbiz.qpic.cn 对非微信域名的 Referer 返回「未经允许不可引用」占位图；
+// 输出 no-referrer 后浏览器不带 Referer，图片正常加载。
+add_action('wp_head', function () {
+    echo '<meta name="referrer" content="no-referrer">' . "\n";
+}, 1);
+
 // ── 公众号全文补全 ─────────────────────────────────────────────
 // 生产环境实际通过 Code Snippets 插件的 snippet (id=5) 运行同名函数；
 // 这里保留一份源码副本，用 function_exists 守卫避免重复定义 fatal。
