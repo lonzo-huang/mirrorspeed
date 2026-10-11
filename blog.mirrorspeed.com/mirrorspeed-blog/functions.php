@@ -110,3 +110,270 @@ if (!function_exists('mirrorspeed_wechat_fulltext')) {
         return $data;
     }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// 以下为线上 Code Snippets 的源码副本（Hostinger WAF 拦截 theme-editor
+// 的 PHP POST，只能经 REST 管理 snippet；此处存档保持与线上一致）。
+//   snippet id=8「采集后处理」：语言归类 + 特色图 + Groq 翻译 + 存量修复 + llms.txt
+//   snippet id=9「SEO/OG/分享 meta」
+// ═══════════════════════════════════════════════════════════════
+
+// ── snippet id=8：采集文章后处理 ─────────────────────────────────
+// WPeMatico 拉公众号中文内容，但 Polylang 默认语言是 English（全站 1600+
+// 采集文章曾全挂英文「未分类」）。逻辑：
+//  1) 确保「公众号精选」(zh) ↔「Curated Feeds」(en) 分类对存在（存 option）
+//  2) save_post：含 mp.weixin.qq.com 的文章 → 语言 zh + 中文分类 +
+//     首图下载为本地特色图 + 回填 post_excerpt + 调度异步 Groq 翻译
+//  3) ms_translate_post cron：Groq 翻译标题+正文 → 发布英文版并互链
+//  4) ms_fix_zh_batch cron：后台分批把存量微信文章改归中文（只归类不翻译）
+//  5) /llms.txt（实际被 Rank Math 接管，保留无害）
+//
+// Groq key 填在线上 snippet 顶部：define('MS_GROQ_API_KEY', '...');
+
+if (!defined('MS_GROQ_API_KEY')) define('MS_GROQ_API_KEY', '');
+if (!defined('MS_GROQ_MODEL'))   define('MS_GROQ_MODEL', 'llama-3.3-70b-versatile');
+
+if (!function_exists('ms_feed_cat_ids')) {
+    function ms_feed_cat_ids() {
+        $ids = get_option('ms_feed_cats');
+        if (is_array($ids) && term_exists((int)$ids[0]) && term_exists((int)$ids[1])) return $ids;
+
+        $zh = get_term_by('slug', 'wechat-feeds', 'category');
+        if (!$zh) { $r = wp_insert_term('公众号精选', 'category', array('slug' => 'wechat-feeds')); $zh = is_wp_error($r) ? get_term_by('slug', 'wechat-feeds', 'category') : (object)$r; }
+        $en = get_term_by('slug', 'curated-feeds', 'category');
+        if (!$en) { $r = wp_insert_term('Curated Feeds', 'category', array('slug' => 'curated-feeds')); $en = is_wp_error($r) ? get_term_by('slug', 'curated-feeds', 'category') : (object)$r; }
+        if (!$zh || !$en) return array(0, 0);
+
+        if (function_exists('pll_set_term_language')) {
+            pll_set_term_language((int)$zh->term_id, 'zh');
+            pll_set_term_language((int)$en->term_id, 'en');
+            if (function_exists('pll_save_term_translations'))
+                pll_save_term_translations(array('zh' => (int)$zh->term_id, 'en' => (int)$en->term_id));
+        }
+        $ids = array((int)$zh->term_id, (int)$en->term_id);
+        update_option('ms_feed_cats', $ids);
+        return $ids;
+    }
+    add_action('init', 'ms_feed_cat_ids');
+}
+
+// mmbiz URL 无扩展名，须手动指定文件名再 sideload（media_sideload_image 会失败）
+if (!function_exists('ms_sideload_thumb')) {
+    function ms_sideload_thumb($post_id, $url) {
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        $tmp = download_url($url, 30);
+        if (is_wp_error($tmp)) return;
+        $ext = 'jpg';
+        if (preg_match('#wx_fmt=(\w+)#i', $url, $m)) $ext = strtolower($m[1]);
+        $file = array('name' => 'wechat-' . substr(md5($url), 0, 12) . '.' . $ext, 'tmp_name' => $tmp);
+        $att = media_handle_sideload($file, $post_id);
+        if (is_wp_error($att)) { @unlink($tmp); return; }
+        set_post_thumbnail($post_id, $att);
+    }
+}
+
+if (!function_exists('ms_feed_post_process')) {
+    add_action('save_post_post', 'ms_feed_post_process', 30);
+    function ms_feed_post_process($post_id) {
+        static $busy = false;
+        if ($busy) return;
+        if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) return;
+        if (!empty($GLOBALS['ms_creating_translation'])) return;
+        $c = get_post_field('post_content', $post_id);
+        if (strpos($c, 'mp.weixin.qq.com') === false) return;
+
+        $busy = true;
+        list($zh_cat) = ms_feed_cat_ids();
+        if ($zh_cat) {
+            if (function_exists('pll_set_post_language')) pll_set_post_language($post_id, 'zh');
+            wp_set_post_categories($post_id, array($zh_cat));
+        }
+        if (!has_post_thumbnail($post_id) &&
+            preg_match('#https?://mmbiz\.qpic\.cn/[^"\'\s<>]+#i', $c, $im)) {
+            ms_sideload_thumb($post_id, html_entity_decode($im[0]));
+        }
+        if (get_post_field('post_excerpt', $post_id) === '' &&
+            preg_match('#<div class="feed-desc"[^>]*>.*?<p>.*?</p>#s', $c, $em)) {
+            $exc = trim(wp_strip_all_tags($em[0]));
+            if ($exc !== '') wp_update_post(array('ID' => $post_id, 'post_excerpt' => $exc));
+        }
+        if (!function_exists('pll_get_post') || !pll_get_post($post_id, 'en')) {
+            if (!wp_next_scheduled('ms_translate_post', array($post_id)))
+                wp_schedule_single_event(time() + 10, 'ms_translate_post', array($post_id));
+        }
+        $busy = false;
+    }
+}
+
+if (!function_exists('ms_groq_translate')) {
+    function ms_groq_translate($text, $is_html) {
+        $sys = $is_html
+            ? 'You are a professional Chinese-to-English translator for a tech blog. Translate the HTML below to natural English. Keep ALL HTML tags, attributes, URLs, class names and placeholders EXACTLY as-is; translate only inner text. Output ONLY the translated HTML, no commentary, no markdown fences.'
+            : 'Translate this Chinese blog title into concise natural English. Output ONLY the translation.';
+        $resp = wp_remote_post('https://api.groq.com/openai/v1/chat/completions', array(
+            'timeout' => 90,
+            'headers' => array('Authorization' => 'Bearer ' . MS_GROQ_API_KEY, 'Content-Type' => 'application/json'),
+            'body'    => wp_json_encode(array(
+                'model'       => MS_GROQ_MODEL,
+                'messages'    => array(
+                    array('role' => 'system', 'content' => $sys),
+                    array('role' => 'user',   'content' => $text),
+                ),
+                'temperature' => 0.3,
+                'max_tokens'  => 4096,
+            )),
+        ));
+        if (is_wp_error($resp)) return false;
+        $j = json_decode(wp_remote_retrieve_body($resp), true);
+        $out = isset($j['choices'][0]['message']['content']) ? trim($j['choices'][0]['message']['content']) : '';
+        $out = preg_replace('#^```[a-zA-Z]*\s*|\s*```$#', '', $out);
+        return $out === '' ? false : $out;
+    }
+}
+
+if (!function_exists('ms_split_html')) {
+    function ms_split_html($html, $max) {
+        $parts = preg_split('#(?=<(?:div|p|section|h[1-6]|table|blockquote|ul|ol|figure)\b)#i', $html);
+        $chunks = array(); $cur = '';
+        foreach ($parts as $p) {
+            if ($p === '') continue;
+            if (strlen($cur) + strlen($p) > $max && $cur !== '') { $chunks[] = $cur; $cur = ''; }
+            $cur .= $p;
+            if (strlen($cur) > $max) { $chunks[] = $cur; $cur = ''; }
+        }
+        if ($cur !== '') $chunks[] = $cur;
+        return $chunks;
+    }
+}
+
+if (!function_exists('ms_translate_post_handler')) {
+    add_action('ms_translate_post', 'ms_translate_post_handler');
+    function ms_translate_post_handler($post_id) {
+        if (!MS_GROQ_API_KEY || get_post_status($post_id) !== 'publish') return;
+        if (function_exists('pll_get_post') && pll_get_post($post_id, 'en')) return;
+
+        $title = get_the_title($post_id);
+        $html  = get_post_field('post_content', $post_id);
+        $en_title = ms_groq_translate($title, false);
+        $en_body = '';
+        foreach (ms_split_html($html, 3500) as $ch) {
+            $t = ms_groq_translate($ch, true);
+            $en_body .= ($t === false ? $ch : $t);
+        }
+        if ($en_body === '') return;
+
+        // 创建英文版时关掉全文补全过滤器（防止把中文原文盖回译文）
+        remove_filter('wp_insert_post_data', 'mirrorspeed_wechat_fulltext', 20);
+        $GLOBALS['ms_creating_translation'] = true;
+        $new_id = wp_insert_post(array(
+            'post_type'    => 'post',
+            'post_status'  => 'publish',
+            'post_title'   => $en_title ?: ('[EN] ' . $title),
+            'post_content' => $en_body,
+        ), true);
+        $GLOBALS['ms_creating_translation'] = false;
+
+        if (is_wp_error($new_id)) return;
+        list($zh_cat, $en_cat) = ms_feed_cat_ids();
+        if ($en_cat) {
+            if (function_exists('pll_set_post_language')) pll_set_post_language($new_id, 'en');
+            if (function_exists('pll_save_post_translations'))
+                pll_save_post_translations(array('zh' => (int)$post_id, 'en' => (int)$new_id));
+            wp_set_post_categories($new_id, array($en_cat));
+        }
+        $thumb = get_post_thumbnail_id($post_id);
+        if ($thumb) set_post_thumbnail($new_id, $thumb);
+    }
+}
+
+// 存量文章后台分批改归中文（一次性，自动推进；只归类不翻译）
+add_action('init', function () {
+    if (!get_option('ms_fix_batch_started')) {
+        update_option('ms_fix_batch_started', 1);
+        wp_schedule_single_event(time() + 30, 'ms_fix_zh_batch');
+    }
+});
+add_action('ms_fix_zh_batch', function () {
+    $q = new WP_Query(array(
+        'post_type' => 'post', 'posts_per_page' => 40, 'fields' => 'ids',
+        'post_status' => 'any', 's' => 'mp.weixin.qq.com',
+    ));
+    $did = 0;
+    list($zh_cat) = ms_feed_cat_ids();
+    foreach ($q->posts as $pid) {
+        if (!function_exists('pll_get_post_language') || !$zh_cat) break;
+        if (pll_get_post_language($pid, 'slug') !== 'en') continue;
+        pll_set_post_language($pid, 'zh');
+        wp_set_post_categories($pid, array($zh_cat));
+        $did++;
+    }
+    if ($did > 0) wp_schedule_single_event(time() + 15, 'ms_fix_zh_batch');
+});
+
+// /llms.txt 兜底（线上实际由 Rank Math 接管输出，此处无害保留）
+add_action('init', function () {
+    $uri = parse_url(isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '', PHP_URL_PATH);
+    if ($uri !== '/llms.txt') return;
+    header('Content-Type: text/plain; charset=utf-8');
+    echo "# MirrorSpeed Blog\n\n> MirrorSpeed 官方博客：VPN 加速、隐私安全、AI 与科技精选资讯。\n\n";
+    echo "- English home: " . home_url('/') . "\n- 中文首页: " . home_url('/zh/') . "\n- Sitemap: " . home_url('/sitemap_index.xml') . "\n";
+    exit;
+});
+
+// ── snippet id=9：SEO / OG / 分享 meta ────────────────────────────
+// og:image = 本地特色图（无则正文第一张图）；og:description = 摘要/正文前40词；
+// meta description + canonical + shortlink + Article JSON-LD。
+// Rank Math 已装但需跑完 Setup Wizard 才输出；届时可停用本段/snippet。
+if (!function_exists('ms_seo_meta')) {
+    add_action('wp_head', 'ms_seo_meta', 5);
+    function ms_seo_meta() {
+        if (!is_singular('post')) return;
+        $id    = get_the_ID();
+        $title = get_the_title($id);
+        $desc  = get_the_excerpt($id);
+        if ($desc === '') $desc = wp_trim_words(wp_strip_all_tags(get_post_field('post_content', $id)), 40, '…');
+        $url = get_permalink($id);
+
+        $img = '';
+        $t = get_post_thumbnail_id($id);
+        if ($t) { $s = wp_get_attachment_image_src($t, 'large'); if ($s) $img = $s[0]; }
+        if (!$img && preg_match('#<img\b[^>]*\ssrc="(https?://[^"]+)"#i', get_post_field('post_content', $id), $im)) $img = $im[1];
+
+        $lang = function_exists('pll_get_post_language') ? pll_get_post_language($id, 'slug') : 'en';
+        $locale = ($lang === 'zh') ? 'zh_CN' : 'en_GB';
+
+        echo '<meta name="description" content="' . esc_attr($desc) . '">' . "\n";
+        echo '<link rel="canonical" href="' . esc_url($url) . '">' . "\n";
+        echo '<link rel="shortlink" href="' . esc_url(wp_get_shortlink($id)) . '">' . "\n";
+        echo '<meta property="og:type" content="article">' . "\n";
+        echo '<meta property="og:title" content="' . esc_attr($title) . '">' . "\n";
+        echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
+        echo '<meta property="og:url" content="' . esc_url($url) . '">' . "\n";
+        echo '<meta property="og:site_name" content="MirrorSpeed Blog">' . "\n";
+        echo '<meta property="og:locale" content="' . esc_attr($locale) . '">' . "\n";
+        echo '<meta property="article:published_time" content="' . esc_attr(get_post_time('c', true, $id)) . '">' . "\n";
+        echo '<meta property="article:modified_time" content="' . esc_attr(get_post_modified_time('c', true, $id)) . '">' . "\n";
+        if ($img) echo '<meta property="og:image" content="' . esc_url($img) . '">' . "\n";
+        echo '<meta name="twitter:card" content="' . ($img ? 'summary_large_image' : 'summary') . '">' . "\n";
+        echo '<meta name="twitter:title" content="' . esc_attr($title) . '">' . "\n";
+        echo '<meta name="twitter:description" content="' . esc_attr($desc) . '">' . "\n";
+        if ($img) echo '<meta name="twitter:image" content="' . esc_url($img) . '">' . "\n";
+
+        $ld = array(
+            '@context'         => 'https://schema.org',
+            '@type'            => 'Article',
+            'headline'         => $title,
+            'description'      => $desc,
+            'datePublished'    => get_post_time('c', true, $id),
+            'dateModified'     => get_post_modified_time('c', true, $id),
+            'mainEntityOfPage' => $url,
+            'inLanguage'       => $lang,
+            'author'           => array('@type' => 'Organization', 'name' => 'MirrorSpeed'),
+            'publisher'        => array('@type' => 'Organization', 'name' => 'MirrorSpeed'),
+        );
+        if ($img) $ld['image'] = $img;
+        echo '<script type="application/ld+json">' . wp_json_encode($ld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>' . "\n";
+    }
+}

@@ -183,10 +183,15 @@ SUPABASE_SERVICE_KEY='<service_role>' bash vpn/11-sync-servers-setup.sh
 9. **证书**：hy2 需 TLS 证书；04 自动复用本机 `*.mirrorspeed.com` LE 证书。各节点用**自己的**域名，别照抄示例。
 10. **设备凭证只由 portal 自动下发**，别手动加 sing-box 用户（手动加的测试用户确认正常后可删）。
 11. **提交 & 署名**：改完即 commit+push main；署名见 §0。
-12. **博客站 blog.mirrorspeed.com**（Hostinger 共享主机，无 SSH）：wp-admin 走密码登录 + REST API（需 `X-WP-Nonce`，从 admin 页 `wpApiSettings.nonce` 提取）。
-    采集链：WPeMatico campaign 164 拉 `decemberpei.cyou/rssbox/wechat-*.xml`（16 个公众号源），**该 feed 的 description 只有标题、无正文**
-    → 全文由 Code Snippets 插件 snippet id=5 `mirrorspeed_wechat_fulltext` 补：保存文章时抓 `mp.weixin.qq.com` 原文页抽 `#js_content`
-    写回 `.feed-content`（源码副本在主题 `functions.php`，function_exists 守卫）。**改主题文件不能走 theme-editor.php（Hostinger WAF 403 拦 PHP POST），用 REST 装插件/改 snippet。**
+12. **博客站 blog.mirrorspeed.com**（Hostinger 共享主机，无 SSH）：wp-admin 走密码登录 + REST API（需 `X-WP-Nonce`，从 admin 页 `wpApiSettings.nonce` 提取，会过期要重新拿）。
+    采集链：WPeMatico campaign 164 拉 `decemberpei.cyou/rssbox/wechat-*.xml`（16 个公众号源），**该 feed 的 description 只有标题、无正文**。
+    线上修复（Code Snippets，源码副本都在主题 `functions.php`）：
+    - **id=5** `mirrorspeed_wechat_fulltext`：`wp_insert_post_data` 抓 `mp.weixin.qq.com` 原文抽 `#js_content` 写回 `.feed-content` + 填摘要；
+    - **id=6** `wp_head` 输出 `referrer no-referrer`（mmbiz 微信图防盗链，带 Referer 返回占位图）；
+    - **id=8** 采集后处理：含 weixin 链接的文章 → `pll_set_post_language('zh')` + 中文分类「公众号精选」、首图 sideload 为本地特色图、回填 excerpt、调度 Groq 翻译（`ms_translate_post` 生成英文版并 Polylang 互链，**key 填在 snippet 顶部 `MS_GROQ_API_KEY`**）、存量 `ms_fix_zh_batch` 分批改归中文；
+    - **id=9** SEO meta：og/twitter card/canonical/shortlink/Article JSON-LD。
+    **Polylang 默认语言是 English**（1671 篇曾全落英文「未分类」id=13；zh 首页 `/zh/`）。Rank Math 已装但卡在 setup wizard 不出 meta，先用 id=9 自实现；WP 自带 `wp-sitemap.xml` 可用。
+    **WAF**：theme-editor.php 的 PHP POST 403；Code Snippets REST **POST 新建能过、PUT 改代码被拦（小 JSON 如 `{"active":true}` 可过）** → 改 snippet = 新建 + 停旧的。LiteSpeed 缓存在跑，改后要 touch 文章触发清缓存。
 
 ---
 
