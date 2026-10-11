@@ -131,7 +131,9 @@ if (!function_exists('mirrorspeed_wechat_fulltext')) {
 // Groq key 填在线上 snippet 顶部：define('MS_GROQ_API_KEY', '...');
 
 if (!defined('MS_GROQ_API_KEY')) define('MS_GROQ_API_KEY', '');
-if (!defined('MS_GROQ_MODEL'))   define('MS_GROQ_MODEL', 'llama-3.3-70b-versatile');
+if (!defined('MS_GROQ_MODEL'))   define('MS_GROQ_MODEL', 'qwen/qwen3.8-27b');
+// 注：llama-3.3-70b-versatile 已在 Groq 下线（model_not_found）；
+// 实测 qwen3.8-27b 中译英质量好、无推理开销；备选 openai/gpt-oss-120b（带推理 token）。
 
 if (!function_exists('ms_feed_cat_ids')) {
     function ms_feed_cat_ids() {
@@ -199,7 +201,9 @@ if (!function_exists('ms_feed_post_process')) {
             $exc = trim(wp_strip_all_tags($em[0]));
             if ($exc !== '') wp_update_post(array('ID' => $post_id, 'post_excerpt' => $exc));
         }
-        if (!function_exists('pll_get_post') || !pll_get_post($post_id, 'en')) {
+        // 翻译链接可能指向已删除的文章（如手动删 EN 版），需 get_post 存在检查
+        $en_t = function_exists('pll_get_post') ? pll_get_post($post_id, 'en') : 0;
+        if (!$en_t || !get_post($en_t)) {
             if (!wp_next_scheduled('ms_translate_post', array($post_id)))
                 wp_schedule_single_event(time() + 10, 'ms_translate_post', array($post_id));
         }
@@ -252,17 +256,18 @@ if (!function_exists('ms_translate_post_handler')) {
     add_action('ms_translate_post', 'ms_translate_post_handler');
     function ms_translate_post_handler($post_id) {
         if (!MS_GROQ_API_KEY || get_post_status($post_id) !== 'publish') return;
-        if (function_exists('pll_get_post') && pll_get_post($post_id, 'en')) return;
+        $en_t = function_exists('pll_get_post') ? pll_get_post($post_id, 'en') : 0;
+        if ($en_t && get_post($en_t)) return;
 
         $title = get_the_title($post_id);
         $html  = get_post_field('post_content', $post_id);
         $en_title = ms_groq_translate($title, false);
-        $en_body = '';
+        $en_body = ''; $any_t = false;
         foreach (ms_split_html($html, 3500) as $ch) {
             $t = ms_groq_translate($ch, true);
-            $en_body .= ($t === false ? $ch : $t);
+            $en_body .= ($t === false ? $ch : $t); if ($t !== false) $any_t = true;
         }
-        if ($en_body === '') return;
+        if (!$any_t) return; // 全块失败则不发英文版（避免中文壳的假译文）
 
         // 创建英文版时关掉全文补全过滤器（防止把中文原文盖回译文）
         remove_filter('wp_insert_post_data', 'mirrorspeed_wechat_fulltext', 20);
