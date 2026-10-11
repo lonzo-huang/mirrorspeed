@@ -131,9 +131,9 @@ if (!function_exists('mirrorspeed_wechat_fulltext')) {
 // Groq key 填在线上 snippet 顶部：define('MS_GROQ_API_KEY', '...');
 
 if (!defined('MS_GROQ_API_KEY')) define('MS_GROQ_API_KEY', '');
-if (!defined('MS_GROQ_MODEL'))   define('MS_GROQ_MODEL', 'qwen/qwen3.8-27b');
-// 注：llama-3.3-70b-versatile 已在 Groq 下线（model_not_found）；
-// 实测 qwen3.8-27b 中译英质量好、无推理开销；备选 openai/gpt-oss-120b（带推理 token）。
+if (!defined('MS_GROQ_MODEL'))   define('MS_GROQ_MODEL', 'openai/gpt-oss-120b');
+// Groq 免费档限额实测：qwen OTPM=1000（一次大块就 429）、llama-3.3-70b 已下线；
+// gpt-oss-120b 单次可 4096+ tokens、连发 ~2 次/分钟，配增量分块最稳。
 
 if (!function_exists('ms_feed_cat_ids')) {
     function ms_feed_cat_ids() {
@@ -227,12 +227,16 @@ if (!function_exists('ms_groq_translate')) {
                 ),
                 'temperature' => 0.3,
                 'max_tokens'  => 4096,
+                'reasoning_effort' => 'low',
             )),
         ));
         if (is_wp_error($resp)) return false;
         $j = json_decode(wp_remote_retrieve_body($resp), true);
         $out = isset($j['choices'][0]['message']['content']) ? trim($j['choices'][0]['message']['content']) : '';
         $out = preg_replace('#^```[a-zA-Z]*\s*|\s*```$#', '', $out);
+        // gpt-oss 偶尔包 "translates to:" / markdown 强调
+        $out = preg_replace('#^(?:translates?\s+to:?|here (?:is|\'s) (?:the )?transl\w+:?)[^\n]*\n?#i', '', $out);
+        if (!$is_html) $out = trim($out, "\"'** \t\n");
         return $out === '' ? false : $out;
     }
 }
@@ -259,37 +263,67 @@ if (!function_exists('ms_translate_post_handler')) {
         $en_t = function_exists('pll_get_post') ? pll_get_post($post_id, 'en') : 0;
         if ($en_t && get_post($en_t)) return;
 
-        $title = get_the_title($post_id);
-        $html  = get_post_field('post_content', $post_id);
-        $en_title = ms_groq_translate($title, false);
-        $en_body = ''; $any_t = false;
-        foreach (ms_split_html($html, 3500) as $ch) {
-            $t = ms_groq_translate($ch, true);
-            $en_body .= ($t === false ? $ch : $t); if ($t !== false) $any_t = true;
+        // 增量翻译：每次 cron tick 只翻一块（~20s 一块，绕开免费档每分钟限流），
+        // 状态存 _ms_t_state meta：{title, chunks[], done[]}；块失败 60s 后自动重试。
+        $st = get_post_meta($post_id, '_ms_t_state', true);
+        if (!is_array($st) || !isset($st['chunks'])) {
+            $title = get_the_title($post_id);
+            $en_title = ms_groq_translate($title, false);
+            $st = array(
+                'title'  => $en_title ?: $title,
+                'chunks' => ms_split_html(get_post_field('post_content', $post_id), 1800),
+                'done'   => array(),
+            );
+            update_post_meta($post_id, '_ms_t_state', $st);
+            wp_schedule_single_event(time() + 20, 'ms_translate_post', array($post_id));
+            return;
         }
-        if (!$any_t) return; // 全块失败则不发英文版（避免中文壳的假译文）
 
-        // 创建英文版时关掉全文补全过滤器（防止把中文原文盖回译文）
+        // 时间预算循环：本 tick 内连续翻多块（约 5-7s/块），耗尽再排下一 tick。
+        // Groq 免费档 TPM=8000，单块 ~3400 token，40s 预算配块间 2s 间隔可稳住；
+        // 遇 429/错误即停，65s 后从断点继续（done[] 已落 meta，不丢进度）。
+        @set_time_limit(120);
+        $deadline = time() + 40;
+        $i = count($st['done']);
+        while ($i < count($st['chunks'])) {
+            $t = ms_groq_translate($st['chunks'][$i], true);
+            if ($t === false) {
+                wp_schedule_single_event(time() + 65, 'ms_translate_post', array($post_id));
+                return;
+            }
+            $st['done'][] = $t; $i++;
+            update_post_meta($post_id, '_ms_t_state', $st);
+            if (time() >= $deadline) {
+                wp_schedule_single_event(time() + 5, 'ms_translate_post', array($post_id));
+                return;
+            }
+            sleep(2);
+        }
+
+        // 全部块完成：组装发布英文版
+        $en_body = implode('', $st['done']);
         remove_filter('wp_insert_post_data', 'mirrorspeed_wechat_fulltext', 20);
         $GLOBALS['ms_creating_translation'] = true;
         $new_id = wp_insert_post(array(
             'post_type'    => 'post',
             'post_status'  => 'publish',
-            'post_title'   => $en_title ?: ('[EN] ' . $title),
+            'post_title'   => $st['title'],
             'post_content' => $en_body,
         ), true);
         $GLOBALS['ms_creating_translation'] = false;
 
-        if (is_wp_error($new_id)) return;
-        list($zh_cat, $en_cat) = ms_feed_cat_ids();
-        if ($en_cat) {
-            if (function_exists('pll_set_post_language')) pll_set_post_language($new_id, 'en');
-            if (function_exists('pll_save_post_translations'))
-                pll_save_post_translations(array('zh' => (int)$post_id, 'en' => (int)$new_id));
-            wp_set_post_categories($new_id, array($en_cat));
+        if (!is_wp_error($new_id)) {
+            list($zh_cat, $en_cat) = ms_feed_cat_ids();
+            if ($en_cat) {
+                if (function_exists('pll_set_post_language')) pll_set_post_language($new_id, 'en');
+                if (function_exists('pll_save_post_translations'))
+                    pll_save_post_translations(array('zh' => (int)$post_id, 'en' => (int)$new_id));
+                wp_set_post_categories($new_id, array($en_cat));
+            }
+            $thumb = get_post_thumbnail_id($post_id);
+            if ($thumb) set_post_thumbnail($new_id, $thumb);
         }
-        $thumb = get_post_thumbnail_id($post_id);
-        if ($thumb) set_post_thumbnail($new_id, $thumb);
+        delete_post_meta($post_id, '_ms_t_state');
     }
 }
 
