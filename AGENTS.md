@@ -26,7 +26,7 @@
 | `vpn/` | Bash + Python | 单节点部署脚本（01→11）+ 控制机同步程序 | 每台 VPS（Ubuntu 22.04/24.04）|
 | `vpn-api/` | FastAPI (Python) | 每节点管理 API（peer/singbox 下发、状态）| 每台 VPS，`:8443` TLS |
 | `portal/supabase/migrations/` | SQL | 数据库 schema/RLS/RPC | **Supabase**（Postgres）|
-| `wp-theme/`, `icon/` | — | 旧 WP 主题、图标资源 | — |
+| `blog.mirrorspeed.com/` | WordPress 主题 (PHP) | `mirrorspeed-blog` 主题源码 | **Hostinger**（wp-admin 在线编辑/上传）|
 | `docs/` | Markdown | 架构/迁移/排障文档 | — |
 
 ### 1.1 client/lib 子模块
@@ -183,6 +183,10 @@ SUPABASE_SERVICE_KEY='<service_role>' bash vpn/11-sync-servers-setup.sh
 9. **证书**：hy2 需 TLS 证书；04 自动复用本机 `*.mirrorspeed.com` LE 证书。各节点用**自己的**域名，别照抄示例。
 10. **设备凭证只由 portal 自动下发**，别手动加 sing-box 用户（手动加的测试用户确认正常后可删）。
 11. **提交 & 署名**：改完即 commit+push main；署名见 §0。
+12. **博客站 blog.mirrorspeed.com**（Hostinger 共享主机，无 SSH）：wp-admin 走密码登录 + REST API（需 `X-WP-Nonce`，从 admin 页 `wpApiSettings.nonce` 提取）。
+    采集链：WPeMatico campaign 164 拉 `decemberpei.cyou/rssbox/wechat-*.xml`（16 个公众号源），**该 feed 的 description 只有标题、无正文**
+    → 全文由 Code Snippets 插件 snippet id=5 `mirrorspeed_wechat_fulltext` 补：保存文章时抓 `mp.weixin.qq.com` 原文页抽 `#js_content`
+    写回 `.feed-content`（源码副本在主题 `functions.php`，function_exists 守卫）。**改主题文件不能走 theme-editor.php（Hostinger WAF 403 拦 PHP POST），用 REST 装插件/改 snippet。**
 
 ---
 
