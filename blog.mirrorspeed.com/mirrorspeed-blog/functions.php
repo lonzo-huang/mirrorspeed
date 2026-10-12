@@ -417,18 +417,21 @@ if (!function_exists('ms_seo_meta')) {
     }
 }
 
-// ── snippet「pll-disable-cookie-redirect」（线上激活中）────────────
-// 修复：zh 访客从 /zh/ 点「English」→ / 被 Polylang 302 弹回 /zh/（x-redirect-by: Polylang）。
-// 原因：Polylang「记住语言」pll_language cookie，在 plugins_loaded 就被读取决定
-// preferred_language，init 阶段再删 cookie 太晚 → 三层拦截：
-unset($_COOKIE['pll_language']);                                  // 顶层执行，尽量早
-add_action('plugins_loaded', function () { unset($_COOKIE['pll_language']); }, 0);
-add_filter('pll_preferred_language', '__return_false');           // 禁「首选语言」探测
-add_filter('pll_check_canonical_url', '__return_false');          // 禁 Polylang canonical 重定向
-// 兜底：仅当访问 / 而目标是 /zh/ 时取消重定向（wp_redirect 返 false = 不发 location）
-add_filter('wp_redirect', function ($loc) {
-    if ($loc && strpos($loc, '/zh') !== false &&
-        isset($_SERVER['REQUEST_URI']) && preg_match('#^/?(\?.*)?$#', $_SERVER['REQUEST_URI']))
-        return false;
-    return $loc;
-});
+// ── snippet「pll-disable-browser-lang」v6（线上 id=23 激活中）────
+// 修复：zh 浏览器/带 zh cookie 访客访问 / 被 Polylang 302 弹回 /zh/，
+// 语言切换器永远到不了英文站（x-redirect-by: Polylang）。
+// 根因：Polylang「Detect browser language」(polylang.browser=1) 用
+// pll_language cookie + Accept-Language 决定首页首选语言并重定向。
+// 注意两条弯路勿再走：① filter(option_polylang/pll_preferred_language) 拦不住——
+// PLL 在 plugins_loaded 早期就读完 option 缓存，注册太晚；
+// ② wp_redirect 返 false 会让 PLL 调完 exit 留下 200 空页面（首页白屏事故）。
+// 正解：直接把 browser 选项在 DB 持久关掉（幂等，等价后台手动关闭）。
+add_action('init', function () {
+    $o = get_option('polylang');
+    if (is_array($o) && !empty($o['browser'])) {
+        $o['browser'] = 0;
+        update_option('polylang', $o);
+    }
+}, 1);
+unset($_COOKIE['pll_language']);
+add_filter('pll_preferred_language', '__return_false');
