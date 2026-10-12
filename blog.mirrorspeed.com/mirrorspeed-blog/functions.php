@@ -474,3 +474,84 @@ add_action('init', function () {
     if (!get_option('litespeed.conf.optm-css_min')) update_option('litespeed.conf.optm-css_min', 1);
     if (!get_option('litespeed.conf.optm-js_min'))  update_option('litespeed.conf.optm-js_min', 1);
 }, 1);
+
+// ── snippet「ms-content-cleaner」id=25（线上激活中）─────────────────
+// 采集文清洗 + SEO 补强（ChatGPT 审查发现的问题修复）：
+// P0a 剥 WPeMatico 模板带入正文的 feed-hidden-info 隐藏元数据块
+//     （Feed地址/图标/采集任务ID——display:none 隐藏文本像 cloaking，必须删；
+//      注意该 div 内有嵌套 <div>，正则锚「采集任务ID</p>」再取外层 </div>）；
+//     保留 feed-author-source 归属链接块。
+// P0b 正文内 <h1> 全降级 <h2>（主题已用 post title 当 H1，源文标题造成双 H1）。
+// P1  wp_insert_post_data 导入即清洗 + 英文长标题自动生成短 slug（前6词，中文跳过）。
+// P2a ms_content_clean_batch：WP-Cron 每 tick 30 篇 ID 游标扫存量，$wpdb 直写
+//     （不走 wp_update_post，防重触发 id=17 翻译钩子），清 post cache + LS purge。
+// P2b the_content 尾部追加双语 VPN CTA 内联块（ms-vpn-cta，引泛科技流量到产品）。
+
+if (!function_exists('ms_clean_post_html')) {
+function ms_clean_post_html($c) {
+    if (!is_string($c) || $c === '') return $c;
+    $c = preg_replace('#<div[^>]*class=["\'][^"\']*feed-hidden-info[^"\']*["\'][^>]*>.*?采集任务ID[^<]*</p>\s*</div>#is', '', $c);
+    $c = preg_replace('#<p[^>]*>(?:(?!</p>).)*(?:Feed地址|Feed简介|Feed图标|Feed收藏图标|采集任务ID|RSS\s*Feed).*?</p>#is', '', $c);
+    $c = preg_replace('#<(/?)h1(\s[^>]*)?>#i', '<$1h2$2>', $c);
+    return $c;
+}}
+
+add_filter('wp_insert_post_data', function ($data) {
+    if (($data['post_type'] ?? '') !== 'post') return $data;
+    $data['post_content'] = ms_clean_post_html($data['post_content']);
+    if (empty($data['post_name']) && !empty($data['post_title'])) {
+        $slug = sanitize_title($data['post_title']);
+        $parts = explode('-', $slug);
+        if (count($parts) >= 6) {
+            $data['post_name'] = implode('-', array_slice($parts, 0, 6));
+        }
+    }
+    return $data;
+}, 20);
+
+add_filter('the_content', function ($c) {
+    if (!is_singular('post') || !in_the_loop() || !is_main_query()) return $c;
+    $zh = function_exists('pll_current_language') && pll_current_language() === 'zh';
+    if ($zh) {
+        $h = '用 MirrorSpeed VPN 无障碍阅读更多技术资讯';
+        $p = '镜像加速、隐私加密、全球节点。访问技术原文与海外资源更稳定。';
+        $b = '了解 MirrorSpeed';
+    } else {
+        $h = 'Read more tech without borders — MirrorSpeed VPN';
+        $p = 'Fast mirror acceleration, encrypted privacy, global nodes for stable access to overseas resources.';
+        $b = 'Get MirrorSpeed';
+    }
+    $box = '<div class="ms-vpn-cta" style="margin:28px 0 8px;padding:18px 20px;border:1px solid #e2e8f0;border-left:4px solid #4f46e5;border-radius:8px;background:#f8faff;font-size:15px;line-height:1.6">'
+         . '<strong style="display:block;font-size:16px;margin-bottom:6px">' . esc_html($h) . '</strong>'
+         . '<span style="color:#475569">' . esc_html($p) . '</span><br/>'
+         . '<a href="https://mirrorspeed.com" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;padding:8px 16px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">' . esc_html($b) . '</a>'
+         . '</div>';
+    return $c . $box;
+}, 99);
+
+add_action('init', function () {
+    if (get_option('ms_clean_done') !== '1' && !wp_next_scheduled('ms_content_clean_batch')) {
+        wp_schedule_single_event(time() + 10, 'ms_content_clean_batch');
+    }
+});
+add_action('ms_content_clean_batch', function () {
+    global $wpdb;
+    $cursor = (int) get_option('ms_clean_cursor', 0);
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT ID, post_content FROM {$wpdb->posts}
+         WHERE post_type='post' AND post_status IN ('publish','draft','future','private')
+           AND ID > %d ORDER BY ID ASC LIMIT 30", $cursor));
+    if (!$rows) { update_option('ms_clean_done', '1'); return; }
+    $max = $cursor;
+    foreach ($rows as $r) {
+        $max = max($max, (int) $r->ID);
+        $new = ms_clean_post_html($r->post_content);
+        if ($new !== $r->post_content) {
+            $wpdb->update($wpdb->posts, ['post_content' => $new], ['ID' => $r->ID]);
+            clean_post_cache($r->ID);
+            if (function_exists('do_action')) do_action('litespeed_purge_post', $r->ID);
+        }
+    }
+    update_option('ms_clean_cursor', $max);
+    wp_schedule_single_event(time() + 20, 'ms_content_clean_batch');
+});
