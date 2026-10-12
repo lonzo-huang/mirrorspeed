@@ -162,6 +162,8 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(children: [
+              if (context.watch<VpnProvider>().routingMode == RoutingMode.global)
+                _globalModeHint(),
               if (context.watch<VpnProvider>().isConnected ||
                   context.watch<SharedNodeProvider>().isConnected)
                 _reconnectHint(),
@@ -237,14 +239,36 @@ class _AppProxyScreenState extends State<AppProxyScreen> {
     ]),
   );
 
+  // 当前为「全局模式」时的提示：分应用名单此时不生效（全部走 VPN）。
+  Widget _globalModeHint() => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: msNow.brand.withOpacity(0.12),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: msNow.brand.withOpacity(0.35)),
+    ),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(Icons.public, size: 16, color: msNow.brand),
+      const SizedBox(width: 8),
+      Expanded(child: Text(
+        tr('当前为「全局模式」：分应用名单暂不生效，所有流量都走 VPN。切换到「智能模式」后名单才会生效。',
+           'Global mode is on: the per-app list is ignored and all traffic goes through the VPN. Switch to Smart mode for the list to take effect.'),
+        style: TextStyle(fontSize: 11, height: 1.4, color: msNow.brand, fontWeight: FontWeight.w600))),
+    ]),
+  );
+
   Widget _infoNote() {
     final text = tr(
-        '分应用名单与「智能/全局」模式独立，对优质和免费节点都生效：\n'
+        '分应用名单【仅在「智能模式」下生效】，对优质和免费节点都适用：\n'
         '• 代理名单：只有勾选的应用走 VPN，其余直连；\n'
-        '• 直连名单：勾选的应用直连，其余应用进隧道、再按「智能/全局＋地区」走。',
-        'The per-app list is independent of Smart/Global and applies to both premium and free nodes:\n'
+        '• 直连名单：勾选的应用直连，其余应用进隧道、再按地区分流。\n'
+        '「全局模式」会忽略此名单，所有流量都走 VPN。',
+        'The per-app list applies ONLY in Smart mode, for both premium and free nodes:\n'
         '• Proxy list: only selected apps use the VPN, the rest go direct;\n'
-        '• Direct list: selected apps go direct, the rest enter the tunnel and follow Smart/Global + region.');
+        '• Direct list: selected apps go direct, the rest enter the tunnel and follow region routing.\n'
+        'Global mode ignores this list — all traffic goes through the VPN.');
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 14),

@@ -322,17 +322,29 @@ if ($WindowsOnly) {
 if (-not $WindowsOnly) {
 Step "Creating GitHub Release: $TAG"
 
-$notes = "## MirrorSpeed VPN v$Version`n`n" +
-         "### What's new`n" +
-         "- Per-app proxy (分应用代理): choose a 代理名单 (only these apps go through the tunnel) or a 直连名单 (these apps bypass it); works on Android and Windows. Changes take effect after reconnecting — the app now shows a reminder`n" +
-         "- Faster connections across all nodes (connect handshake no longer waits on legacy setup)`n" +
-         "- Language switch in Settings: Follow system / 中文 / English`n" +
-         "- IPv6 leak fixed — dual-stack sites no longer bypass the tunnel`n" +
-         "- Windows: much better throughput, plus live upload/download speed in the status bar`n" +
-         "- More reliable connect/disconnect, with fixes for the occasional stuck 'connecting' state`n" +
-         "### Install`n" +
-         "**Android**: download the APK and install (allow unknown sources)`n" +
-         "**Windows**: download the ZIP, extract, and run mirrorspeed_vpn.exe (right-click → Run as administrator on first launch)"
+# Release notes: prefer release-notes/<version>.md (bilingual; sections marked
+# with <!--LANG:zh--> / <!--LANG:en-->). The /download changelog picks the
+# section matching the site language; GitHub's release page shows both.
+# NOTE: this .ps1 is kept ASCII-only on purpose — Windows PowerShell 5.1 reads
+# a non-ASCII script under the system codepage (GBK here) and mangles it, which
+# breaks here-strings. All CJK lives in the UTF-8 .md files, read below.
+# If the file is missing, fall back to an English stub and warn (so we never
+# publish stale/wrong notes); add the .md and re-run `gh release edit`.
+$notesFile = Join-Path $PSScriptRoot "release-notes\$Version.md"
+if (Test-Path $notesFile) {
+    $notes = [System.IO.File]::ReadAllText($notesFile, [System.Text.Encoding]::UTF8)
+    Ok "Release notes: release-notes\$Version.md"
+} else {
+    Warn "release-notes\$Version.md not found - using English stub (add the file + gh release edit --notes-file to fix)"
+    $notes = @"
+## MirrorSpeed VPN v$Version
+- Release notes to be added
+
+### Install
+**Android**: download the APK and install (allow unknown sources)
+**Windows**: download the ZIP, extract and run mirrorspeed_vpn.exe (first launch: right-click -> Run as administrator)
+"@
+}
 
 $ErrorActionPreference = 'Continue'
 git tag $TAG
@@ -347,13 +359,18 @@ $ErrorActionPreference = 'Stop'
 if ($ec -ne 0) { Fail "git push tag failed" }
 Ok "Tag $TAG pushed"
 
+# 用 --notes-file（UTF-8，无 BOM）传说明：含中文与 → 等字符时比多行 --notes 参数更稳，
+# 不受控制台代码页/参数转义影响。
+$notesTmp = Join-Path $env:TEMP "ms-release-notes-$Version.md"
+[System.IO.File]::WriteAllText($notesTmp, $notes, (New-Object System.Text.UTF8Encoding($false)))
 $ErrorActionPreference = 'Continue'
 gh release create $TAG `
     --repo $GITHUB_REPO `
     --title "MirrorSpeed VPN v$Version" `
-    --notes $notes
+    --notes-file $notesTmp
 $ec = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
+Remove-Item $notesTmp -ErrorAction SilentlyContinue
 if ($ec -ne 0) { Fail "gh release create failed" }
 Ok "GitHub Release created"
 }  # end if (-not $WindowsOnly) tag + release creation
