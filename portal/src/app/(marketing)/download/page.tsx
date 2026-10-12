@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { LandingChrome } from '@/components/landing/LandingPage'
+import { Changelog } from '@/components/download/Changelog'
 import { useI18n } from '@/lib/i18n'
 import type { LatestRelease, ReleaseAsset } from '@/app/api/releases/latest/route'
 
@@ -247,6 +248,13 @@ export default function DownloadPage() {
           </div>
 
           <div className="border-t border-white/10 my-14" />
+
+          {/* ── Changelog (from GitHub Releases) ──────────────────── */}
+          <div className="mb-14">
+            <Changelog />
+          </div>
+
+          <div className="border-t border-white/10 mb-14" />
 
           {/* ── Custom private server (individual quote) ──────────── */}
           <div className="glass-panel rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
