@@ -63,6 +63,7 @@ class SingboxConfig {
     //   • Android：由 tun 的 include/exclude_package 在系统层面限定(见 inbounds)，此处【不】下发
     //     package_name 路由规则——那需对每条连接反查归属 App，MIUI 报「绕过安全防护」且反查不可靠。
     //   • 桌面(process_name)：反查可靠无警告，用路由规则实现(代理名单用 invert=非名单直连)。
+    // 分应用名单【仅在智能模式(smart=true)生效】：全局模式(smart=false)忽略名单，全部走代理。
     // 不论哪种，“进了隧道”的流量都继续按下面的规则集/final 走(智能=airlane 分流，海外/全局=全代理)。
     final hasWhiteProc = includeProcesses != null && includeProcesses.isNotEmpty;
     final hasBlackProc = excludeProcesses != null && excludeProcesses.isNotEmpty;
@@ -105,8 +106,9 @@ class SingboxConfig {
       //   代理名单：非名单进程直连(invert)——仅名单内进程继续走规则集/final。
       //   直连名单：名单内进程直连——其余继续走规则集/final。
       // Android 不在此加包名规则(由 tun include/exclude_package 完成)。
-      if (hasWhiteProc) route['rules'].add({'process_name': includeProcesses, 'invert': true, 'outbound': 'direct'});
-      if (hasBlackProc) route['rules'].add({'process_name': excludeProcesses, 'outbound': 'direct'});
+      // 【仅智能模式生效】全局模式(smart=false)忽略分应用名单，全部走代理。
+      if (smart && hasWhiteProc) route['rules'].add({'process_name': includeProcesses, 'invert': true, 'outbound': 'direct'});
+      if (smart && hasBlackProc) route['rules'].add({'process_name': excludeProcesses, 'outbound': 'direct'});
       // 规则集(智能模式)：airlane-cn 域名+IP 级国内直连；拿不到规则集时回退 cn_cidr(仅 IP 级)。
       // 海外/全局不加 → 落到 final 全代理。进了隧道、未被上面命中的流量走到这里。
       if (smart && useCnRuleSet) {
@@ -180,9 +182,10 @@ class SingboxConfig {
           // Apple(iOS/macOS)扩展里仍用 gvisor(系统栈在 NE 下不可用)。
           'stack': (Platform.isAndroid || Platform.isWindows) ? 'system' : 'gvisor',
           // 分应用：白名单只放这些 App 进隧道；黑名单让这些 App 绕过。
-          if (includePackages != null && includePackages.isNotEmpty)
+          // 【仅智能模式生效】全局模式(smart=false)忽略名单，所有 App 都进隧道→全代理。
+          if (smart && includePackages != null && includePackages.isNotEmpty)
             'include_package': includePackages,
-          if (excludePackages != null && excludePackages.isNotEmpty)
+          if (smart && excludePackages != null && excludePackages.isNotEmpty)
             'exclude_package': excludePackages,
         },
       ],
