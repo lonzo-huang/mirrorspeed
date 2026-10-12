@@ -475,23 +475,33 @@ add_action('init', function () {
     if (!get_option('litespeed.conf.optm-js_min'))  update_option('litespeed.conf.optm-js_min', 1);
 }, 1);
 
-// ── snippet「ms-content-cleaner」id=25（线上激活中）─────────────────
+// ── snippet「ms-content-cleaner-v2」id=27（线上激活中；v1 id=25、boost id=26 已停用）─
 // 采集文清洗 + SEO 补强（ChatGPT 审查发现的问题修复）：
 // P0a 剥 WPeMatico 模板带入正文的 feed-hidden-info 隐藏元数据块
-//     （Feed地址/图标/采集任务ID——display:none 隐藏文本像 cloaking，必须删；
-//      注意该 div 内有嵌套 <div>，正则锚「采集任务ID</p>」再取外层 </div>）；
+//     （Feed地址/图标/采集任务ID——display:none 隐藏文本像 cloaking，必须删）；
 //     保留 feed-author-source 归属链接块。
+//     ★v1 坑：raw post_content 里该块是纯 \r\n 换行、无 <p> 标签（<p> 是 wpautop
+//       渲染时才加的），锚「采集任务ID</p>」的正则全失配 → 存量一批没清。
+//       v2 锚「采集任务ID」后 (</p>)? 可选 + div 深度感知兜底。
 // P0b 正文内 <h1> 全降级 <h2>（主题已用 post title 当 H1，源文标题造成双 H1）。
 // P1  wp_insert_post_data 导入即清洗 + 英文长标题自动生成短 slug（前6词，中文跳过）。
-// P2a ms_content_clean_batch：WP-Cron 每 tick 30 篇 ID 游标扫存量，$wpdb 直写
-//     （不走 wp_update_post，防重触发 id=17 翻译钩子），清 post cache + LS purge。
+// P2a admin_init ?ms_boost_clean=1 管理员内联批处理（200篇/请求，&reset=1 重置游标；
+//     绕开 wp-cron 锁竞争——WPeMatico 重任务让 curl 驱动基本跑不动）；
+//     ms_content_clean_batch WP-Cron 30篇/tick 兜底。$wpdb 直写防重触发 id=17。
 // P2b the_content 尾部追加双语 VPN CTA 内联块（ms-vpn-cta，引泛科技流量到产品）。
 
 if (!function_exists('ms_clean_post_html')) {
 function ms_clean_post_html($c) {
     if (!is_string($c) || $c === '') return $c;
-    $c = preg_replace('#<div[^>]*class=["\'][^"\']*feed-hidden-info[^"\']*["\'][^>]*>.*?采集任务ID[^<]*</p>\s*</div>#is', '', $c);
-    $c = preg_replace('#<p[^>]*>(?:(?!</p>).)*(?:Feed地址|Feed简介|Feed图标|Feed收藏图标|采集任务ID|RSS\s*Feed).*?</p>#is', '', $c);
+    $c = preg_replace(
+        '#<div[^>]*class=["\'][^"\']*feed-hidden-info[^"\']*["\'][^>]*>.*?采集任务ID[^<]*(?:</p>\s*)?</div>#is',
+        '', $c);
+    $c = preg_replace(
+        '#<div[^>]*class=["\'][^"\']*feed-hidden-info[^"\']*["\'][^>]*>(?:(?!</?div\b)[\s\S]|<div[^>]*>(?:(?!</?div\b)[\s\S])*</div>)*</div>#is',
+        '', $c);
+    $c = preg_replace(
+        '#<p[^>]*>(?:(?!</p>).)*(?:Feed地址|Feed简介|Feed图标|Feed收藏图标|采集任务ID|RSS\s*Feed).*?</p>#is',
+        '', $c);
     $c = preg_replace('#<(/?)h1(\s[^>]*)?>#i', '<$1h2$2>', $c);
     return $c;
 }}
@@ -528,6 +538,33 @@ add_filter('the_content', function ($c) {
          . '</div>';
     return $c . $box;
 }, 99);
+
+// 管理员内联批处理：/wp-admin/?ms_boost_clean=1（200篇/请求，&reset=1 重置游标）
+add_action('admin_init', function () {
+    if (empty($_GET['ms_boost_clean']) || !current_user_can('manage_options')) return;
+    @set_time_limit(120);
+    global $wpdb;
+    if (!empty($_GET['reset'])) delete_option('ms_clean_cursor');
+    $cursor = (int) get_option('ms_clean_cursor', 0);
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT ID, post_content FROM {$wpdb->posts}
+         WHERE post_type='post' AND post_status IN ('publish','draft','future','private')
+           AND ID > %d ORDER BY ID ASC LIMIT 200", $cursor));
+    if (!$rows) { update_option('ms_clean_done', '1'); wp_die('CLEAN_DONE cursor=' . $cursor); }
+    $max = $cursor; $changed = 0;
+    foreach ($rows as $r) {
+        $max = max($max, (int) $r->ID);
+        $new = ms_clean_post_html($r->post_content);
+        if ($new !== $r->post_content) {
+            $wpdb->update($wpdb->posts, ['post_content' => $new], ['ID' => $r->ID]);
+            clean_post_cache($r->ID);
+            do_action('litespeed_purge_post', $r->ID);
+            $changed++;
+        }
+    }
+    update_option('ms_clean_cursor', $max);
+    wp_die("batch done: cursor $cursor -> $max, changed $changed/" . count($rows));
+});
 
 add_action('init', function () {
     if (get_option('ms_clean_done') !== '1' && !wp_next_scheduled('ms_content_clean_batch')) {
