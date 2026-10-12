@@ -361,10 +361,10 @@ add_action('init', function () {
     exit;
 });
 
-// ── snippet id=9：SEO / OG / 分享 meta ────────────────────────────
+// ── snippet id=9：SEO / OG / 分享 meta（已停用，留作 RM 备用实现）──
 // og:image = 本地特色图（无则正文第一张图）；og:description = 摘要/正文前40词；
 // meta description + canonical + shortlink + Article JSON-LD。
-// Rank Math 已装但需跑完 Setup Wizard 才输出；届时可停用本段/snippet。
+// Rank Math 跑完 Setup Wizard 后已接管全部 meta 输出 → 线上停用，防双份。
 if (!function_exists('ms_seo_meta')) {
     add_action('wp_head', 'ms_seo_meta', 5);
     function ms_seo_meta() {
@@ -435,3 +435,42 @@ add_action('init', function () {
 }, 1);
 unset($_COOKIE['pll_language']);
 add_filter('pll_preferred_language', '__return_false');
+
+// ── snippet「seo-extras」id=24（线上激活中）────────────────────
+// 补 Rank Math 免费版不覆盖的点 + Rank Math 报告里的站点级失败项，全幂等。
+
+// 1) 图片 alt 兜底：特色图/附件无 alt 时用附件 alt → 父文章标题
+//    （RM 图片 SEO 属 Pro；报告 Image ALT 失败项的根因是 sideload 没写 alt）。
+add_filter('wp_get_attachment_image_attributes', function ($attr, $attachment) {
+    if (empty($attr['alt'])) {
+        $t = get_post_meta($attachment->ID, '_wp_attachment_image_alt', true);
+        if (!$t && $attachment->post_parent) $t = get_the_title($attachment->post_parent);
+        if (!$t) $t = get_the_title($attachment->ID);
+        $attr['alt'] = trim(wp_strip_all_tags($t));
+    }
+    return $attr;
+}, 10, 2);
+
+// 2) 插件自动更新（WP 无批量开关 → filter 全开）。
+add_filter('auto_update_plugin', '__return_true');
+
+// 3) 站点 tagline + RM 首页 title/description + LiteSpeed minify（幂等写）。
+//    tagline 顺手修「MirrorSpeed VPN -」悬空标题；homepage_* 是
+//    rank-math-options-titles 里首页「最新文章列表」模式的 meta 字段。
+add_action('init', function () {
+    $tag = 'VPN guides, updates & curated tech news';
+    if (get_option('blogdescription') !== $tag) update_option('blogdescription', $tag);
+
+    $t = get_option('rank-math-options-titles');
+    if (is_array($t)) {
+        $ch = false;
+        $title = 'MirrorSpeed VPN Blog | VPN Guides & Curated Tech News';
+        $desc  = 'MirrorSpeed VPN official blog - app updates, setup guides, and curated tech & AI news in English and Chinese.';
+        if (($t['homepage_title'] ?? '') !== $title) { $t['homepage_title'] = $title; $ch = true; }
+        if (($t['homepage_description'] ?? '') !== $desc) { $t['homepage_description'] = $desc; $ch = true; }
+        if ($ch) update_option('rank-math-options-titles', $t);
+    }
+
+    if (!get_option('litespeed.conf.optm-css_min')) update_option('litespeed.conf.optm-css_min', 1);
+    if (!get_option('litespeed.conf.optm-js_min'))  update_option('litespeed.conf.optm-js_min', 1);
+}, 1);

@@ -189,9 +189,10 @@ SUPABASE_SERVICE_KEY='<service_role>' bash vpn/11-sync-servers-setup.sh
     - **id=5** `mirrorspeed_wechat_fulltext`：`wp_insert_post_data` 抓 `mp.weixin.qq.com` 原文抽 `#js_content` 写回 `.feed-content` + 填摘要；
     - **id=6** `wp_head` 输出 `referrer no-referrer`（mmbiz 微信图防盗链，带 Referer 返回占位图）；
     - **id=17（v7）** 采集后处理：含 weixin 链接的文章 → `pll_set_post_language('zh')` + 中文分类「公众号精选」、首图 sideload 为本地特色图、回填 excerpt、调度 Groq 翻译——**增量式**（`openai/gpt-oss-120b`，key 在 snippet 顶部 `MS_GROQ_API_KEY`）：免费档 TPM=8000，一次全量必 429 → 状态存 `_ms_t_state` meta，每次 cron tick 按 40s 时间预算连续翻块（1800 字/块、块间 2s），429/失败 65s 后断点续翻，翻完才发英文版+互链。`pll_get_post` 链接可能指向已删文章 → guard 用 `get_post()` 存在检查。存量 `ms_fix_zh_batch` 分批改归中文；
-    - **id=9** SEO meta：og/twitter card/canonical/shortlink/Article JSON-LD；
+    - **id=9（已停用）** SEO meta：og/twitter card/canonical/shortlink/Article JSON-LD——Rank Math 免费版跑完 Setup Wizard 后已接管全部 meta 输出（含 sitemap_index.xml、GSC、分析器），**两者不能同时开（meta 双份）**，源码留作备用；
+    - **id=24 seo-extras**：补 RM 免费版缺口——图片 alt 兜底（附件 alt→父文章标题）、`auto_update_plugin` 全开、幂等写 tagline/`rank-math-options-titles` 首页 title+desc/LiteSpeed `optm-css_min`+`optm-js_min`；
     - **id=23 pll-disable-browser-lang v6**：修「zh 访客点 English → / 被 Polylang 302 弹回 /zh/」——根因是 `polylang.browser=1` 浏览器语言检测（cookie+Accept-Language 双输入）。filter 拦不住（PLL 在 plugins_loaded 早期读完 option 缓存）→ **幂等 update_option 把 browser 持久改 0**。勿用 `wp_redirect` 返 false 兜底（PLL 调完 exit → 200 空页面白屏）。
-    **Polylang 默认语言是 English**（1671 篇曾全落英文「未分类」id=13；zh 首页 `/zh/`）。Rank Math 已装但卡在 setup wizard 不出 meta，先用 id=9 自实现；WP 自带 `wp-sitemap.xml` 可用。
+    **Polylang 默认语言是 English**（1671 篇曾全落英文「未分类」id=13；zh 首页 `/zh/`）。**Rank Math 免费版已跑完 Setup Wizard 接管 SEO**（meta/sitemap_index.xml/GSC/分析器），id=9 停用留作备用；WP 自带 `wp-sitemap.xml` 301 到 RM 的 `sitemap_index.xml`。
     **WAF**：theme-editor.php 的 PHP POST 403；Code Snippets REST **POST 新建能过、PUT 改代码被拦（小 JSON 如 `{"active":true}` 可过）** → 改 snippet = 新建 + 停旧的。LiteSpeed 缓存在跑，改后要 touch 文章触发清缓存。
 
 ---
