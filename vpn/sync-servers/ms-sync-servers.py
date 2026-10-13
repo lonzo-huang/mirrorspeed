@@ -207,6 +207,14 @@ def sync_peer_usage(server_id: str, wg_peers: list) -> None:
         delta = current_total - last_total if current_total >= last_total else current_total
 
         is_new_day = (dp.get('daily_reset_at') or '') < today
+
+        # 跳过"无变化"的 peer：既没有新流量(delta==0)、也不是跨天重置 →
+        # 这个 PATCH 只会把完全相同的值写回去，纯浪费。绝大多数 peer 长期闲置、
+        # 0 流量却每 60s 被写一遍，是 Supabase egress/日志的最大来源（曾占 ~97%
+        # 的 PostgREST 请求）。只在"有新流量"或"跨天需重置 daily_bytes"时才写。
+        if delta == 0 and not is_new_day:
+            continue
+
         if is_new_day:
             new_daily, new_reset = delta, today
         else:
