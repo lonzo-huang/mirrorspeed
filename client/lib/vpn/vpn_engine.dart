@@ -1,32 +1,20 @@
-/// 隧道阶段。原先从 amneziawg 包导出；纯 sing-box 客户端不再依赖 AWG，改为自有定义。
+/// 隧道阶段。纯 sing-box 客户端自有定义（原先从 amneziawg 包导出）。
 enum VpnStage { disconnected, connecting, connected, disconnecting }
 
 /// VPN 引擎类型。现在只有 sing-box（优质+免费统一引擎）。
 enum EngineKind { singbox }
 
-/// 引擎启动参数。不同引擎读各自需要的字段，用一个统一载体，避免每加一个引擎就改
-/// VpnProvider 的调用签名。
-///   - AmneziaWG：serverAddress / wgQuickConfig / providerBundle
-///   - sing-box（阶段 2）：singboxConfig（完整 JSON，含所选节点 outbound + 路由规则）
+/// 引擎启动参数。保留这层载体是为了以后再加引擎时不必改 VpnProvider 的调用签名；
+/// 目前只有 sing-box 一个引擎，字段也只剩一个。
 class EngineStartParams {
-  // ── AmneziaWG ──
-  final String? serverAddress;
-  final String? wgQuickConfig;
-  final String? providerBundle;
-  // ── sing-box ──
+  /// 完整 sing-box 配置（所选节点 outbound + 路由规则 + DNS），见 SingboxConfig。
   final Map<String, dynamic>? singboxConfig;
 
-  const EngineStartParams({
-    this.serverAddress,
-    this.wgQuickConfig,
-    this.providerBundle,
-    this.singboxConfig,
-  });
+  const EngineStartParams({this.singboxConfig});
 }
 
-/// 统一 VPN 引擎抽象。现有 AmneziaWG 逻辑收进 [AmneziaWgEngine]；sing-box 之后作为
-/// 第二个实现接入。同一时刻只有一个引擎持有系统隧道（iOS/安卓单隧道限制），
-/// 切换引擎必须先 stop 旧的再 start 新的。
+/// 统一 VPN 引擎抽象。目前唯一实现是 [ProxyCoreEngine]（sing-box）。
+/// 同一时刻只有一个引擎持有系统隧道（iOS/安卓单隧道限制），切换必须先 stop 再 start。
 abstract class VpnEngine {
   EngineKind get kind;
 

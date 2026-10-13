@@ -1,8 +1,10 @@
 #!/usr/bin/env ruby
-# 把两个 Packet Tunnel 扩展接进 Flutter 的 Runner 工程（iOS + macOS），幂等可重复跑。
+# 把 Packet Tunnel 扩展接进 Flutter 的 Runner 工程（iOS + macOS），幂等可重复跑。
 #
-#   AWGTunnel      优质节点（AmneziaWG）  bundle: <App>.AWGTunnel     链 WireGuardKitGo.xcframework
-#   SingboxTunnel  免费节点（sing-box）   bundle: <App>.PacketTunnel  链 Libbox.xcframework
+#   SingboxTunnel  优质 + 免费节点（sing-box）  bundle: <App>.PacketTunnel  链 Libbox.xcframework
+#
+# 纯 sing-box 客户端只需这一个扩展（原先还有个 AWGTunnel 跑 AmneziaWG，已随 AWG 一起删除：
+# 少签一个扩展、少一套 Go 运行时、包更小）。
 #
 # 源码统一在 client/ios_macos_native/（iOS/macOS 共用一份），这里只建 target + 引用。
 # 依赖 xcodeproj gem（随 CocoaPods 安装）。用法（在 client/ 下）：
@@ -15,17 +17,6 @@ CLIENT = File.expand_path('..', __dir__)
 NATIVE_REL = '../ios_macos_native' # 相对 ios/ 或 macos/ 目录
 
 EXTENSIONS = [
-  {
-    name: 'AWGTunnel',
-    bundle_suffix: 'AWGTunnel',
-    sources: ['PacketTunnelProvider.swift', '../Shared/TunnelLog.swift',
-              'WireGuardKit/*.swift', 'WireGuardKitC/*.c'],
-    xcframework: 'WireGuardKitGo.xcframework',
-    resources: [],
-    frameworks: [],
-    ios_frameworks: [],
-    bridging_header: 'AWGTunnel/AWGTunnel-Bridging-Header.h',
-  },
   {
     name: 'SingboxTunnel',
     bundle_suffix: 'PacketTunnel',

@@ -1,8 +1,7 @@
 PODS:
-  - amneziawg_flutter (0.1.0):
-    - Flutter
-    - FlutterMacOS
   - app_links (6.4.1):
+    - FlutterMacOS
+  - connectivity_plus (0.0.1):
     - FlutterMacOS
   - device_info_plus (0.0.1):
     - FlutterMacOS
@@ -27,8 +26,8 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
-  - amneziawg_flutter (from `Flutter/ephemeral/.symlinks/plugins/amneziawg_flutter/darwin`)
   - app_links (from `Flutter/ephemeral/.symlinks/plugins/app_links/macos`)
+  - connectivity_plus (from `Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos`)
   - device_info_plus (from `Flutter/ephemeral/.symlinks/plugins/device_info_plus/macos`)
   - flutter_secure_storage_macos (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
@@ -40,10 +39,10 @@ DEPENDENCIES:
   - webview_flutter_wkwebview (from `Flutter/ephemeral/.symlinks/plugins/webview_flutter_wkwebview/darwin`)
 
 EXTERNAL SOURCES:
-  amneziawg_flutter:
-    :path: Flutter/ephemeral/.symlinks/plugins/amneziawg_flutter/darwin
   app_links:
     :path: Flutter/ephemeral/.symlinks/plugins/app_links/macos
+  connectivity_plus:
+    :path: Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos
   device_info_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/device_info_plus/macos
   flutter_secure_storage_macos:
@@ -64,8 +63,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/webview_flutter_wkwebview/darwin
 
 SPEC CHECKSUMS:
-  amneziawg_flutter: 27a770a4250b1357dfd492a34a937995f2967b6d
   app_links: 05a6ec2341985eb05e9f97dc63f5837c39895c3f
+  connectivity_plus: 4adf20a405e25b42b9c9f87feff8f4b6fde18a4e
   device_info_plus: a56e6e74dbbd2bb92f2da12c64ddd4f67a749041
   flutter_secure_storage_macos: 7f45e30f838cf2659862a4e4e3ee1c347c2b3b54
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e

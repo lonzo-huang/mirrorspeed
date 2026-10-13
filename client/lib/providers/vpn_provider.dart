@@ -45,10 +45,9 @@ enum RoutingMode  { global, smart }
 enum ConnSource { premium, free }
 
 class VpnProvider extends ChangeNotifier {
-  // VPN 引擎(引擎无关抽象)。优质节点双栈期：节点已开通 sing-box（configs 下发 singbox 块）就用 sing-box，
-  // 否则沿用 AmneziaWG。两个引擎常驻，但同一时刻只有一个持有系统隧道
-  // （iOS/安卓单隧道限制），切换时必须先停旧的 —— 见 _useEngine。
-  // 纯 sing-box 引擎（优质 + 免费统一一套）。
+  // VPN 引擎（引擎无关抽象）。纯 sing-box：优质与免费节点统一一套。
+  // 保留 _useEngine 这层间接，是因为同一时刻只能有一条系统隧道（iOS/安卓限制），
+  // 切换节点时必须先停再起。
   final VpnEngine _sbEngine  = ProxyCoreEngine();
   late VpnEngine _engine = _sbEngine;
 
@@ -232,10 +231,9 @@ class VpnProvider extends ChangeNotifier {
   }
 
   // ── 初始化（app 启动时调用一次）────────────────────────────
-  // 网络适配器的对外描述已移入 AmneziaWgEngine（属引擎实现细节）。
   Future<void> initialize() async {
     // 先加载试用状态（必须在任何 setTimeQuota/_rollTrialDayIfNeeded 之前完成，
-    // 否则启动竞态会把奖励时长清零）。AmneziaWG.initialize() 是慢的原生调用，放后面。
+    // 否则启动竞态会把奖励时长清零）。引擎 initialize() 是慢的原生调用，放后面。
     await _loadTrial();
     await _loadUsage();
     await _engine.initialize();
@@ -367,7 +365,7 @@ class VpnProvider extends ChangeNotifier {
 
   // ── 连接（三层防护机制）───────────────────────────────────────────────────────
   //
-  //  层 1：AmneziaWG 直连 + 端口跳变（AWG 包混淆，GFW 难以识别）
+  //  层 1：Hysteria2 直连 + 端口跳跃（QUIC + salamander 混淆，GFW 难以识别）
   //  层 2：wstunnel WebSocket over HTTPS 443（流量伪装为 HTTPS）
   //  层 3：Cloudflare Tunnel（服务器 IP 完全隐藏，GFW 无从封锁）
   //
@@ -433,7 +431,7 @@ class VpnProvider extends ChangeNotifier {
       }
 
       // 纯 sing-box 客户端：优质节点必须已开通 sing-box（后端下发 singbox 块）。
-      // 老的 AWG-only 节点不再支持 —— 服务端仍为老客户端保留 AWG，但本客户端只走 sing-box。
+      // 未开通的节点不再支持（服务端为老客户端保留的 AWG 与本客户端无关）。
       // 连接模式（快速/强力/超级）映射到 hy2/reality/ws 由 _pickSingboxOutbound 决定。
       final sb = server.singbox;
       if (sb == null || !sb.usable) {

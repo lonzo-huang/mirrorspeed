@@ -5,7 +5,7 @@
 #   Xcode 自动签名在「归档」阶段只能用开发证书，而开发描述文件要求团队里至少注册
 #   一台 iPhone —— 没注册设备时直接签名失败。上架包本来就该用发布证书，所以这里：
 #     1. 无签名归档
-#     2. 手动用临时签名把 VPN 权限(NE / App Group)写进 App 和两个隧道扩展
+#     2. 手动用临时签名把 VPN 权限(NE / App Group)写进 App 和隧道扩展
 #     3. 导出时由 Xcode 的云端发布证书重签（会保留第 2 步写入的权限）并直接上传
 #   团队里注册过 iPhone 之后，标准的 `flutter build ipa` 也能用。
 #
@@ -68,7 +68,6 @@ rm -rf "$ARCHIVE"
 echo "▶ 3/5 写入 VPN 权限"
 APP="$ARCHIVE/Products/Applications/Runner.app"
 for f in "$APP"/Frameworks/*; do codesign -f -s - "$f" 2>/dev/null; done
-codesign -f -s - --entitlements "$HERE/AWGTunnel/AWGTunnel-iOS.entitlements"         "$APP/PlugIns/AWGTunnel.appex"     2>/dev/null
 codesign -f -s - --entitlements "$HERE/SingboxTunnel/SingboxTunnel-iOS.entitlements" "$APP/PlugIns/SingboxTunnel.appex" 2>/dev/null
 codesign -f -s - --entitlements "ios/Runner/Runner.entitlements"                    "$APP"                             2>/dev/null
 
@@ -90,12 +89,12 @@ xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$OUT" \
   -exportOptionsPlist "$WORK/ExportOptions.plist" -allowProvisioningUpdates -quiet
 unzip -q -o "$OUT"/*.ipa -d "$WORK/ipa"
 PAY="$(ls -d "$WORK"/ipa/Payload/*.app)"
-for b in "$PAY" "$PAY/PlugIns/AWGTunnel.appex" "$PAY/PlugIns/SingboxTunnel.appex"; do
+for b in "$PAY" "$PAY/PlugIns/SingboxTunnel.appex"; do
   if ! codesign -d --entitlements - --xml "$b" 2>/dev/null | grep -q "packet-tunnel-provider"; then
     echo "❌ $(basename "$b") 缺少 Network Extension 权限，VPN 会连不上 —— 中止上传"; exit 1
   fi
 done
-echo "   ✓ 三个包的 VPN 权限都在"
+echo "   ✓ 两个包的 VPN 权限都在"
 
 if [[ $UPLOAD == 0 ]]; then
   echo "✅ 已导出: ${OUT}（未上传）"; exit 0

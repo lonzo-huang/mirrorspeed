@@ -1,7 +1,8 @@
 /// 优质节点的 sing-box 凭证与协议参数（`/api/mobile/configs` 的 `singbox` 块）。
 ///
-/// 迁移期内此块可为空：为空表示该节点尚未开通 sing-box，客户端回退 AmneziaWG。
-/// 三层协议对应现有的「快速 / 强力 / 超级」，任一层缺失即该模式不可选 ——
+/// 此块为空表示该节点尚未开通 sing-box；本客户端已是纯 sing-box，无法连接这种节点
+/// （服务端仍为老客户端保留 AWG，与本客户端无关）。
+/// 三层协议对应「快速 / 强力 / 超级」，任一层缺失即该模式不可选 ——
 /// 阶段 1 只会下发 hysteria2 与 reality，ws 留到阶段 2（见
 /// docs/singbox-migration.md §8.1）。
 ///
@@ -29,7 +30,7 @@ class SingboxPremium {
     if (j == null) return null;
     final uuid = j['uuid'] as String?;
     final pwd  = j['hy2_password'] as String?;
-    // 凭证缺失说明后端还没给这台设备发 —— 当作「未开通」回退 AWG，而不是半残运行。
+    // 凭证缺失说明后端还没给这台设备发 —— 当作「未开通」处理，而不是半残运行。
     if (uuid == null || uuid.isEmpty) return null;
     return SingboxPremium(
       uuid: uuid,

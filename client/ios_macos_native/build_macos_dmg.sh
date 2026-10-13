@@ -64,18 +64,17 @@ sign() { codesign --force --timestamp --options runtime --sign "$ID" "$@"; }
 while IFS= read -r -d '' f; do sign "$f"; done < <(find "$APP/Contents/Frameworks" -maxdepth 1 -type d -name "*.framework" -print0 2>/dev/null)
 while IFS= read -r -d '' f; do sign "$f"; done < <(find "$APP/Contents/Frameworks" -maxdepth 1 -type f -print0 2>/dev/null)
 
-sign --entitlements "$HERE/AWGTunnel/AWGTunnel-macOS.entitlements"         "$APP/Contents/PlugIns/AWGTunnel.appex"
 sign --entitlements "$HERE/SingboxTunnel/SingboxTunnel-macOS.entitlements" "$APP/Contents/PlugIns/SingboxTunnel.appex"
 sign --entitlements "macos/Runner/Release.entitlements"                    "$APP"
 
 echo "   校验签名"
 codesign --verify --deep --strict --verbose=2 "$APP" 2>&1 | tail -2
-# 三个包都必须带 VPN 权限，缺了用户连不上（iOS 侧踩过这个坑）
-for b in "$APP" "$APP/Contents/PlugIns/AWGTunnel.appex" "$APP/Contents/PlugIns/SingboxTunnel.appex"; do
+# 主 App 与扩展都必须带 VPN 权限，缺了用户连不上（iOS 侧踩过这个坑）
+for b in "$APP" "$APP/Contents/PlugIns/SingboxTunnel.appex"; do
   codesign -d --entitlements - --xml "$b" 2>/dev/null | grep -q "packet-tunnel-provider" \
     || { echo "❌ $(basename "$b") 缺少 Network Extension 权限"; exit 1; }
 done
-echo "   ✓ 三个包的 VPN 权限都在"
+echo "   ✓ 两个包的 VPN 权限都在"
 
 echo "▶ 3/5 生成 DMG"
 STAGE="$(mktemp -d)"; trap 'rm -rf "$STAGE"' EXIT

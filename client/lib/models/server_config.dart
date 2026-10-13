@@ -15,7 +15,8 @@ class ServerConfig {
   /// HMAC-SHA256 secret used for server-side port hopping.
   /// Null means port hopping is disabled for this server (use [port] directly).
   final String? portSecret;
-  /// 优质节点的 sing-box 凭证与协议参数（迁移期可空 → 回退 AmneziaWG）。
+  /// 优质节点的 sing-box 凭证与协议参数。为空表示该节点尚未开通 sing-box，
+  /// 本客户端（纯 sing-box）无法连接它。
   /// 见 docs/singbox-migration.md §8.1。
   final SingboxPremium? singbox;
 
