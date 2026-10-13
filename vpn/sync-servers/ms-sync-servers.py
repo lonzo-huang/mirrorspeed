@@ -88,8 +88,13 @@ def api_get(url: str, secret: str = None, timeout: int = None):
         return json.load(r)
 
 
-def set_peer_active(api_url: str, peer_name: str, active: bool, secret: str) -> None:
-    """暂停/恢复某个 peer（失败不抛出，与原实现一致，仅记日志）"""
+def set_peer_active(api_url: str, peer_name: str, active: bool, secret: str) -> str:
+    """暂停/恢复某个 peer（失败不抛出，仅记日志）。
+    返回状态供调用方据此自愈：
+      'ok'    下发成功
+      'gone'  节点返回 404 = 该 peer 在节点上已不存在（僵尸行，应停止再碰它）
+      'error' 其它失败（超时/网络/5xx）——临时错误，下轮重试
+    """
     try:
         req = urllib.request.Request(
             f'{api_url.rstrip("/")}/peers/{urllib.parse.quote(peer_name)}/status',
@@ -98,8 +103,15 @@ def set_peer_active(api_url: str, peer_name: str, active: bool, secret: str) -> 
             method='PATCH',
         )
         urllib.request.urlopen(req, timeout=5).close()
+        return 'ok'
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return 'gone'
+        print(f'[quota] setPeerActive({peer_name}, {active}) failed: {e}', file=sys.stderr)
+        return 'error'
     except Exception as e:
         print(f'[quota] setPeerActive({peer_name}, {active}) failed: {e}', file=sys.stderr)
+        return 'error'
 
 
 # ── 1) 探测单台服务器并写回状态 ─────────────────────────────────────────────
@@ -251,7 +263,15 @@ def enforce_quotas(servers: list) -> dict:
             srv = api_of.get(p.get('server_id'))
             if not srv or not srv['secret']:
                 continue
-            set_peer_active(srv['url'], p['peer_name'], active, srv['secret'])
+            res = set_peer_active(srv['url'], p['peer_name'], active, srv['secret'])
+            if res == 'gone':
+                # 自愈：节点权威地回 404 = 此 peer 在节点上已不存在（gc 过的僵尸行）。
+                # 标 provisioned=false，下轮 get_quota_actions 不再挑中它，终止无效的
+                # suspend/resume 反复横跳（曾每轮 9×节点调用+PATCH）。
+                sb('PATCH', f'vpn_device_peers?id=eq.{p["id"]}', {'provisioned': False})
+                continue
+            if res != 'ok':
+                continue   # 临时错误(超时等)：本轮不动 DB，下轮再试
             sb('PATCH', f'vpn_device_peers?id=eq.{p["id"]}', {'is_suspended': not active})
             n += 1
         return n
