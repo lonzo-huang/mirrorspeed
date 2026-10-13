@@ -7,13 +7,18 @@
 > - 构建/运行/签名：[`client/ios_macos_native/README.md`](../ios_macos_native/README.md)
 > - 架构与历史：[`client/docs/DEV-LOG-singbox-multiplatform.md`](./DEV-LOG-singbox-multiplatform.md)
 
-## 0. 架构速记（三端共用 Dart，Apple 多原生扩展）
+## 0. 架构速记（三端共用 Dart；Apple 只需一个 NE 扩展）
+
+> **⚠️ 重大简化（2026-10）**：客户端已统一到**纯 sing-box**（`refactor/unify-vpn-provider`
+> 已并入 main，`amnezia_wg_engine.dart` 已删除）。优质节点也走 sing-box，**客户端不再用 AWG**。
+> 所以 **Apple 侧只需要 `SingboxTunnel.appex` 一个扩展**；`ios_macos_native/AWGTunnel/`、
+> `wggo/`、`packages/amneziawg_flutter` 对新客户端已不需要（可留作过渡参考，上架前清理）。
 
 - Dart/Flutter 层与 Android/Windows **完全共用**。平台差异都在 `lib/vpn/singbox_config.dart`
-  的 `_kIsApple` 分支里（见下）。
-- 两条隧道、系统级互斥，各自一个 NE 扩展（Go 运行时同进程只能一个）：
-  - **优质节点** = AmneziaWG → `AWGTunnel.appex`（`packages/amneziawg_flutter`）
-  - **免费/共享节点** = sing-box/libbox → `SingboxTunnel.appex`（`packages/singbox_flutter`）
+  的 `_kIsApple` 分支里（见下）。`vpn_provider`（优质）与 `shared_node_provider`（免费）
+  现在**共用同一个 sing-box 引擎**（`ProxyCoreEngine`）。
+- 一个隧道、一个 NE 扩展：
+  - **优质 + 免费** = sing-box/libbox → `SingboxTunnel.appex`（`packages/singbox_flutter`，bundle `<App>.PacketTunnel`）
 - 通道契约三端一致：MethodChannel `mirrorspeed/singbox`（init/start/stop/stage/transferRxTx）
   + EventChannel `mirrorspeed/singbox/stage`。`transferRxTx` 在 Apple 由扩展
   `sendProviderMessage("stats")` 返回。
@@ -64,21 +69,23 @@ make run-macos                               # 或 make run-ios（真机，需�
 ```
 
 NE 是受限能力：**未签名/ad-hoc 能编译但连不上 VPN**，必须用上面的 Team ID 签名。
-扩展日志：Console.app 过滤 `com.mirrorspeed.SingboxTunnel` / `com.mirrorspeed.AWGTunnel`。
+扩展日志：Console.app 过滤 `com.mirrorspeed.SingboxTunnel`。
 
 ## 4. 验证清单（真机/本机）
 
-- [ ] 优质节点（AWG）能连、能上网。
-- [ ] 免费节点（sing-box）能连、能上网。
+- [ ] 优质节点能连、能上网（现在也走 sing-box，连 Reality/hy2）。
+- [ ] 免费节点能连、能上网。
 - [ ] 智能模式：国内直连、海外走节点；全局模式：全部走节点。
+- [ ] **分应用代理**：Apple 不支持按 App 分流 → 入口隐藏、整机走隧道（见 singbox_config `_kIsApple`）。
 - [ ] **IPv6 不泄漏**（ip.sb 的 v6 栏显示节点地址或不支持，不是真实 v6）。
 - [ ] 速率显示正常（transferRxTx 经 sendProviderMessage("stats") 回来）。
-- [ ] 断开/重连稳定；iOS 切后台时 wstunnel 中继会被挂起（已知限制，直连不受影响）。
+- [ ] 断开/重连稳定。
 
 ## 5. 待定/风险
 
 - **macOS 分发方式**：当前是 App Store 式 app extension（sandbox）。若要 Developer ID 站外
   分发 DMG，需改成 **System Extension**（`packet-tunnel-provider-systemextension`），另议。
-- **Apple 优质节点是否长期保留 AWG**：其它平台在往“纯 sing-box”收敛，Apple 现仍是
-  AWG(优质)+sing-box(免费) 双扩展（与 Android 一致）。是否统一到 sing-box 由你决定。
+- **清理 AWG 残留**（可选）：客户端已纯 sing-box，`ios_macos_native/AWGTunnel/`、`wggo/`、
+  `packages/amneziawg_flutter` 及 Xcode 里的 AWGTunnel target 对新客户端已无用，可在上架前移除，
+  减小包体、少一个扩展要签。
 - **AdMob iOS App ID / 广告位**（见 §1.4）。
