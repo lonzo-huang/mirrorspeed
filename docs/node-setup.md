@@ -62,7 +62,7 @@ NGINX_FALLBACK=1 HOP_MIN=50000 HOP_MAX=60000 \
 | 服务端域名 | DB name |
 |---|---|
 | us01.dedione.mirrorspeed.com | `US01` |
-| us02.dedione.mirrorspeed.com | `US02` |
+| us02.dedione.mirrorspeed.com | `us02` ⚠️小写 |
 | german01.tx.mirrorspeed.com | `FRA01` |
 | spain01.ionos.mirrorquant.com | `ES01` |
 | de02.nube.mirrorspeed.com | `DE02` |
@@ -112,8 +112,13 @@ journalctl -u ms-sync-servers.service -n 6 --no-pager   # 该节点不再出现�
 
 ## 踩坑总结（排查时逐条对照）
 
-1. **DB name 大小写**：`WHERE name='us01'` 匹配不到 `US01` → UPDATE 0 行 → `sb_enabled` 仍 false →
-   新客户端认为节点不可用。老客户端走 AWG 照常，极具迷惑性。
+1. **DB name 大小写 / 取值不一致**：`WHERE name='US02'` 匹配不到小写 `us02` → UPDATE 0 行 →
+   `reality_pbk`/`hy2_obfs`/`sb_enabled` 全没写进去 → 新客户端连上但上不了网。**建议 WHERE 一律用
+   `endpoint`**（`WHERE endpoint='us02.dedione.mirrorspeed.com'`），绕开大小写坑。
+   - **Supabase 结果面板会把域名显示成 markdown 链接**（别信显示）；核实真实值用 `select length(col), col`：
+     纯 `www.microsoft.com` 的 len=17。SELECT 的 "no rows" = 真 0 行（UPDATE 的 "no rows" 不是）。
+   - **04 每跑一次都换 reality 密钥 + hy2 obfs** → 重跑后必须用**最后一次**打印的 SQL 重新同步
+     `reality_pbk`/`hy2_obfs`，否则 pbk 对不上、obfs=null → 症状「已连接但上下行 0、反复断连」。
 2. **reality_sni 被 markdown 污染**：复制 SQL 时裸域名被转成 `[www.microsoft.com](...)` → SNI 错 → Reality 废。贴纯域名。
 3. **Reality 握手失败 `processed invalid connection`**：pbk/short_id/SNI 对不上。每跑一次 04 都**重新生成** reality 密钥，必须用**最后一次**的 SQL。
 4. **hy2_obfs 下发成 NULL**：服务端无条件启 salamander obfs，DB 给 NULL → 快速握手被丢。脚本已输出真实 obfs 值。
