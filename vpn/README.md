@@ -240,7 +240,7 @@ sudo DOMAIN="vpn.example.com" \
 ```bash
 bash 01-system-tune.sh          # 内核调优、BBR、IP转发
 bash 02-nginx-setup.sh vpn.example.com admin@example.com  # Nginx + 证书
-bash 03-wireguard-setup.sh      # WireGuard 服务端
+bash 03-amneziawg-setup.sh      # AmneziaWG 服务端（AWG 过渡期；新节点见 docs/node-setup.md）
 bash 04-wstunnel-setup.sh       # wstunnel TLS 封装层
 bash 05-nftables-setup.sh       # 防火墙规则
 bash 06-peer-manager.sh add alice  # 添加首个客户端
@@ -917,8 +917,9 @@ journalctl -u ms-sync-servers.service -n 5 --no-pager
 │   ├── install.sh              # 一键安装主控脚本（服务器上执行）
 │   ├── 01-system-tune.sh       # 内核调优（BBR、IP转发、缓冲区）
 │   ├── 02-nginx-setup.sh       # Nginx TLS + 证书 + 路径路由
-│   ├── 03-wireguard-setup.sh   # WireGuard 服务端 + 密钥轮换
-│   ├── 04-wstunnel-setup.sh    # wstunnel WebSocket 封装层
+│   ├── 03-amneziawg-setup.sh   # AmneziaWG 服务端（AWG 过渡期）
+│   ├── 04-singbox-setup.sh     # sing-box 多协议服务端（新节点/升级，见 docs/node-setup.md）
+│   ├── 04-wstunnel-setup.sh    # wstunnel WebSocket 封装层（AWG 强力，过渡期）
 │   ├── 05-nftables-setup.sh    # 防火墙规则（持久化）
 │   ├── 06-peer-manager.sh      # 客户端 Peer 管理
 │   └── 07-vpnapi-setup.sh      # vpn-api FastAPI 管理接口部署

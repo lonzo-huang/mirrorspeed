@@ -90,7 +90,7 @@ DOMAIN=<域名> EMAIL=admin@mirrorspeed.com VPN_API_SECRET=<密钥> bash vpn/ins
 干净节点直接开 sing-box：`DOMAIN=<域名> bash vpn/04-singbox-setup.sh`（Reality 占 443，无需 NGINX_FALLBACK）。
 
 ### 3.2 存量节点双栈升级（一步到位）
-**完整流程 + 全部踩坑见 [docs/singbox-existing-node-upgrade.md](docs/singbox-existing-node-upgrade.md)。** 摘要：
+**完整流程 + 全部踩坑见 [docs/node-setup.md](docs/node-setup.md)（节点安装唯一入口）。** 摘要：
 ```bash
 cd /opt/mirrorspeed && git pull           # 含合并版 vpn-api + 修好的 04
 NGINX_FALLBACK=1 HOP_MIN=50000 HOP_MAX=60000 \
@@ -211,5 +211,6 @@ Reality/hy2 端到端）、存量节点双栈升级流程（US01 已验证跑通
 ② 超级层（VLESS+WS over Cloudflare）阶段 2；③ iOS 真机验证（Mac）；④ 首连延迟进一步优化；
 ⑤ Google Play Billing；⑥ 2 个月后移除各节点 AWG（纯 sing-box）。
 
-> 相关文档：`docs/singbox-migration.md`（总方案）、`docs/singbox-existing-node-upgrade.md`（存量升级+踩坑）、
-> `docs/dual-engine-architecture.md`、`docs/on-demand-provisioning.md`、`docs/troubleshooting-connectivity.md`。
+> 相关文档：**`docs/node-setup.md`（节点安装/升级/运维唯一入口，含踩坑）**、
+> `docs/singbox-migration.md`（迁移总方案/设计背景）、`docs/on-demand-provisioning.md`、
+> `docs/troubleshooting-connectivity.md`。
