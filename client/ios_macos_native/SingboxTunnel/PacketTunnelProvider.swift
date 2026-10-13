@@ -113,7 +113,17 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
   static func resolveRuleSetPaths(_ config: String) -> String {
     guard config.contains("$RULESET_DIR") else { return config }
     let dir = Bundle.main.resourcePath ?? Bundle.main.bundlePath
-    return config.replacingOccurrences(of: "$RULESET_DIR", with: dir)
+    let resolved = config.replacingOccurrences(of: "$RULESET_DIR", with: dir)
+
+    // 规则集没打进扩展 bundle 时，sing-box 只会抛一个含路径的泛化错误，很难看出
+    // 是打包漏了文件 —— 曾因此表现为「DNS 方案选中国大陆就连不上，选自动能连但
+    // 国内流量不直连」，查了很久。这里显式记下缺哪个文件。
+    for m in resolved.ranges(ofPrefixed: dir, suffixed: ".srs") {
+      if !FileManager.default.fileExists(atPath: m) {
+        TunnelLog.log("❌ 规则集缺失(未打进扩展): \(m)")
+      }
+    }
+    return resolved
   }
 
   private func setupLibboxOnce() throws {
@@ -153,6 +163,22 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     server = nil
     platform = nil
     tunName = nil
+  }
+}
+
+private extension String {
+  /// 抽出所有以 [dir] 开头、以 [ext] 结尾的路径串（用于校验规则集文件是否真的存在）。
+  func ranges(ofPrefixed dir: String, suffixed ext: String) -> [String] {
+    var out: [String] = []
+    var rest = Substring(self)
+    while let s = rest.range(of: dir) {
+      let tail = rest[s.lowerBound...]
+      if let e = tail.range(of: ext) {
+        out.append(String(tail[..<e.upperBound]))
+        rest = tail[e.upperBound...]
+      } else { break }
+    }
+    return out
   }
 }
 

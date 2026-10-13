@@ -76,6 +76,15 @@ for b in "$APP" "$APP/Contents/PlugIns/SingboxTunnel.appex"; do
 done
 echo "   ✓ 两个包的 VPN 权限都在"
 
+# 规则集必须真的打进扩展：少了它，「中国大陆」DNS 方案会因找不到文件而起不来隧道，
+# 而「海外」方案能连但没有国内直连规则 —— 两种症状都不指向打包漏文件，极难排查。
+for srs in airlane-cn.srs; do
+  if ! find "$APP/Contents/PlugIns/SingboxTunnel.appex/Contents/Resources" -name "$srs" | grep -q .; then
+    echo "❌ 扩展里缺少规则集 $srs —— 中止"; exit 1
+  fi
+done
+echo "   ✓ 规则集已打进扩展"
+
 echo "▶ 3/5 生成 DMG"
 STAGE="$(mktemp -d)"; trap 'rm -rf "$STAGE"' EXIT
 cp -R "$APP" "$STAGE/"

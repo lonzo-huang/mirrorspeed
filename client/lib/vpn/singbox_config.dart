@@ -44,14 +44,14 @@ class SingboxConfig {
     List<String>? includeProcesses,  // 分应用(桌面)：只有这些进程走代理(白名单，process_name)
     List<String>? excludeProcesses,  // 分应用(桌面)：这些进程直连(黑名单，process_name)
     List<String>? cnCidrs,           // 回退：中国 IP 段(assets/routes/cn_cidr.txt)，仅 IP 级
-    String? cnRuleSetPath,           // 首选：airlane-cn.srs 的本地绝对路径(域名+IP 级)；非 Apple 由调用方释放后传入
+    String? cnRuleSetPath,           // 首选：airlane-cn.srs 的本地绝对路径(仅域名级)；非 Apple 由调用方释放后传入
     bool overseas = false,           // 海外方案：不加 airlane-cn 国内直连条件(无 GFW,国内外都经节点)
     bool ipv6 = false,               // 仅当系统确有可用 IPv6 时给 tun 加 v6 地址（见下）
   }) {
     // 选中节点的 outbound(强制 tag=proxy)
     final proxy = Map<String, dynamic>.from(outbound)..['tag'] = 'proxy';
 
-    // airlane-cn 规则集(域名+IP 级 CN 直连，三端统一)：Apple 走扩展占位符，其它平台用调用方
+    // airlane-cn 规则集(仅域名级 CN 直连，三端统一；裸 IP 流量无域名可匹配→走代理)：Apple 走扩展占位符，其它平台用调用方
     // 释放到磁盘后传入的绝对路径。海外方案(overseas)一律不启用——国内外都经节点。
     final bool useCnRuleSet = !overseas &&
         (_kIsApple || (cnRuleSetPath != null && cnRuleSetPath.isNotEmpty));
@@ -109,7 +109,8 @@ class SingboxConfig {
       // 【仅智能模式生效】全局模式(smart=false)忽略分应用名单，全部走代理。
       if (smart && hasWhiteProc) route['rules'].add({'process_name': includeProcesses, 'invert': true, 'outbound': 'direct'});
       if (smart && hasBlackProc) route['rules'].add({'process_name': excludeProcesses, 'outbound': 'direct'});
-      // 规则集(智能模式)：airlane-cn 域名+IP 级国内直连；拿不到规则集时回退 cn_cidr(仅 IP 级)。
+      // 规则集(智能模式)：airlane-cn 按域名直连（靠 sniff 取 SNI/Host）；拿不到规则集时
+      // 回退 cn_cidr(仅 IP 级)。两者互补：域名级覆盖 CDN 在境外 IP 的国内站点，IP 级覆盖裸 IP。
       // 海外/全局不加 → 落到 final 全代理。进了隧道、未被上面命中的流量走到这里。
       if (smart && useCnRuleSet) {
         route['rules'].add({'rule_set': ['airlane-cn'], 'outbound': 'direct'});
