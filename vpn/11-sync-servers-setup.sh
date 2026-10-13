@@ -2,7 +2,7 @@
 # 11-sync-servers-setup.sh — 节点状态同步任务（从 Vercel cron 迁到本机）
 #
 # 只需在【一台】服务器上装（控制机）。它会：
-#   - 每 60s 并发探测所有 active 节点的 /stats /health /peers
+#   - 每 2min 并发探测所有 active 节点的 /stats /health /peers
 #   - 写回 vpn_servers 状态（含「隧道死 → offline」）
 #   - 同步各 peer 今日流量、对超额免费用户暂停/恢复
 #
@@ -57,7 +57,7 @@ echo "[2/4] 安装任务脚本 ${DST}..."
 cp "${SRC}" "${DST}"
 chmod 755 "${DST}"
 
-echo "[3/4] 安装 systemd 服务 + 定时器（每 60s）..."
+echo "[3/4] 安装 systemd 服务 + 定时器（每 2min）..."
 cat > /etc/systemd/system/ms-sync-servers.service <<'UNITEOF'
 [Unit]
 Description=MirrorSpeed node status / usage / quota sync
@@ -71,12 +71,14 @@ UNITEOF
 
 cat > /etc/systemd/system/ms-sync-servers.timer <<'TIMEREOF'
 [Unit]
-Description=Run MirrorSpeed node sync every 60s
+Description=Run MirrorSpeed node sync every 2min
 
 [Timer]
+# 60s→120s：节点状态/健康回写减半的 Supabase 读写与日志；健康检测仍 ≤2min，
+# 挂掉的节点最多 2 分钟被标 offline 踢出选路，可接受。
 OnBootSec=45
-OnUnitActiveSec=60
-AccuracySec=5s
+OnUnitActiveSec=120
+AccuracySec=15s
 
 [Install]
 WantedBy=timers.target
@@ -92,7 +94,7 @@ sleep 2
 echo ""
 echo "节点同步任务部署完成："
 echo "  数据源:    ${SUPABASE_URL}"
-echo "  执行频率:  每 60s（systemd: ms-sync-servers.timer）"
+echo "  执行频率:  每 2min（systemd: ms-sync-servers.timer）"
 echo ""
 echo "  查看状态:  systemctl status ms-sync-servers.timer"
 echo "  手动执行:  systemctl start ms-sync-servers.service"

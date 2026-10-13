@@ -7,7 +7,7 @@
 #   - 付费用户 IP → ipset ms_paid → mangle 打 0x2 → tc 1:20（paid_mbit）
 #   - 超级/未知（未打标）→ tc 默认 1:30（super_mbit；0=满速）
 #   - 限速值与用户分级由 Supabase RPC get_ratelimit_config 下发（本机用公开 anon key 直连，不经 Vercel）。
-#   - systemd timer 每 60s 同步一次（成员秒级、限速值改即生效）。
+#   - systemd timer 每 10min 同步一次（限速值改后最多 10 分钟生效）。
 #
 # 幂等：可重复运行；自动探测网卡，无需手填。
 set -euo pipefail
@@ -165,7 +165,7 @@ if __name__ == '__main__':
 PYEOF
 chmod +x "${SYNC_BIN}"
 
-echo "[6/6] 安装 systemd 服务 + 定时器（每 60s）..."
+echo "[6/6] 安装 systemd 服务 + 定时器（每 10min）..."
 cat > /etc/systemd/system/ms-ratelimit.service <<'UNITEOF'
 [Unit]
 Description=MirrorSpeed per-tier rate limit sync
@@ -179,12 +179,14 @@ UNITEOF
 
 cat > /etc/systemd/system/ms-ratelimit.timer <<'TIMEREOF'
 [Unit]
-Description=Run MirrorSpeed rate limit sync every 60s
+Description=Run MirrorSpeed rate limit sync every 10min
 
 [Timer]
+# 限速档位(app_config)极少变动：60s→600s，降 ~10x 的 Supabase RPC 调用/日志。
+# 节点侧失败时保留上次已生效的 ipset/tc 规则(内核态不回滚)，拉长间隔无风险。
 OnBootSec=30
-OnUnitActiveSec=60
-AccuracySec=5s
+OnUnitActiveSec=600
+AccuracySec=30s
 
 [Install]
 WantedBy=timers.target
@@ -200,7 +202,7 @@ echo "限速部署完成："
 echo "  WG 接口:   ${WG_IFACE}（限下行）"
 echo "  出口带宽:  ${LINK_MBIT} Mbit"
 echo "  限速值/分级: 来自 Supabase RPC get_ratelimit_config（直连，不经 Vercel；app_config 可改）"
-echo "  同步频率:  每 60s（systemd: ms-ratelimit.timer）"
+echo "  同步频率:  每 10min（systemd: ms-ratelimit.timer）"
 echo ""
 echo "  查看状态:  systemctl status ms-ratelimit.timer"
 echo "  手动同步:  systemctl start ms-ratelimit.service && journalctl -u ms-ratelimit.service -n 5 --no-pager"

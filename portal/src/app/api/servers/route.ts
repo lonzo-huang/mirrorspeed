@@ -23,8 +23,10 @@ export async function GET() {
 
   return NextResponse.json({ servers }, {
     headers: {
-      // 30 秒缓存（stale-while-revalidate 允许后台刷新时仍用旧数据）
-      'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+      // 60 秒缓存（stale-while-revalidate 允许后台刷新时仍用旧数据）：
+      // 节点状态由 ms-sync-servers 每 2min 回写，60s CDN 缓存已足够新，
+      // 把源站(Supabase)命中从每 30s 降到每 60s。
+      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
     },
   })
 }
