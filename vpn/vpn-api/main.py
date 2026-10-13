@@ -165,10 +165,14 @@ def get_live_stats() -> dict[str, dict]:
     Output columns: public_key, preshared_key, endpoint, allowed_ips,
                     last_handshake, rx_bytes, tx_bytes, keepalive
     """
-    result = subprocess.run(
-        ["awg", "show", WG_IFACE, "dump"],
-        capture_output=True, text=True, check=False
-    )
+    try:
+        result = subprocess.run(
+            ["awg", "show", WG_IFACE, "dump"],
+            capture_output=True, text=True, check=False
+        )
+    except FileNotFoundError:
+        # 纯 sing-box 干净节点(如 us02)无 awg 二进制 → 无 WG 运行态，返回空。
+        return {}
     stats = {}
     if result.returncode != 0:
         return stats
@@ -396,10 +400,18 @@ class RemovePeerRequest(BaseModel):
 @app.get("/health")
 def health():
     """Lightweight health check — no auth required."""
-    awg = subprocess.run(["awg", "show", WG_IFACE], capture_output=True, check=False)
+    # AWG 可能不存在(纯 sing-box 干净节点，如 us02)。缺 awg 不代表节点不健康——
+    # 此时以 sing-box 服务状态为准，别 500、也别误报 wg down(否则 sync 据此把节点标 offline)。
+    try:
+        awg = subprocess.run(["awg", "show", WG_IFACE], capture_output=True, check=False)
+        up = awg.returncode == 0
+    except FileNotFoundError:
+        sb = subprocess.run(["systemctl", "is-active", "sing-box"],
+                            capture_output=True, text=True, check=False)
+        up = sb.stdout.strip() == "active"
     return {
-        "status": "ok" if awg.returncode == 0 else "degraded",
-        "wg_status": "up" if awg.returncode == 0 else "down",
+        "status": "ok" if up else "degraded",
+        "wg_status": "up" if up else "down",
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
 
