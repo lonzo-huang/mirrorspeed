@@ -45,7 +45,7 @@ dependencies:
   crypto: ^3.0.3
 
   # ── Device info ──────────────────────────────────────────────
-  device_info_plus: ^10.1.2
+  device_info_plus: ^12.4.0
 
   # ── Deep links / OAuth callback ──────────────────────────────
   app_links: ^6.3.0
