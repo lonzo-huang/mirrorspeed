@@ -35,6 +35,7 @@ APP_NAME="MirrorSpeed VPN"
 BUILT="build/macos/Build/Products/Release/mirrorspeed_vpn.app"
 VER="$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml | tr -d '[:space:]')"
 OUT="build/macos/dist"
+WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 DMG="$OUT/MirrorSpeed-$VER.dmg"
 
 # Developer ID 证书必须存在，否则签出来的包别人打不开
@@ -65,7 +66,13 @@ while IFS= read -r -d '' f; do sign "$f"; done < <(find "$APP/Contents/Framework
 while IFS= read -r -d '' f; do sign "$f"; done < <(find "$APP/Contents/Frameworks" -maxdepth 1 -type f -print0 2>/dev/null)
 
 sign --entitlements "$HERE/SingboxTunnel/SingboxTunnel-macOS.entitlements" "$APP/Contents/PlugIns/SingboxTunnel.appex"
-sign --entitlements "macos/Runner/Release.entitlements"                    "$APP"
+# $(AppIdentifierPrefix) 只有 Xcode 构建时会展开，codesign 不会 —— 直接拿原文件签，
+# 会把字面量 "$(AppIdentifierPrefix)com.mirrorspeed..." 写进 keychain-access-groups，
+# 描述文件不认，AMFI 在启动时直接杀进程（表现为 launchd spawn failed / 错误 162，
+# 没有任何其它提示）。所以先展开成真实 Team ID 再签。
+EXPANDED="$WORK/Release-expanded.entitlements"
+sed "s/\$(AppIdentifierPrefix)/${TEAM}./" macos/Runner/Release.entitlements > "$EXPANDED"
+sign --entitlements "$EXPANDED"                                           "$APP"
 
 echo "   校验签名"
 codesign --verify --deep --strict --verbose=2 "$APP" 2>&1 | tail -2
@@ -86,7 +93,7 @@ done
 echo "   ✓ 规则集已打进扩展"
 
 echo "▶ 3/5 生成 DMG"
-STAGE="$(mktemp -d)"; trap 'rm -rf "$STAGE"' EXIT
+STAGE="$(mktemp -d)"; trap 'rm -rf "$WORK" "$STAGE"' EXIT
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"     # 拖拽安装的目标
 hdiutil create -volname "$APP_NAME" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
