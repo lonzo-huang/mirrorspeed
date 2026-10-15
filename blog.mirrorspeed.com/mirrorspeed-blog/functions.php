@@ -114,11 +114,11 @@ if (!function_exists('mirrorspeed_wechat_fulltext')) {
 // ═══════════════════════════════════════════════════════════════
 // 以下为线上 Code Snippets 的源码副本（Hostinger WAF 拦截 theme-editor
 // 的 PHP POST，只能经 REST 管理 snippet；此处存档保持与线上一致）。
-//   snippet id=8「采集后处理」：语言归类 + 特色图 + Groq 翻译 + 存量修复 + llms.txt
+//   snippet id=33「采集后处理」：语言归类 + 特色图 + Groq 翻译 + 存量修复 + llms.txt
 //   snippet id=9「SEO/OG/分享 meta」
 // ═══════════════════════════════════════════════════════════════
 
-// ── snippet id=8：采集文章后处理 ─────────────────────────────────
+// ── snippet id=33（v8，线上）；前身 id=8..17 均已停用：采集文章后处理 ────────────────────────────────
 // WPeMatico 拉公众号中文内容，但 Polylang 默认语言是 English（全站 1600+
 // 采集文章曾全挂英文「未分类」）。逻辑：
 //  1) 确保「公众号精选」(zh) ↔「Curated Feeds」(en) 分类对存在（存 option）
@@ -128,12 +128,18 @@ if (!function_exists('mirrorspeed_wechat_fulltext')) {
 //  4) ms_fix_zh_batch cron：后台分批把存量微信文章改归中文（只归类不翻译）
 //  5) /llms.txt（实际被 Rank Math 接管，保留无害）
 //
-// Groq key 填在线上 snippet 顶部：define('MS_GROQ_API_KEY', '...');
-
-if (!defined('MS_GROQ_API_KEY')) define('MS_GROQ_API_KEY', '');
-if (!defined('MS_GROQ_MODEL'))   define('MS_GROQ_MODEL', 'openai/gpt-oss-120b');
+// v8 = Groq key 池轮换：MS_GROQ_API_KEYS 数组，请求轮转（option ms_groq_key_idx）。
+//   任何 429 都按 Groq 返回的 "try again in Xs" 把该 key 拉黑到恢复时刻
+//   （transient ms_groq_dead_<idx>，值=恢复的 unix 时间戳），立刻换下一个 key；
+//   全部拉黑时把最近的恢复时间写进 $GLOBALS['ms_groq_wait']，handler 睡到那时
+//   再试（而不是每 65s 空转）。TPD=200k/key/天，N 个 key ≈ N×200k 日额度。
+//
 // Groq 免费档限额实测：qwen OTPM=1000（一次大块就 429）、llama-3.3-70b 已下线；
 // gpt-oss-120b 单次可 4096+ tokens、连发 ~2 次/分钟，配增量分块最稳。
+
+// Groq key 池填在线上 snippet 顶部：define('MS_GROQ_API_KEYS', array('gsk_...','gsk_...',...));
+if (!defined('MS_GROQ_API_KEYS')) define('MS_GROQ_API_KEYS', array());
+if (!defined('MS_GROQ_MODEL'))   define('MS_GROQ_MODEL', 'openai/gpt-oss-120b');
 
 if (!function_exists('ms_feed_cat_ids')) {
     function ms_feed_cat_ids() {
@@ -211,33 +217,67 @@ if (!function_exists('ms_feed_post_process')) {
     }
 }
 
+// Groq 429 body "Please try again in 8h21m33.123s" → 秒数；解析不到兜底 300
+if (!function_exists('ms_groq_wait_secs')) {
+    function ms_groq_wait_secs($body) {
+        $b = (string) $body;
+        if (preg_match('/try again in (\d+)h(\d+)m([\d.]+)s/i', $b, $m)) return $m[1] * 3600 + $m[2] * 60 + (int) ceil($m[3]);
+        if (preg_match('/try again in (\d+)m([\d.]+)s/i',        $b, $m)) return $m[1] * 60 + (int) ceil($m[2]);
+        if (preg_match('/try again in ([\d.]+)s/i',             $b, $m)) return (int) ceil($m[1]);
+        if (preg_match('/try again in (\d+)m/i',               $b, $m)) return $m[1] * 60;
+        return 300;
+    }
+}
+
 if (!function_exists('ms_groq_translate')) {
     function ms_groq_translate($text, $is_html) {
         $sys = $is_html
             ? 'You are a professional Chinese-to-English translator for a tech blog. Translate the HTML below to natural English. Keep ALL HTML tags, attributes, URLs, class names and placeholders EXACTLY as-is; translate only inner text. Output ONLY the translated HTML, no commentary, no markdown fences.'
             : 'Translate this Chinese blog title into concise natural English. Output ONLY the translation.';
-        $resp = wp_remote_post('https://api.groq.com/openai/v1/chat/completions', array(
-            'timeout' => 90,
-            'headers' => array('Authorization' => 'Bearer ' . MS_GROQ_API_KEY, 'Content-Type' => 'application/json'),
-            'body'    => wp_json_encode(array(
-                'model'       => MS_GROQ_MODEL,
-                'messages'    => array(
-                    array('role' => 'system', 'content' => $sys),
-                    array('role' => 'user',   'content' => $text),
-                ),
-                'temperature' => 0.3,
-                'max_tokens'  => 4096,
-                'reasoning_effort' => 'low',
-            )),
-        ));
-        if (is_wp_error($resp)) return false;
-        $j = json_decode(wp_remote_retrieve_body($resp), true);
-        $out = isset($j['choices'][0]['message']['content']) ? trim($j['choices'][0]['message']['content']) : '';
-        $out = preg_replace('#^```[a-zA-Z]*\s*|\s*```$#', '', $out);
-        // gpt-oss 偶尔包 "translates to:" / markdown 强调
-        $out = preg_replace('#^(?:translates?\s+to:?|here (?:is|\'s) (?:the )?transl\w+:?)[^\n]*\n?#i', '', $out);
-        if (!$is_html) $out = trim($out, "\"'** \t\n");
-        return $out === '' ? false : $out;
+        $keys = array_values(array_filter((array) MS_GROQ_API_KEYS));
+        $n = count($keys);
+        if (!$n) return false;
+        $idx = (int) get_option('ms_groq_key_idx', 0) % $n;
+        $min_dead = 0;
+        for ($tried = 0; $tried < $n; $tried++, $idx = ($idx + 1) % $n) {
+            $dead_until = (int) get_transient('ms_groq_dead_' . $idx);
+            if ($dead_until > time()) {
+                if (!$min_dead || $dead_until < $min_dead) $min_dead = $dead_until;
+                continue;
+            }
+            $resp = wp_remote_post('https://api.groq.com/openai/v1/chat/completions', array(
+                'timeout' => 90,
+                'headers' => array('Authorization' => 'Bearer ' . $keys[$idx], 'Content-Type' => 'application/json'),
+                'body'    => wp_json_encode(array(
+                    'model'       => MS_GROQ_MODEL,
+                    'messages'    => array(
+                        array('role' => 'system', 'content' => $sys),
+                        array('role' => 'user',   'content' => $text),
+                    ),
+                    'temperature' => 0.3,
+                    'max_tokens'  => 4096,
+                    'reasoning_effort' => 'low',
+                )),
+            ));
+            if (is_wp_error($resp)) return false;
+            if ((int) wp_remote_retrieve_response_code($resp) === 429) {
+                $wait  = ms_groq_wait_secs(wp_remote_retrieve_body($resp));
+                $until = time() + min($wait, DAY_IN_SECONDS);
+                set_transient('ms_groq_dead_' . $idx, $until, min($wait, DAY_IN_SECONDS));
+                if (!$min_dead || $until < $min_dead) $min_dead = $until;
+                continue;
+            }
+            update_option('ms_groq_key_idx', ($idx + 1) % $n, false);
+            $j   = json_decode(wp_remote_retrieve_body($resp), true);
+            $out = isset($j['choices'][0]['message']['content']) ? trim($j['choices'][0]['message']['content']) : '';
+            $out = preg_replace('#^```[a-zA-Z]*\s*|\s*```$#', '', $out);
+            // gpt-oss 偶尔包 "translates to:" / markdown 强调
+            $out = preg_replace('#^(?:translates?\s+to:?|here (?:is|\'s) (?:the )?transl\w+:?)[^\n]*\n?#i', '', $out);
+            if (!$is_html) $out = trim($out, "\"'** \t\n");
+            return $out === '' ? false : $out;
+        }
+        if ($min_dead > time()) $GLOBALS['ms_groq_wait'] = $min_dead - time();
+        return false;
     }
 }
 
@@ -259,12 +299,12 @@ if (!function_exists('ms_split_html')) {
 if (!function_exists('ms_translate_post_handler')) {
     add_action('ms_translate_post', 'ms_translate_post_handler');
     function ms_translate_post_handler($post_id) {
-        if (!MS_GROQ_API_KEY || get_post_status($post_id) !== 'publish') return;
+        if (empty(MS_GROQ_API_KEYS) || get_post_status($post_id) !== 'publish') return;
         $en_t = function_exists('pll_get_post') ? pll_get_post($post_id, 'en') : 0;
         if ($en_t && get_post($en_t)) return;
 
         // 增量翻译：每次 cron tick 只翻一块（~20s 一块，绕开免费档每分钟限流），
-        // 状态存 _ms_t_state meta：{title, chunks[], done[]}；块失败 60s 后自动重试。
+        // 状态存 _ms_t_state meta：{title, chunks[], done[]}；块失败按 ms_groq_wait 重试。
         $st = get_post_meta($post_id, '_ms_t_state', true);
         if (!is_array($st) || !isset($st['chunks'])) {
             $title = get_the_title($post_id);
@@ -275,20 +315,21 @@ if (!function_exists('ms_translate_post_handler')) {
                 'done'   => array(),
             );
             update_post_meta($post_id, '_ms_t_state', $st);
-            wp_schedule_single_event(time() + 20, 'ms_translate_post', array($post_id));
+            $wait = isset($GLOBALS['ms_groq_wait']) ? (int) $GLOBALS['ms_groq_wait'] : 0;
+            wp_schedule_single_event(time() + max(20, $wait + 5), 'ms_translate_post', array($post_id));
             return;
         }
 
         // 时间预算循环：本 tick 内连续翻多块（约 5-7s/块），耗尽再排下一 tick。
-        // Groq 免费档 TPM=8000，单块 ~3400 token，40s 预算配块间 2s 间隔可稳住；
-        // 遇 429/错误即停，65s 后从断点继续（done[] 已落 meta，不丢进度）。
+        // 遇 429/错误即停：单 key TPM 限流已被 key 池轮转吸收；全死则睡到最近恢复时刻。
         @set_time_limit(120);
         $deadline = time() + 40;
         $i = count($st['done']);
         while ($i < count($st['chunks'])) {
             $t = ms_groq_translate($st['chunks'][$i], true);
             if ($t === false) {
-                wp_schedule_single_event(time() + 65, 'ms_translate_post', array($post_id));
+                $wait = isset($GLOBALS['ms_groq_wait']) ? (int) $GLOBALS['ms_groq_wait'] : 65;
+                wp_schedule_single_event(time() + max(65, $wait + 5), 'ms_translate_post', array($post_id));
                 return;
             }
             $st['done'][] = $t; $i++;
@@ -360,6 +401,7 @@ add_action('init', function () {
     echo "- English home: " . home_url('/') . "\n- 中文首页: " . home_url('/zh/') . "\n- Sitemap: " . home_url('/sitemap_index.xml') . "\n";
     exit;
 });
+
 
 // ── snippet id=9：SEO / OG / 分享 meta（已停用，留作 RM 备用实现）──
 // og:image = 本地特色图（无则正文第一张图）；og:description = 摘要/正文前40词；
