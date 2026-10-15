@@ -44,8 +44,8 @@ const List<_Plan> _kPlans = [
 enum _Tab { iap, web, custom }
 
 class _VipScreenState extends State<VipScreen> {
-  /// 本平台是否有 App Store 内购（目前仅 iOS）。
-  final bool _iosStore = IapService.supported;
+  /// 本平台是否有 App Store 内购（iOS + macOS）。
+  final bool _appStore = IapService.supported;
 
   /// Apple 端是否展示「官网购买」入口。
   ///
@@ -56,10 +56,10 @@ class _VipScreenState extends State<VipScreen> {
   /// 链接豁免。此入口按产品决策保留，风险已知（见本次需求）。
   bool _showWebBuy = false;
 
-  late _Tab _tab = _iosStore ? _Tab.iap : _Tab.web;
+  late _Tab _tab = _appStore ? _Tab.iap : _Tab.web;
   String _pick = 'yearly';
 
-  // ── App Store 商品与购买状态（仅 iOS）──
+  // ── App Store 商品与购买状态（iOS + macOS）──
   List<ProductDetails> _products = [];
   bool _loadingProducts = false;
   bool _busy = false;
@@ -69,7 +69,7 @@ class _VipScreenState extends State<VipScreen> {
   @override
   void initState() {
     super.initState();
-    if (_iosStore) {
+    if (_appStore) {
       _loadProducts();
       _iapSub = IapService.instance.events.listen(_onIapEvent);
     }
@@ -173,11 +173,11 @@ class _VipScreenState extends State<VipScreen> {
           _hero(),
           const SizedBox(height: 18),
           // Apple 端且不展示官网入口时：只有 App Store 内购，无需切换器。
-          if (_iosStore && !_showWebBuy) ..._appStoreTab() else ...[
+          if (_appStore && !_showWebBuy) ..._appStoreTab() else ...[
             _tabSwitcher(),
             const SizedBox(height: 16),
-            // iOS 的「应用内购」栏用真实 App Store 商品价；其它平台用官网价 ×1.2。
-            if (_tab == _Tab.iap)    ...(_iosStore ? _appStoreTab() : _iapTab()),
+            // Apple 的「应用内购」栏用真实 App Store 商品价；其它平台用官网价 ×1.2。
+            if (_tab == _Tab.iap)    ...(_appStore ? _appStoreTab() : _iapTab()),
             if (_tab == _Tab.web)    ..._webTab(),
             if (_tab == _Tab.custom) ..._customTab(),
           ],
@@ -309,7 +309,7 @@ class _VipScreenState extends State<VipScreen> {
       Center(child: TextButton(onPressed: _busy ? null : _restore,
         child: Text(tr('恢复购买', 'Restore Purchases'), style: TextStyle(fontSize: 13, color: msNow.brand)))),
       const SizedBox(height: 4),
-      Text(Platform.isIOS
+      Text(Platform.isIOS || Platform.isMacOS
         ? tr(
             '订阅费用将在确认购买时从您的 Apple ID 账户扣除。除非在当前订阅期结束前至少 24 小时关闭自动续订，'
             '否则订阅将自动续订并按相同价格扣费。您可以在 App Store 的「账户设置」中管理或取消订阅。',

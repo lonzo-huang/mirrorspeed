@@ -42,7 +42,12 @@ class IapService {
   static Set<String> get productIds =>
       _tierIds.values.map((e) => _isAndroid ? e.$2 : e.$1).toSet();
 
-  static bool get supported => !kIsWeb && (Platform.isIOS || Platform.isAndroid);
+  /// macOS 也走同一套 StoreKit：Mac App Store 对数字会员要求必须提供内购，
+  /// 不能只给官网支付入口。插件(in_app_purchase_storekit)的 darwin 实现 iOS/macOS
+  /// 共用，商品 ID 与订阅群组也共用（storeProductId 对非安卓一律取 Apple 侧 ID），
+  /// 无需为 macOS 单独建产品。
+  static bool get supported =>
+      !kIsWeb && (Platform.isIOS || Platform.isAndroid || Platform.isMacOS);
 
   final _iap = InAppPurchase.instance;
   StreamSubscription<List<PurchaseDetails>>? _sub;
@@ -59,7 +64,7 @@ class IapService {
     });
   }
 
-  /// 最近一次商品查询的诊断信息（显示在「我的 → 错误信息」里，仅 iOS）。
+  /// 最近一次商品查询的诊断信息（显示在「我的 → 错误信息」里，仅 Apple 平台）。
   /// TestFlight 包看不到控制台日志，排查「某个套餐不显示」全靠它：
   /// 是 App Store 说「没这个商品」(notFound)，还是请求本身报错(error)。
   String? lastQueryReport;
@@ -119,7 +124,9 @@ class IapService {
   Future<void> _verifyAndComplete(PurchaseDetails p) async {
     if (_userId == null) return;   // 未登录不核验、不 complete，登录后重投递
     try {
-      if (Platform.isIOS) {
+      // macOS 与 iOS 同为 App Store 交易，核验走同一个接口（JWS 签名交易）。
+      // 漏掉 macOS 会导致「扣了钱但不开通会员」。
+      if (Platform.isIOS || Platform.isMacOS) {
         final jws = p.verificationData.serverVerificationData;
         await ApiService.instance.verifyApplePurchase(
           transactionId: p.purchaseID,
