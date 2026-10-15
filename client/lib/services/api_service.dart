@@ -196,6 +196,23 @@ class ApiService {
     return body;
   }
 
+  /// Google Play 购买核验：把 purchaseToken(+productId) 发给后端，后端经 Play
+  /// Developer API 核验并开通会员。对称于 [verifyApplePurchase]。
+  Future<Map<String, dynamic>> verifyGooglePurchase({
+    required String purchaseToken,
+    String? productId,
+  }) async {
+    final res = await _post('/api/iap/google/verify', {
+      'purchaseToken': purchaseToken,
+      if (productId != null) 'productId': productId,
+    });
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode != 200 || body['ok'] != true) {
+      throw ApiException(body['error']?.toString() ?? '核验失败 (${res.statusCode})');
+    }
+    return body;
+  }
+
   // ── 公开节点列表（无需登录，仅展示用，不含密钥/配置）#1 ────────────
   Future<List<ServerConfig>> fetchPublicServers() async {
     try {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -274,12 +275,20 @@ class _VipScreenState extends State<VipScreen> {
       Center(child: TextButton(onPressed: _busy ? null : _restore,
         child: Text(tr('恢复购买', 'Restore Purchases'), style: TextStyle(fontSize: 13, color: msNow.brand)))),
       const SizedBox(height: 4),
-      Text(tr(
-        '订阅费用将在确认购买时从您的 Apple ID 账户扣除。除非在当前订阅期结束前至少 24 小时关闭自动续订，'
-        '否则订阅将自动续订并按相同价格扣费。您可以在 App Store 的「账户设置」中管理或取消订阅。',
-        'Payment is charged to your Apple ID at confirmation of purchase. The subscription renews automatically '
-        'at the same price unless auto-renew is turned off at least 24 hours before the end of the current period. '
-        'Manage or cancel in your App Store account settings.'), style: muted, textAlign: TextAlign.center),
+      Text(Platform.isIOS
+        ? tr(
+            '订阅费用将在确认购买时从您的 Apple ID 账户扣除。除非在当前订阅期结束前至少 24 小时关闭自动续订，'
+            '否则订阅将自动续订并按相同价格扣费。您可以在 App Store 的「账户设置」中管理或取消订阅。',
+            'Payment is charged to your Apple ID at confirmation of purchase. The subscription renews automatically '
+            'at the same price unless auto-renew is turned off at least 24 hours before the end of the current period. '
+            'Manage or cancel in your App Store account settings.')
+        : tr(
+            '订阅费用将在确认购买时从您的 Google Play 账户扣除。除非在当前订阅期结束前至少 24 小时关闭自动续订，'
+            '否则订阅将自动续订并按相同价格扣费。您可以在 Google Play 的「订阅」中管理或取消订阅。',
+            'Payment is charged to your Google Play account at confirmation of purchase. The subscription renews '
+            'automatically at the same price unless auto-renew is turned off at least 24 hours before the end of the '
+            'current period. Manage or cancel in your Google Play subscriptions.'),
+        style: muted, textAlign: TextAlign.center),
       const SizedBox(height: 8),
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         TextButton(onPressed: () => launchUrl(Uri.parse(_kTermsUrl), mode: LaunchMode.externalApplication),

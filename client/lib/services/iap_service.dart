@@ -5,20 +5,24 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api_service.dart';
 
-/// App Store 应用内订阅（目前仅 iOS 启用）。
+/// 应用内订阅（iOS = App Store / Android = Google Play）。
 ///
 /// 流程：queryProducts 拉取商品与本地化价格 → buy() 发起购买（把用户 UUID 作为
-/// appAccountToken 传给苹果，续费/退款通知才能对上用户）→ 购买流回调里交给后端
-/// /api/iap/apple/verify 核验并开通会员 → 核验成功后才 completePurchase。
-/// 核验失败不 complete：StoreKit 会在下次启动重新投递，避免"扣了钱没开通"。
+/// applicationUserName 传给商店：iOS=appAccountToken / Android=obfuscatedAccountId，
+/// 续费/退款通知才能对上用户）→ 购买流回调里交给后端核验并开通会员：
+///   iOS   → /api/iap/apple/verify（JWS / transactionId）
+///   Android → /api/iap/google/verify（purchaseToken + productId）
+/// 核验成功后才 completePurchase（Android 的 completePurchase 会 acknowledge，
+/// 必须在 3 天内，否则 Google 自动退款）。核验失败不 complete：商店下次启动重投递，
+/// 避免"扣了钱没开通"。
 class IapService {
   IapService._();
   static final IapService instance = IapService._();
 
-  /// App Store Connect 中的订阅商品 ID（苹果自动续期订阅最长 1 年，无两年档）。
+  /// 商店里的订阅商品 ID（两端一致；自动续期订阅）。
   static const productIds = <String>{'vip_monthly', 'vip_quarterly', 'vip_halfyear', 'vip_yearly'};
 
-  static bool get supported => !kIsWeb && Platform.isIOS;
+  static bool get supported => !kIsWeb && (Platform.isIOS || Platform.isAndroid);
 
   final _iap = InAppPurchase.instance;
   StreamSubscription<List<PurchaseDetails>>? _sub;
@@ -94,12 +98,23 @@ class IapService {
 
   Future<void> _verifyAndComplete(PurchaseDetails p) async {
     if (_userId == null) return;   // 未登录不核验、不 complete，登录后重投递
-    final jws = p.verificationData.serverVerificationData;
     try {
-      await ApiService.instance.verifyApplePurchase(
-        transactionId: p.purchaseID,
-        signedTransaction: jws.split('.').length == 3 ? jws : null,
-      );
+      if (Platform.isIOS) {
+        final jws = p.verificationData.serverVerificationData;
+        await ApiService.instance.verifyApplePurchase(
+          transactionId: p.purchaseID,
+          signedTransaction: jws.split('.').length == 3 ? jws : null,
+        );
+      } else if (Platform.isAndroid) {
+        // Android：serverVerificationData = Google Play purchaseToken。
+        await ApiService.instance.verifyGooglePurchase(
+          purchaseToken: p.verificationData.serverVerificationData,
+          productId: p.productID,
+        );
+      } else {
+        return;
+      }
+      // 核验成功后才 complete（Android 借此 acknowledge；未 ack 的购买 Google 会在 3 天后退款）。
       if (p.pendingCompletePurchase) await _iap.completePurchase(p);
       _events.add(IapEvent(p.status == PurchaseStatus.restored ? IapEventType.restored : IapEventType.purchased));
     } catch (e) {
