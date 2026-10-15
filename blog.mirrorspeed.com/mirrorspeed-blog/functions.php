@@ -592,3 +592,17 @@ add_action('ms_content_clean_batch', function () {
     update_option('ms_clean_cursor', $max);
     wp_schedule_single_event(time() + 20, 'ms_content_clean_batch');
 });
+
+// ============================================================
+// Code Snippets id=31: ms-edge-purge（发布文章 → LiteSpeed purge_all，连带清 hcdn 边缘缓存）
+// 线上激活中。修：purge-post_f/h 只清本地 LSCache，hcdn edge 层只有 purge_all 能穿透
+// → 首页曾滞留 33h 旧副本（Age: 120108）。10min 节流防导入批刷屏全清。
+// ============================================================
+add_action('transition_post_status', function ($new, $old, $post) {
+    if ($new !== 'publish' || $old === 'publish') return;
+    if (!is_object($post) || ($post->post_type ?? '') !== 'post') return;
+    $last = (int) get_option('ms_edgepurge_ts', 0);
+    if (time() - $last < 600) return;
+    update_option('ms_edgepurge_ts', time(), false);
+    if (function_exists('do_action')) do_action('litespeed_purge_all');
+}, 10, 3);

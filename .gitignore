@@ -37,3 +37,6 @@ CascadeProjects/
 # 本地发布密钥（含 anon key 等，绝不提交）
 client/.release-secrets.local
 .release-secrets.local
+
+# 博客后台登录凭据（本机专用，绝不提交）
+.wp-creds.local
