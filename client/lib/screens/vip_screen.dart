@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../brand.dart';
 import '../theme.dart';
 import '../services/iap_service.dart';
+import '../services/free_node_service.dart';
 import '../utils/portal_link.dart';
 import 'sub_page.dart';
 import '../widgets/ms_top_controls.dart';
@@ -42,8 +44,18 @@ const List<_Plan> _kPlans = [
 enum _Tab { iap, web, custom }
 
 class _VipScreenState extends State<VipScreen> {
-  // iOS 只允许 App Store 内购（审核 3.1.1：不得引导外部支付购买数字会员）。
+  /// 本平台是否有 App Store 内购（目前仅 iOS）。
   final bool _iosStore = IapService.supported;
+
+  /// Apple 端是否展示「官网购买」入口。
+  ///
+  /// 仅在「中文界面」或「出口 IP 在中国境内」时展示 —— 国内用户常无法使用 App Store
+  /// 支付（无海外支付方式），人民币直付是其唯一可行路径。
+  ///
+  /// 注意：App Store 审核指南 3.1.1 禁止在 App 内引导外部购买，中国区没有外部购买
+  /// 链接豁免。此入口按产品决策保留，风险已知（见本次需求）。
+  bool _showWebBuy = false;
+
   late _Tab _tab = _iosStore ? _Tab.iap : _Tab.web;
   String _pick = 'yearly';
 
@@ -61,6 +73,24 @@ class _VipScreenState extends State<VipScreen> {
       _loadProducts();
       _iapSub = IapService.instance.events.listen(_onIapEvent);
     }
+    _resolveWebBuyVisibility();
+  }
+
+  /// 判定是否展示官网购买入口。中文界面直接展示（无需等网络）；英文界面再看出口 IP
+  /// 是否在国内。非 Apple 平台一律展示（行为与以前一致）。
+  Future<void> _resolveWebBuyVisibility() async {
+    final apple = !kIsWeb && (Platform.isIOS || Platform.isMacOS);
+    if (!apple) {
+      if (mounted) setState(() => _showWebBuy = true);
+      return;
+    }
+    if (Brand.isZh) {
+      if (mounted) setState(() => _showWebBuy = true);
+      return;
+    }
+    // 出口判定失败(null)时不展示 —— 宁可少展示，也不要在境外用户面前露出外部支付入口。
+    final inCn = await FreeNodeService.instance.egressInChina();
+    if (mounted && inCn == true) setState(() => _showWebBuy = true);
   }
 
   @override
@@ -142,12 +172,14 @@ class _VipScreenState extends State<VipScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _hero(),
           const SizedBox(height: 18),
-          if (_iosStore) ..._appStoreTab() else ...[
-          _tabSwitcher(),
-          const SizedBox(height: 16),
-          if (_tab == _Tab.iap)    ..._iapTab(),
-          if (_tab == _Tab.web)    ..._webTab(),
-          if (_tab == _Tab.custom) ..._customTab(),
+          // Apple 端且不展示官网入口时：只有 App Store 内购，无需切换器。
+          if (_iosStore && !_showWebBuy) ..._appStoreTab() else ...[
+            _tabSwitcher(),
+            const SizedBox(height: 16),
+            // iOS 的「应用内购」栏用真实 App Store 商品价；其它平台用官网价 ×1.2。
+            if (_tab == _Tab.iap)    ...(_iosStore ? _appStoreTab() : _iapTab()),
+            if (_tab == _Tab.web)    ..._webTab(),
+            if (_tab == _Tab.custom) ..._customTab(),
           ],
         ]),
       ),
@@ -201,7 +233,7 @@ class _VipScreenState extends State<VipScreen> {
         border: Border.all(color: msNow.textSecondary.withOpacity(0.06))),
       child: Row(children: [
         seg(_Tab.iap,    tr('应用内购', 'In-App')),
-        seg(_Tab.web,    tr('官网购买', 'Website')),
+        if (_showWebBuy) seg(_Tab.web, tr('官网购买', 'Website')),
         seg(_Tab.custom, tr('私人定制', 'Custom')),
       ]),
     );
