@@ -78,7 +78,9 @@ class _VipScreenState extends State<VipScreen> {
   }
 
   ProductDetails? _productFor(_Plan p) {
-    for (final d in _products) { if (d.id == 'vip_${p.key}') return d; }
+    final id = IapService.storeProductId(p.key);   // 按平台取商品 ID（iOS=vip_* / Android=mirrorspeed.*）
+    if (id == null) return null;                    // biennial 等不走内购的档位
+    for (final d in _products) { if (d.id == id) return d; }
     return null;
   }
 

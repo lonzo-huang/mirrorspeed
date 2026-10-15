@@ -19,8 +19,28 @@ class IapService {
   IapService._();
   static final IapService instance = IapService._();
 
-  /// 商店里的订阅商品 ID（两端一致；自动续期订阅）。
-  static const productIds = <String>{'vip_monthly', 'vip_quarterly', 'vip_halfyear', 'vip_yearly'};
+  /// 档位 → 各平台商品 ID（单一事实来源）。Apple 与 Google 在各自后台建的 ID 不一致：
+  ///   iOS  = App Store Connect 的 ID（vip_*）
+  ///   Android = Google Play Console 的 ID（mirrorspeed.vpn.premium.*，注意半年=semiannual）
+  /// biennial(两年)不走内购。DB plans.{apple,google}_product_id 必须与此一致。
+  static const _tierIds = <String, (String apple, String google)>{
+    'monthly':   ('vip_monthly',   'mirrorspeed.vpn.premium.monthly'),
+    'quarterly': ('vip_quarterly', 'mirrorspeed.vpn.premium.quarterly'),
+    'halfyear':  ('vip_halfyear',  'mirrorspeed.vpn.premium.semiannual'),
+    'yearly':    ('vip_yearly',    'mirrorspeed.vpn.premium.yearly'),
+  };
+
+  static bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+
+  /// 把档位(monthly/quarterly/halfyear/yearly)映射到当前平台的商品 ID；未知档位返回 null。
+  static String? storeProductId(String tier) {
+    final e = _tierIds[tier];
+    return e == null ? null : (_isAndroid ? e.$2 : e.$1);
+  }
+
+  /// 当前平台要向商店查询的全部商品 ID。
+  static Set<String> get productIds =>
+      _tierIds.values.map((e) => _isAndroid ? e.$2 : e.$1).toSet();
 
   static bool get supported => !kIsWeb && (Platform.isIOS || Platform.isAndroid);
 
