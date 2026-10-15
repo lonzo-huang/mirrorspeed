@@ -184,7 +184,9 @@ SUPABASE_SERVICE_KEY='<service_role>' bash vpn/11-sync-servers-setup.sh
 10. **设备凭证只由 portal 自动下发**，别手动加 sing-box 用户（手动加的测试用户确认正常后可删）。
 11. **提交 & 署名**：改完即 commit+push main；署名见 §0。
 12. **博客站 blog.mirrorspeed.com**（Hostinger 共享主机，无 SSH）：wp-admin 走密码登录 + REST API（需 `X-WP-Nonce`，从 admin 页 `wpApiSettings.nonce` 提取，会过期要重新拿）。
-    采集链：WPeMatico campaign 164 拉 `decemberpei.cyou/rssbox/wechat-*.xml`（16 个公众号源），**该 feed 的 description 只有标题、无正文**。
+    采集链：**WPeMatico 激活中**（REST /wp/v2/plugins 不列它，以 plugins.php 为准）。两个 campaign：
+    - **id=164「MirrorSpeed CN」**：拉 `decemberpei.cyou/rssbox/wechat-*.xml`（16 个公众号源），**该 feed 的 description 只有标题、无正文**；
+    - **id=57「MirrorSpeed EN」**：4 个活源 feedburner/TheHackersNews、krebsonsecurity、blog.torproject.org、xz.aliyun.com；已摘 3 死源（threatpost 最后条目 2022-08、restoreprivacy 2024-11、evilcos.me 2017-10）。campaign 配置存 post meta `campaign_data`（数组，`campaign_feeds` 子键）；每 feed 另有 `_lasthash_<规范化url>` meta 去重。改 feed 用一次性 snippet id=32（已停用，备份在 option `ms_feedfix_backup_57`）。
     线上修复（Code Snippets，源码副本都在主题 `functions.php`）：
     - **id=5** `mirrorspeed_wechat_fulltext`：`wp_insert_post_data` 抓 `mp.weixin.qq.com` 原文抽 `#js_content` 写回 `.feed-content` + 填摘要；
     - **id=6** `wp_head` 输出 `referrer no-referrer`（mmbiz 微信图防盗链，带 Referer 返回占位图）；
