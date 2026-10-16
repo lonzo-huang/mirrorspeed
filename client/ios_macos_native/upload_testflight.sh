@@ -15,6 +15,11 @@
 #   bash ios_macos_native/upload_testflight.sh --no-upload  # 只打包导出到本地，不上传
 set -euo pipefail
 
+# 归档/导出失败时必须立刻中止：xcodebuild 的 ** ARCHIVE FAILED ** 不一定反映在退出码上
+# （例如并发构建抢同一个 DerivedData 会报 disk I/O error），而调用方若把输出接到管道，
+# 真实退出码还会被管道吞掉 —— 曾因此出现「显示上传成功、实际没打包」。
+die() { echo "❌ $*"; exit 1; }
+
 # flutter 可能不在非交互 shell 的 PATH 里（例如从 IDE/自动化里调用）。
 # 不补这一句的话，第 1 步会以 "flutter: command not found" 失败，而调用方
 # 若用管道取输出还会拿到 0 —— 看起来"上传成功"实则什么都没发生。
@@ -70,6 +75,8 @@ APP="$ARCHIVE/Products/Applications/Runner.app"
 for f in "$APP"/Frameworks/*; do codesign -f -s - "$f" 2>/dev/null; done
 codesign -f -s - --entitlements "$HERE/SingboxTunnel/SingboxTunnel-iOS.entitlements" "$APP/PlugIns/SingboxTunnel.appex" 2>/dev/null
 codesign -f -s - --entitlements "ios/Runner/Runner.entitlements"                    "$APP"                             2>/dev/null
+
+[[ -d "$ARCHIVE" ]] || die "归档失败，没有产出 $ARCHIVE（看上面的 xcodebuild 报错）"
 
 cat > "$WORK/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

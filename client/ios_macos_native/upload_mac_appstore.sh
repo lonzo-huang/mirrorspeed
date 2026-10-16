@@ -21,6 +21,11 @@
 #   bash ios_macos_native/upload_mac_appstore.sh --no-upload  # 只导出到本地
 set -euo pipefail
 
+# 归档/导出失败时必须立刻中止：xcodebuild 的 ** ARCHIVE FAILED ** 不一定反映在退出码上
+# （例如并发构建抢同一个 DerivedData 会报 disk I/O error），而调用方若把输出接到管道，
+# 真实退出码还会被管道吞掉 —— 曾因此出现「显示上传成功、实际没打包」。
+die() { echo "❌ $*"; exit 1; }
+
 export PATH="$PATH:$HOME/development/flutter/bin"
 command -v flutter >/dev/null || { echo "❌ 找不到 flutter，请检查 PATH"; exit 1; }
 
@@ -59,6 +64,8 @@ rm -rf "$ARCHIVE"
 ( cd macos && xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release \
     -destination 'generic/platform=macOS' -archivePath "../$ARCHIVE" \
     archive -allowProvisioningUpdates -quiet )
+
+[[ -d "$ARCHIVE" ]] || die "归档失败，没有产出 $ARCHIVE（看上面的 xcodebuild 报错）"
 
 cat > "$WORK/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
