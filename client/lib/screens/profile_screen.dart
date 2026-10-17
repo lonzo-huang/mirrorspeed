@@ -541,7 +541,7 @@ class _DnsRegionRowState extends State<_DnsRegionRow> {
     switch (r) {
       case DnsRegion.auto:     return tr('自动', 'Auto');
       case DnsRegion.china:    return tr('中国大陆', 'China');
-      case DnsRegion.overseas: return tr('海外', 'Overseas');
+      case DnsRegion.overseas: return tr('海外', 'Outside China');
     }
   }
   String _desc(DnsRegion r) {

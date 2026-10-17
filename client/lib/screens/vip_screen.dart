@@ -79,18 +79,20 @@ class _VipScreenState extends State<VipScreen> {
   /// 判定是否展示官网购买入口。中文界面直接展示（无需等网络）；英文界面再看出口 IP
   /// 是否在国内。非 Apple 平台一律展示（行为与以前一致）。
   Future<void> _resolveWebBuyVisibility() async {
-    final apple = !kIsWeb && (Platform.isIOS || Platform.isMacOS);
-    if (!apple) {
+    // 非商店平台(如 Windows)无内购 → 一律显示官网购买 + 私人定制。
+    if (!_appStore) {
       if (mounted) setState(() => _showWebBuy = true);
       return;
     }
+    // 商店平台(iOS/macOS/Android):仅「中文界面」或「出口 IP 在中国境内」时显示官网购买+私人定制；
+    // 国际用户只走商店内购(Apple 3.1.1 / Google Play 政策)。显示时默认选中「官网购买」。
     if (Brand.isZh) {
-      if (mounted) setState(() => _showWebBuy = true);
+      if (mounted) setState(() { _showWebBuy = true; _tab = _Tab.web; });
       return;
     }
     // 出口判定失败(null)时不展示 —— 宁可少展示，也不要在境外用户面前露出外部支付入口。
     final inCn = await FreeNodeService.instance.egressInChina();
-    if (mounted && inCn == true) setState(() => _showWebBuy = true);
+    if (mounted && inCn == true) setState(() { _showWebBuy = true; _tab = _Tab.web; });
   }
 
   @override
@@ -233,8 +235,8 @@ class _VipScreenState extends State<VipScreen> {
         border: Border.all(color: msNow.textSecondary.withOpacity(0.06))),
       child: Row(children: [
         seg(_Tab.iap,    tr('应用内购', 'In-App')),
-        if (_showWebBuy) seg(_Tab.web, tr('官网购买', 'Website')),
-        seg(_Tab.custom, tr('私人定制', 'Custom')),
+        if (_showWebBuy) seg(_Tab.web,    tr('官网购买', 'Website')),
+        if (_showWebBuy) seg(_Tab.custom, tr('私人定制', 'Custom')),
       ]),
     );
   }
@@ -363,18 +365,21 @@ class _VipScreenState extends State<VipScreen> {
   static const String _kSupportUrl = 'https://www.mirrorspeed.com/support';
   void _openSupport() => launchUrl(Uri.parse(_kSupportUrl), mode: LaunchMode.externalApplication);
 
+  Future<void> _openUrl(String url) =>
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+
   List<Widget> _customTab() => [
-    _customCard(Icons.data_usage_rounded, tr('流量套餐', 'Data plan'),
-      tr('按流量计费，适合轻量使用', 'Pay-as-you-go data'), tr('¥120 起', 'from ¥120'),
-      onTap: _openSupport),
+    _customCard(Icons.dns_rounded, tr('共享VPS', 'Shared VPS'),
+      tr('多人共享，高性价比入门', 'Shared VPS, best value'), tr('低至 ¥8/月', 'from ¥8/mo'),
+      onTap: () => _openUrl('https://poolvip.airlane.cloud/products?kind=vps')),
     const SizedBox(height: 10),
-    _customCard(Icons.speed_rounded, tr('普通带宽', 'Standard bandwidth'),
-      tr('共享高速带宽，性价比之选', 'Shared high-speed bandwidth'), tr('¥400 起', 'from ¥400'),
-      onTap: _openSupport),
+    _customCard(Icons.home_rounded, tr('家宽住宅', 'Residential'),
+      tr('真实家庭住宅 IP', 'Real residential IP'), tr('低至 ¥30/月', 'from ¥30/mo'),
+      onTap: () => _openUrl('https://poolvip.airlane.cloud/products?kind=proxy')),
     const SizedBox(height: 10),
-    _customCard(Icons.rocket_launch_rounded, tr('专线带宽', 'Dedicated line'),
-      tr('独享专线，稳定低延迟', 'Dedicated line, low latency'), tr('¥1200 起', 'from ¥1200'),
-      onTap: _openSupport),
+    _customCard(Icons.rocket_launch_rounded, tr('独享VPS', 'Dedicated VPS'),
+      tr('独享资源，稳定低延迟', 'Dedicated VPS, low latency'), tr('低至 ¥50/月', 'from ¥50/mo'),
+      onTap: () => _openUrl('https://poolvip.airlane.cloud/products?kind=vps')),
     const SizedBox(height: 10),
     _customCard(Icons.support_agent_rounded, tr('其他定制', 'Other'),
       tr('有特殊需求？联系我们', 'Custom needs? Contact us'), tr('联系客服', 'Contact'),
