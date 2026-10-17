@@ -1,6 +1,6 @@
 name: mirrorspeed_vpn
 description: MirrorSpeed VPN — 高速全球加速
-version: 3.0.2+124
+version: 3.0.2+128
 publish_to: none
 
 environment:
@@ -96,7 +96,5 @@ flutter:
   config:
     enable-swift-package-manager: false
   assets:
-    - assets/images/
-    - assets/lottie/
     - assets/routes/
     - assets/icon/

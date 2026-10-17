@@ -5,6 +5,9 @@
   <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+  <!-- Google Play Billing（in_app_purchase_android 0.5.0 不自带该权限，缺它会报
+       「此版本的应用未配置为通过 Google Play 结算」，内购不可用）。 -->
+  <uses-permission android:name="com.android.vending.BILLING"/>
 
   <application
     android:label="@string/app_name"
