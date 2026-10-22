@@ -2,8 +2,15 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import '../models/free_node.dart';
 
-/// 桌面(Windows/macOS)：sing-box.exe 自管 tun，需要 strict_route 堵漏。
-final bool _kIsDesktop = Platform.isWindows || Platform.isMacOS;
+/// sing-box 以**独立进程**运行、自己管 tun 的平台：目前只有 Windows
+/// （`SingboxWindowsRunner` 跑 sing-box.exe + wintun）。这类平台要 strict_route 堵漏、
+/// 要收 MTU、要开 external_controller 读速率。
+///
+/// **不要把 macOS 算进来**：macOS 与 iOS 一样跑在 NEPacketTunnelProvider 扩展里，
+/// tun 由系统创建、路由由扩展用 NEPacketTunnelNetworkSettings 下发。给它套桌面设置会
+/// 让 sing-box 在沙箱里尝试自己装路由/绑端口（都没权限）→ 隧道连上了但路由没装成，
+/// 表现为「已连接、IP 不变、没有速度」（踩过，排查了很久）。
+final bool _kSelfManagedTun = Platform.isWindows;
 /// 桌面 clash_api 仅本机监听端口(供 Windows runner 读流量统计)。SingboxWindowsRunner 用同一端口。
 const int kDesktopClashApiPort = 9595;
 
@@ -138,7 +145,7 @@ class SingboxConfig {
         // clash_api：开启流量统计跟踪器。桌面(Windows)额外在【仅本机】开一个 external_controller，
         // 供 SingboxWindowsRunner 通过 /connections 读上下行字节(否则桌面无 libbox CommandClient，
         // 速率恒 0/不显示)。移动端走原生 CommandClient，不需要 external_controller。
-        'clash_api': _kIsDesktop
+        'clash_api': _kSelfManagedTun
             ? <String, dynamic>{'external_controller': '127.0.0.1:$kDesktopClashApiPort'}
             : <String, dynamic>{},
         'cache_file': {'enabled': true, 'path': 'cache.db', 'store_fakeip': false},
@@ -172,12 +179,12 @@ class SingboxConfig {
           // （很多企业 Windows），sing-box 设 v6 地址会 FATAL「set ipv6 address: Element not
           // found」→ 整个隧道起不来。故由上层探测后用 [ipv6] 控制，无 v6 环境退回纯 IPv4。
           'address': ipv6 ? ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'] : ['172.19.0.1/30'],
-          // 桌面(gvisor+wintun)把 tun MTU 收到隧道安全值：默认 9000 时大响应分片在用户态栈里
+          // Windows(gvisor+wintun)把 tun MTU 收到隧道安全值：默认 9000 时大响应分片在用户态栈里
           // 卡住 → 页面/IP 能显示但浏览器一直转圈(大数据包过不去)。安卓内核栈处理得好，不设。
-          if (_kIsDesktop) 'mtu': 1400,
+          if (_kSelfManagedTun) 'mtu': 1400,
           'auto_route': true,
-          // 桌面(Windows)开 strict_route：强制所有流量进隧道、堵住泄漏。
-          'strict_route': _kIsDesktop,
+          // Windows 开 strict_route：强制所有流量进隧道、堵住泄漏。Apple 由系统管路由，不能开。
+          'strict_route': _kSelfManagedTun,
           // TUN 协议栈：安卓 + Windows 用 system(系统/内核栈)——吞吐高。gvisor(用户态栈)在
           // Windows 上 TCP 吞吐很差(能连、大流量几乎跑不动，同一节点手机秒开、Windows 打不开)。
           // Apple(iOS/macOS)扩展里仍用 gvisor(系统栈在 NE 下不可用)。
