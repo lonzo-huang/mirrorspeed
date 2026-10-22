@@ -26,7 +26,10 @@ enum TunnelLog {
     }
 
     static func log(_ message: String) {
-        queue.async {
+        // 同步写：启动失败时扩展进程会被系统立刻拆掉，异步写的日志还没落盘就丢了 ——
+        // 恰恰是最需要它的时候拿不到（实测 macOS 的「Plugin failed」就查不到原因）。
+        // 写入量很小（每次几十字节、一次连接十几行），同步开销可忽略。
+        queue.sync {
             guard let url = fileURL else { return }
             let ts = ISO8601DateFormatter().string(from: Date()).suffix(14).prefix(8)
             let line = "[\(ts)] \(message)\n"
