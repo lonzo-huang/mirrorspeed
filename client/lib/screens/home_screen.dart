@@ -380,9 +380,22 @@ class _HeroConnect extends StatefulWidget {
 }
 
 class _HeroConnectState extends State<_HeroConnect> with SingleTickerProviderStateMixin {
+  // 注意：**不要**在这里就 ..repeat()。原先无条件永久运行，即使按钮没在转
+  // （spin=false、角度恒 0），控制器照样每帧驱动 AnimatedBuilder 重建 → 界面满帧
+  // 重绘却什么都没变。手机上被廉价 GPU 掩盖了，Intel Mac 上实测空闲烧 60~78% CPU。
+  // 现在按 spin 启停（见 _syncRing），且不转时根本不包 AnimatedBuilder。
   late final AnimationController _ring =
-      AnimationController(vsync: this, duration: const Duration(seconds: 16))..repeat();
+      AnimationController(vsync: this, duration: const Duration(seconds: 16));
   @override void dispose() { _ring.dispose(); super.dispose(); }
+
+  /// 只在需要转的时候让 ticker 跑。幂等，可每帧调用。
+  void _syncRing(bool spin) {
+    if (spin) {
+      if (!_ring.isAnimating) _ring.repeat();
+    } else if (_ring.isAnimating) {
+      _ring.stop();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -391,16 +404,25 @@ class _HeroConnectState extends State<_HeroConnect> with SingleTickerProviderSta
     final busy = widget.connecting || widget.disconnecting;
     // 强调色：已连接=绿；连接中=品牌薄荷；未连接=品牌薄荷（弱）。
     final c = active ? ms.accentOn : ms.brand;
+    // 圆环旋转纯装饰，代价却是 60fps 持续重绘。桌面端（macOS/Windows）关掉：
+    // 低配 Intel Mac 上实测连接期间烧 60~78% CPU，机器明显发卡；移动端保留动效。
     final spin = active || busy;
-    Widget ringW(double size, double op, double mul) => AnimatedBuilder(
-      animation: _ring,
-      builder: (_, __) => Transform.rotate(
-        angle: spin ? _ring.value * 2 * math.pi * mul : 0,
-        child: Container(width: size, height: size, decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: (spin ? c : ms.textMuted).withOpacity(op), width: 1.3))),
-      ),
-    );
+    final animate = spin && !kIsWeb && !(Platform.isMacOS || Platform.isWindows);
+    _syncRing(animate);
+    Widget ringW(double size, double op, double mul) {
+      final ring = Container(width: size, height: size, decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: (spin ? c : ms.textMuted).withOpacity(op), width: 1.3)));
+      // 不转时返回静态圆环：不订阅动画、不参与每帧重建。
+      if (!animate) return ring;
+      return AnimatedBuilder(
+        animation: _ring,
+        builder: (_, __) => Transform.rotate(
+          angle: _ring.value * 2 * math.pi * mul,
+          child: ring,
+        ),
+      );
+    }
     // 中心圆：已连接=实心绿；否则=卡片色。
     final centerBg = active ? c : ms.card;
     final iconTextColor = active
