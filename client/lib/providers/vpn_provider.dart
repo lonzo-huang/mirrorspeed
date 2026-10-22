@@ -985,6 +985,9 @@ class VpnProvider extends ChangeNotifier {
   }
 
   void _startUsagePolling() {
+    // 连接时长一并开始计时：原先 _startTimer 定义了却从没被调用，_elapsedSecs 恒为
+    // null，托盘上的「已连接时长」永远显示 00:00。这里是所有连接路径的汇合点。
+    if (_timer == null) _startTimer();
     _usageTimer?.cancel();
     _rollDayIfNeeded();
     _pollUsage();   // 立即建立基线

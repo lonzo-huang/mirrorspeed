@@ -123,6 +123,9 @@ final class SingboxPlatform: NSObject, LibboxPlatformInterfaceProtocol, LibboxCo
     }
     if fd < 0 { throw SingboxTunnelError("utun file descriptor not found") }
     tunnel.tunName = utunName(fd)
+    // 速率显示依赖这个接口名（handleAppMessage 读它的收发字节）。拿不到就全链路恒 0，
+    // 而界面上只表现为「没有速度」，查不出所以然 —— 所以记一笔。
+    TunnelLog.log("openTun fd=\(fd) tun=\(tunnel.tunName ?? "nil")")
     ret0_.pointee = fd
   }
 

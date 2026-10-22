@@ -98,10 +98,16 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
   /// "stats" → "rx,tx"：utun 接口累计收发字节（从 tun 的视角：in=下行，out=上行）。
   override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
-    guard String(data: messageData, encoding: .utf8) == "stats",
-          let name = tunName, let (rx, tx) = interfaceBytes(name) else {
-      completionHandler?(nil)
-      return
+    guard String(data: messageData, encoding: .utf8) == "stats" else {
+      completionHandler?(nil); return
+    }
+    guard let name = tunName else {
+      TunnelLog.log("⚠️ stats: 没有 tun 接口名 → 速率无法计算")
+      completionHandler?(nil); return
+    }
+    guard let (rx, tx) = interfaceBytes(name) else {
+      TunnelLog.log("⚠️ stats: 读不到 \(name) 的收发字节 → 速率无法计算")
+      completionHandler?(nil); return
     }
     completionHandler?(Data("\(rx),\(tx)".utf8))
   }

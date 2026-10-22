@@ -110,8 +110,18 @@ class DesktopTray {
           }
       ],
       // 用量：连接时长 + 实时速率；免费用户另给今日剩余时长。
-      'elapsed': vpn.isConnected ? vpn.elapsedFormatted : null,
-      'speed': status == 'connected' ? '↓ ${vpn.downloadSpeedStr}  ↑ ${vpn.uploadSpeedStr}' : null,
+      // 连接时长：免费节点连着时 vpn.isConnected 为 false，用 status 判断才对。
+      'elapsed': status == 'connected' ? vpn.elapsedFormatted : null,
+      // 速率要取**当前这条隧道**的：免费节点的计量在 SharedNodeProvider，优质节点在
+      // VpnProvider。原先一律读 vpn.* —— 连免费节点时它恒为 0，托盘上就看不到速度。
+      // 平台未实现计量时（speedAvailable=false）不显示该行，避免摆一个恒 0 的假数据。
+      'speed': status != 'connected'
+          ? null
+          : sharedOn
+              ? ((shared?.speedAvailable ?? false)
+                  ? '↓ ${shared!.downloadSpeedStr}  ↑ ${shared.uploadSpeedStr}'
+                  : null)
+              : '↓ ${vpn.downloadSpeedStr}  ↑ ${vpn.uploadSpeedStr}',
       'trialRemaining': vpn.isFreeTrial ? vpn.trialRemainingFormatted : null,
       'quotaExceeded': vpn.quotaExceeded,
     };
