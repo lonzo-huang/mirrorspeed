@@ -96,9 +96,42 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     server?.wake()
   }
 
-  /// "stats" → "rx,tx"：utun 接口累计收发字节（从 tun 的视角：in=下行，out=上行）。
+  /// App ↔ 扩展消息：
+  ///   "stats"            → "rx,tx"：utun 接口累计收发字节（in=下行，out=上行）
+  ///   "reload:<配置JSON>" → 原地换节点，回 "ok" 或 "err:<原因>"
   override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
-    guard String(data: messageData, encoding: .utf8) == "stats" else {
+    let msg = String(data: messageData, encoding: .utf8) ?? ""
+
+    // 切换节点：不拆隧道、直接热重载新配置。
+    // 必须有这条 —— 对**已连接**的会话调 startVPNTunnel() 是空操作，NE 不会用新的
+    // providerConfiguration 重启，于是界面切了节点、实际还连旧节点（安卓侧一直是
+    // 热重载语义，Apple 侧原先漏了这个能力）。
+    if msg.hasPrefix("reload:") {
+      let newConfig = Self.resolveRuleSetPaths(String(msg.dropFirst("reload:".count)))
+      DispatchQueue.global(qos: .userInitiated).async { [self] in
+        var err: NSError?
+        LibboxCheckConfig(newConfig, &err)
+        if let err = err {
+          TunnelLog.log("❌ 热重载被拒：\(err.localizedDescription)")
+          completionHandler?(Data("err:\(err.localizedDescription)".utf8)); return
+        }
+        guard let server = server else {
+          TunnelLog.log("❌ 热重载失败：服务未启动")
+          completionHandler?(Data("err:not running".utf8)); return
+        }
+        do {
+          try server.startOrReloadService(newConfig, options: LibboxOverrideOptions())
+          TunnelLog.log("✅ 已热重载（切换节点）")
+          completionHandler?(Data("ok".utf8))
+        } catch {
+          TunnelLog.log("❌ 热重载失败：\(error.localizedDescription)")
+          completionHandler?(Data("err:\(error.localizedDescription)".utf8))
+        }
+      }
+      return
+    }
+
+    guard msg == "stats" else {
       completionHandler?(nil); return
     }
     guard let name = tunName else {

@@ -149,6 +149,29 @@ public class SingboxFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
         // saveToPreferences 后需重新 load 才能拿到已同步的对象再 start。
         mgr.loadFromPreferences { _ in
           DispatchQueue.main.async {
+            // 已在运行 → 热重载换节点。对已连接的会话调 startVPNTunnel() 是**空操作**，
+            // NE 不会用新存的 providerConfiguration 重启；若只靠它，界面显示切了节点、
+            // 实际仍走旧节点（Dart 侧 runSharedTunnel 按安卓的热重载语义，故意不先 stop）。
+            // 新配置已写进 preferences，所以系统日后自行重启隧道时也会用新节点。
+            if let session = mgr.connection as? NETunnelProviderSession,
+               session.status == .connected {
+              do {
+                try session.sendProviderMessage(Data("reload:\(config)".utf8)) { reply in
+                  let ok = String(data: reply ?? Data(), encoding: .utf8) == "ok"
+                  if ok {
+                    self.emitCurrent()
+                    result(nil)
+                  } else {
+                    // 热重载失败 → 退回"停了再起"，宁可闪断也不要静默连旧节点。
+                    self.restart(mgr, result: result)
+                  }
+                }
+                return
+              } catch {
+                self.restart(mgr, result: result)
+                return
+              }
+            }
             do {
               try mgr.connection.startVPNTunnel()
               self.emitCurrent()
@@ -179,6 +202,33 @@ public class SingboxFlutterPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
       emit("disconnected", force: true)
     }
     result(nil)
+  }
+
+  /// 热重载不可用时的兜底：停掉当前隧道，等它**真正**断开后再用新配置启动。
+  /// 不等断开就 start 会撞上 NE 的状态机（仍处于 disconnecting 时启动会被忽略）。
+  private func restart(_ mgr: NETunnelProviderManager, result: @escaping FlutterResult) {
+    mgr.connection.stopVPNTunnel()
+    var observer: NSObjectProtocol?
+    var finished = false
+    let fire: (FlutterError?) -> Void = { err in
+      guard !finished else { return }
+      finished = true
+      if let observer = observer { NotificationCenter.default.removeObserver(observer) }
+      if let err = err { result(err) } else { self.emitCurrent(); result(nil) }
+    }
+    observer = NotificationCenter.default.addObserver(
+      forName: .NEVPNStatusDidChange, object: mgr.connection, queue: .main
+    ) { _ in
+      guard mgr.connection.status == .disconnected else { return }
+      do { try mgr.connection.startVPNTunnel(); fire(nil) }
+      catch { fire(FlutterError(code: "start_failed", message: error.localizedDescription, details: nil)) }
+    }
+    // 兜底超时：断开事件没来也要尝试启动，别把用户卡在"切换中"
+    DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+      guard !finished else { return }
+      do { try mgr.connection.startVPNTunnel(); fire(nil) }
+      catch { fire(FlutterError(code: "start_failed", message: error.localizedDescription, details: nil)) }
+    }
   }
 
   /// 经 App↔扩展消息读取 tun 接口累计 [rx, tx] 字节；未连接/失败返回 [-1, -1]。
