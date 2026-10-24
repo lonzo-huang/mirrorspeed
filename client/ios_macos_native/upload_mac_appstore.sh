@@ -53,8 +53,10 @@ OUT="build/macos/appstore"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
+# --no-pub：依赖已由 pubspec.lock 锁定，构建不需要联网取包。打包机常连着 VPN 测试，
+# 而被拉黑的出口 IP 会让 pub.dev 返回 403 → 构建在第一步就失败（踩过）。
 echo "▶ 1/4 生成 Flutter 配置（构建号 ${BUILD_NUMBER}）"
-flutter build macos --config-only --release --build-number "$BUILD_NUMBER" \
+flutter build macos --config-only --release --no-pub --build-number "$BUILD_NUMBER" \
   --dart-define=SUPABASE_URL="$SUPABASE_URL" \
   --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON" \
   --dart-define=API_BASE="$API_BASE" >/dev/null
