@@ -651,6 +651,7 @@ class VpnProvider extends ChangeNotifier {
     // 先把会卡住的计时器停掉（不要 await 任何原生调用，否则若平台调用挂起会卡死断开）。
     _fallbackTimer?.cancel();
     _usageTimer?.cancel();
+    _stopTimer();                // 连接时长归零（免费/优质都经由这里断开）
     _stopConnectedPing();
     _sessionPort      = null;    // 主动断开后，下次连接重新基于时间计算端口
     _switchingToRelay = false;   // 确保 disconnected 事件不误判为中继切换中
@@ -695,6 +696,9 @@ class VpnProvider extends ChangeNotifier {
   void markSharedConnected() {
     if (_userInitiatedDisconnect || _source != ConnSource.free) return;
     _status = VpnStatus.connected;
+    // 免费节点的「已连接」只经过这里 —— _onStage 对 owner=free 的事件直接 return，
+    // 所以 _startUsagePolling 那条路走不到，计时必须在此启动，否则连接时长恒 00:00。
+    if (_timer == null) _startTimer();
     notifyListeners();
   }
 
