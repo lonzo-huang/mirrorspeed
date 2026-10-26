@@ -46,9 +46,10 @@
     </div>
   </div>
 </article>
-<?php endwhile; ?>
 
-<?php get_footer(); ?>
+<script>
+(function () {
+  var el = document.querySelector('[data-ms-view]');
   if (!el) return;
   var id = el.getAttribute('data-ms-view');
   fetch('<?php echo esc_js(rest_url('ms/v1/view/')); ?>' + id, { method: 'POST', credentials: 'omit' })
