@@ -4,7 +4,7 @@ Theme URI: https://www.mirrorspeed.com/
 Author: MirrorSpeed
 Author URI: https://www.mirrorspeed.com/
 Description: 深色霓虹 / 玻璃质感博客主题，风格对齐 mirrorspeed.com。Dark neon blog theme matching mirrorspeed.com.
-Version: 2.1.6
+Version: 2.1.7
 License: GNU General Public License v2 or later
 Text Domain: mirrorspeed-blog
 */
@@ -94,15 +94,32 @@ h1,h2,h3,h4 { font-family: 'Unbounded', sans-serif; letter-spacing: -0.03em; lin
   color: var(--accent-cyan); border-color: var(--cyan-glow); background: var(--cyan-glow);
 }
 
+/* 汉堡按钮：桌面隐藏，手机显示 */
+.nav-toggle {
+  display: none; background: var(--glass-bg); color: var(--text-primary);
+  border: 1px solid var(--border-subtle); border-radius: 8px;
+  font-size: 18px; line-height: 1; padding: 7px 11px; cursor: pointer;
+}
+.nav-toggle:hover { border-color: var(--cyan-glow); }
+
 @media (max-width: 640px) {
-  .nav a:not(.back) { display: none; }
-  /* 语言切换保留显示（覆盖上面的隐藏规则），做小一号避免拥挤 */
-  .nav { gap: 8px; }
-  .nav .lang { gap: 4px; }
-  .nav .lang a { display: inline-flex; padding: 3px 7px; font-size: 12px; border-radius: 6px; }
-  .nav .back { padding: 5px 10px; font-size: 12px; }
+  .nav-toggle { display: block; }
   .brand .tag { display: none; }
   .brand .logo { font-size: 16px; }
+
+  /* 导航改为头部下方的下拉面板 */
+  .site-header .wrap { position: relative; }
+  .site-header .nav {
+    display: none; position: absolute; top: 62px; left: 0; right: 0;
+    flex-direction: column; align-items: stretch; gap: 10px;
+    background: rgba(11,14,20,0.97); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-subtle); padding: 14px 24px 18px;
+  }
+  .site-header .nav.nav-open { display: flex; }
+  .site-header .nav a { padding: 9px 4px; font-size: 15px; }
+  .site-header .nav .lang { display: flex; gap: 8px; padding: 4px 0; }
+  .site-header .nav .lang a { padding: 7px 12px; font-size: 14px; }
+  .site-header .nav .back { text-align: center; padding: 9px 14px; }
 }
 
 /* ── Page intro ─────────────────────────────────────────── */

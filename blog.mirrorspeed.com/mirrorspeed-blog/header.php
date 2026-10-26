@@ -37,7 +37,28 @@
       ?>
       <a class="back" href="https://www.mirrorspeed.com/"><?php echo get_locale() === 'zh_CN' ? '返回官网' : 'Main site'; ?></a>
     </nav>
+    <button class="nav-toggle" aria-label="<?php echo get_locale() === 'zh_CN' ? '菜单' : 'Menu'; ?>" aria-expanded="false">☰</button>
   </div>
 </header>
+
+<script>
+(function () {
+  var btn = document.querySelector('.nav-toggle');
+  var nav = document.querySelector('.site-header .nav');
+  if (!btn || !nav) return;
+  btn.addEventListener('click', function () {
+    var open = nav.classList.toggle('nav-open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.textContent = open ? '✕' : '☰';
+  });
+  document.addEventListener('click', function (e) {
+    if (!nav.classList.contains('nav-open')) return;
+    if (nav.contains(e.target) || btn.contains(e.target)) return;
+    nav.classList.remove('nav-open');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.textContent = '☰';
+  });
+})();
+</script>
 
 <main>
