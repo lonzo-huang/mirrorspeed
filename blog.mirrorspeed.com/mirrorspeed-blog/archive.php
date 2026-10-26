@@ -17,6 +17,10 @@ else                $title = $zh ? '归档' : 'Archives';
     <p><?php echo $zh ? '按时间浏览全部文章。' : 'Browse all posts by date.'; ?></p>
   </div>
 
+  <div class="home-cols">
+  <?php mirrorspeed_cat_sidebar(); ?>
+
+  <div class="posts-col">
   <?php if (have_posts()) : ?>
     <div class="grid">
       <?php while (have_posts()) : the_post(); ?>
@@ -53,6 +57,8 @@ else                $title = $zh ? '归档' : 'Archives';
     <ul class="archive-index__list">
       <?php wp_get_archives(array('type' => 'monthly', 'show_post_count' => true, 'limit' => 36)); ?>
     </ul>
+  </div>
+  </div>
   </div>
 </section>
 

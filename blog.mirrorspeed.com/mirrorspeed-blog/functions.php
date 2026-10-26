@@ -66,6 +66,28 @@ function mirrorspeed_pick_cat($cats) {
 // ── 浏览量统计 ────────────────────────────────────────────────
 // single.php 前端 JS POST /wp-json/ms/v1/view/<id> 计数（LiteSpeed 缓存页
 // 不打 PHP，必须走 REST 异步 +1）；meta key `_ms_views`，仅读这一个字段。
+// ── 左侧主题分类侧栏（首页/分类/归档共用；正文页不渲染）──────
+function mirrorspeed_cat_sidebar() {
+    $topic = array(
+        'security', 'security-zh', 'ai', 'ai-zh', 'privacy', 'privacy-zh',
+        'deepdive', 'deepdive-zh', 'tutorial', 'tutorial-zh',
+        'industry', 'industry-zh', 'tech', 'tech-zh',
+        'curated-feeds', 'wechat-feeds',
+    );
+    $nav = array();
+    foreach (get_categories(array('hide_empty' => true)) as $c) {
+        if (in_array($c->slug, $topic, true)) $nav[] = $c;
+    }
+    usort($nav, function ($a, $b) { return $b->count - $a->count; });
+    if (empty($nav)) return;
+    echo '<aside class="cat-side"><div class="cat-side-title">' . (get_locale() === 'zh_CN' ? '分类' : 'Topics') . '</div><nav class="cat-nav">';
+    foreach (array_slice($nav, 0, 10) as $c) {
+        echo '<a href="' . esc_url(get_category_link($c->term_id)) . '">' . esc_html($c->name)
+           . '<span class="n">' . (int)$c->count . '</span></a>';
+    }
+    echo '</nav></aside>';
+}
+
 // ── 每页 9 篇（首页/分类/标签/归档/搜索）────────────────────
 add_action('pre_get_posts', 'mirrorspeed_posts_per_page');
 function mirrorspeed_posts_per_page($q) {
