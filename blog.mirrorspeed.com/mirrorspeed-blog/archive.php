@@ -4,7 +4,9 @@ $zh = (get_locale() === 'zh_CN');
 
 // 归档分组标题：年/月/日
 $title = '';
-if (is_year())  $title = sprintf($zh ? '%s年归档' : 'Year: %s', get_the_date('Y'));
+if (is_category() || is_tag() || is_tax())
+    $title = single_term_title('', false);
+elseif (is_year())  $title = sprintf($zh ? '%s年归档' : 'Year: %s', get_the_date('Y'));
 elseif (is_month()) $title = sprintf($zh ? '%s归档' : 'Month: %s', get_the_date($zh ? 'Y年n月' : 'F Y'));
 elseif (is_day())   $title = sprintf($zh ? '%s归档' : 'Day: %s', get_the_date());
 else                $title = $zh ? '归档' : 'Archives';
@@ -12,7 +14,7 @@ else                $title = $zh ? '归档' : 'Archives';
 
 <section class="wrap">
   <div class="intro">
-    <span class="kicker">// <?php echo $zh ? '归档' : 'Archives'; ?></span>
+    <span class="kicker">// <?php echo (is_category() || is_tag() || is_tax()) ? ($zh ? '分类' : 'Topics') : ($zh ? '归档' : 'Archives'); ?></span>
     <h1><span class="gradient-text"><?php echo esc_html($title); ?></span></h1>
     <p><?php echo $zh ? '按时间浏览全部文章。' : 'Browse all posts by date.'; ?></p>
   </div>

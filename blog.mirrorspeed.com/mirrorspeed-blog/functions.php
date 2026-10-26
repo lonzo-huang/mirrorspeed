@@ -68,15 +68,15 @@ function mirrorspeed_pick_cat($cats) {
 // 不打 PHP，必须走 REST 异步 +1）；meta key `_ms_views`，仅读这一个字段。
 // ── 左侧主题分类侧栏（首页/分类/归档共用；正文页不渲染）──────
 function mirrorspeed_cat_sidebar() {
-    $topic = array(
-        'security', 'security-zh', 'ai', 'ai-zh', 'privacy', 'privacy-zh',
-        'deepdive', 'deepdive-zh', 'tutorial', 'tutorial-zh',
-        'industry', 'industry-zh', 'tech', 'tech-zh',
-        'curated-feeds', 'wechat-feeds',
-    );
+    // 按当前语言显式挑 slug，不依赖 Polylang 对 get_categories 的计数过滤
+    // （分类归档页上 Polylang 语境变化会把 hide_empty 计数清成 0，导致侧栏消失）
+    $lang = function_exists('pll_current_language') ? pll_current_language() : (get_locale() === 'zh_CN' ? 'zh' : 'en');
+    $topic = $lang === 'zh'
+        ? array('security-zh', 'ai-zh', 'privacy-zh', 'deepdive-zh', 'tutorial-zh', 'industry-zh', 'tech-zh', 'wechat-feeds')
+        : array('security', 'ai', 'privacy', 'deepdive', 'tutorial', 'industry', 'tech', 'curated-feeds');
     $nav = array();
-    foreach (get_categories(array('hide_empty' => true)) as $c) {
-        if (in_array($c->slug, $topic, true)) $nav[] = $c;
+    foreach (get_categories(array('hide_empty' => false)) as $c) {
+        if (in_array($c->slug, $topic, true) && (int)$c->count > 0) $nav[] = $c;
     }
     usort($nav, function ($a, $b) { return $b->count - $a->count; });
     if (empty($nav)) return;

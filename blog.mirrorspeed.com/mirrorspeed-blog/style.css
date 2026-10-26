@@ -4,7 +4,7 @@ Theme URI: https://www.mirrorspeed.com/
 Author: MirrorSpeed
 Author URI: https://www.mirrorspeed.com/
 Description: 深色霓虹 / 玻璃质感博客主题，风格对齐 mirrorspeed.com。Dark neon blog theme matching mirrorspeed.com.
-Version: 2.1.5
+Version: 2.1.6
 License: GNU General Public License v2 or later
 Text Domain: mirrorspeed-blog
 */
@@ -96,9 +96,13 @@ h1,h2,h3,h4 { font-family: 'Unbounded', sans-serif; letter-spacing: -0.03em; lin
 
 @media (max-width: 640px) {
   .nav a:not(.back) { display: none; }
-  /* 语言切换保留显示（覆盖上面的隐藏规则） */
-  .nav .lang a { display: inline-flex; padding: 4px 9px; }
-  .nav { gap: 12px; }
+  /* 语言切换保留显示（覆盖上面的隐藏规则），做小一号避免拥挤 */
+  .nav { gap: 8px; }
+  .nav .lang { gap: 4px; }
+  .nav .lang a { display: inline-flex; padding: 3px 7px; font-size: 12px; border-radius: 6px; }
+  .nav .back { padding: 5px 10px; font-size: 12px; }
+  .brand .tag { display: none; }
+  .brand .logo { font-size: 16px; }
 }
 
 /* ── Page intro ─────────────────────────────────────────── */
