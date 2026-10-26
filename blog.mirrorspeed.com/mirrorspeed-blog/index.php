@@ -23,8 +23,8 @@
           </a>
           <div class="body">
             <?php
-              $cats = get_the_category();
-              if (!empty($cats)) echo '<span class="chip">' . esc_html($cats[0]->name) . '</span>';
+              $cat = mirrorspeed_pick_cat(get_the_category());
+              if ($cat) echo '<span class="chip">' . esc_html($cat->name) . '</span>';
             ?>
             <h2><a href="<?php the_permalink(); ?>"><?php the_title(); ?></a></h2>
             <p class="excerpt"><?php echo esc_html(wp_trim_words(get_the_excerpt(), 22, '…')); ?></p>

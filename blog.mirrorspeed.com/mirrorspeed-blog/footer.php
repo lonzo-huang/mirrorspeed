@@ -8,6 +8,7 @@
       <a href="https://www.mirrorspeed.com/download"><?php echo get_locale() === 'zh_CN' ? '下载' : 'Download'; ?></a>
       <a href="https://www.mirrorspeed.com/support"><?php echo get_locale() === 'zh_CN' ? '客服' : 'Support'; ?></a>
       <a href="<?php echo esc_url(home_url('/')); ?>"><?php echo get_locale() === 'zh_CN' ? '博客' : 'Blog'; ?></a>
+      <a href="<?php echo esc_url(get_year_link((int) date('Y'))); ?>"><?php echo get_locale() === 'zh_CN' ? '归档' : 'Archives'; ?></a>
     </div>
     <div class="copy">© <?php echo date('Y'); ?> MirrorSpeed</div>
   </div>

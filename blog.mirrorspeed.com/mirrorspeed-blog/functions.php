@@ -47,6 +47,43 @@ function mirrorspeed_read_time($post_id = null) {
     return max(1, (int) ceil($count / 250));
 }
 
+// 主题分类优先显示：卡片/文章页 chip 从多个分类里挑主题分类，
+// 跳过 feed 自动带入的垃圾词（公司名/邮箱/CVE 编号等）与来源标记分类。
+function mirrorspeed_pick_cat($cats) {
+    if (empty($cats)) return null;
+    $topic = array(
+        'security', 'security-zh', 'ai', 'ai-zh', 'privacy', 'privacy-zh',
+        'deepdive', 'deepdive-zh', 'tutorial', 'tutorial-zh',
+        'industry', 'industry-zh', 'tech', 'tech-zh',
+        'wechat-feeds', 'curated-feeds', 'vpn', 'jia-su-qi', 'ji-chang',
+    );
+    foreach ($cats as $c) if (in_array($c->slug, $topic, true)) return $c;
+    // 次选：名字不含 @ / .com / 纯编号的（过滤 feed 垃圾词）
+    foreach ($cats as $c) if (!preg_match('/[@.]|cve-\d/i', $c->slug . $c->name)) return $c;
+    return $cats[0];
+}
+
+// ── 浏览量统计 ────────────────────────────────────────────────
+// single.php 前端 JS POST /wp-json/ms/v1/view/<id> 计数（LiteSpeed 缓存页
+// 不打 PHP，必须走 REST 异步 +1）；meta key `_ms_views`，仅读这一个字段。
+add_action('rest_api_init', function () {
+    register_rest_route('ms/v1', '/view/(?P<id>\d+)', array(
+        'methods'             => 'POST',
+        'callback'            => 'mirrorspeed_view_hit',
+        'permission_callback' => '__return_true',
+    ));
+});
+function mirrorspeed_view_hit($req) {
+    $id = (int) $req['id'];
+    $p  = get_post($id);
+    if (!$p || $p->post_status !== 'publish' || $p->post_type !== 'post') {
+        return new WP_REST_Response(array('ok' => false), 404);
+    }
+    $v = (int) get_post_meta($id, '_ms_views', true) + 1;
+    update_post_meta($id, '_ms_views', $v);
+    return new WP_REST_Response(array('ok' => true, 'views' => $v), 200);
+}
+
 // ── 微信图片防盗链 ────────────────────────────────────────────
 // 生产环境通过 Code Snippets snippet id=6 运行（与下面全文补全 id=5 分开）。
 // mmbiz.qpic.cn 对非微信域名的 Referer 返回「未经允许不可引用」占位图；
@@ -118,9 +155,9 @@ if (!function_exists('mirrorspeed_wechat_fulltext')) {
 //   snippet id=9「SEO/OG/分享 meta」
 // ═══════════════════════════════════════════════════════════════
 
-// -- snippet id=42 (v8.9): post-import pipeline
-//   v8.1 -> v8.9: publication-time CJK title retry + EN slug; ms_retitle/ms_rtlist/
-//   ms_fixlang (retag mistagged zh originals) + ms_setlang (restore en tag after REST update) endpoints.
+// -- snippet id=43 (v9.0): post-import pipeline
+//   v8.9 -> v9.0: 8 topic category pairs (zh/en) + keyword routing,
+//   EN feed categorization, ?ms_recat=now backfill. Source: .snip35_code.php
 // ── snippet id=35（v8.2）：采集文章后处理 ────────────────────────────────
 // WPeMatico 拉公众号中文内容，但 Polylang 默认语言是 English（全站 1600+
 // 采集文章曾全挂英文「未分类」）。逻辑：
@@ -470,7 +507,7 @@ add_action('admin_init', function () {
     }
     wp_die('ms_retitle scheduled: 4 posts per ~20s tick until no zh-titled EN posts remain.');
 });
-// v8.9: ?ms_rtlist=1 -> dump bad EN posts with zh counterpart (for remote fixing)
+// v9.0: ?ms_rtlist=1 -> dump bad EN posts with zh counterpart (for remote fixing)
 add_action('admin_init', function () {
     if (empty($_GET['ms_rtlist']) || !current_user_can('manage_options')) return;
     $q = new WP_Query(array(
@@ -486,7 +523,7 @@ add_action('admin_init', function () {
     }
     wp_die('<pre>' . esc_html(json_encode($out, JSON_UNESCAPED_UNICODE)) . '</pre>');
 });
-// v8.9: ?ms_fixlang=now -> retag mistagged zh-original posts (weixin content, no zh pair) to zh
+// v9.0: ?ms_fixlang=now -> retag mistagged zh-original posts (weixin content, no zh pair) to zh
 add_action('admin_init', function () {
     if (empty($_GET['ms_fixlang']) || !current_user_can('manage_options')) return;
     $limit = 80; $done = 0; $scanned = 0; $retagged = 0;
@@ -511,7 +548,7 @@ add_action('admin_init', function () {
     }
     wp_die('<pre>' . esc_html(json_encode(array('scanned' => $scanned, 'retagged' => $retagged, 'remain' => $remain), JSON_UNESCAPED_UNICODE)) . '</pre>');
 });
-// v8.9: ?ms_setlang=<eid>&z=<zid> -> restore EN tag + rebuild zh/en translation group
+// v9.0: ?ms_setlang=<eid>&z=<zid> -> restore EN tag + rebuild zh/en translation group
 add_action('admin_init', function () {
     if (empty($_GET['ms_setlang']) || !current_user_can('manage_options')) return;
     $eid = (int) $_GET['ms_setlang'];
@@ -524,8 +561,125 @@ add_action('admin_init', function () {
     if (function_exists('pll_save_post_translations')) pll_save_post_translations(array('zh' => $zid, 'en' => $eid));
     wp_die('<pre>' . esc_html(json_encode(array('ok' => true, 'eid' => $eid, 'zid' => $zid, 'elang' => function_exists('pll_get_post_language') ? pll_get_post_language($eid) : '?', 'link' => get_permalink($eid)))) . '</pre>');
 });
+// 
+// v9.0: 主题分类路由（8 对 zh/en）+ EN feed 归类 + ?ms_recat=now 回填
+// 
+// key => [zh 名, en 名, zh slug, en slug, 关键词(小写, 命中加权)]
+if (!function_exists('ms_topic_cats')) {
+function ms_topic_map() {
+    return array(
+        'security' => array('网络安全', 'Cybersecurity', 'security-zh', 'security',
+            array('cve','漏洞','exploit','ransomware','勒索','0day','zero-day','breach','数据泄露','ddos','黑客','hacker','malware','恶意','phishing','钓鱼','backdoor','后门','inject','注入','vulnerability','payload','attack','攻击','fuzz','sandbox escape')),
+        'ai' => array('AI 与智能体', 'AI & Agents', 'ai-zh', 'ai',
+            array('ai','gpt','llm','大模型','智能体','agent','机器人','robot','深度学习','neural','神经','openai','claude','transformer','diffusion','模型','生成式','机器学习','neurips')),
+        'privacy' => array('隐私与网络', 'Privacy & VPN', 'privacy-zh', 'privacy',
+            array('vpn','代理','tor','gfw','隐私','封锁','审查','dns','加密','encryption','surveillance','翻墙','梯子','节点','协议','wireguard','hysteria','vless')),
+        'deepdive' => array('深度解析', 'Deep Dives', 'deepdive-zh', 'deepdive',
+            array('详解','分析','复盘','原理','深入','剖析','源码','internals','teardown','reverse','逆向','审计','audit','内存','forensics','取证')),
+        'tutorial' => array('实用教程', 'How-Tos', 'tutorial-zh', 'tutorial',
+            array('教程','指南','如何','上手','入门','配置','安装','搭建','how to','walkthrough','guide','setup','install','configure','step-by-step','对比','评测','测评')),
+        'industry' => array('行业动态', 'Industry News', 'industry-zh', 'industry',
+            array('发布','推出','上线','融资','收购','上市','launch','raise','funding','acquire','acquisition','ipo','unveil','announce','合作','财报')),
+        'tech' => array('科技与互联网', 'Tech & Internet', 'tech-zh', 'tech', array()),
+    );
+}
+}
 
+// 按标题+正文打分取主题 key；全 0  tech 兜底
+if (!function_exists('ms_topic_key')) {
+function ms_topic_key($title, $body) {
+    $hay = mb_strtolower($title . ' ' . mb_substr(wp_strip_all_tags($body), 0, 3000));
+    $best = 'tech'; $bs = 0;
+    foreach (ms_topic_map() as $k => $m) {
+        $s = 0;
+        foreach ($m[4] as $kw) if (strpos($hay, $kw) !== false) $s++;
+        if ($s > $bs) { $bs = $s; $best = $k; }
+    }
+    return $best;
+}
+}
 
+// 确保某 key 的 zh/en 分类存在且已配对；返回 array(zh_id, en_id)
+if (!function_exists('ms_topic_cat_ids')) {
+function ms_topic_cat_ids($key) {
+    $map = ms_topic_map();
+    if (!isset($map[$key])) $key = 'tech';
+    $m = $map[$key];
+    $zh = get_term_by('slug', $m[2], 'category');
+    if (!$zh) { $r = wp_insert_term($m[0], 'category', array('slug' => $m[2])); $zh = is_wp_error($r) ? get_term_by('slug', $m[2], 'category') : (object)$r; }
+    $en = get_term_by('slug', $m[3], 'category');
+    if (!$en) { $r = wp_insert_term($m[1], 'category', array('slug' => $m[3])); $en = is_wp_error($r) ? get_term_by('slug', $m[3], 'category') : (object)$r; }
+    if (!$zh || !$en) return array(0, 0);
+    if (function_exists('pll_set_term_language')) {
+        pll_set_term_language((int)$zh->term_id, 'zh');
+        pll_set_term_language((int)$en->term_id, 'en');
+        if (function_exists('pll_save_term_translations'))
+            pll_save_term_translations(array('zh' => (int)$zh->term_id, 'en' => (int)$en->term_id));
+    }
+    return array((int)$zh->term_id, (int)$en->term_id);
+}
+}
+
+// save_post_post：EN feed / 非微信帖  英文主题分类（微信帖已由 ms_feed_post_process 处理 zh+精选）
+add_action('save_post_post', 'ms_feed_topic_cat', 35);
+function ms_feed_topic_cat($post_id) {
+    if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) return;
+    if (!empty($GLOBALS['ms_creating_translation'])) return;
+    $c = get_post_field('post_content', $post_id);
+    if (strpos($c, 'mp.weixin.qq.com') !== false) return; // 微信走原钩子
+    if (function_exists('pll_get_post_language') && pll_get_post_language($post_id) === 'zh') return;
+    list($z, $eid) = ms_topic_cat_ids(ms_topic_key(get_the_title($post_id), $c));
+    if ($eid) wp_set_post_categories($post_id, array($eid));
+}
+
+// 微信 zh 帖追加 zh 主题分类（保留 公众号精选 标记位）
+add_action('save_post_post', 'ms_wechat_topic_cat', 36);
+function ms_wechat_topic_cat($post_id) {
+    if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) return;
+    $c = get_post_field('post_content', $post_id);
+    if (strpos($c, 'mp.weixin.qq.com') === false) return;
+    list($zid, $e) = ms_topic_cat_ids(ms_topic_key(get_the_title($post_id), $c));
+    if (!$zid) return;
+    $cur = wp_get_post_categories($post_id);
+    if (!in_array($zid, $cur, true)) wp_set_post_categories($post_id, array_merge($cur, array($zid)));
+}
+
+// 翻译发布时同步英文主题分类：挂在翻译完成后的分类赋值处由 ms_setlang 路径维护，
+// 这里在 publish_post 兜底新建的 EN 版若只有 Curated Feeds，再补主题分类。
+add_action('publish_post', 'ms_en_trans_topic_cat', 40);
+function ms_en_trans_topic_cat($post_id) {
+    if (function_exists('pll_get_post_language') && pll_get_post_language($post_id) !== 'en') return;
+    $c = get_post_field('post_content', $post_id);
+    list($z, $eid) = ms_topic_cat_ids(ms_topic_key(get_the_title($post_id), $c));
+    if (!$eid) return;
+    $cur = wp_get_post_categories($post_id);
+    if (!in_array($eid, $cur, true)) wp_set_post_categories($post_id, array_merge($cur, array($eid)));
+}
+
+// ?ms_recat=now：存量回填主题分类（zh 帖zh topic，en 帖en topic；每轮 60）
+add_action('admin_init', function () {
+    if (empty($_GET['ms_recat']) || !current_user_can('manage_options')) return;
+    $limit = 60;
+    $q = new WP_Query(array(
+        'post_type' => 'post', 'post_status' => 'publish', 'posts_per_page' => -1,
+        'fields' => 'ids', 'no_found_rows' => true,
+    ));
+    $done = 0; $scanned = 0; $remain = 0;
+    foreach ($q->posts as $pid) {
+        $scanned++;
+        $lang = function_exists('pll_get_post_language') ? pll_get_post_language($pid) : 'en';
+        $key = ms_topic_key(get_the_title($pid), get_post_field('post_content', $pid));
+        list($zid, $eid) = ms_topic_cat_ids($key);
+        $want = ($lang === 'zh') ? $zid : $eid;
+        if (!$want) continue;
+        $cur = wp_get_post_categories($pid);
+        if (in_array($want, $cur, true)) continue;
+        if ($done >= $limit) { $remain++; continue; }
+        wp_set_post_categories($pid, array_merge($cur, array($want)));
+        $done++;
+    }
+    wp_die('<pre>' . esc_html(json_encode(array('scanned' => $scanned, 'set' => $done, 'remain' => $remain))) . '</pre>');
+});
 
 // ── snippet id=9：SEO / OG / 分享 meta（已停用，留作 RM 备用实现）──
 // og:image = 本地特色图（无则正文第一张图）；og:description = 摘要/正文前40词；
