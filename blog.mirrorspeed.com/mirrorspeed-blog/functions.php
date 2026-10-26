@@ -25,7 +25,7 @@ function mirrorspeed_assets() {
         array(),
         null
     );
-    wp_enqueue_style('mirrorspeed-style', get_stylesheet_uri(), array('mirrorspeed-fonts'), '1.0.0');
+    wp_enqueue_style('mirrorspeed-style', get_stylesheet_uri(), array('mirrorspeed-fonts'), filemtime(get_stylesheet_directory() . '/style.css'));
 }
 add_action('wp_enqueue_scripts', 'mirrorspeed_assets');
 
