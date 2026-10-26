@@ -118,7 +118,10 @@ if (!function_exists('mirrorspeed_wechat_fulltext')) {
 //   snippet id=9「SEO/OG/分享 meta」
 // ═══════════════════════════════════════════════════════════════
 
-// ── snippet id=34（v8.1）：采集文章后处理 ────────────────────────────────
+// -- snippet id=42 (v8.9): post-import pipeline
+//   v8.1 -> v8.9: publication-time CJK title retry + EN slug; ms_retitle/ms_rtlist/
+//   ms_fixlang (retag mistagged zh originals) + ms_setlang (restore en tag after REST update) endpoints.
+// ── snippet id=35（v8.2）：采集文章后处理 ────────────────────────────────
 // WPeMatico 拉公众号中文内容，但 Polylang 默认语言是 English（全站 1600+
 // 采集文章曾全挂英文「未分类」）。逻辑：
 //  1) 确保「公众号精选」(zh) ↔「Curated Feeds」(en) 分类对存在（存 option）
@@ -137,8 +140,10 @@ if (!function_exists('mirrorspeed_wechat_fulltext')) {
 // Groq 免费档限额实测：qwen OTPM=1000（一次大块就 429）、llama-3.3-70b 已下线；
 // gpt-oss-120b 单次可 4096+ tokens、连发 ~2 次/分钟，配增量分块最稳。
 
-// Groq key 池填在线上 snippet 顶部：define('MS_GROQ_API_KEYS', array('gsk_...','gsk_...'))
-if (!defined('MS_GROQ_API_KEYS')) define('MS_GROQ_API_KEYS', array());
+if (!defined('MS_GROQ_API_KEYS')) define('MS_GROQ_API_KEYS', array(
+    '__GROQ_KEY__',
+    '__GROQ_KEY__',
+));
 if (!defined('MS_GROQ_MODEL'))   define('MS_GROQ_MODEL', 'openai/gpt-oss-120b');
 // 兼容 ms-tdiag-v3（id=30）probe 仍引用旧单 key 常量
 if (!defined('MS_GROQ_API_KEY') && !empty(MS_GROQ_API_KEYS)) define('MS_GROQ_API_KEY', MS_GROQ_API_KEYS[0]);
@@ -270,7 +275,7 @@ if (!function_exists('ms_groq_translate')) {
                 continue;
             }
             $code = (int) wp_remote_retrieve_response_code($resp);
-            if ($code >= 400 && $code < 500) return $text;
+            if ($code >= 400 && $code < 500) return $is_html ? $text : false;
             if ($code !== 200) { set_transient('ms_groq_dead_' . $idx, time() + 30, 30); if (!$min_dead || time() + 30 < $min_dead) $min_dead = time() + 30; continue; }
             update_option('ms_groq_key_idx', ($idx + 1) % $n, false);
             $j   = json_decode(wp_remote_retrieve_body($resp), true);
@@ -279,7 +284,7 @@ if (!function_exists('ms_groq_translate')) {
             // gpt-oss 偶尔包 "translates to:" / markdown 强调
             $out = preg_replace('#^(?:translates?\s+to:?|here (?:is|\'s) (?:the )?transl\w+:?)[^\n]*\n?#i', '', $out);
             if (!$is_html) $out = trim($out, "\"'** \t\n");
-            return $out === '' ? $text : $out;
+            return $out === '' ? ($is_html ? $text : false) : $out;
         }
         if ($min_dead > time()) $GLOBALS['ms_groq_wait'] = $min_dead - time();
         return false;
@@ -316,6 +321,7 @@ if (!function_exists('ms_translate_post_handler')) {
             $en_title = ms_groq_translate($title, false);
             $st = array(
                 'title'  => $en_title ?: $title,
+            'src_title' => $title,
                 'chunks' => ms_split_html(get_post_field('post_content', $post_id), 1800),
                 'done'   => array(),
             );
@@ -347,13 +353,21 @@ if (!function_exists('ms_translate_post_handler')) {
         }
 
         // 全部块完成：组装发布英文版
+
+        // v8.2: retry title once if still CJK (silent fallback from quota-era init)
+        $en_title_pub = $st['title'];
+        if (preg_match('/[\x{4e00}-\x{9fff}]/u', $en_title_pub)) {
+            $rt = ms_groq_translate(isset($st['src_title']) ? $st['src_title'] : $en_title_pub, false);
+            if ($rt && !preg_match('/[\x{4e00}-\x{9fff}]/u', $rt)) $en_title_pub = $rt;
+        }
         $en_body = implode('', $st['done']);
         remove_filter('wp_insert_post_data', 'mirrorspeed_wechat_fulltext', 20);
         $GLOBALS['ms_creating_translation'] = true;
         $new_id = wp_insert_post(array(
             'post_type'    => 'post',
             'post_status'  => 'publish',
-            'post_title'   => $st['title'],
+            'post_title'   => $en_title_pub,
+            'post_name'    => sanitize_title($en_title_pub),
             'post_content' => $en_body,
         ), true);
         $GLOBALS['ms_creating_translation'] = false;
@@ -406,6 +420,111 @@ add_action('init', function () {
     echo "- English home: " . home_url('/') . "\n- 中文首页: " . home_url('/zh/') . "\n- Sitemap: " . home_url('/sitemap_index.xml') . "\n";
     exit;
 });
+
+
+// v8.2: ?ms_retitle=1 admin trigger: self-scan EN posts w/ CJK titles -> retranslate title+slug
+// ms_retitle_tick cron: 4 posts/tick, reschedules until clean; per-post 3-try cap via _ms_rt3_tries
+if (!function_exists('ms_retitle_run')) {
+    function ms_retitle_run($limit) {
+        $q = new WP_Query(array(
+            'post_type' => 'post', 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids',
+            'tax_query' => array(array('taxonomy' => 'language', 'field' => 'slug', 'terms' => 'en')),
+        ));
+        $bad = array();
+        foreach ($q->posts as $pid) {
+            $t = get_the_title($pid);
+            if ($t && preg_match('/[\x{4e00}-\x{9fff}]/u', $t)) $bad[] = $pid;
+        }
+        $fixed = 0; $failed = 0; $left = 0; $mistag = 0; $log = array();
+        foreach ($bad as $eid) {
+            $zid = function_exists('pll_get_post') ? (int) pll_get_post($eid, 'zh') : 0;
+            if (!$zid) { $mistag++; continue; }
+            $tries = (int) get_post_meta($eid, '_ms_rt3_tries', true);
+            if ($tries >= 3) continue;
+            $left++;
+            if ($fixed + $failed >= $limit) continue;
+            update_post_meta($eid, '_ms_rt3_tries', $tries + 1);
+            $src = get_the_title($zid);
+            $new = ms_groq_translate($src, false);
+            if (!$new) { $failed++; $log[$eid] = 'false'; continue; }
+            if (preg_match('/[\x{4e00}-\x{9fff}]/u', $new)) { $failed++; $log[$eid] = 'cjk:' . mb_substr($new, 0, 40); continue; }
+            wp_update_post(array('ID' => $eid, 'post_title' => $new, 'post_name' => sanitize_title($new)));
+            $fixed++;
+            $log[$eid] = 'ok:' . mb_substr($new, 0, 40);
+            sleep(2);
+        }
+        return array('bad' => count($bad), 'mistag' => $mistag, 'left' => $left, 'fixed' => $fixed, 'failed' => $failed, 'log' => $log);
+    }
+}
+add_action('ms_retitle_tick', function () {
+    @set_time_limit(300);
+    $r = ms_retitle_run(4);
+    if ($r['left'] - $r['fixed'] > 0) wp_schedule_single_event(time() + 20, 'ms_retitle_tick');
+});
+add_action('admin_init', function () {
+    if (empty($_GET['ms_retitle']) || !current_user_can('manage_options')) return;
+    if (!wp_next_scheduled('ms_retitle_tick')) wp_schedule_single_event(time() + 5, 'ms_retitle_tick');
+    if ($_GET['ms_retitle'] === 'now') {
+        @set_time_limit(300);
+        wp_die('<pre>' . esc_html(json_encode(ms_retitle_run(4), JSON_UNESCAPED_UNICODE)) . '</pre>');
+    }
+    wp_die('ms_retitle scheduled: 4 posts per ~20s tick until no zh-titled EN posts remain.');
+});
+// v8.9: ?ms_rtlist=1 -> dump bad EN posts with zh counterpart (for remote fixing)
+add_action('admin_init', function () {
+    if (empty($_GET['ms_rtlist']) || !current_user_can('manage_options')) return;
+    $q = new WP_Query(array(
+        'post_type' => 'post', 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids',
+        'tax_query' => array(array('taxonomy' => 'language', 'field' => 'slug', 'terms' => 'en')),
+    ));
+    $out = array();
+    foreach ($q->posts as $pid) {
+        $t = get_the_title($pid);
+        if (!$t || !preg_match('/[\x{4e00}-\x{9fff}]/u', $t)) continue;
+        $zid = function_exists('pll_get_post') ? (int) pll_get_post($pid, 'zh') : 0;
+        $out[] = array('id' => $pid, 'zid' => $zid, 'ztitle' => $zid ? get_the_title($zid) : '', 'title' => $t);
+    }
+    wp_die('<pre>' . esc_html(json_encode($out, JSON_UNESCAPED_UNICODE)) . '</pre>');
+});
+// v8.9: ?ms_fixlang=now -> retag mistagged zh-original posts (weixin content, no zh pair) to zh
+add_action('admin_init', function () {
+    if (empty($_GET['ms_fixlang']) || !current_user_can('manage_options')) return;
+    $limit = 80; $done = 0; $scanned = 0; $retagged = 0;
+    $q = new WP_Query(array(
+        'post_type' => 'post', 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids',
+        'tax_query' => array(array('taxonomy' => 'language', 'field' => 'slug', 'terms' => 'en')),
+    ));
+    $remain = 0;
+    foreach ($q->posts as $pid) {
+        $t = get_the_title($pid);
+        if (!$t || !preg_match('/[\x{4e00}-\x{9fff}]/u', $t)) continue;
+        $zid = function_exists('pll_get_post') ? (int) pll_get_post($pid, 'zh') : 0;
+        if ($zid) continue;
+        $scanned++;
+        $body = get_post_field('post_content', $pid);
+        if (strpos($body, 'mp.weixin.qq.com') === false) continue;
+        if ($done < $limit) {
+            if (function_exists('pll_set_post_language')) pll_set_post_language($pid, 'zh');
+            if (function_exists('pll_save_post_translations')) pll_save_post_translations(array('zh' => $pid));
+            $done++; $retagged++;
+        } else { $remain++; }
+    }
+    wp_die('<pre>' . esc_html(json_encode(array('scanned' => $scanned, 'retagged' => $retagged, 'remain' => $remain), JSON_UNESCAPED_UNICODE)) . '</pre>');
+});
+// v8.9: ?ms_setlang=<eid>&z=<zid> -> restore EN tag + rebuild zh/en translation group
+add_action('admin_init', function () {
+    if (empty($_GET['ms_setlang']) || !current_user_can('manage_options')) return;
+    $eid = (int) $_GET['ms_setlang'];
+    $zid = isset($_GET['z']) ? (int) $_GET['z'] : 0;
+    if (!$eid || !$zid) wp_die('<pre>{"err":"need id&z"}</pre>');
+    if (function_exists('pll_get_post_language') && pll_get_post_language($zid) !== 'zh') {
+        wp_die('<pre>' . esc_html(json_encode(array('err' => 'zid not zh', 'zlang' => pll_get_post_language($zid)))) . '</pre>');
+    }
+    if (function_exists('pll_set_post_language')) pll_set_post_language($eid, 'en');
+    if (function_exists('pll_save_post_translations')) pll_save_post_translations(array('zh' => $zid, 'en' => $eid));
+    wp_die('<pre>' . esc_html(json_encode(array('ok' => true, 'eid' => $eid, 'zid' => $zid, 'elang' => function_exists('pll_get_post_language') ? pll_get_post_language($eid) : '?', 'link' => get_permalink($eid)))) . '</pre>');
+});
+
 
 
 // ── snippet id=9：SEO / OG / 分享 meta（已停用，留作 RM 备用实现）──
