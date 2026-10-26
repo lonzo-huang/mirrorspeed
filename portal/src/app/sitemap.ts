@@ -31,6 +31,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         url: SITE_URL,
         lastModified: new Date(),
         priority: 1.0,
+        alternates: {
+          languages: {
+            en: `${SITE_URL}/en`,
+            'zh-CN': `${SITE_URL}/cn`,
+          },
+        },
+      },
+      {
+        url: `${SITE_URL}/en`,
+        lastModified: new Date(),
+        priority: 0.9,
+      },
+      {
+        url: `${SITE_URL}/cn`,
+        lastModified: new Date(),
+        priority: 0.9,
       },
       {
         url: `${SITE_URL}/blog`,
