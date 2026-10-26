@@ -16,14 +16,13 @@ const SITE_URL = 'https://www.mirrorspeed.com'
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default:  'MirrorSpeed — Fast VPN · 镜速加速器 · Unlimited Speed · Free Tier',
+    default:  'MirrorSpeed — Free VPN · 免费加速器 · Unlimited Speed',
     template: '%s | MirrorSpeed',
   },
   description:
-    'MirrorSpeed — proprietary high-speed VPN engine. UDP encapsulation, ' +
-    'unlimited speed up to 1000 Mbps per user, zero-logs nodes in 20+ countries. ' +
-    'Free forever tier. Instant access to ChatGPT, X, Google, YouTube, TikTok. ' +
-    'MirrorSpeed 镜速 — 自研加速引擎，UDP 协议封装，单用户最高 1000 Mbps 不限速，多国节点零日志，永久免费试用。',
+    'Free VPN with unlimited speed up to 1000 Mbps per user and zero-logs nodes in 20+ countries — ' +
+    'free forever. Instant access to ChatGPT, X, Google, YouTube, TikTok. ' +
+    '永久免费的 MirrorSpeed 镜速加速器 — 自研加速引擎，UDP 协议封装，智能分流，单用户最高 1000 Mbps 不限速，多国节点零日志。',
   applicationName: 'MirrorSpeed',
   authors: [{ name: 'MirrorSpeed', url: SITE_URL }],
   creator: 'MirrorSpeed',
@@ -62,10 +61,10 @@ export const metadata: Metadata = {
     url:      SITE_URL,
     locale:   'en_US',
     alternateLocale: ['zh_CN', 'fr_FR', 'es_ES', 'de_DE', 'it_IT', 'ja_JP', 'ko_KR', 'ru_RU', 'tr_TR', 'ar'],
-    title:    'MirrorSpeed — Fast VPN · Unlimited Speed · Free Tier',
+    title:    'MirrorSpeed — Free VPN · Unlimited Speed · Free Forever',
     description:
-      'proprietary high-speed VPN engine. UDP encapsulation. Unlimited speed up to 1000 Mbps. ' +
-      'Free forever tier · No logs · 20+ global edges.',
+      'Free VPN · Unlimited speed up to 1000 Mbps · Free forever tier · ' +
+      'No logs · 20+ global edges · Proprietary high-speed engine.',
     images: [
       { url: '/og-en.png', width: 1200, height: 630, alt: 'MirrorSpeed — Unstoppable. Globally Fast.' },
       { url: '/og-cn.png', width: 1200, height: 630, alt: 'MirrorSpeed — 无惧干扰，极速连接全球' },
@@ -75,9 +74,9 @@ export const metadata: Metadata = {
     card:    'summary_large_image',
     site:    '@mirrorspeed',
     creator: '@mirrorspeed',
-    title:   'MirrorSpeed — Fast VPN · Unlimited Speed',
+    title:   'MirrorSpeed — Free VPN · Unlimited Speed',
     description:
-      'Proprietary high-speed engine · UDP encapsulation · Free forever tier · 20+ global edges.',
+      'Free forever tier · Unlimited speed up to 1000 Mbps · No logs · 20+ global edges.',
     images:  ['/og-en.png'],
   },
   robots: {

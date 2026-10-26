@@ -114,11 +114,11 @@ if (!function_exists('mirrorspeed_wechat_fulltext')) {
 // ═══════════════════════════════════════════════════════════════
 // 以下为线上 Code Snippets 的源码副本（Hostinger WAF 拦截 theme-editor
 // 的 PHP POST，只能经 REST 管理 snippet；此处存档保持与线上一致）。
-//   snippet id=33「采集后处理」：语言归类 + 特色图 + Groq 翻译 + 存量修复 + llms.txt
+//   snippet id=34「采集后处理」：语言归类 + 特色图 + Groq 翻译 + 存量修复 + llms.txt
 //   snippet id=9「SEO/OG/分享 meta」
 // ═══════════════════════════════════════════════════════════════
 
-// ── snippet id=33（v8，线上）；前身 id=8..17 均已停用：采集文章后处理 ────────────────────────────────
+// ── snippet id=34（v8.1）：采集文章后处理 ────────────────────────────────
 // WPeMatico 拉公众号中文内容，但 Polylang 默认语言是 English（全站 1600+
 // 采集文章曾全挂英文「未分类」）。逻辑：
 //  1) 确保「公众号精选」(zh) ↔「Curated Feeds」(en) 分类对存在（存 option）
@@ -137,9 +137,11 @@ if (!function_exists('mirrorspeed_wechat_fulltext')) {
 // Groq 免费档限额实测：qwen OTPM=1000（一次大块就 429）、llama-3.3-70b 已下线；
 // gpt-oss-120b 单次可 4096+ tokens、连发 ~2 次/分钟，配增量分块最稳。
 
-// Groq key 池填在线上 snippet 顶部：define('MS_GROQ_API_KEYS', array('gsk_...','gsk_...',...));
+// Groq key 池填在线上 snippet 顶部：define('MS_GROQ_API_KEYS', array('gsk_...','gsk_...'))
 if (!defined('MS_GROQ_API_KEYS')) define('MS_GROQ_API_KEYS', array());
 if (!defined('MS_GROQ_MODEL'))   define('MS_GROQ_MODEL', 'openai/gpt-oss-120b');
+// 兼容 ms-tdiag-v3（id=30）probe 仍引用旧单 key 常量
+if (!defined('MS_GROQ_API_KEY') && !empty(MS_GROQ_API_KEYS)) define('MS_GROQ_API_KEY', MS_GROQ_API_KEYS[0]);
 
 if (!function_exists('ms_feed_cat_ids')) {
     function ms_feed_cat_ids() {
@@ -211,7 +213,7 @@ if (!function_exists('ms_feed_post_process')) {
         $en_t = function_exists('pll_get_post') ? pll_get_post($post_id, 'en') : 0;
         if (!$en_t || !get_post($en_t)) {
             if (!wp_next_scheduled('ms_translate_post', array($post_id)))
-                wp_schedule_single_event(time() + 10, 'ms_translate_post', array($post_id));
+                wp_schedule_single_event(time() + 10 + ($post_id % 60), 'ms_translate_post', array($post_id));
         }
         $busy = false;
     }
@@ -259,7 +261,7 @@ if (!function_exists('ms_groq_translate')) {
                     'reasoning_effort' => 'low',
                 )),
             ));
-            if (is_wp_error($resp)) return false;
+            if (is_wp_error($resp)) { set_transient('ms_groq_dead_' . $idx, time() + 60, 60); if (!$min_dead || time() + 60 < $min_dead) $min_dead = time() + 60; continue; }
             if ((int) wp_remote_retrieve_response_code($resp) === 429) {
                 $wait  = ms_groq_wait_secs(wp_remote_retrieve_body($resp));
                 $until = time() + min($wait, DAY_IN_SECONDS);
@@ -267,6 +269,9 @@ if (!function_exists('ms_groq_translate')) {
                 if (!$min_dead || $until < $min_dead) $min_dead = $until;
                 continue;
             }
+            $code = (int) wp_remote_retrieve_response_code($resp);
+            if ($code >= 400 && $code < 500) return $text;
+            if ($code !== 200) { set_transient('ms_groq_dead_' . $idx, time() + 30, 30); if (!$min_dead || time() + 30 < $min_dead) $min_dead = time() + 30; continue; }
             update_option('ms_groq_key_idx', ($idx + 1) % $n, false);
             $j   = json_decode(wp_remote_retrieve_body($resp), true);
             $out = isset($j['choices'][0]['message']['content']) ? trim($j['choices'][0]['message']['content']) : '';
@@ -274,7 +279,7 @@ if (!function_exists('ms_groq_translate')) {
             // gpt-oss 偶尔包 "translates to:" / markdown 强调
             $out = preg_replace('#^(?:translates?\s+to:?|here (?:is|\'s) (?:the )?transl\w+:?)[^\n]*\n?#i', '', $out);
             if (!$is_html) $out = trim($out, "\"'** \t\n");
-            return $out === '' ? false : $out;
+            return $out === '' ? $text : $out;
         }
         if ($min_dead > time()) $GLOBALS['ms_groq_wait'] = $min_dead - time();
         return false;
@@ -329,13 +334,13 @@ if (!function_exists('ms_translate_post_handler')) {
             $t = ms_groq_translate($st['chunks'][$i], true);
             if ($t === false) {
                 $wait = isset($GLOBALS['ms_groq_wait']) ? (int) $GLOBALS['ms_groq_wait'] : 65;
-                wp_schedule_single_event(time() + max(65, $wait + 5), 'ms_translate_post', array($post_id));
+                wp_schedule_single_event(time() + max(65, $wait + 5) + ($post_id % 37), 'ms_translate_post', array($post_id));
                 return;
             }
             $st['done'][] = $t; $i++;
             update_post_meta($post_id, '_ms_t_state', $st);
             if (time() >= $deadline) {
-                wp_schedule_single_event(time() + 5, 'ms_translate_post', array($post_id));
+                wp_schedule_single_event(time() + 5 + ($post_id % 25), 'ms_translate_post', array($post_id));
                 return;
             }
             sleep(2);
