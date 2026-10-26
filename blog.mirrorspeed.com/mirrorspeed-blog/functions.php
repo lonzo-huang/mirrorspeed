@@ -565,7 +565,7 @@ add_action('admin_init', function () {
 // v9.0: 主题分类路由（8 对 zh/en）+ EN feed 归类 + ?ms_recat=now 回填
 // 
 // key => [zh 名, en 名, zh slug, en slug, 关键词(小写, 命中加权)]
-if (!function_exists('ms_topic_cats')) {
+if (!function_exists('ms_topic_map')) {
 function ms_topic_map() {
     return array(
         'security' => array('网络安全', 'Cybersecurity', 'security-zh', 'security',
