@@ -544,6 +544,8 @@ const Pricing = () => {
   const { lang } = useApp();
   const plans = [
     // usd/cny 均为「每月」显示价，与 Stripe(美元)及人民币实际扣款完全一致。
+    // 免费档：仅免费节点、尽力而为无质量保证、不含优质节点。CTA 指向下载页。
+    { nameK: "pr_free_name", free: true, noteK: "pr_free_note", savePct: null, perks: ["perk_free_nodes", "perk_free_besteffort", "perk_free_nopremium"], ctaK: "pr_free_cta", href: "/download", testId: "free" },
     { nameK: "pr_monthly", usd: 3.00, cny: 24, noteK: "pr_billed_m", savePct: null, testId: "monthly" },
     { nameK: "pr_quarterly", usd: 1.67, cny: 13, noteK: "pr_billed_q", savePct: 44, testId: "quarterly" },
     { nameK: "pr_halfyear", usd: 1.50, cny: 11, noteK: "pr_billed_h", savePct: 50, testId: "halfyear" },
@@ -562,10 +564,10 @@ const Pricing = () => {
           </h2>
           <p className="mt-4 text-app-secondary">{t("pr_sub")}</p>
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-4">
           {plans.map((p) => {
-            const price = formatPrice(p.usd, lang, p.cny);
-            const perSuffix = price.perSuffix || t("pr_monthly_short");
+            const price = p.free ? null : formatPrice(p.usd, lang, p.cny);
+            const perSuffix = price ? (price.perSuffix || t("pr_monthly_short")) : "";
             return (
               <motion.div key={p.nameK} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className={`relative rounded-3xl p-6 flex flex-col ${p.featured ? "lg:scale-[1.04] lg:-translate-y-2 border glow-cyan" : "glass glass-hover"}`} style={p.featured ? { background: "linear-gradient(180deg, var(--accent-cyan-glow) 0%, transparent 80%)", borderColor: "var(--accent-cyan)" } : {}} data-testid={`pricing-card-${p.testId}`}>
                 {p.featured && (
@@ -586,21 +588,27 @@ const Pricing = () => {
                   {p.savePct === null && <div className="font-mono text-xs mt-1 tracking-wider opacity-0">_</div>}
                 </div>
                 <div className="mb-1 flex items-baseline gap-1">
-                  <span className="text-app-muted text-xl">{price.symbol}</span>
-                  <span className="font-heading text-4xl font-black tracking-tighter text-app-primary">{price.value}</span>
-                  <span className="text-app-muted text-sm">{perSuffix}</span>
+                  {p.free ? (
+                    <span className="font-heading text-4xl font-black tracking-tighter text-app-primary">{t("pr_free_price")}</span>
+                  ) : (
+                    <>
+                      <span className="text-app-muted text-xl">{price.symbol}</span>
+                      <span className="font-heading text-4xl font-black tracking-tighter text-app-primary">{price.value}</span>
+                      <span className="text-app-muted text-sm">{perSuffix}</span>
+                    </>
+                  )}
                 </div>
                 <div className="text-xs text-app-muted mb-5">{t(p.noteK)}</div>
                 <ul className="space-y-2.5 mb-6 flex-1">
-                  {perks.map((perk) => (
+                  {(p.perks || perks).map((perk) => (
                     <li key={perk} className="flex items-start gap-2 text-xs text-app-primary">
                       <Check className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" style={{ color: p.featured ? "var(--accent-cyan)" : "var(--text-muted)" }} />
                       <span>{t(perk)}</span>
                     </li>
                   ))}
                 </ul>
-                <a href="https://mirrorspeed.com/login" className={`group inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 font-semibold text-sm transition-all ${p.featured ? "hover:scale-[1.02]" : "glass text-app-primary hover:bg-app-tertiary"}`} style={p.featured ? { background: "linear-gradient(135deg, var(--accent-cyan) 0%, #0080ff 100%)", color: "#000" } : {}} data-testid={`pricing-cta-${p.testId}`}>
-                  {p.featured ? t("nav_get_started") : t("pr_select")}
+                <a href={p.href || "https://mirrorspeed.com/login"} className={`group inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 font-semibold text-sm transition-all ${p.featured ? "hover:scale-[1.02]" : "glass text-app-primary hover:bg-app-tertiary"}`} style={p.featured ? { background: "linear-gradient(135deg, var(--accent-cyan) 0%, #0080ff 100%)", color: "#000" } : {}} data-testid={`pricing-cta-${p.testId}`}>
+                  {p.free ? t(p.ctaK) : p.featured ? t("nav_get_started") : t("pr_select")}
                   <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                 </a>
               </motion.div>
@@ -635,6 +643,7 @@ const linkifyAnswer = (text) =>
 const FAQ = () => {
   const t = useT();
   const items = [
+    { q: "faq_q7", a: "faq_a7" },
     { q: "faq_q1", a: "faq_a1" }, { q: "faq_q2", a: "faq_a2" }, { q: "faq_q3", a: "faq_a3" },
     { q: "faq_q4", a: "faq_a4" }, { q: "faq_q5", a: "faq_a5" }, { q: "faq_q6", a: "faq_a6" },
   ];

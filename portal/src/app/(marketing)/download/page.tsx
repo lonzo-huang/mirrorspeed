@@ -89,6 +89,11 @@ export default function DownloadPage() {
         { platform: 'Windows', icon: '🪟', desc: 'x64 · ZIP portable' },
       ]
 
+  // Google Play store listing — localized store page (CN default vs en_GB).
+  const playUrl = isChinese
+    ? 'https://play.google.com/store/apps/details?id=com.mirrorspeed.vpn'
+    : 'https://play.google.com/store/apps/details?id=com.mirrorspeed.vpn&hl=en_GB'
+
   return (
     <LandingChrome forcedLang={isChinese ? 'zh' : 'en'}>
       <main className="px-6 pb-24">
@@ -114,6 +119,35 @@ export default function DownloadPage() {
                 </span>
               )}
             </div>
+
+            {/* ── Google Play (recommended for Android) ─────────────── */}
+            <a
+              href={playUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group mb-4 flex items-center justify-between gap-4 glass-panel rounded-2xl p-6 hover:border-mirror/40 transition-colors"
+            >
+              <div className="flex items-center gap-4">
+                <svg viewBox="0 0 24 24" className="w-8 h-8 shrink-0" aria-hidden="true">
+                  <path d="M3.6 2.3a1 1 0 0 0-.6.9v17.6a1 1 0 0 0 .6.9l9.9-9.7-9.9-9.7Z" fill="#00c3ff" />
+                  <path d="M16.9 8.5 5.1 1.8 14.3 11l2.6-2.5Z" fill="#00e676" />
+                  <path d="M16.9 15.5 14.3 13l-9.2 9.2 11.8-6.7Z" fill="#ff5252" />
+                  <path d="m20.6 10.7-3-1.7L14.8 12l2.8 2.9 3-1.7a1.5 1.5 0 0 0 0-2.5Z" fill="#ffd600" />
+                </svg>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-bold">{dl.googlePlay}</h3>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-mirror bg-mirror/10 border border-mirror/20 px-2 py-0.5 rounded-full">
+                      {dl.recommended}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{dl.googlePlayDesc}</p>
+                </div>
+              </div>
+              <span className="shrink-0 text-xs font-bold bg-primary text-primary-foreground px-5 py-2.5 rounded-lg group-hover:bg-mirror transition-colors text-center whitespace-nowrap">
+                Google Play →
+              </span>
+            </a>
 
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
