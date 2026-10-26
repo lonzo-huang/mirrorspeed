@@ -205,5 +205,18 @@ h1,h2,h3,h4 { font-family: 'Unbounded', sans-serif; letter-spacing: -0.03em; lin
 .archive-index__list a:hover { color: var(--accent-cyan); border-color: var(--cyan-glow); opacity: 1; }
 .archive-index__list .post-count { color: var(--text-muted); font-size: 11px; margin-left: 6px; }
 
+/* ── 分类导航 ────────────────────────────────────────────── */
+.cat-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 26px; }
+.cat-nav a {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px;
+  color: var(--text-secondary); background: var(--glass-bg);
+  border: 1px solid var(--border-subtle); border-radius: 999px; padding: 7px 14px;
+}
+.cat-nav a:hover { color: var(--accent-cyan); border-color: var(--cyan-glow); opacity: 1; }
+.cat-nav .n {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted);
+  background: var(--bg-tertiary); border-radius: 6px; padding: 1px 6px;
+}
+
 /* ── 浏览量 ──────────────────────────────────────────────── */
 .post-meta .views { font-variant-numeric: tabular-nums; }

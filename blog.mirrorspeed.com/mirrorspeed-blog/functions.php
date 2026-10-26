@@ -621,6 +621,7 @@ function ms_topic_cat_ids($key) {
 }
 
 // save_post_post：EN feed / 非微信帖  英文主题分类（微信帖已由 ms_feed_post_process 处理 zh+精选）
+if (!function_exists('ms_feed_topic_cat')) {
 add_action('save_post_post', 'ms_feed_topic_cat', 35);
 function ms_feed_topic_cat($post_id) {
     if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) return;
@@ -631,8 +632,10 @@ function ms_feed_topic_cat($post_id) {
     list($z, $eid) = ms_topic_cat_ids(ms_topic_key(get_the_title($post_id), $c));
     if ($eid) wp_set_post_categories($post_id, array($eid));
 }
+}
 
 // 微信 zh 帖追加 zh 主题分类（保留 公众号精选 标记位）
+if (!function_exists('ms_wechat_topic_cat')) {
 add_action('save_post_post', 'ms_wechat_topic_cat', 36);
 function ms_wechat_topic_cat($post_id) {
     if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) return;
@@ -643,9 +646,11 @@ function ms_wechat_topic_cat($post_id) {
     $cur = wp_get_post_categories($post_id);
     if (!in_array($zid, $cur, true)) wp_set_post_categories($post_id, array_merge($cur, array($zid)));
 }
+}
 
 // 翻译发布时同步英文主题分类：挂在翻译完成后的分类赋值处由 ms_setlang 路径维护，
 // 这里在 publish_post 兜底新建的 EN 版若只有 Curated Feeds，再补主题分类。
+if (!function_exists('ms_en_trans_topic_cat')) {
 add_action('publish_post', 'ms_en_trans_topic_cat', 40);
 function ms_en_trans_topic_cat($post_id) {
     if (function_exists('pll_get_post_language') && pll_get_post_language($post_id) !== 'en') return;
@@ -654,6 +659,7 @@ function ms_en_trans_topic_cat($post_id) {
     if (!$eid) return;
     $cur = wp_get_post_categories($post_id);
     if (!in_array($eid, $cur, true)) wp_set_post_categories($post_id, array_merge($cur, array($eid)));
+}
 }
 
 // ?ms_recat=now：存量回填主题分类（zh 帖zh topic，en 帖en topic；每轮 60）

@@ -12,6 +12,18 @@
     <p><?php echo get_locale() === 'zh_CN'
       ? '关于加速、连接、隐私与网络的实用文章与教程。'
       : 'Practical guides on speed, connectivity, privacy and networking.'; ?></p>
+    <?php
+      // 主题分类导航：Polylang 按当前语言过滤，hide_empty 只显示有文章的
+      $_nav = get_categories(array('hide_empty' => true, 'number' => 10));
+      if (!empty($_nav)) {
+        echo '<nav class="cat-nav">';
+        foreach ($_nav as $_c) {
+          echo '<a href="' . esc_url(get_category_link($_c->term_id)) . '">' . esc_html($_c->name)
+             . '<span class="n">' . (int)$_c->count . '</span></a>';
+        }
+        echo '</nav>';
+      }
+    ?>
   </div>
 
   <?php if (have_posts()) : ?>
