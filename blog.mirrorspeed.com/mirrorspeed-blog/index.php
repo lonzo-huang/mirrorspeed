@@ -12,31 +12,34 @@
     <p><?php echo get_locale() === 'zh_CN'
       ? '关于加速、连接、隐私与网络的实用文章与教程。'
       : 'Practical guides on speed, connectivity, privacy and networking.'; ?></p>
-    <?php
-      // 主题分类导航：只保留 v9.0 主题分类（Polylang 按当前语言过滤），按文章数排序
-      $_topic_slugs = array(
-        'security', 'security-zh', 'ai', 'ai-zh', 'privacy', 'privacy-zh',
-        'deepdive', 'deepdive-zh', 'tutorial', 'tutorial-zh',
-        'industry', 'industry-zh', 'tech', 'tech-zh',
-        'curated-feeds', 'wechat-feeds',
-      );
-      $_all = get_categories(array('hide_empty' => true));
-      $_nav = array();
-      foreach ($_all as $_c) {
-        if (in_array($_c->slug, $_topic_slugs, true)) $_nav[] = $_c;
-      }
-      usort($_nav, function ($a, $b) { return $b->count - $a->count; });
-      if (!empty($_nav)) {
-        echo '<nav class="cat-nav">';
-        foreach (array_slice($_nav, 0, 10) as $_c) {
-          echo '<a href="' . esc_url(get_category_link($_c->term_id)) . '">' . esc_html($_c->name)
-             . '<span class="n">' . (int)$_c->count . '</span></a>';
-        }
-        echo '</nav>';
-      }
-    ?>
   </div>
 
+  <div class="home-cols">
+  <?php
+    // 左侧主题分类导航：只保留 v9.0 主题分类（Polylang 按当前语言过滤），按文章数排序
+    $_topic_slugs = array(
+      'security', 'security-zh', 'ai', 'ai-zh', 'privacy', 'privacy-zh',
+      'deepdive', 'deepdive-zh', 'tutorial', 'tutorial-zh',
+      'industry', 'industry-zh', 'tech', 'tech-zh',
+      'curated-feeds', 'wechat-feeds',
+    );
+    $_all = get_categories(array('hide_empty' => true));
+    $_nav = array();
+    foreach ($_all as $_c) {
+      if (in_array($_c->slug, $_topic_slugs, true)) $_nav[] = $_c;
+    }
+    usort($_nav, function ($a, $b) { return $b->count - $a->count; });
+    if (!empty($_nav)) {
+      echo '<aside class="cat-side"><div class="cat-side-title">' . (get_locale() === 'zh_CN' ? '分类' : 'Topics') . '</div><nav class="cat-nav">';
+      foreach (array_slice($_nav, 0, 10) as $_c) {
+        echo '<a href="' . esc_url(get_category_link($_c->term_id)) . '">' . esc_html($_c->name)
+           . '<span class="n">' . (int)$_c->count . '</span></a>';
+      }
+      echo '</nav></aside>';
+    }
+  ?>
+
+  <div class="posts-col">
   <?php if (have_posts()) : ?>
     <div class="grid">
       <?php while (have_posts()) : the_post(); ?>
@@ -66,6 +69,8 @@
   <?php else : ?>
     <p class="empty"><?php echo get_locale() === 'zh_CN' ? '暂无文章。' : 'No posts yet.'; ?></p>
   <?php endif; ?>
+  </div>
+  </div>
 </section>
 
 <?php get_footer(); ?>

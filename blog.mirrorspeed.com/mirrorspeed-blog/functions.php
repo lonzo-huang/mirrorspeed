@@ -66,6 +66,15 @@ function mirrorspeed_pick_cat($cats) {
 // ── 浏览量统计 ────────────────────────────────────────────────
 // single.php 前端 JS POST /wp-json/ms/v1/view/<id> 计数（LiteSpeed 缓存页
 // 不打 PHP，必须走 REST 异步 +1）；meta key `_ms_views`，仅读这一个字段。
+// ── 每页 9 篇（首页/分类/标签/归档/搜索）────────────────────
+add_action('pre_get_posts', 'mirrorspeed_posts_per_page');
+function mirrorspeed_posts_per_page($q) {
+    if (is_admin() || !$q->is_main_query()) return;
+    if ($q->is_home() || $q->is_category() || $q->is_tag() || $q->is_date() || $q->is_search()) {
+        $q->set('posts_per_page', 9);
+    }
+}
+
 add_action('rest_api_init', function () {
     register_rest_route('ms/v1', '/view/(?P<id>\d+)', array(
         'methods'             => 'POST',
