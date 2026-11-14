@@ -83,12 +83,15 @@ const Nav = () => {
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+  // 中文访客指向中文专属网址（/cn/*）。这些页面有独立的中文 title/description，
+  // 没有内链的话搜索引擎很难发现它们。
+  const zh = lang === "zh";
   const links = [
-    { href: "/#features", key: "nav_features" },
-    { href: "/#network", key: "nav_network" },
-    { href: "/#pricing", key: "nav_pricing" },
-    { href: "/download", key: "ob_s1_t" },
-    { href: "/#faq", key: "nav_faq" },
+    { href: zh ? "/cn#features" : "/#features", key: "nav_features" },
+    { href: zh ? "/cn#network" : "/#network", key: "nav_network" },
+    { href: zh ? "/cn/pricing" : "/#pricing", key: "nav_pricing" },
+    { href: zh ? "/cn/download" : "/download", key: "ob_s1_t" },
+    { href: zh ? "/cn#faq" : "/#faq", key: "nav_faq" },
     { href: "https://blog.mirrorspeed.com/", key: "nav_blog" },
   ];
   const currentLang = SUPPORTED_LANGS.find((l) => l.code === lang);
@@ -745,11 +748,12 @@ const Footer = () => {
           <div>
             <h4 className="font-mono text-[10px] uppercase tracking-widest text-app-muted mb-4">{t("ft_product")}</h4>
             <ul className="space-y-2.5 text-sm text-app-secondary">
-              <li><a href="/#features" className="hover:text-app-primary">{t("nav_features")}</a></li>
-              <li><a href="/#network" className="hover:text-app-primary">{t("nav_network")}</a></li>
-              <li><a href="/#pricing" className="hover:text-app-primary">{t("nav_pricing")}</a></li>
-              <li><a href="/download" className="hover:text-app-primary">{L("下载", "Download")}</a></li>
-              <li><a href="/#faq" className="hover:text-app-primary">{t("nav_faq")}</a></li>
+              {/* 中文访客走 /cn/* 中文专属网址（与导航一致） */}
+              <li><a href={lang === "zh" ? "/cn#features" : "/#features"} className="hover:text-app-primary">{t("nav_features")}</a></li>
+              <li><a href={lang === "zh" ? "/cn#network" : "/#network"} className="hover:text-app-primary">{t("nav_network")}</a></li>
+              <li><a href={lang === "zh" ? "/cn/pricing" : "/#pricing"} className="hover:text-app-primary">{t("nav_pricing")}</a></li>
+              <li><a href={lang === "zh" ? "/cn/download" : "/download"} className="hover:text-app-primary">{L("下载", "Download")}</a></li>
+              <li><a href={lang === "zh" ? "/cn#faq" : "/#faq"} className="hover:text-app-primary">{t("nav_faq")}</a></li>
             </ul>
           </div>
           <div>
@@ -758,7 +762,7 @@ const Footer = () => {
               <li><a href="/about" className="hover:text-app-primary">{L("关于我们", "About")}</a></li>
               <li><a href="/servers" className="hover:text-app-primary">{t("ft_servers")}</a></li>
               <li><a href="https://blog.mirrorspeed.com/" className="hover:text-app-primary">{L("博客", "Blog")}</a></li>
-              <li><a href="/help" className="hover:text-app-primary">{L("帮助中心", "Help")}</a></li>
+              <li><a href={lang === "zh" ? "/cn/help" : "/help"} className="hover:text-app-primary">{L("帮助中心", "Help")}</a></li>
               {lang === "zh" && <li><a href="/tutorials" className="hover:text-app-primary">使用教程</a></li>}
               <li><a href="/support" className="hover:text-app-primary">{t("ft_support")}</a></li>
               <li><a href="/login" className="hover:text-app-primary">{t("nav_signin")}</a></li>

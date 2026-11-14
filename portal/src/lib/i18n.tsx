@@ -1195,10 +1195,16 @@ const I18nCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: Dict 
   lang: "en", setLang: () => {}, t: dict.en,
 });
 
-export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("en");
+/**
+ * @param forcedLang 固定首屏语言，并跳过「localStorage / 浏览器语言」自动探测。
+ *   给 /cn/* 这类语言专属网址用：服务端渲染出的必须稳定是该语言，
+ *   否则爬虫看到的语言会随探测逻辑漂移。用户之后仍可手动切换语言。
+ */
+export function I18nProvider({ children, forcedLang }: { children: ReactNode; forcedLang?: Lang }) {
+  const [lang, setLangState] = useState<Lang>(forcedLang ?? "en");
 
   useEffect(() => {
+    if (forcedLang) return;   // 语言专属网址：不做自动探测
     // 落地页（Nav 语言下拉）用 "ms_lang"（下划线），本系统历史用 "ms-lang"（连字符）。
     // 两者桥接：优先读任一已保存值，实现主页 ↔ 内容页语言互通。
     // 优先读落地页/主页所用的 "ms_lang"（语言切换的真正来源），再回退历史的 "ms-lang"，
@@ -1213,7 +1219,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       const prefix = navigator.language.slice(0, 2).toLowerCase();
       if (BROWSER_LANG_MAP[prefix]) setLangState(BROWSER_LANG_MAP[prefix]);
     }
-  }, []);
+  }, [forcedLang]);
 
   const setLang = (l: Lang) => {
     setLangState(l);

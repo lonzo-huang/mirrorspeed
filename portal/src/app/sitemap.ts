@@ -23,11 +23,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: SITE_URL,                 priority: 1.0, changeFrequency: 'weekly',  alternates: HOME_ALTERNATES },
     { url: `${SITE_URL}/cn`,         priority: 0.9, changeFrequency: 'weekly',  alternates: HOME_ALTERNATES },
 
-    // 产品页
-    { url: `${SITE_URL}/pricing`,    priority: 0.8, changeFrequency: 'weekly'  },
-    { url: `${SITE_URL}/download`,   priority: 0.8, changeFrequency: 'weekly'  },
+    // 产品页（中英各一个网址，互为 hreflang 对照）
+    ...(['pricing', 'download', 'help'] as const).flatMap(slug => {
+      const languages = { en: `${SITE_URL}/${slug}`, 'zh-CN': `${SITE_URL}/cn/${slug}` }
+      return [
+        { url: `${SITE_URL}/${slug}`,     priority: 0.8, changeFrequency: 'weekly' as const, alternates: { languages } },
+        { url: `${SITE_URL}/cn/${slug}`,  priority: 0.8, changeFrequency: 'weekly' as const, alternates: { languages } },
+      ]
+    }),
     { url: `${SITE_URL}/servers`,    priority: 0.7, changeFrequency: 'daily'   },
-    { url: `${SITE_URL}/help`,       priority: 0.6, changeFrequency: 'monthly' },
     { url: `${SITE_URL}/support`,    priority: 0.5, changeFrequency: 'monthly' },
     { url: `${SITE_URL}/about`,      priority: 0.6, changeFrequency: 'monthly' },
 
