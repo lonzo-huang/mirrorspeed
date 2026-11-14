@@ -15,32 +15,27 @@ const SITE_URL = 'https://www.mirrorspeed.com'
  * ──────────────────────────────────────────────────────────────────── */
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  // 根布局只服务英文首页 `/`。中英混排会让两种语言的搜索都拿不到好位置，
+  // 中文版在 /cn 有独立的纯中文 metadata。
+  // template 只给「标题里没有品牌名」的子页用；自带品牌的页面用 title.absolute，
+  // 否则会出现 "MirrorSpeed — … | MirrorSpeed" 这种品牌重复。
   title: {
-    default:  'MirrorSpeed — Free VPN · 免费加速器 · Unlimited Speed',
+    default:  'MirrorSpeed — Free VPN with Unlimited Speed',
     template: '%s | MirrorSpeed',
   },
   description:
-    'Free VPN with unlimited speed up to 1000 Mbps per user and zero-logs nodes in 20+ countries — ' +
-    'free forever. Instant access to ChatGPT, X, Google, YouTube, TikTok. ' +
-    '永久免费的 MirrorSpeed 镜速加速器 — 自研加速引擎，UDP 协议封装，智能分流，单用户最高 1000 Mbps 不限速，多国节点零日志。',
+    'MirrorSpeed is a VPN for Android, Windows and HarmonyOS with a free-forever plan and ' +
+    'paid plans from $0.88/month. Up to 1000 Mbps per user, zero-logs nodes, one-tap connect.',
   applicationName: 'MirrorSpeed',
   authors: [{ name: 'MirrorSpeed', url: SITE_URL }],
   creator: 'MirrorSpeed',
   publisher: 'MirrorSpeed',
   category: 'technology',
-  keywords: [
-    // EN core
-    'VPN', 'fast VPN', 'free VPN', 'low-latency VPN', 'unlimited VPN',
-    'low latency VPN', 'global VPN', 'mirror latency', 'MirrorSpeed',
-    'ChatGPT VPN', 'AI access VPN', 'streaming VPN', 'gaming VPN',
-    // ZH (合规中立词，避免敏感词)
-    '网络加速', '低延迟', '加速器', '镜速', 'MirrorSpeed 加速器',
-    '流媒体解锁', '游戏加速', 'AI 加速', 'ChatGPT 加速', '全球节点',
-  ],
+  // 不再输出 meta keywords：Google 早已忽略它，只是把关键词策略白送给竞争对手。
   alternates: {
     canonical: '/',
     languages: {
-      'en':    `${SITE_URL}/en`,
+      'en':    SITE_URL,          // 英文内容的唯一规范网址就是 `/`（/en 指向它）
       'zh-CN': `${SITE_URL}/cn`,
       'x-default': SITE_URL,
     },
@@ -121,11 +116,13 @@ const JSON_LD = {
       name: 'MirrorSpeed',
       url:  SITE_URL,
       logo: `${SITE_URL}/icon-512.png`,
-      sameAs: [
-        // Add your social profiles here once available — boosts knowledge panel
-        // 'https://twitter.com/mirrorspeed',
-        // 'https://github.com/mirrorspeed',
-      ],
+      url: SITE_URL,
+      description:
+        'MirrorSpeed builds a consumer VPN and network accelerator for Android, Windows and HarmonyOS.',
+      email: 'mirrorspeed@mirrorquant.com',
+      // sameAs 为空时 Google 无法把站点和任何第三方资料关联起来（知识面板/AI 推荐都看这个）。
+      // 开通任一官方账号后把网址填进来即可，例如 X、GitHub、Google Play 开发者页。
+      sameAs: [] as string[],
       contactPoint: [{
         '@type': 'ContactPoint',
         contactType: 'customer support',
@@ -140,39 +137,46 @@ const JSON_LD = {
       name: 'MirrorSpeed',
       publisher: { '@id': `${SITE_URL}/#org` },
       inLanguage: ['en', 'zh-CN'],
-      potentialAction: {
-        '@type': 'SearchAction',
-        target: { '@type': 'EntryPoint', urlTemplate: `${SITE_URL}/blog?q={search_term_string}` },
-        'query-input': 'required name=search_term_string',
-      },
+      // 原来的 SearchAction 指向 /blog?q=，而 /blog 已 301 到 blog.mirrorspeed.com，
+      // 站内也没有搜索功能 —— 声明一个不存在的搜索接口只会损害可信度，故移除。
     },
     {
       '@type': 'SoftwareApplication',
       '@id': `${SITE_URL}/#app`,
       name: 'MirrorSpeed',
+      alternateName: '镜速加速器',
+      // 一句话定义：AI 回答「MirrorSpeed 是什么」时直接可引用。
+      description:
+        'MirrorSpeed is a VPN and network accelerator for Android, Windows and HarmonyOS. ' +
+        'It has a free-forever plan with a daily time allowance, and paid plans from $0.88 per month ' +
+        'with unlimited time, no ads, up to 1000 Mbps per user and up to 8 devices.',
       operatingSystem: 'Android, HarmonyOS, Windows',
-      applicationCategory: 'UtilitiesApplication',
+      applicationCategory: 'SecurityApplication',
       applicationSubCategory: 'VPN',
       url: `${SITE_URL}/download`,
+      downloadUrl: `${SITE_URL}/download`,
+      inLanguage: ['en', 'zh-CN'],
       publisher: { '@id': `${SITE_URL}/#org` },
+      // 真实价格区间：免费档 $0 起，付费最低 $0.88/月（两年付），最高 $3.00/月（月付）。
       offers: {
-        '@type': 'Offer',
-        price: '0',
+        '@type': 'AggregateOffer',
         priceCurrency: 'USD',
-        description: 'Free tier available; premium plans from $1.00/mo for unlimited speed.',
+        lowPrice: '0',
+        highPrice: '3.00',
+        offerCount: 6,
+        description:
+          'Free-forever plan with a daily time allowance; paid plans from $0.88/month billed every 2 years.',
       },
-      aggregateRating: {
-        '@type': 'AggregateRating',
-        ratingValue: '4.9',
-        ratingCount: '12800',
-      },
+      // 已移除 aggregateRating：页面上没有可核实的评价来源，
+      // 自报评分属于 Google 结构化数据垃圾标记，且 AI 无法验证。
+      // 接入 Google Play / App Store 真实评分后再加回，并附评分页链接。
       featureList: [
-        'Proprietary high-speed engine',
-        'UDP encapsulation',
-        '1000 Mbps per user',
-        'Zero logs',
-        'Global edge network',
-        '24/7 engineer support',
+        'Free-forever plan',
+        'Up to 1000 Mbps per user',
+        'No browsing, traffic, DNS or IP logs kept',
+        'Up to 8 devices on paid plans',
+        'Split tunnelling (per-app and China-direct routing)',
+        'One-tap connect with automatic node selection',
       ],
     },
   ],

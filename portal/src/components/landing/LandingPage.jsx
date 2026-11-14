@@ -494,7 +494,9 @@ const Testimonials = () => {
   const items = [
     { q: { en: "Stupid fast. The nearest edge always picks me up — feels like the VPN isn't even there.", zh: "快得离谱。最近的节点总能接住我——感觉 VPN 根本不存在。", fr: "Incroyablement rapide.", es: "Rapidísimo.", de: "Wahnsinnig schnell.", it: "Velocissimo.", ja: "ばか速い。", ko: "미친 듯이 빠릅니다.", tr: "Aptal kadar hızlı.", ar: "سريع لدرجة الجنون.", ru: "Бешено быстро." }, a: "Alex T.", role: { en: "Developer", zh: "开发者", fr: "Développeur", es: "Desarrollador", de: "Entwickler", it: "Sviluppatore", ja: "開発者", ko: "개발자", tr: "Geliştirici", ar: "مطوّر", ru: "Разработчик" }, avatar: "A", color: "var(--accent-cyan)" },
     { q: { en: "Set it once, forget it. Auto-routing just works.", zh: "设置一次就忘记，自动路由完美。", fr: "Configurez, oubliez.", es: "Configúralo y olvídalo.", de: "Einmal einrichten, vergessen.", it: "Imposta e dimentica.", ja: "一度設定すれば忘れていい。", ko: "한 번 설정하면 끝.", tr: "Bir kez ayarla, unut.", ar: "اضبطه مرة وانساه.", ru: "Настроил и забыл." }, a: "Sarah M.", role: { en: "Freelancer", zh: "自由职业者", fr: "Indépendante", es: "Freelance", de: "Freelancerin", it: "Freelance", ja: "フリーランス", ko: "프리랜서", tr: "Serbest çalışan", ar: "مستقلّة", ru: "Фрилансер" }, avatar: "S", color: "var(--accent-magenta)" },
-    { q: { en: "3 devices on one account at this price is unbeatable.", zh: "一个账号 3 台设备，这个价格无敌。", fr: "3 appareils, imbattable.", es: "3 dispositivos, imbatible.", de: "3 Geräte, unschlagbar.", it: "3 dispositivi, imbattibile.", ja: "1 アカウント 3 台でこの価格は最強。", ko: "이 가격에 3대 동시 사용, 무적.", tr: "Bu fiyata 3 cihaz, rakipsiz.", ar: "3 أجهزة بهذا السعر، لا يُهزَم.", ru: "3 устройства за такую цену — вне конкуренции." }, a: "Ken W.", role: { en: "Founder", zh: "创始人", fr: "Fondateur", es: "Fundador", de: "Gründer", it: "Fondatore", ja: "創業者", ko: "창업자", tr: "Kurucu", ar: "مؤسّس", ru: "Основатель" }, avatar: "K", color: "var(--accent-success)" },
+    // 设备数以代码里的真实上限为准（免费 4 台 / 付费 8 台，见 api/mobile/device）。
+    // 原文写「3 台」与套餐页的「8 台」互相矛盾，AI 比对时会判定站内信息不可靠。
+    { q: { en: "8 devices on one account at this price is unbeatable.", zh: "一个账号 8 台设备，这个价格无敌。", fr: "8 appareils, imbattable.", es: "8 dispositivos, imbatible.", de: "8 Geräte, unschlagbar.", it: "8 dispositivi, imbattibile.", ja: "1 アカウント 8 台でこの価格は最強。", ko: "이 가격에 8대 동시 사용, 무적.", tr: "Bu fiyata 8 cihaz, rakipsiz.", ar: "8 أجهزة بهذا السعر، لا يُهزَم.", ru: "8 устройств за такую цену — вне конкуренции." }, a: "Ken W.", role: { en: "Founder", zh: "创始人", fr: "Fondateur", es: "Fundador", de: "Gründer", it: "Fondatore", ja: "創業者", ko: "창업자", tr: "Kurucu", ar: "مؤسّس", ru: "Основатель" }, avatar: "K", color: "var(--accent-success)" },
     { q: { en: "Latency is so low I forget I'm tunneling.", zh: "延迟低到我都忘了在用 VPN。游戏、流媒体、开发——都顺。", fr: "Latence si basse que j'oublie le VPN.", es: "Latencia tan baja que olvido el VPN.", de: "So niedrige Latenz, dass ich das VPN vergesse.", it: "Latenza così bassa che dimentico la VPN.", ja: "遅延が低すぎて VPN を使っていることを忘れる。", ko: "지연이 너무 낮아 VPN 쓰는 줄 잊습니다.", tr: "Gecikme o kadar düşük ki VPN'i unutuyorum.", ar: "زمن الاستجابة منخفض جدًا حتى أنسى أنني على VPN.", ru: "Задержка так низкая, что забываешь о VPN." }, a: "Mika R.", role: { en: "Streamer", zh: "主播", fr: "Streameuse", es: "Streamer", de: "Streamer", it: "Streamer", ja: "配信者", ko: "스트리머", tr: "Yayıncı", ar: "بثّ مباشر", ru: "Стример" }, avatar: "M", color: "var(--accent-warning)" },
   ];
   const { lang } = useApp();
@@ -664,13 +666,18 @@ const FAQ = () => {
                 <span className="font-heading text-lg font-medium text-app-primary group-hover:text-accent-cyan transition-colors">{t(it.q)}</span>
                 <ChevronDown className={`h-5 w-5 text-app-muted transition-transform ${open === i ? "rotate-180 text-accent-cyan" : ""}`} />
               </button>
-              <AnimatePresence>
-                {open === i && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
-                    <p className="pb-5 text-app-secondary leading-relaxed">{linkifyAnswer(t(it.a))}</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {/* 答案始终留在 DOM 里，只做视觉折叠（动画高度 0 + aria-hidden）。
+                  原来用 open===i 条件渲染，未展开的 6 条答案根本不在 HTML 中，
+                  搜索引擎和 AI 抓取器都读不到——FAQ 正文是本页信息量最大的部分。 */}
+              <motion.div
+                initial={false}
+                animate={{ height: open === i ? "auto" : 0, opacity: open === i ? 1 : 0 }}
+                transition={{ duration: 0.3 }}
+                className="overflow-hidden"
+                aria-hidden={open !== i}
+              >
+                <p className="pb-5 text-app-secondary leading-relaxed">{linkifyAnswer(t(it.a))}</p>
+              </motion.div>
             </div>
           ))}
         </div>
@@ -748,6 +755,7 @@ const Footer = () => {
           <div>
             <h4 className="font-mono text-[10px] uppercase tracking-widest text-app-muted mb-4">{t("ft_company")}</h4>
             <ul className="space-y-2.5 text-sm text-app-secondary">
+              <li><a href="/about" className="hover:text-app-primary">{L("关于我们", "About")}</a></li>
               <li><a href="/servers" className="hover:text-app-primary">{t("ft_servers")}</a></li>
               <li><a href="https://blog.mirrorspeed.com/" className="hover:text-app-primary">{L("博客", "Blog")}</a></li>
               <li><a href="/help" className="hover:text-app-primary">{L("帮助中心", "Help")}</a></li>

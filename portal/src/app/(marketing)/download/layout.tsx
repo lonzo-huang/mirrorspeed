@@ -3,7 +3,9 @@ import type { Metadata } from 'next'
 const SITE_URL = 'https://www.mirrorspeed.com'
 
 export const metadata: Metadata = {
-  title: 'Download MirrorSpeed — Android, HarmonyOS, Windows',
+  // 标题不再自带品牌名：根布局的 '%s | MirrorSpeed' 模板会统一追加一次，
+  // 否则输出 "Download MirrorSpeed … | MirrorSpeed"，品牌重复两次。
+  title: 'Download for Android, HarmonyOS and Windows',
   description: 'Download MirrorSpeed VPN for Android, HarmonyOS, and Windows. Zero configuration, one-tap connect, free forever tier.',
   alternates: { canonical: `${SITE_URL}/download` },
   openGraph: {

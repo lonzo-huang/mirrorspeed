@@ -43,7 +43,8 @@ const dict = {
         { t: "24/7 Support", d: "Real engineers, responsive support." },
       ],
     },
-    servers: { title: "Live Server Matrix", sub: "Global cluster telemetry statistics.", load: "Load", latency: "Latency", uptime: "Uptime", online: "Online" },
+    // H1 需要让搜索引擎看出品类（原文 "Live Server Matrix" 只是口号，看不出是 VPN 节点）
+    servers: { title: "VPN Server Network", sub: "Live latency, load and capacity for every MirrorSpeed node.", load: "Load", latency: "Latency", uptime: "Uptime", online: "Online" },
     testimonials: {
       title: "Trusted Worldwide",
       sub: "Real users. Real speeds.",
@@ -54,7 +55,7 @@ const dict = {
       ],
     },
     pricing: {
-      title: "Choose Your Reflection", sub: "Transparent pricing. Cancel anytime.",
+      title: "VPN Pricing", sub: "A free-forever plan, or unlimited speed from $0.88/month. Cancel anytime.",
       popular: "Most Popular", select: "Select Plan", featured: "Get Started",
       plans: [
         { name: "Yearly",    price: "$1",    per: "/mo", desc: "Billed $12/yr",         feats: ["All 20+ locations", "Proprietary dynamic encryption", "Up to 8 devices simultaneously", "24/7 support", "Cancel anytime"] },
@@ -191,7 +192,7 @@ const dict = {
         { t: "7x24 支持", d: "真实工程师，及时响应。" },
       ],
     },
-    servers: { title: "实时服务器矩阵", sub: "全球集群遥测统计数据。", load: "负载", latency: "延迟", uptime: "在线率", online: "在线" },
+    servers: { title: "加速节点网络", sub: "每个节点的实时延迟、负载与容量。", load: "负载", latency: "延迟", uptime: "在线率", online: "在线" },
     testimonials: {
       title: "全球用户信赖",
       sub: "真实用户，真实速度。",
@@ -202,7 +203,7 @@ const dict = {
       ],
     },
     pricing: {
-      title: "选择您的方案", sub: "透明定价，随时取消。",
+      title: "加速器价格", sub: "永久免费套餐，或每月最低 ¥8 畅享不限速。随时取消。",
       popular: "最受欢迎", select: "选择此方案", featured: "立即开通",
       plans: [
         { name: "年付",  price: "¥9",  per: "/月", desc: "按年付 ¥108",     feats: ["全部 20+ 节点", "自研内核，独创动态加密", "支持 8 台设备同时在线", "7×24 支持", "随时订阅，随时取消"] },

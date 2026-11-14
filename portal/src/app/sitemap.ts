@@ -1,84 +1,50 @@
 import { MetadataRoute } from 'next'
-import { createClient } from '@supabase/supabase-js'
+import { TUTORIALS } from '@/lib/tutorials'
 
 const SITE_URL = 'https://www.mirrorspeed.com'
 
-export const revalidate = 3600 // ISR: revalidate every hour to catch new blog posts
+// 站点地图只列「能直接返回 200 的规范网址」。
+// 不再从 Supabase 拉博客文章：/blog 与 /blog/* 已在 next.config 里 301 到
+// blog.mirrorspeed.com，把 301 网址放进 sitemap 只会浪费抓取预算并被 GSC 标为错误。
+// 博客子域名有自己的 sitemap（WordPress / Rank Math 的 sitemap_index.xml）。
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  try {
-    // Fetch published blog posts
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    )
-    const { data: posts } = await supabase
-      .from('blog_posts')
-      .select('slug, published_at, updated_at')
-      .eq('published', true)
-      .order('published_at', { ascending: false })
+const now = new Date()
 
-    const blogEntries: MetadataRoute.Sitemap = (posts ?? []).map(post => ({
-      url: `${SITE_URL}/blog/${post.slug}${post.slug.endsWith('-cn') ? '?lang=zh' : ''}`,
-      lastModified: post.updated_at || post.published_at,
+// 英文首页与中文首页互为语言版本（`/en` 不列入：它的 canonical 指向 `/`）
+const HOME_ALTERNATES = {
+  languages: {
+    en: SITE_URL,
+    'zh-CN': `${SITE_URL}/cn`,
+  },
+}
+
+export default function sitemap(): MetadataRoute.Sitemap {
+  const entries: MetadataRoute.Sitemap = [
+    { url: SITE_URL,                 priority: 1.0, changeFrequency: 'weekly',  alternates: HOME_ALTERNATES },
+    { url: `${SITE_URL}/cn`,         priority: 0.9, changeFrequency: 'weekly',  alternates: HOME_ALTERNATES },
+
+    // 产品页
+    { url: `${SITE_URL}/pricing`,    priority: 0.8, changeFrequency: 'weekly'  },
+    { url: `${SITE_URL}/download`,   priority: 0.8, changeFrequency: 'weekly'  },
+    { url: `${SITE_URL}/servers`,    priority: 0.7, changeFrequency: 'daily'   },
+    { url: `${SITE_URL}/help`,       priority: 0.6, changeFrequency: 'monthly' },
+    { url: `${SITE_URL}/support`,    priority: 0.5, changeFrequency: 'monthly' },
+    { url: `${SITE_URL}/about`,      priority: 0.6, changeFrequency: 'monthly' },
+
+    // 中文教程集群（原创内容，搜索流量主力）
+    { url: `${SITE_URL}/tutorials`,  priority: 0.8, changeFrequency: 'monthly' },
+    ...TUTORIALS.map(t => ({
+      url: `${SITE_URL}/tutorials/${t.slug}`,
       priority: 0.7,
-    }))
+      changeFrequency: 'monthly' as const,
+    })),
 
-    // Static pages
-    const staticPages: MetadataRoute.Sitemap = [
-      {
-        url: SITE_URL,
-        lastModified: new Date(),
-        priority: 1.0,
-        alternates: {
-          languages: {
-            en: `${SITE_URL}/en`,
-            'zh-CN': `${SITE_URL}/cn`,
-          },
-        },
-      },
-      {
-        url: `${SITE_URL}/en`,
-        lastModified: new Date(),
-        priority: 0.9,
-      },
-      {
-        url: `${SITE_URL}/cn`,
-        lastModified: new Date(),
-        priority: 0.9,
-      },
-      {
-        url: `${SITE_URL}/blog`,
-        lastModified: new Date(),
-        priority: 0.9,
-      },
-      {
-        url: `${SITE_URL}/pricing`,
-        lastModified: new Date(),
-        priority: 0.8,
-      },
-      {
-        url: `${SITE_URL}/download`,
-        lastModified: new Date(),
-        priority: 0.8,
-      },
-      {
-        url: `${SITE_URL}/help`,
-        lastModified: new Date(),
-        priority: 0.6,
-      },
-    ]
+    // 法律页：收录价值低但属于信任信号，保留在索引内
+    { url: `${SITE_URL}/privacy`,    priority: 0.3, changeFrequency: 'yearly'  },
+    { url: `${SITE_URL}/terms`,      priority: 0.3, changeFrequency: 'yearly'  },
+    { url: `${SITE_URL}/cookies`,    priority: 0.2, changeFrequency: 'yearly'  },
+    { url: `${SITE_URL}/disclaimer`, priority: 0.2, changeFrequency: 'yearly'  },
+  ]
 
-    return [...staticPages, ...blogEntries]
-  } catch (error) {
-    console.error('[sitemap] Error fetching posts:', error)
-    return [
-      {
-        url: SITE_URL,
-        lastModified: new Date(),
-        priority: 1.0,
-      },
-    ]
-  }
+  return entries.map(e => ({ lastModified: now, ...e }))
 }
