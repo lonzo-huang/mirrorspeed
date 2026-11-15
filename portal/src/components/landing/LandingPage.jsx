@@ -731,6 +731,8 @@ const Footer = () => {
   const { lang } = useApp();
   // 部分页面（下载/条款/Cookie/免责/帮助/博客）暂无对应 i18n key，用 zh/en 兜底文案。
   const L = (zh, en) => (lang === "zh" ? zh : en);
+  // 中文访客指向 /cn 下的中文版本（这些页面都有独立的中文 metadata）。
+  const zhUrl = (path) => (lang === "zh" ? `/cn${path}` : path);
   return (
     <footer className="relative pt-20 pb-10 border-t border-app-subtle overflow-hidden" data-testid="main-footer">
       <div className="absolute inset-x-0 bottom-0 flex justify-center pointer-events-none overflow-hidden">
@@ -759,23 +761,26 @@ const Footer = () => {
           <div>
             <h4 className="font-mono text-[10px] uppercase tracking-widest text-app-muted mb-4">{t("ft_company")}</h4>
             <ul className="space-y-2.5 text-sm text-app-secondary">
-              <li><a href="/about" className="hover:text-app-primary">{L("关于我们", "About")}</a></li>
-              <li><a href={lang === "zh" ? "/cn/use-cases" : "/use-cases"} className="hover:text-app-primary">{L("使用场景", "Use cases")}</a></li>
-              <li><a href="/servers" className="hover:text-app-primary">{t("ft_servers")}</a></li>
+              {/* 中文访客一律走 /cn/* 中文网址，否则点进去是英文版，
+                  既伤体验，也让新建的中文页拿不到内链。 */}
+              <li><a href={zhUrl("/about")} className="hover:text-app-primary">{L("关于我们", "About")}</a></li>
+              <li><a href={zhUrl("/use-cases")} className="hover:text-app-primary">{L("使用场景", "Use cases")}</a></li>
+              <li><a href={zhUrl("/servers")} className="hover:text-app-primary">{t("ft_servers")}</a></li>
               <li><a href="https://blog.mirrorspeed.com/" className="hover:text-app-primary">{L("博客", "Blog")}</a></li>
-              <li><a href={lang === "zh" ? "/cn/help" : "/help"} className="hover:text-app-primary">{L("帮助中心", "Help")}</a></li>
-              {lang === "zh" && <li><a href="/cn/tutorials" className="hover:text-app-primary">使用教程</a></li>}
-              <li><a href="/support" className="hover:text-app-primary">{t("ft_support")}</a></li>
+              <li><a href={zhUrl("/help")} className="hover:text-app-primary">{L("帮助中心", "Help")}</a></li>
+              {/* 安装指引：中文是 9 篇图文教程，英文是一页通览，内容不对译 */}
+              <li><a href={lang === "zh" ? "/cn/tutorials" : "/setup"} className="hover:text-app-primary">{L("使用教程", "Setup guide")}</a></li>
+              <li><a href={zhUrl("/support")} className="hover:text-app-primary">{t("ft_support")}</a></li>
               <li><a href="/login" className="hover:text-app-primary">{t("nav_signin")}</a></li>
             </ul>
           </div>
           <div>
             <h4 className="font-mono text-[10px] uppercase tracking-widest text-app-muted mb-4">{L("法律", "Legal")}</h4>
             <ul className="space-y-2.5 text-sm text-app-secondary">
-              <li><a href="/privacy" className="hover:text-app-primary">{t("ft_privacy")}</a></li>
-              <li><a href="/terms" className="hover:text-app-primary">{L("服务条款", "Terms")}</a></li>
-              <li><a href="/cookies" className="hover:text-app-primary">{L("Cookie 政策", "Cookies")}</a></li>
-              <li><a href="/disclaimer" className="hover:text-app-primary">{L("免责声明", "Disclaimer")}</a></li>
+              <li><a href={zhUrl("/privacy")} className="hover:text-app-primary">{t("ft_privacy")}</a></li>
+              <li><a href={zhUrl("/terms")} className="hover:text-app-primary">{L("服务条款", "Terms")}</a></li>
+              <li><a href={zhUrl("/cookies")} className="hover:text-app-primary">{L("Cookie 政策", "Cookies")}</a></li>
+              <li><a href={zhUrl("/disclaimer")} className="hover:text-app-primary">{L("免责声明", "Disclaimer")}</a></li>
             </ul>
           </div>
         </div>

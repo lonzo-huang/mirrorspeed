@@ -54,8 +54,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       ]
     }),
 
+    // 安装指南：英文一页通览，中文是 9 篇图文教程（不是逐篇对译，故 hreflang
+    // 指向教程索引而非同名页面）
+    { url: `${SITE_URL}/setup`, priority: 0.8, changeFrequency: 'monthly',
+      alternates: { languages: { en: `${SITE_URL}/setup`, 'zh-CN': `${SITE_URL}/cn/tutorials` } } },
+
     // 中文教程集群（原创内容，搜索流量主力）
-    { url: `${SITE_URL}/cn/tutorials`,  priority: 0.8, changeFrequency: 'monthly' },
+    { url: `${SITE_URL}/cn/tutorials`,  priority: 0.8, changeFrequency: 'monthly',
+      alternates: { languages: { en: `${SITE_URL}/setup`, 'zh-CN': `${SITE_URL}/cn/tutorials` } } },
     ...TUTORIALS.map(t => ({
       url: `${SITE_URL}/cn/tutorials/${t.slug}`,
       priority: 0.7,

@@ -102,7 +102,8 @@ and carry no quality guarantee.
 - Download: ${S}/download
 - Server status: ${S}/servers
 - Help and FAQ: ${S}/help
-- Setup tutorials (Chinese): ${S}/cn/tutorials
+- Setup and troubleshooting (English): ${S}/setup
+- Setup tutorials, 9 illustrated guides (Chinese): ${S}/cn/tutorials
 - Use-case guides: ${S}/use-cases
   - AI tools (ChatGPT, Claude, Gemini): ${S}/use-cases/ai-tools
   - Streaming video: ${S}/use-cases/streaming
