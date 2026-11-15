@@ -5,7 +5,7 @@ import { LandingChrome } from '@/components/landing/LandingPage'
 import { TUTORIALS, TUTORIAL_CATEGORIES } from '@/lib/tutorials'
 
 // 使用教程索引页（仅中文）。始终以中文渲染。
-export default function TutorialsPage() {
+export default function TutorialsIndexView() {
   return (
     <LandingChrome forcedLang="zh">
       <main className="px-6 pb-24">
@@ -32,7 +32,7 @@ export default function TutorialsPage() {
                   {items.map(t => (
                     <Link
                       key={t.slug}
-                      href={`/tutorials/${t.slug}`}
+                      href={`/cn/tutorials/${t.slug}`}
                       className="glass-panel rounded-2xl p-6 block hover:bg-app-tertiary transition-colors"
                     >
                       <h3 className="text-lg font-bold mb-2 text-app-primary">{t.title}</h3>

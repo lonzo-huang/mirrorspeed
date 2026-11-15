@@ -5,9 +5,10 @@ const SITE_URL = 'https://www.mirrorspeed.com'
 export const metadata: Metadata = {
   // title.absolute：标题自带品牌名，避免再被 '%s | MirrorSpeed' 模板追加一次。
   title: { absolute: '镜速加速器 MirrorSpeed — 永久免费，智能分流不限速' },
+  // 中文描述控制在 80 字内，超出会在搜索结果里被截断。
   description:
-    '镜速加速器（MirrorSpeed）是一款支持安卓、Windows、鸿蒙的网络加速器：永久免费套餐每天赠送时长，' +
-    '付费每月最低 ¥8 起，单用户最高 1000 Mbps 不限速，智能分流国内直连、境外加速，不记录任何上网日志。',
+    '镜速加速器是支持安卓、Windows、鸿蒙的网络加速器。永久免费套餐每天赠时长，' +
+    '付费每月最低 ¥8，单用户最高 1000 Mbps，不记录上网日志。',
   // 不再输出 meta keywords：搜索引擎不看，只会暴露关键词策略。
   alternates: {
     canonical: `${SITE_URL}/cn`,

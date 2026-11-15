@@ -9,11 +9,11 @@ export const metadata: Metadata = {
   description:
     `镜速加速器图文教程：Windows 11、Windows 7 安装与连接，安卓安装与后台保活，华为鸿蒙机型设置，iOS 无法使用排查，连不上网怎么办。共 ${TUTORIALS.length} 篇，按设备选择。`,
   alternates: {
-    canonical: '/tutorials',
-    languages: { 'zh-CN': '/tutorials' },
+    canonical: '/cn/tutorials',
+    languages: { 'zh-CN': '/cn/tutorials' },
   },
   openGraph: {
-    url: '/tutorials',
+    url: '/cn/tutorials',
     title: '镜速加速器使用教程 — 安装、连接与故障排查',
     description: '按设备查找图文教程：Windows、安卓、鸿蒙、iOS 的安装、连接与常见问题排查。',
     locale: 'zh_CN',

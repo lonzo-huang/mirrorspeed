@@ -4,7 +4,10 @@ export const metadata: Metadata = {
   title: 'Cookie Policy',
   description:
     'MirrorSpeed uses only essential cookies for sign-in, plus browser localStorage for your language and theme preference. No advertising or tracking cookies.',
-  alternates: { canonical: '/cookies' },
+  alternates: {
+    canonical: '/cookies',
+    languages: { en: 'https://www.mirrorspeed.com/cookies', 'zh-CN': 'https://www.mirrorspeed.com/cn/cookies' },
+  },
   openGraph: { url: '/cookies', title: 'Cookie Policy | MirrorSpeed' },
 }
 

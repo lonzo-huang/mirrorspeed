@@ -6,7 +6,7 @@ import { LandingChrome } from '@/components/landing/LandingPage'
 import { getTutorial } from '@/lib/tutorials'
 
 // 使用教程详情页（仅中文）。
-export default function TutorialDetailPage() {
+export default function TutorialDetailView() {
   const params = useParams()
   const slug = typeof params.slug === 'string' ? params.slug : Array.isArray(params.slug) ? params.slug[0] : ''
   const tutorial = getTutorial(slug)
@@ -15,7 +15,7 @@ export default function TutorialDetailPage() {
     <LandingChrome forcedLang="zh">
       <main className="px-6 pb-24">
         <article className="max-w-3xl mx-auto">
-          <Link href="/tutorials" className="text-sm text-app-secondary hover:text-app-primary inline-block mb-8">
+          <Link href="/cn/tutorials" className="text-sm text-app-secondary hover:text-app-primary inline-block mb-8">
             ← 返回教程列表
           </Link>
 

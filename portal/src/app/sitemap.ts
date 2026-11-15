@@ -32,9 +32,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
         { url: `${SITE_URL}/cn/${slug}`,  priority: 0.8, changeFrequency: 'weekly' as const, alternates: { languages } },
       ]
     }),
-    { url: `${SITE_URL}/servers`,    priority: 0.7, changeFrequency: 'daily'   },
-    { url: `${SITE_URL}/support`,    priority: 0.5, changeFrequency: 'monthly' },
-    { url: `${SITE_URL}/about`,      priority: 0.6, changeFrequency: 'monthly' },
+    // 注意：/about 与 /support 在下方「信息页与法律页」的成对循环里，别在这里重复列出。
+    { url: `${SITE_URL}/servers`,    priority: 0.7, changeFrequency: 'daily',
+      alternates: { languages: { en: `${SITE_URL}/servers`, 'zh-CN': `${SITE_URL}/cn/servers` } } },
 
     // 场景落地页（中英成对，互为 hreflang）
     ...['', 'cn/'].map(prefix => ({
@@ -55,17 +55,32 @@ export default function sitemap(): MetadataRoute.Sitemap {
     }),
 
     // 中文教程集群（原创内容，搜索流量主力）
-    { url: `${SITE_URL}/tutorials`,  priority: 0.8, changeFrequency: 'monthly' },
+    { url: `${SITE_URL}/cn/tutorials`,  priority: 0.8, changeFrequency: 'monthly' },
     ...TUTORIALS.map(t => ({
-      url: `${SITE_URL}/tutorials/${t.slug}`,
+      url: `${SITE_URL}/cn/tutorials/${t.slug}`,
       priority: 0.7,
       changeFrequency: 'monthly' as const,
     })),
 
-    // 法律页：收录价值低但属于信任信号，保留在索引内
-    { url: `${SITE_URL}/privacy`,    priority: 0.3, changeFrequency: 'yearly'  },
-    { url: `${SITE_URL}/terms`,      priority: 0.3, changeFrequency: 'yearly'  },
-    { url: `${SITE_URL}/cookies`,    priority: 0.2, changeFrequency: 'yearly'  },
+    // 信息页与法律页：中英成对（收录价值低，但属于信任信号）
+    ...(
+      [
+        ['about',      0.6],
+        ['support',    0.5],
+        ['privacy',    0.3],
+        ['terms',      0.3],
+        ['cookies',    0.2],
+        ['disclaimer', 0.2],
+      ] as const
+    ).flatMap(([slug, priority]) => {
+      const languages = { en: `${SITE_URL}/${slug}`, 'zh-CN': `${SITE_URL}/cn/${slug}` }
+      return [
+        { url: languages.en,       priority, changeFrequency: 'yearly' as const, alternates: { languages } },
+        { url: languages['zh-CN'], priority, changeFrequency: 'yearly' as const, alternates: { languages } },
+      ]
+    }),
+    { url: `${SITE_URL}/cn/servers`, priority: 0.7, changeFrequency: 'daily' as const,
+      alternates: { languages: { en: `${SITE_URL}/servers`, 'zh-CN': `${SITE_URL}/cn/servers` } } },
     { url: `${SITE_URL}/disclaimer`, priority: 0.2, changeFrequency: 'yearly'  },
   ]
 

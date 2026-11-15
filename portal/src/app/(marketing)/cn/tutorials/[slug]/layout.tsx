@@ -14,7 +14,7 @@ export async function generateMetadata(
   if (!tutorial) {
     return { title: '教程未找到', robots: { index: false, follow: true } }
   }
-  const url = `/tutorials/${tutorial.slug}`
+  const url = `/cn/tutorials/${tutorial.slug}`
   return {
     title: { absolute: `${tutorial.title} — 镜速加速器教程` },
     description: `${tutorial.summary} 共 ${tutorial.steps.length} 个步骤，含常见问题处理。`,
@@ -54,7 +54,7 @@ export default function TutorialLayout(
       position: i + 1,
       name: s.t,
       text: s.d,
-      url: `${SITE_URL}/tutorials/${tutorial.slug}#step-${i + 1}`,
+      url: `${SITE_URL}/cn/tutorials/${tutorial.slug}#step-${i + 1}`,
     })),
   }
 

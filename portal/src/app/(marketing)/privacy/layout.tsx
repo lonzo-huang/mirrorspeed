@@ -5,8 +5,11 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'Privacy Policy — What We Do and Do Not Log',
   description:
-    'MirrorSpeed privacy policy: what we collect, what we never log (browsing history, traffic destinations, DNS queries, connection IPs), how long data is kept, and how to delete your account.',
-  alternates: { canonical: '/privacy' },
+    'What MirrorSpeed collects, what we never log (browsing, traffic, DNS, connection IPs), how long data is kept, and how to delete your account.',
+  alternates: {
+    canonical: '/privacy',
+    languages: { en: 'https://www.mirrorspeed.com/privacy', 'zh-CN': 'https://www.mirrorspeed.com/cn/privacy' },
+  },
   openGraph: { url: '/privacy', title: 'Privacy Policy | MirrorSpeed' },
 }
 

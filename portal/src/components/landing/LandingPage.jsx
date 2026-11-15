@@ -764,7 +764,7 @@ const Footer = () => {
               <li><a href="/servers" className="hover:text-app-primary">{t("ft_servers")}</a></li>
               <li><a href="https://blog.mirrorspeed.com/" className="hover:text-app-primary">{L("博客", "Blog")}</a></li>
               <li><a href={lang === "zh" ? "/cn/help" : "/help"} className="hover:text-app-primary">{L("帮助中心", "Help")}</a></li>
-              {lang === "zh" && <li><a href="/tutorials" className="hover:text-app-primary">使用教程</a></li>}
+              {lang === "zh" && <li><a href="/cn/tutorials" className="hover:text-app-primary">使用教程</a></li>}
               <li><a href="/support" className="hover:text-app-primary">{t("ft_support")}</a></li>
               <li><a href="/login" className="hover:text-app-primary">{t("nav_signin")}</a></li>
             </ul>

@@ -5,6 +5,7 @@ import './globals.css'
 // 登录/注册/dashboard 等页用到这些类但自身不引入 LandingPage.jsx，必须在此全局加载，
 // 否则这些类无样式 → 深色主题失效（表现为浅色/看不清）。
 import '@/components/landing/landing.css'
+import { availablePlatforms, platformList, sameAs, BRAND, PROFILES, PRICING, DEVICES, MAX_MBPS, NOT_LOGGED } from '@/lib/product'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -23,9 +24,10 @@ export const metadata: Metadata = {
     default:  'MirrorSpeed — Free VPN with Unlimited Speed',
     template: '%s | MirrorSpeed',
   },
+  // 控制在 160 字符内，否则搜索结果里会被截断。
   description:
-    'MirrorSpeed is a VPN for Android, Windows and HarmonyOS with a free-forever plan and ' +
-    'paid plans from $0.88/month. Up to 1000 Mbps per user, zero-logs nodes, one-tap connect.',
+    `MirrorSpeed is a VPN for ${platformList('en')}. Free-forever plan, ` +
+    `or from $${PRICING.lowestUsd}/month for unlimited time and up to ${MAX_MBPS} Mbps.`,
   applicationName: 'MirrorSpeed',
   authors: [{ name: 'MirrorSpeed', url: SITE_URL }],
   creator: 'MirrorSpeed',
@@ -58,8 +60,8 @@ export const metadata: Metadata = {
     alternateLocale: ['zh_CN', 'fr_FR', 'es_ES', 'de_DE', 'it_IT', 'ja_JP', 'ko_KR', 'ru_RU', 'tr_TR', 'ar'],
     title:    'MirrorSpeed — Free VPN · Unlimited Speed · Free Forever',
     description:
-      'Free VPN · Unlimited speed up to 1000 Mbps · Free forever tier · ' +
-      'No logs · 20+ global edges · Proprietary high-speed engine.',
+      `Free-forever plan · Up to ${MAX_MBPS} Mbps per user · No activity logs · ` +
+      `Paid plans from $${PRICING.lowestUsd}/month · ${platformList('en')}.`,
     images: [
       { url: '/og-en.png', width: 1200, height: 630, alt: 'MirrorSpeed — Unstoppable. Globally Fast.' },
       { url: '/og-cn.png', width: 1200, height: 630, alt: 'MirrorSpeed — 无惧干扰，极速连接全球' },
@@ -71,7 +73,7 @@ export const metadata: Metadata = {
     creator: '@mirrorspeed',
     title:   'MirrorSpeed — Free VPN · Unlimited Speed',
     description:
-      'Free forever tier · Unlimited speed up to 1000 Mbps · No logs · 20+ global edges.',
+      `Free-forever plan · Up to ${MAX_MBPS} Mbps · No activity logs · From $${PRICING.lowestUsd}/month.`,
     images:  ['/og-en.png'],
   },
   robots: {
@@ -113,22 +115,17 @@ const JSON_LD = {
     {
       '@type': 'Organization',
       '@id': `${SITE_URL}/#org`,
-      name: 'MirrorSpeed',
+      name: BRAND.name,
+      alternateName: BRAND.nameZh,
       url:  SITE_URL,
       logo: `${SITE_URL}/icon-512.png`,
-      url: SITE_URL,
       description:
-        'MirrorSpeed builds a consumer VPN and network accelerator for Android, Windows and HarmonyOS.',
-      email: 'mirrorspeed@mirrorquant.com',
-      // sameAs：能在第三方平台上唯一指向本主体的网址。Google 用它把站点与
-      // 外部资料关联起来（知识面板、AI 推荐都看这个）。
-      // 这里只列已验证返回 200 的页面——指向 404 的 sameAs 会损害可信度。
-      // App Store 上架后补 https://apps.apple.com/app/id6812514237。
-      sameAs: [
-        'https://play.google.com/store/apps/details?id=com.mirrorspeed.vpn',
-        'https://play.google.com/store/apps/developer?id=Mirrorr+Studio',
-        'https://blog.mirrorspeed.com',
-      ],
+        `MirrorSpeed builds a consumer VPN and network accelerator for ${platformList('en')}.`,
+      email: BRAND.email,
+      // sameAs：能在第三方平台上唯一指向本主体的网址（知识面板、AI 推荐都看这个）。
+      // 只列已验证返回 200 的页面——指向 404 的 sameAs 会损害可信度。
+      // App Store 上架后在 lib/product.ts 的 PROFILES.appStore 填入即可。
+      sameAs: sameAs(),
       contactPoint: [{
         '@type': 'ContactPoint',
         contactType: 'customer support',
@@ -153,35 +150,36 @@ const JSON_LD = {
       alternateName: '镜速加速器',
       // 一句话定义：AI 回答「MirrorSpeed 是什么」时直接可引用。
       description:
-        'MirrorSpeed is a VPN and network accelerator for Android, Windows and HarmonyOS. ' +
-        'It has a free-forever plan with a daily time allowance, and paid plans from $0.88 per month ' +
-        'with unlimited time, no ads, up to 1000 Mbps per user and up to 8 devices.',
-      operatingSystem: 'Android, HarmonyOS, Windows',
+        `MirrorSpeed is a VPN and network accelerator for ${platformList('en')}. ` +
+        `It has a free-forever plan with a daily time allowance, and paid plans from $${PRICING.lowestUsd} per month ` +
+        `with unlimited time, no ads, up to ${MAX_MBPS} Mbps per user and up to ${DEVICES.paid} devices.`,
+      // 只列已上架可下载的平台。iOS/macOS 过审后改 lib/product.ts 的 status 即可。
+      operatingSystem: availablePlatforms('en').join(', '),
       applicationCategory: 'SecurityApplication',
       applicationSubCategory: 'VPN',
       url: `${SITE_URL}/download`,
       downloadUrl: `${SITE_URL}/download`,
-      installUrl: 'https://play.google.com/store/apps/details?id=com.mirrorspeed.vpn',
+      installUrl: PROFILES.googlePlayApp,
       inLanguage: ['en', 'zh-CN'],
       publisher: { '@id': `${SITE_URL}/#org` },
-      // 真实价格区间：免费档 $0 起，付费最低 $0.88/月（两年付），最高 $3.00/月（月付）。
+      // 真实价格区间：免费档 $0 起，付费最低（两年付）到最高（月付）。
       offers: {
         '@type': 'AggregateOffer',
         priceCurrency: 'USD',
         lowPrice: '0',
-        highPrice: '3.00',
-        offerCount: 6,
+        highPrice: String(PRICING.highestUsd.toFixed(2)),
+        offerCount: PRICING.planCount,
         description:
-          'Free-forever plan with a daily time allowance; paid plans from $0.88/month billed every 2 years.',
+          `Free-forever plan with a daily time allowance; paid plans from $${PRICING.lowestUsd}/month billed every 2 years.`,
       },
       // 已移除 aggregateRating：页面上没有可核实的评价来源，
       // 自报评分属于 Google 结构化数据垃圾标记，且 AI 无法验证。
       // 接入 Google Play / App Store 真实评分后再加回，并附评分页链接。
       featureList: [
         'Free-forever plan',
-        'Up to 1000 Mbps per user',
-        'No browsing, traffic, DNS or IP logs kept',
-        'Up to 8 devices on paid plans',
+        `Up to ${MAX_MBPS} Mbps per user`,
+        `No ${NOT_LOGGED.en.slice(0, 3).join(', ')} or connection IP kept`,
+        `Up to ${DEVICES.paid} devices on paid plans`,
         'Split tunnelling (per-app and China-direct routing)',
         'One-tap connect with automatic node selection',
       ],
