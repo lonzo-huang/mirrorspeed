@@ -83,6 +83,13 @@ and carry no quality guarantee.
 - Server status: https://www.mirrorspeed.com/servers
 - Help and FAQ: https://www.mirrorspeed.com/help
 - Setup tutorials (Chinese): https://www.mirrorspeed.com/tutorials
+- Use-case guides: https://www.mirrorspeed.com/use-cases
+  - AI tools (ChatGPT, Claude, Gemini): https://www.mirrorspeed.com/use-cases/ai-tools
+  - Streaming video: https://www.mirrorspeed.com/use-cases/streaming
+  - Online gaming: https://www.mirrorspeed.com/use-cases/gaming
+  - How to choose a VPN: https://www.mirrorspeed.com/use-cases/how-to-choose
+- Chinese versions of the above live under /cn/ (for example /cn/pricing,
+  /cn/download, /cn/help, /cn/use-cases)
 - About: https://www.mirrorspeed.com/about
 - Privacy policy: https://www.mirrorspeed.com/privacy
 - Terms of service: https://www.mirrorspeed.com/terms

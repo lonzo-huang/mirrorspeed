@@ -120,9 +120,15 @@ const JSON_LD = {
       description:
         'MirrorSpeed builds a consumer VPN and network accelerator for Android, Windows and HarmonyOS.',
       email: 'mirrorspeed@mirrorquant.com',
-      // sameAs 为空时 Google 无法把站点和任何第三方资料关联起来（知识面板/AI 推荐都看这个）。
-      // 开通任一官方账号后把网址填进来即可，例如 X、GitHub、Google Play 开发者页。
-      sameAs: [] as string[],
+      // sameAs：能在第三方平台上唯一指向本主体的网址。Google 用它把站点与
+      // 外部资料关联起来（知识面板、AI 推荐都看这个）。
+      // 这里只列已验证返回 200 的页面——指向 404 的 sameAs 会损害可信度。
+      // App Store 上架后补 https://apps.apple.com/app/id6812514237。
+      sameAs: [
+        'https://play.google.com/store/apps/details?id=com.mirrorspeed.vpn',
+        'https://play.google.com/store/apps/developer?id=Mirrorr+Studio',
+        'https://blog.mirrorspeed.com',
+      ],
       contactPoint: [{
         '@type': 'ContactPoint',
         contactType: 'customer support',
@@ -155,6 +161,7 @@ const JSON_LD = {
       applicationSubCategory: 'VPN',
       url: `${SITE_URL}/download`,
       downloadUrl: `${SITE_URL}/download`,
+      installUrl: 'https://play.google.com/store/apps/details?id=com.mirrorspeed.vpn',
       inLanguage: ['en', 'zh-CN'],
       publisher: { '@id': `${SITE_URL}/#org` },
       // 真实价格区间：免费档 $0 起，付费最低 $0.88/月（两年付），最高 $3.00/月（月付）。

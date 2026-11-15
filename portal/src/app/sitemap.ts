@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next'
 import { TUTORIALS } from '@/lib/tutorials'
+import { USE_CASES } from '@/lib/useCases'
 
 const SITE_URL = 'https://www.mirrorspeed.com'
 
@@ -34,6 +35,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/servers`,    priority: 0.7, changeFrequency: 'daily'   },
     { url: `${SITE_URL}/support`,    priority: 0.5, changeFrequency: 'monthly' },
     { url: `${SITE_URL}/about`,      priority: 0.6, changeFrequency: 'monthly' },
+
+    // 场景落地页（中英成对，互为 hreflang）
+    ...['', 'cn/'].map(prefix => ({
+      url: `${SITE_URL}/${prefix}use-cases`,
+      priority: 0.7,
+      changeFrequency: 'monthly' as const,
+      alternates: { languages: { en: `${SITE_URL}/use-cases`, 'zh-CN': `${SITE_URL}/cn/use-cases` } },
+    })),
+    ...USE_CASES.flatMap(u => {
+      const languages = {
+        en: `${SITE_URL}/use-cases/${u.slug}`,
+        'zh-CN': `${SITE_URL}/cn/use-cases/${u.slug}`,
+      }
+      return [
+        { url: languages.en,      priority: 0.7, changeFrequency: 'monthly' as const, alternates: { languages } },
+        { url: languages['zh-CN'], priority: 0.7, changeFrequency: 'monthly' as const, alternates: { languages } },
+      ]
+    }),
 
     // 中文教程集群（原创内容，搜索流量主力）
     { url: `${SITE_URL}/tutorials`,  priority: 0.8, changeFrequency: 'monthly' },

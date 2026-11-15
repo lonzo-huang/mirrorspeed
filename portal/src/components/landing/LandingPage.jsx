@@ -760,6 +760,7 @@ const Footer = () => {
             <h4 className="font-mono text-[10px] uppercase tracking-widest text-app-muted mb-4">{t("ft_company")}</h4>
             <ul className="space-y-2.5 text-sm text-app-secondary">
               <li><a href="/about" className="hover:text-app-primary">{L("关于我们", "About")}</a></li>
+              <li><a href={lang === "zh" ? "/cn/use-cases" : "/use-cases"} className="hover:text-app-primary">{L("使用场景", "Use cases")}</a></li>
               <li><a href="/servers" className="hover:text-app-primary">{t("ft_servers")}</a></li>
               <li><a href="https://blog.mirrorspeed.com/" className="hover:text-app-primary">{L("博客", "Blog")}</a></li>
               <li><a href={lang === "zh" ? "/cn/help" : "/help"} className="hover:text-app-primary">{L("帮助中心", "Help")}</a></li>
