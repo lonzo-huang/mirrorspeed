@@ -15,7 +15,7 @@ export default function TutorialsIndexView() {
               // 使用教程
             </span>
             <h1 className="font-heading text-4xl md:text-6xl font-black tracking-tighter mb-6">
-              <span className="text-gradient-cyan">镜速加速器 使用教程</span>
+              <span className="text-gradient-cyan">镜速VPN 使用教程</span>
             </h1>
             <p className="text-app-secondary text-lg max-w-2xl mx-auto">
               从安装、连接到常见问题排查，按你的设备选择对应教程。遇到问题也可随时联系客服。

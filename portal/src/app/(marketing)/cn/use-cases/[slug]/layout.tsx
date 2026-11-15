@@ -14,7 +14,7 @@ export async function generateMetadata(
   if (!u) return { title: '未找到', robots: { index: false, follow: true } }
   const url = `${SITE_URL}/cn/use-cases/${u.slug}`
   return {
-    title: { absolute: `${u.zh.title} | 镜速加速器` },
+    title: { absolute: `${u.zh.title} | 镜速VPN` },
     description: u.zh.summary,
     alternates: {
       canonical: url,

@@ -16,12 +16,12 @@ export async function generateMetadata(
   }
   const url = `/cn/tutorials/${tutorial.slug}`
   return {
-    title: { absolute: `${tutorial.title} — 镜速加速器教程` },
+    title: { absolute: `${tutorial.title} — 镜速VPN教程` },
     description: `${tutorial.summary} 共 ${tutorial.steps.length} 个步骤，含常见问题处理。`,
     alternates: { canonical: url, languages: { 'zh-CN': url } },
     openGraph: {
       url,
-      title: `${tutorial.title} — 镜速加速器教程`,
+      title: `${tutorial.title} — 镜速VPN教程`,
       description: tutorial.summary,
       locale: 'zh_CN',
       type: 'article',

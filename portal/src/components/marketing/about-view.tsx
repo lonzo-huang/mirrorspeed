@@ -11,7 +11,7 @@ const CONTACT = 'mirrorspeed@mirrorquant.com'
 const SECTIONS_EN = [
   {
     h: 'Who operates it',
-    p: `MirrorSpeed is built and operated by MirrorSpeed. Support, billing and the apps all come from the same small team of engineers — email ${CONTACT} and an engineer who works on the product reads it. Our Android app is published on Google Play under the developer account "Mirrorr Studio", which is the same team.`,
+    p: `MirrorSpeed is built and operated by MirrorSpeed — there is no separate parent company or reseller in between. Support, billing and the apps all come from the same small team of engineers: email ${CONTACT} and an engineer who works on the product reads it. Our Android app is published on Google Play, which is the easiest way to verify the app you are installing is ours.`,
   },
   {
     h: 'What MirrorSpeed is',
@@ -46,11 +46,11 @@ const SECTIONS_EN = [
 const SECTIONS_ZH = [
   {
     h: '谁在运营',
-    p: `镜速加速器（MirrorSpeed）由 MirrorSpeed 团队自行开发与运营。客服、账单与客户端都出自同一个工程团队——发邮件到 ${CONTACT}，读信的就是做这个产品的工程师。安卓版在 Google Play 上以开发者账号「Mirrorr Studio」发布，同属一个团队。`,
+    p: `镜速VPN（MirrorSpeed）由 MirrorSpeed 团队自行开发与运营，中间没有母公司或代理商。客服、账单与客户端都出自同一个工程团队——发邮件到 ${CONTACT}，读信的就是做这个产品的工程师。安卓版在 Google Play 上架，这是核对「你装的是不是我们的应用」最直接的方式。`,
   },
   {
-    h: '镜速加速器是什么',
-    p: `镜速加速器（MirrorSpeed）是一款面向个人用户的网络加速工具。它把你的流量加密后经由境外服务器转发，让本地网络中访问不了或很慢的服务恢复正常速度。安装 App、用邮箱登录、点一下连接即可，不需要手动填任何配置。`,
+    h: '镜速VPN是什么',
+    p: `镜速VPN（MirrorSpeed）是一款面向个人用户的网络加速工具。它把你的流量加密后经由境外服务器转发，让本地网络中访问不了或很慢的服务恢复正常速度。安装 App、用邮箱登录、点一下连接即可，不需要手动填任何配置。`,
   },
   {
     h: '支持的系统',
@@ -74,7 +74,7 @@ const SECTIONS_ZH = [
   },
   {
     h: '合规使用',
-    p: `镜速加速器用于保护隐私、在不可信网络中加密传输以及提升连接速度。部分国家和地区对此类服务有法律限制，请自行确认并遵守所在地法律。我们不允许将本服务用于任何违法用途。`,
+    p: `镜速VPN用于保护隐私、在不可信网络中加密传输以及提升连接速度。部分国家和地区对此类服务有法律限制，请自行确认并遵守所在地法律。我们不允许将本服务用于任何违法用途。`,
   },
 ]
 
@@ -93,12 +93,12 @@ export default function AboutView() {
             </span>
             <h1 className="font-heading text-3xl md:text-5xl font-black tracking-tighter mb-6 leading-tight break-words">
               <span className="text-gradient-cyan">
-                {isZh ? '关于镜速加速器' : 'About MirrorSpeed'}
+                {isZh ? '关于镜速VPN' : 'About MirrorSpeed'}
               </span>
             </h1>
             <p className="text-app-secondary text-lg max-w-2xl mx-auto leading-relaxed">
               {isZh
-                ? '镜速加速器是一款支持安卓、Windows、鸿蒙的网络加速器，提供永久免费套餐，付费每月最低 ¥8 起。'
+                ? '镜速VPN是一款支持安卓、Windows、鸿蒙的网络加速器，提供永久免费套餐，付费每月最低 ¥8 起。'
                 : 'MirrorSpeed is a VPN and network accelerator for Android, Windows and HarmonyOS, with a free-forever plan and paid plans from $0.88 per month.'}
             </p>
           </div>

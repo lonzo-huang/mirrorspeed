@@ -147,7 +147,7 @@ const JSON_LD = {
       '@type': 'SoftwareApplication',
       '@id': `${SITE_URL}/#app`,
       name: 'MirrorSpeed',
-      alternateName: '镜速加速器',
+      alternateName: '镜速VPN',
       // 一句话定义：AI 回答「MirrorSpeed 是什么」时直接可引用。
       description:
         `MirrorSpeed is a VPN and network accelerator for ${platformList('en')}. ` +

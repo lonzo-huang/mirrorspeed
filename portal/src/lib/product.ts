@@ -10,9 +10,13 @@
 //   · 平台可用性 → 必须真的能下载到，才能标 available
 
 export const BRAND = {
-  /** 对外主体名称。Google Play 开发者名目前是 "Mirrorr Studio"，建议改为一致。 */
   name: 'MirrorSpeed',
-  nameZh: '镜速加速器',
+  /**
+   * 中文品牌名。用于搜索结果标题/描述与结构化数据。
+   * 注意：AGENTS.md 规定**客户端中文壳**出于合规不出现「VPN」字样，用「加速器」。
+   * 那条规则针对 App 内文案，官网中文内容本就在用 VPN 一词，两者各自独立。
+   */
+  nameZh: '镜速VPN',
   email: 'mirrorspeed@mirrorquant.com',
   siteUrl: 'https://www.mirrorspeed.com',
 } as const
@@ -99,13 +103,16 @@ export const NODE_COUNTRIES = {
 
 // ── 外部主体资料（sameAs）：只放已验证返回 200 的网址 ──────────────────────
 export const PROFILES = {
+  // 应用页按**包名**定位，开发者改名也不会失效。
   googlePlayApp: 'https://play.google.com/store/apps/details?id=com.mirrorspeed.vpn',
-  googlePlayDev: 'https://play.google.com/store/apps/developer?id=Mirrorr+Studio',
+  // 不放 Google Play 开发者页：它的网址按**开发者名称**拼接
+  // （developer?id=Mirrorr+Studio），改名后旧链接会失效，sameAs 指向 404
+  // 比留空更伤可信度。要放的话，等改名生效后用新网址，并先确认返回 200。
   blog: 'https://blog.mirrorspeed.com',
   /** App Store 上架后填入并加进 sameAs */
   appStore: null as string | null,
 }
 
 export const sameAs = () =>
-  [PROFILES.googlePlayApp, PROFILES.googlePlayDev, PROFILES.blog, PROFILES.appStore]
+  [PROFILES.googlePlayApp, PROFILES.blog, PROFILES.appStore]
     .filter((u): u is string => !!u)

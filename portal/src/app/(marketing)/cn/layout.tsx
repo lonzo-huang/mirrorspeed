@@ -4,10 +4,10 @@ const SITE_URL = 'https://www.mirrorspeed.com'
 
 export const metadata: Metadata = {
   // title.absolute：标题自带品牌名，避免再被 '%s | MirrorSpeed' 模板追加一次。
-  title: { absolute: '镜速加速器 MirrorSpeed — 永久免费，智能分流不限速' },
+  title: { absolute: '镜速VPN（MirrorSpeed）— 永久免费，智能分流不限速' },
   // 中文描述控制在 80 字内，超出会在搜索结果里被截断。
   description:
-    '镜速加速器是支持安卓、Windows、鸿蒙的网络加速器。永久免费套餐每天赠时长，' +
+    '镜速VPN是支持安卓、Windows、鸿蒙的网络加速器。永久免费套餐每天赠时长，' +
     '付费每月最低 ¥8，单用户最高 1000 Mbps，不记录上网日志。',
   // 不再输出 meta keywords：搜索引擎不看，只会暴露关键词策略。
   alternates: {
@@ -19,17 +19,17 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title:    'MirrorSpeed 镜速加速器 — 永久免费，极速连接全球',
+    title:    '镜速VPN（MirrorSpeed）— 永久免费，极速连接全球',
     description: '永久免费 · 智能分流 · 国内直连 · 境外加速 · 多国节点零日志 · 单用户 1000 Mbps 不限速',
     siteName: 'MirrorSpeed',
     url:      `${SITE_URL}/cn`,
     locale:   'zh_CN',
     type:     'website',
-    images:   [{ url: '/og-cn.png', width: 1200, height: 630, alt: 'MirrorSpeed 镜速加速器 — 永久免费，极速连接全球' }],
+    images:   [{ url: '/og-cn.png', width: 1200, height: 630, alt: '镜速VPN — 永久免费，极速连接全球' }],
   },
   twitter: {
     card:    'summary_large_image',
-    title:   'MirrorSpeed 镜速加速器 — 永久免费，极速连接全球',
+    title:   '镜速VPN（MirrorSpeed）— 永久免费，极速连接全球',
     description: '永久免费 · 自研加速引擎 · UDP 协议封装 · 智能分流 · 多国节点零日志',
     images:  ['/og-cn.png'],
   },
