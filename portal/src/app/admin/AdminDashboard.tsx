@@ -109,6 +109,7 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-2">
             <a href="/admin/blog" className="rounded-xl px-4 py-2 text-sm font-semibold glass hover:bg-white/5 transition-colors">博客管理</a>
             <a href="/admin/refunds" className="rounded-xl px-4 py-2 text-sm font-semibold glass hover:bg-white/5 transition-colors">退款申请</a>
+            <a href="/admin/routing" className="rounded-xl px-4 py-2 text-sm font-semibold glass hover:bg-white/5 transition-colors">券商代理</a>
             <button onClick={() => { load('live'); loadInsights() }} disabled={refreshing}
               className="rounded-xl px-4 py-2 text-sm font-semibold glow-cyan hover:scale-[1.02] transition-transform disabled:opacity-50">
               {refreshing ? '刷新中…' : '刷新'}</button>
