@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       to:       SUPPORT_EMAIL,
       subject:  subjectLine,
       html,
-      fromName: `${name.trim()} (MirrorSpeed 用户)`,
+      fromName: `${name.trim()} (${email.trim()})`,
       replyTo:  email.trim(),
     })
 
