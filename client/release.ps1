@@ -171,7 +171,8 @@ if (-not $SkipAndroid) {
     $t0 = Get-Date
 
     $ErrorActionPreference = 'Continue'
-    flutter build apk --release --split-per-abi --no-tree-shake-icons @PUB @DEFINES
+    $apkArgs = @('build','apk','--release','--split-per-abi','--no-tree-shake-icons') + $PUB + $DEFINES
+    flutter @apkArgs
     $ec = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($ec -ne 0) { Fail "flutter build apk failed" }
@@ -188,7 +189,8 @@ if (-not $SkipAndroid) {
     Step "Building Android App Bundle (.aab - Google Play)"
     $t0 = Get-Date
     $ErrorActionPreference = 'Continue'
-    flutter build appbundle --release --no-tree-shake-icons @PUB @DEFINES
+    $aabArgs = @('build','appbundle','--release','--no-tree-shake-icons') + $PUB + $DEFINES
+    flutter @aabArgs
     $ec = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($ec -ne 0) { Fail "flutter build appbundle failed" }
@@ -209,7 +211,8 @@ if (-not $SkipWindows) {
     # --obfuscate replaces Dart class/function names with random identifiers
     # --split-debug-info keeps debug symbols separate (required with --obfuscate)
     $ErrorActionPreference = 'Continue'
-    flutter build windows --release --no-tree-shake-icons --obfuscate --split-debug-info=build/debug_symbols/windows @PUB @DEFINES
+    $winArgs = @('build','windows','--release','--no-tree-shake-icons','--obfuscate','--split-debug-info=build/debug_symbols/windows') + $PUB + $DEFINES
+    flutter @winArgs
     $ec = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($ec -ne 0) { Fail "flutter build windows failed" }

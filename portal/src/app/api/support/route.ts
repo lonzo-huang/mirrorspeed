@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email'
 import { verifyCaptcha } from '@/lib/captcha'
 
-const SUPPORT_EMAIL = 'mirrorspeed@mirrorquant.com'
+// Inbox that receives support requests. Replies from here go straight to the
+// user via the Reply-To header set below.
+const SUPPORT_EMAIL = 'support@mirrorspeed.com'
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,10 +53,15 @@ export async function POST(req: NextRequest) {
 </div>
 </body></html>`
 
+    // From display name = the user (address stays our authenticated sender for
+    // SPF/DKIM); Reply-To = the user's email, so "Reply" in the support inbox
+    // goes straight back to them.
     await sendEmail({
-      to:      SUPPORT_EMAIL,
-      subject: subjectLine,
+      to:       SUPPORT_EMAIL,
+      subject:  subjectLine,
       html,
+      fromName: `${name.trim()} (MirrorSpeed 用户)`,
+      replyTo:  email.trim(),
     })
 
     // Send auto-reply to user

@@ -22,6 +22,12 @@ interface SendEmailOptions {
   to:      string
   subject: string
   html:    string
+  // Override the From display name for this one send (address stays the
+  // authenticated sender for SPF/DKIM — forging the From address bounces).
+  fromName?: string
+  // Set Reply-To so hitting "Reply" goes here (e.g. the user who wrote in),
+  // not the sending mailbox.
+  replyTo?: string
 }
 
 export interface SendEmailResult {
@@ -40,7 +46,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult
 }
 
 // ── SMTP 发送（nodemailer）───────────────────────────────────────────────────
-async function sendViaSmtp({ to, subject, html }: SendEmailOptions): Promise<SendEmailResult> {
+async function sendViaSmtp({ to, subject, html, fromName, replyTo }: SendEmailOptions): Promise<SendEmailResult> {
   const host = process.env.SMTP_HOST!
   const port = parseInt(process.env.SMTP_PORT ?? '465', 10)
   const user = process.env.SMTP_USER
@@ -50,7 +56,7 @@ async function sendViaSmtp({ to, subject, html }: SendEmailOptions): Promise<Sen
     return { ok: false, error: 'SMTP_USER / SMTP_PASS not configured' }
   }
   const from = process.env.EMAIL_FROM_ADDRESS ?? user
-  const name = process.env.EMAIL_FROM_NAME ?? 'MirrorSpeed'
+  const name = fromName ?? process.env.EMAIL_FROM_NAME ?? 'MirrorSpeed'
 
   try {
     const transporter = nodemailer.createTransport({
@@ -64,6 +70,7 @@ async function sendViaSmtp({ to, subject, html }: SendEmailOptions): Promise<Sen
       to,
       subject,
       html,
+      ...(replyTo ? { replyTo } : {}),
     })
     return { ok: true, from }
   } catch (e: any) {
@@ -73,7 +80,7 @@ async function sendViaSmtp({ to, subject, html }: SendEmailOptions): Promise<Sen
 }
 
 // ── Brevo HTTP API 发送（回退）──────────────────────────────────────────────
-async function sendViaBrevo({ to, subject, html }: SendEmailOptions): Promise<SendEmailResult> {
+async function sendViaBrevo({ to, subject, html, fromName, replyTo }: SendEmailOptions): Promise<SendEmailResult> {
   const apiKey = process.env.BREVO_API_KEY
   if (!apiKey) {
     console.warn('[email] BREVO_API_KEY not configured, skipping email to', to)
@@ -81,7 +88,7 @@ async function sendViaBrevo({ to, subject, html }: SendEmailOptions): Promise<Se
   }
 
   const fromEmail = process.env.EMAIL_FROM_ADDRESS ?? 'noreply@mirrorspeed.com'
-  const fromName  = process.env.EMAIL_FROM_NAME    ?? 'MirrorSpeed'
+  const senderName = fromName ?? process.env.EMAIL_FROM_NAME ?? 'MirrorSpeed'
 
   let res: Response
   try {
@@ -92,8 +99,9 @@ async function sendViaBrevo({ to, subject, html }: SendEmailOptions): Promise<Se
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender:      { name: fromName, email: fromEmail },
+        sender:      { name: senderName, email: fromEmail },
         to:          [{ email: to }],
+        ...(replyTo ? { replyTo: { email: replyTo } } : {}),
         subject,
         htmlContent: html,
       }),
