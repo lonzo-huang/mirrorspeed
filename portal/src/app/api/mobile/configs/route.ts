@@ -6,6 +6,16 @@ import { lookup as dnsLookup } from 'node:dns/promises'
 import { NextRequest, NextResponse } from 'next/server'
 import type { Database } from '@/types/database.types'
 
+// 券商等「必须显示境外」的域名：客户端据此强制走代理(压过智能分流 airlane-cn 的 CN ip_cidr)，
+// 否则老虎/富途这类中资券商连到中国 IP 会被判直连 → 暴露国内 IP → 被判「国内网络」禁止下单。
+// 线上增删：改 app_config.key='force_proxy_domains'(逗号分隔的域名)即可，无需发版；
+// 缺省时用下面这份内置默认(需与客户端 ApiService.defaultForceProxyDomains 保持一致)。
+const DEFAULT_FORCE_PROXY_DOMAINS = [
+  'tigerfintech.com', 'itigerup.net', 'itiger.com', 'laohu8.com',
+  'tigersecurities.com', 'tigerbrokers.com', 'tigertrade.com',
+  'futunn.com', 'futu5.com', 'moomoo.com', 'futuhk.com',
+]
+
 // 按需建 peer 模型（见 docs/on-demand-provisioning.md）：
 //   - 每个设备有一对**全局密钥** + 一个**全局唯一 IP**（跨服务器复用）。
 //   - configs 不再在每台服务器预建 peer；只用设备密钥**生成各节点的 WG 配置**返回。
@@ -82,6 +92,18 @@ export async function GET(req: NextRequest) {
     : false
   const isPaidUser = !!sub || hasActiveBonus
 
+  // ── 券商强制代理域名（线上可改：app_config.force_proxy_domains，缺省用内置默认）──
+  let forceProxyDomains = DEFAULT_FORCE_PROXY_DOMAINS
+  {
+    const { data: fpRow } = await admin
+      .from('app_config' as any).select('value').eq('key', 'force_proxy_domains').maybeSingle()
+    const raw = (fpRow as any)?.value as string | undefined
+    if (raw && raw.trim()) {
+      const parsed = raw.split(',').map((s: string) => s.trim()).filter(Boolean)
+      if (parsed.length) forceProxyDomains = parsed
+    }
+  }
+
   // ── 免费额度（付费用户不限制）────────────────────────────
   let dailyQuotaBytes:   number | null = null
   let dailyQuotaSeconds: number | null = null
@@ -100,7 +122,7 @@ export async function GET(req: NextRequest) {
   const { data: devicesRaw } = await devQuery
   const devices = (devicesRaw ?? []) as Array<{ id: string; device_label: string }>
   if (!devices.length) {
-    return NextResponse.json({ devices: [], _debug: 'no_devices' })
+    return NextResponse.json({ devices: [], force_proxy_domains: forceProxyDomains, _debug: 'no_devices' })
   }
 
   // ── 各设备今日用量 / 挂起状态（用于客户端配额提示）──────────
@@ -230,5 +252,5 @@ export async function GET(req: NextRequest) {
 
   const totalServers = result.reduce((s, d) => s + d.servers.length, 0)
   console.log(`[mobile/configs] user=${user.id} devices=${result.length} servers=${totalServers} paid=${isPaidUser} (on-demand)`)
-  return NextResponse.json({ devices: result })
+  return NextResponse.json({ devices: result, force_proxy_domains: forceProxyDomains })
 }

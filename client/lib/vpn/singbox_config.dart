@@ -54,6 +54,7 @@ class SingboxConfig {
     String? cnRuleSetPath,           // 首选：airlane-cn.srs 的本地绝对路径(仅域名级)；非 Apple 由调用方释放后传入
     bool overseas = false,           // 海外方案：不加 airlane-cn 国内直连条件(无 GFW,国内外都经节点)
     bool ipv6 = false,               // 仅当系统确有可用 IPv6 时给 tun 加 v6 地址（见下）
+    List<String>? forceProxyDomains, // 券商等"必须显示境外"的域名(服务端下发)：强制走代理，压过 airlane-cn
   }) {
     // 选中节点的 outbound(强制 tag=proxy)
     final proxy = Map<String, dynamic>.from(outbound)..['tag'] = 'proxy';
@@ -99,6 +100,14 @@ class SingboxConfig {
     // 优先级最高。（adOnly 模式本就只代理广告域名，不重复加。）
     if (!adOnly) {
       route['rules'].add({'domain_suffix': _adDomains, 'outbound': 'proxy'});
+    }
+
+    // 券商等"必须显示境外"的域名始终走代理：放在分应用/airlane-cn 规则之前，优先级最高。
+    // 否则智能模式下这些域名连到中国 IP，会被 airlane-cn 的 ip_cidr 判直连 → 暴露国内 IP、
+    // 被券商判「国内网络」禁止下单。列表由 /api/mobile/configs 下发(force_proxy_domains)，
+    // 增删券商无需发版；靠 sniff 取 SNI 命中，早于 ip_cidr。
+    if (!adOnly && forceProxyDomains != null && forceProxyDomains.isNotEmpty) {
+      route['rules'].add({'domain_suffix': forceProxyDomains, 'outbound': 'proxy'});
     }
 
     if (adOnly) {

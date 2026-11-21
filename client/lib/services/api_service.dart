@@ -20,6 +20,16 @@ class ApiService {
   final _secure = const FlutterSecureStorage();
   static const _kConfigCacheKey = 'cached_configs_body_v1';
 
+  /// 券商等「必须显示境外」的域名默认列表——服务端 force_proxy_domains 未下发/离线时的兜底。
+  /// 智能模式下这些域名被强制走代理，避免连到中国 IP 被 airlane-cn 的 ip_cidr 判直连而暴露国内。
+  static const List<String> defaultForceProxyDomains = [
+    // 老虎证券
+    'tigerfintech.com', 'itigerup.net', 'itiger.com', 'laohu8.com',
+    'tigersecurities.com', 'tigerbrokers.com', 'tigertrade.com',
+    // 富途 / moomoo
+    'futunn.com', 'futu5.com', 'moomoo.com', 'futuhk.com',
+  ];
+
   String? get _token => Supabase.instance.client.auth.currentSession?.accessToken;
 
   Map<String, String> get _headers => {
@@ -150,6 +160,25 @@ class ApiService {
       if (kDebugMode) debugPrint('读取优质配置缓存失败: $e');
       return [];
     }
+  }
+
+  /// 读取券商强制代理域名：优先用上次 configs 响应里下发的 force_proxy_domains
+  /// （随 _kConfigCacheKey 一起缓存），没有或解析失败则回退内置默认。
+  /// 构建 sing-box 配置时注入，使这些域名在智能模式下也强制走代理。
+  Future<List<String>> loadForceProxyDomains() async {
+    try {
+      final raw = await _secure.read(key: _kConfigCacheKey);
+      if (raw != null && raw.isNotEmpty) {
+        final body = jsonDecode(raw) as Map<String, dynamic>;
+        final list = (body['force_proxy_domains'] as List?)
+            ?.whereType<String>()
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList();
+        if (list != null && list.isNotEmpty) return list;
+      }
+    } catch (_) {/* 回退默认 */}
+    return defaultForceProxyDomains;
   }
 
   /// 登出时清除优质配置缓存（不保留上一账号的节点/私钥）。

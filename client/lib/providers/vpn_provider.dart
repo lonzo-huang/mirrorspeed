@@ -529,6 +529,9 @@ class VpnProvider extends ChangeNotifier {
       cnCidrs = await _loadCnCidrs();
     }
 
+    // 券商等「必须显示境外」的域名：服务端下发(离线用内置默认)，强制走代理压过 airlane-cn。
+    final forceProxyDomains = await ApiService.instance.loadForceProxyDomains();
+
     final cfg = SingboxConfig.build(
       outbound,
       smart: _routingMode == RoutingMode.smart,
@@ -536,6 +539,7 @@ class VpnProvider extends ChangeNotifier {
       includeProcesses: incProc, excludeProcesses: excProc,
       cnCidrs: cnCidrs, cnRuleSetPath: cnRsPath, overseas: overseas,
       ipv6: await _tunIpv6(),   // 让 tun 接管 ::/0，堵 IPv6 泄漏(否则 ip.sb 等双栈站走真实 v6 绕过隧道)
+      forceProxyDomains: forceProxyDomains,
     );
     debugPrint('[VPN] 优质节点走 sing-box，协议=${outbound['type']}'
         '，inc=${inc?.length ?? 0} exc=${exc?.length ?? 0}'
