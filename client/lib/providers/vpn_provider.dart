@@ -95,6 +95,14 @@ class VpnProvider extends ChangeNotifier {
   ConnMode           _connMode         = ConnMode.auto;   // 用户「连接模式」偏好
   bool               _switchingToRelay = false;
 
+  // ── 自动降级（UDP 失败 → 同节点换 TCP）────────────────────────────
+  // _forcedLayer：降级时强制用某一协议层（覆盖 _connMode 的静态挑选）；null=按模式挑。
+  // _degrading  ：降级进行中——此时 disconnected 事件不得清 _activeServer（要留着重连同节点）。
+  // _connectEpoch：每次新连接自增；连通性验证/降级循环捕获它，一旦被新连接取代即自行退出。
+  VpnProtocol?       _forcedLayer      = null;
+  bool               _degrading        = false;
+  int                _connectEpoch     = 0;
+
   // 用户主动断开标志：置位后，任何挂起的连通性探测/回退计时器都不得再发起
   // 新的连接尝试（修复「手动断开后又自动切到下一模式」）。connect() 清零。
   bool               _userInitiatedDisconnect = false;
@@ -352,7 +360,8 @@ class VpnProvider extends ChangeNotifier {
         // _switchingToRelay 在此处故意不重置——需等到
         // relay 的 startVpn 触发 connected 后才置 false，
         // 以便 connected 分支能正确识别并取消 _fallbackTimer。
-        if (!_switchingToRelay && _activeServer != null && _error == null) {
+        // 降级中(_degrading)故意保留 _activeServer，等换协议重连；否则无节点可重连。
+        if (!_switchingToRelay && !_degrading && _activeServer != null && _error == null) {
           _activeServer = null;
         }
       case VpnStage.disconnecting:
@@ -409,6 +418,9 @@ class VpnProvider extends ChangeNotifier {
     activeFreeNode    = null;
     _activeServer     = server;
     _userInitiatedDisconnect = false;  // 新的连接尝试，解除断开锁
+    _forcedLayer      = null;          // 新连接从用户选的模式起（降级状态清零）
+    _degrading        = false;
+    _connectEpoch++;                   // 作废上一轮验证/降级循环
     _fallbackTimer?.cancel();
     _statsBaseline    = null;   // 新隧道，用量基线重置（首个轮询重新建立基线）
     notifyListeners();
@@ -477,6 +489,7 @@ class VpnProvider extends ChangeNotifier {
   /// 端口跳跃不在这里算 —— 范围由后端放在 hysteria2.ports 里，交给 sing-box 原生
   /// 完成（见 docs/singbox-migration.md §9）。
   Future<void> _connectViaSingbox(ServerConfig server, SingboxPremium sb) async {
+    final myEpoch = ++_connectEpoch;   // 本次尝试的世代号，供连通性验证/降级循环识别是否被取代
     final outbound = _pickSingboxOutbound(sb);
     if (outbound == null) {
       _error = '该节点暂不支持当前连接模式';
@@ -556,7 +569,7 @@ class VpnProvider extends ChangeNotifier {
       _startTrialTracking();  // 连上即开始免费时长倒计时(付费用户内部 no-op)
       notifyListeners();
     }
-    _measureUsable();   // 打点：隧道起来后多久能真正通网(不阻塞)
+    _verifyAndMaybeDegrade(server, sb, myEpoch);   // 连通性验证 + 失败降级/提示(不阻塞)
   }
 
   /// tun 是否声明 IPv6(接管 ::/0)。安卓一律声明——否则双栈站点(如 ip.sb)的 IPv6 流量会
@@ -597,19 +610,86 @@ class VpnProvider extends ChangeNotifier {
     _appliedTunScope = scope;
   }
 
-  /// 诊断：从点连接到首次「能真正上网」(探测 generate_204 成功)的耗时。不阻塞连接。
-  Future<void> _measureUsable() async {
+  /// 连通性验证 + 失败降级/提示（取代原 _measureUsable，同时承担其诊断打点职责）。
+  /// 连上后在 ~6s 窗口内探测 generate_204：
+  ///   • 探通 → 记录 lastUsableMs，成功收尾；
+  ///   • 窗口结束仍不通 / 隧道中途断开 → 交 _handleLayerFailure 按模式处理。
+  /// [myEpoch] 为本次尝试世代；被新连接取代或用户手动断开即退出，绝不误降级。
+  Future<void> _verifyAndMaybeDegrade(ServerConfig server, SingboxPremium sb, int myEpoch) async {
     final sw = _connectSw;
-    if (sw == null) return;
-    for (int i = 0; i < 30; i++) {           // 最多 ~15s
-      if (_status != VpnStatus.connected || _userInitiatedDisconnect) return;
-      if (await _probeConnectivity()) {
-        lastUsableMs = sw.elapsedMilliseconds;
+    // 6s 窗口：最多 3 次 × 2s 超时（好节点首探 <1s 即过；掐 UDP 约 6s 判死）。
+    for (int i = 0; i < 3; i++) {
+      if (myEpoch != _connectEpoch || _userInitiatedDisconnect) return;  // 被取代/已断开
+      if (_status != VpnStatus.connected) break;                          // 隧道已断 → 判失败
+      if (await _probeConnectivity(timeout: const Duration(seconds: 2))) {
+        _degrading   = false;                      // 连通成功，结束降级链
+        lastUsableMs = sw?.elapsedMilliseconds;    // 诊断打点
         notifyListeners();
         return;
       }
-      await Future.delayed(const Duration(milliseconds: 500));
     }
+    if (myEpoch != _connectEpoch || _userInitiatedDisconnect) return;
+    await _handleLayerFailure(server, sb);
+  }
+
+  /// 当前协议层连不通后的处理：自动模式降级重连；指定模式只提示（尊重用户选择）。
+  Future<void> _handleLayerFailure(ServerConfig server, SingboxPremium sb) async {
+    final zh = _isZh();
+    if (_connMode == ConnMode.auto) {
+      final next = _nextLayer(_protocol, sb);
+      if (next != null) {
+        if (_userInitiatedDisconnect) return;
+        debugPrint('[VPN] 自动降级：$_protocol → $next（同节点换协议重连）');
+        _forcedLayer = next;
+        _degrading   = true;      // 保 _activeServer 不被随后的 disconnected 事件清掉
+        _status      = VpnStatus.connecting;
+        notifyListeners();
+        // 不显式 stop：与正常连接一致走原生「热重载」，换上 reality 的 outbound，
+        // 避免拆 tun 的闪断；_connectViaSingbox 会用 _forcedLayer 挑下一层并再次验证。
+        await _connectViaSingbox(server, sb);
+        return;
+      }
+      await _failWith(zh ? '所有协议都连不通，请切换节点' : 'All protocols failed. Please switch node.');
+      return;
+    }
+    // 指定模式：只提示，不自动切换
+    if (_connMode == ConnMode.direct) {
+      await _failWith(zh ? '快速模式连不通（可能被网络限制 UDP），建议切换到强力模式'
+                         : 'Fast mode failed (UDP may be blocked). Try Strong mode.');
+    } else if (_connMode == ConnMode.relay) {
+      await _failWith(zh ? '强力模式连不通，建议更换节点' : 'Strong mode failed. Try another node.');
+    } else {
+      await _failWith(zh ? '当前模式连不通，建议更换节点' : 'Connection failed. Try another node.');
+    }
+  }
+
+  /// 协议层降级顺序：hy2(快速) → reality(强力) → ws(超级)。只纳入已下发的层，
+  /// 所以超级(ws)未下发时自动跳过。返回 [cur] 之后的下一层；没有则 null。
+  VpnProtocol? _nextLayer(VpnProtocol cur, SingboxPremium sb) {
+    final order = <VpnProtocol>[
+      if (sb.hysteria2 != null) VpnProtocol.direct,
+      if (sb.reality   != null) VpnProtocol.relay,
+      if (sb.ws        != null) VpnProtocol.cloudflare,
+    ];
+    final idx = order.indexOf(cur);
+    if (idx < 0 || idx + 1 >= order.length) return null;
+    return order[idx + 1];
+  }
+
+  /// 终态失败：拆掉无用隧道、置错误提示、清降级状态与节点。
+  Future<void> _failWith(String msg) async {
+    _forcedLayer = null;
+    _degrading   = false;
+    try { await _engine.stop(); } catch (_) {}
+    _stopConnectedPing();
+    _stopDiagPolling();
+    _usageTimer?.cancel();
+    _stopTimer();
+    if (_userInitiatedDisconnect) return;   // 用户已手动断开，不覆盖其状态
+    _error        = msg;
+    _status       = VpnStatus.error;
+    _activeServer = null;
+    notifyListeners();
   }
 
   List<String>? _cnCidrsCache;
@@ -632,6 +712,14 @@ class VpnProvider extends ChangeNotifier {
     final hy2     = sb.hysteria2?.outbound(sb.hy2Password);
     final reality = sb.reality?.outbound(sb.uuid);
     final ws      = sb.ws?.outbound(sb.uuid);
+    // 降级进行中：强制用指定的协议层（不再按 _connMode 回退，避免又挑回 hy2）。
+    if (_forcedLayer != null) {
+      switch (_forcedLayer!) {
+        case VpnProtocol.direct:     return hy2;
+        case VpnProtocol.relay:      return reality;
+        case VpnProtocol.cloudflare: return ws;
+      }
+    }
     switch (_connMode) {
       case ConnMode.direct:     return hy2 ?? reality ?? ws;
       case ConnMode.relay:      return reality ?? ws ?? hy2;
@@ -748,11 +836,11 @@ class VpnProvider extends ChangeNotifier {
 
   /// 通用连通性探测：经隧道请求外网 generate_204，5 秒超时。
   /// 返回 true 表示隧道内流量真正畅通。
-  Future<bool> _probeConnectivity() async {
+  Future<bool> _probeConnectivity({Duration timeout = const Duration(seconds: 5)}) async {
     try {
       final res = await http.get(
         Uri.parse('https://connectivitycheck.gstatic.com/generate_204'),
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(timeout);
       return res.statusCode == 204 || res.statusCode < 400;
     } catch (_) {
       return false;
